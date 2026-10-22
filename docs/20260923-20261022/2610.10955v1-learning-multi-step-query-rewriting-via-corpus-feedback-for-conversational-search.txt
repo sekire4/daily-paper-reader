@@ -1,0 +1,323 @@
+Title: Learning Multi-Step Query Rewriting via Corpus Feedback for Conversational Search
+
+URL Source: https://arxiv.org/pdf/2610.10955v1
+
+Published Time: Fri, 09 Oct 2026 00:34:26 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Learning Multi-Step Query Rewriting via Corpus Feedback for Conversational Search 
+
+João Coelho 1⋆, Hong Wang 2, Jie Yuan 2, Zhuoer Wang 2, Samson Koelle 2, and Wei Niu 2 
+
+> 1
+
+INESC-ID and Carnegie Mellon University  
+
+> 2
+
+Amazon 
+
+jmcoelho@andrew.cmu.edu 
+
+Abstract. Conversational Query Rewriting (CQR) turns a context de-pendent user turn into a standalone query for a retriever, and most meth-ods do this in a single step from the dialogue history before retrieving once. The rewrite is therefore fixed before any corpus evidence is available to correct its reference resolution or its vocabulary. We recast CQR as a sequential retrieval problem: an agent rewrites the current turn, retrieves, and conditions its next rewrite on the returned passages. The agent acts in a typed space of three rewriting operations, resolving conversa-tional intent into a standalone query, generating lexical reformulations, or synthesizing pseudo-documents for document-to-document matching, together with a stop action that ends the episode. We train the policy with supervised fine-tuning followed by reinforcement learning against a single retrieval-quality reward, using no human rewrite annotations. Across TopiOCQA and QReCC, the agent outperforms several retrieval-aligned baselines, while remaining effective across retrieval backends and generalizing to the CAsT benchmarks without additional training. Fur-ther analysis shows that, through retrieval-reward optimization alone, the learned policy develops a behavior of grounding pseudo-documents in passages retrieved by earlier steps, substantially improving retrieval. 
+
+Keywords: Query Rewriting · Retrieval Feedback · LLM Agents 
+
+## 1 Introduction 
+
+Conversational search systems must handle queries whose meaning depends on prior turns [36,57]. A question such as “when was it released?” cannot be re-solved without the entities and topics established earlier in the conversation. Conversational Query Rewriting (CQR) transforms the current turn into a self-contained query that an existing retriever can process, and it is the standard interface between conversational systems and retrieval infrastructure [2,7,45,55]. Most CQR methods produce a single rewrite from the conversational his-tory and issue it directly to the retriever. This includes both supervised rewrit-ers trained on human annotations [25,45,55], and recent reinforcement learning  
+
+> ⋆
+
+Work done while interning at Amazon. arXiv:2610.10955v1 [cs.IR] 7 Oct 2026 2 Coelho et al. 
+
+methods that optimize rewriting from retrieval rewards. ConvSearch-R1 [61], for example, learns to rewrite using retrieval feedback but still makes a single rewriting decision before seeing any retrieved documents. Consequently, these methods cannot adapt the query to the language and entities used in the tar-get corpus. Using retrieval results to inform a subsequent query is, however, a long-standing idea in information retrieval. Pseudo-relevance feedback methods use terms from top-ranked documents to expand the initial query for a subse-quent retrieval [11,40,20]. This principle has also been applied to conversational search, where retrieved documents are used to expand or refine conversational queries [26,38]. Such approaches typically rely on predefined feedback mecha-nisms, fixing how information from retrieved documents is incorporated into the subsequent query rather than learning this process from retrieval outcomes. Recent agentic search systems extend this iterative paradigm by alternating between search and reasoning until enough evidence is gathered to answer a question [15,44]. They are typically trained and evaluated for end-to-end question answering, where retrieval is an intermediate step. How a conversational query should be reformulated after observing retrieved evidence, and how successive retrievals can progressively refine it, remains comparatively unexplored. In this work, we formulate conversational query rewriting as a sequential re-trieval problem. An agent repeatedly reformulates the current turn, issues each reformulation to the retriever, and uses the returned passages as feedback for its next decision. It chooses among three typed rewriting operations: (i) resolving conversational intent into a self-contained query, (ii) generating lexical refor-mulations, and (iii) synthesizing pseudo-documents for document-to-document matching [9]; it can also issue a stop action that ends the episode. We train the policy with supervised fine-tuning followed by reinforcement learning, using retrieval quality as the only objective and no human rewrite annotations. We first evaluate results in the standard in-domain setting, training and eval-uating on TopiOCQA and QReCC with BM25, and comparing against existing retrieval-aligned CQR methods under the same setup. We then test general-ization across retrieval backends, by replacing BM25 with a dense retriever at inference time. Finally, we test zero-shot transfer by evaluating the TopiOCQA-and QReCC-trained models on TREC CAsT without further training. Across these settings, the multi-step agent improves over multiple baselines, with further analysis showing that retrieval-reward optimization alone leads the learned pol-icy to progressively ground its reformulations in corpus evidence: it first resolves the query intent, optionally refines its lexical formulation, and finally generates pseudo-documents conditioned on passages retrieved by earlier steps. 
+
+## 2 Related Work 
+
+Conversational Query Rewriting. Conversational search requires resolving the context dependence of user turns before retrieval [36,57]. One line of work trains conversational dense retrievers that encode the full dialogue history into a query representation [24,30,32,56], which couples context resolution to a retriever that Multi-Step Query Rewriting via Corpus Feedback 3
+
+must itself be trained. Conversational query rewriting instead produces a stan-dalone query that any off-the-shelf retriever can consume, which is the setting we adopt. Early rewriters learned from human rewrites collected in datasets such as CANARD, QReCC, and CAsT [2,5,7], either as sequence-to-sequence generators [25,45,55] or as term selectors [46]. Since human rewrites are written for readability rather than retrieval, subsequent work aligns the rewriter with the retriever through retrieval-based rewards [49], preference- or ranking-based optimization over candidate rewrites [19,53,58], retrieval-guided iterative data refinement [12], or by augmenting the rewrite with generated answers [37] or LLM-enhanced conversation history [35]. With LLMs, prompted rewriting became competitive without fine-tuning the rewriter [18,31,52], and ConvSearch-R1 [61] removes external rewrite supervi-sion by optimizing an LLM rewriter with reinforcement learning against a rank-shaped retrieval reward. ICR [3] departs from single-step generation by alternat-ing self-posed clarification questions with progressively refined rewrites, learned from retrieval-filtered trajectories through supervised and preference training, and fusing the rankings of all intermediate rewrites. Its refinement, however, operates on the query and dialogue alone: no step observes retrieved passages. Across these methods, retrieval signals, when used, enter only at training time, while the rewrites issued at inference are produced without observing the corpus. We retain annotation-free, retrieval-aligned training, but condition each rewrite on the passages returned by the previous ones. 
+
+Pseudo-Relevance Feedback. Using the top of an initial ranking to refine a sub-sequent query is a long-standing idea in IR, from Rocchio’s vector-space up-date [40] to relevance models such as RM3 [11,20], and has been carried over to dense retrieval, either by training a query encoder on feedback passages [54] or by expanding the query with embeddings drawn from them [48]. LLMs shifted ex-pansion towards generation, synthesizing pseudo-documents or answers that are matched against the collection [9,10,29,47]. Because such text is produced from parametric knowledge, it can diverge from the facts and vocabulary of the target corpus, which motivates conditioning generation on retrieved passages [21,42]. Feedback has likewise been applied to conversational search, expanding the current turn with history terms selected by their behavior on the collection [26] or with keywords and expected answers extracted from initially retrieved pas-sages [38]. In these approaches the feedback mechanism is fixed a priori, i.e., the number of rounds, what is extracted from the passages, and how it is merged into the query are all hand-designed. We instead propose that an agent learns from retrieval reward which reformulation to apply at each step and when to stop. Pseudo-document generation is one of the agent’s actions, grounded in passages retrieved at earlier steps rather than generated zero-shot. 
+
+Reinforcement Learning for Search Agents. Reinforcement learning has been used to train query rewriters against retrieval or answer rewards [13,28,33], typically emitting a single rewrite per input. In parallel, agentic search sys-tems interleave reasoning with repeated calls to a search engine, first through 4 Coelho et al. 
+
+prompting [22,39,44,51] and more recently through reinforcement learning, e.g., with GRPO [4,15,41,43,60]. These agents are trained for end-to-end question an-swering, where retrieval is an intermediate step. Even approaches that train the searcher separately from the generator reward it through downstream answer quality [14], so query reformulation is rarely studied on its own. ChatR1 [27] and ConvAgent [34] bring this paradigm to conversational ques-tion answering, interleaving search and reasoning within each turn and densify-ing the answer reward with intermediate signals, namely intent-aware turn-level rewards on search queries and the coverage of the gold answer by retrieved pas-sages, respectively, the latter alongside a reward for mixed-initiative actions. Both remain optimized primarily for answer quality and require reference an-swers for training. We differ in objective and action space. Our policy is re-warded solely on the ranking induced by the final reformulation, requiring only passage relevance labels, with neither answers nor rewrite annotations. It also acts through a typed set of reformulation operations, which lets us analyze how reformulation strategies are sequenced in response to corpus feedback. 
+
+## 3 Methodology 
+
+This section formalizes the task (§3.1), defines the agent and its typed action space (§3.2), and describes the the training pipeline (§3.3). 
+
+3.1 Task Formulation 
+
+A conversational search session is a sequence of user queries and system answers. At turn t, the user issues a query qt that may contain ellipsis or topic shifts rela-tive to the conversation history Ct−1 = {(q1, a 1), . . . , (qt−1, a t−1)}. The retrieval objective is to rank the relevant passages for qt as high as possible in a collection 
+
+D, using a retriever R(·) that scores passages against a query string. Single-shot CQR instantiates this as learning a function rt = f (qt, C t−1) and issuing rt to R once. We instead formulate the problem as an episode: given (qt, C t−1), an agent interacts with R over multiple steps, issuing intermediate rewrites and observing their retrieval results, before committing to a final re-trieval state. The episode is internal to resolving turn t, and it is distinct from the conversational turns themselves. 
+
+3.2 Agent Design 
+
+At each step s of the episode, the agent observes the conversational history, the current query, and the retrieval results of all previous steps. Then, it issues one of the following actions: 
+
+– <intent> : produce a self-contained reformulation of qt, resolving references and ellipsis against Ct−1. This action targets the gap between the surface query and the underlying information need. Multi-Step Query Rewriting via Corpus Feedback 5
+
+– <rephrase> : produce a lexical variant of the current formulation, targeting vocabulary mismatch between the query and the relevant passages. 
+
+– <hyde> : produce a pseudo-document that may answer the resolved query, enabling document-to-document matching [9]. 
+
+– <stop> : terminate the episode. Each of the first three actions emits a tag followed by a rewrite, which is issued to R, and the top-k passages are appended to the context. Each subsequent action is therefore conditioned on corpus feedback, i.e. the evidence retrieved by earlier rewrites, rather than on the conversation alone. The episode ends when the agent emits <stop> or reaches a step budget of T steps. The actions differ in how much they can exploit corpus evidence. While intent resolution can operate on the conversation alone, rephrasing and pseudo-document generation can draw on the vocabulary observed in retrieved passages. The system prompt specifies no order among the actions, and the agent may issue any action at any step. 
+
+3.3 Training 
+
+We train the agent in two stages, namely using a supervised fine-tuning stage that instills the action format, followed by a reinforcement learning stage that optimizes rewrite quality against the retriever. 
+
+Supervised Fine-Tuning. Following common practice in RL-based agent train-ing [16,61], we precede reinforcement learning with a supervised fine-tuning stage that addresses a cold-start problem where the small base model that has never emitted the action format produces mostly invalid trajectories, leaving GRPO without gradient signal. Since we train small models, we distill trajectories from a larger model of the same family running the agent harness described in Section 3.2, and retain trajectories that follow the action format. The resulting check-point reliably emits typed actions but is not yet aligned with the retriever; that alignment is the role of the RL stage. 
+
+Reinforcement Learning. We train the SFT checkpoint with GRPO [41]. Given a conversational turn instance x = ( qt, C t−1), the behavior policy produces a group of K trajectories G(x) = {o1, . . . , o K }, where each trajectory is a full episode of interleaved actions, rewrites, and retrieval results. Each trajectory receives a scalar reward ri = R(oi, x ) described below. We compute group-normalized advantages from the rewards: 
+
+Ai = ri − μG
+
+σG + ϵnorm 
+
+, μG = 1
+
+K
+
+> K
+
+∑
+
+> j=1
+
+rj , (1) where σG is the standard deviation of rewards in the group and ϵnorm is a small numerical constant. The trajectory-level advantage Ai is assigned to every valid token in oi, with tokens belonging to retrieved passages being masked from the loss. The policy is optimized with the clipped objective: 6 Coelho et al. 
+
+J (θ) = Ex,G 
+
+[
+
+1
+
+∑Ki=1 LiK∑
+
+> i=1
+> Li
+
+∑ 
+
+> τ=1
+
+min 
+
+(
+
+ρi,τ Ai, clip( ρi,τ , 1 − ϵ, 1 + ϵ) Ai
+
+)]
+
+, (2) where Li is the number of valid tokens in oi and ρi,τ is the per-token importance ratio between the current policy πθ and the behavior policy πθold :
+
+ρi,τ = πθ (oi,τ | x, o i,<τ )
+
+πθold (oi,τ | x, o i,<τ ) . (3) 
+
+Retrieval Reward. Using retrieval metrics such as nDCG@ k directly as rewards yields sparse signal, since most rewrites leave the gold passage outside the metric cutoff. We adopt Rank-Incentive Reward Shaping (RIRS), also used by ConvSearch-R1 [61], which converts the rank of the gold passage into a dense piecewise reward: ranks 1 through 10 map linearly onto [1 , 2], ranks 11 through 100 map onto [0 , 1], and ranks beyond 100 receive zero. The reward is computed from the top-100 ranking produced by the final rewrite issued before <stop> , or from the last issued query if the step budget is exhausted without stopping. Al-though the agent observes only the top-k passages returned at each step, reward computation uses the retriever’s top-100 ranking. Trajectories that violate the action format receive zero reward. 
+
+## 4 Experiments 
+
+This section evaluates our multi-step query rewriting agent. We describe the experimental setup (§4.1), report in-domain results (§4.2), analyze the learned trajectories (§4.3), test generalization to unseen benchmarks and retrieval back-ends (§4.4), and quantify the cost of sequential interaction (§4.5). 
+
+4.1 Experimental Setup 
+
+Datasets. We evaluate on three conversational search benchmarks. QReCC [2] covers query rewriting over a large collection, and we use its standard training (29,596 queries) and testing (8,209 queries) splits. TopiOCQA [1] is built around topic switches, with longer conversations that span several topics, which makes it harder for query reformulation than QReCC [1,37]. We use its standard training set (45,450 queries) and development set (2,514 queries). Training uses half the queries for SFT, and the remaining half for RL. TREC CAsT [5,6] is used ex-clusively for zero-shot evaluation, i.e., models trained on QReCC or TopiOCQA are evaluated on CAsT without further training. 
+
+Retrievers. Following prior work [53,61], we use BM25 ( k1=0 .90, b=0 .40 for TopioCQA; k1=0 .82, b=0 .68 for QReCC) as our sparse retriever through Py-serini [23]. For generalization experiments, we leverage ANCE [50] and Qwen3-Embedding-0.6B [59] as dense retrievers through FAISS [17]. No retriever is trained or adapted in any of our experiments. Multi-Step Query Rewriting via Corpus Feedback 7
+
+Baselines. We compare against the raw conversational query and five trained rewriters: CHIQ-Fusion [35], AdaQR [58], ADACQR [19], RETPO [53], and ConvSearch-R1 [61], the strongest prior method and our primary point of com-parison. All baseline numbers are taken from ConvSearch-R1’s evaluation, which shares our evaluation splits, retriever, and metrics. We re-ran ConvSearch-R1’s released inference code and weights and reproduced its reported scores. We also apply RM3 [20] to our agent’s first rewriting step, contrasting a fixed single-round feedback mechanism with the agent’s learned multi-step feedback. 
+
+System Configurations. We compare three configurations of our system, each trained with the same procedure and differing only in what the policy is allowed to do. The single-step, single-action configuration emits one free-form rewrite and issues it once, reproducing the ConvSearch-R1 setting within our harness and isolating the contribution of the backbone from that of the method. The 
+
+single-step, multi-action configuration selects one action from the typed space and issues it once, isolating the value of typed rewriting from that of iteration. The multi-step, multi-action configuration is the full agent, selecting a typed action at each step and conditioning on the passages retrieved so far. For each configuration, we report the untrained Qwen3-4B and Qwen3-32B backbones under the same prompt and harness, the checkpoint after supervised fine-tuning, and the checkpoint after reinforcement learning. We use Qwen3-4B as the backbone for every trained configuration. The agent runs for at most T = 5 steps, and each search appends the top 5 passages to the context, each truncated to 128 tokens. At each step, the agent can generate up to 512 tokens, with a total trajectory budget of 8192 tokens covering both agent generations and retrieved passages. SFT trajectories are distilled from the agent running with Qwen3-32B as the backbone, with a separate SFT checkpoint per configuration, since the configurations differ in action space. Reinforcement learning uses GRPO with group size K = 8 and the rank-incentive reward that was described in Section 3.3. Additional details are shown on Appendix A. 
+
+4.2 Results 
+
+Table 1 reports the main comparison. The full multi-step, multi-action agent achieves the highest MRR and NDCG@3 among the compared methods, in-cluding both ConvSearch-R1 variants. The gains are largest on TopiOCQA, the benchmark with the most frequent topic shifts, and concentrate at the top of the ranking. The gains are therefore more evident in the precision-oriented met-rics, indicating that successive rewrites primarily improve the top of the ranking rather than broaden its coverage. The controlled configurations show that the gain comes from the combination of iteration and typed rewriting. On TopiOCQA, our single-step, single-action 
+
+setting, which mirrors the ConvSearch-R1 formulation, achieves performance consistent with that reported by ConvSearch-R1. Allowing the agent to choose among typed actions without allowing iteration instead reduces performance, showing that the typed action space alone is not beneficial. The full multi-step, 8 Coelho et al. 
+
+Table 1. Retrieval results on TopiOCQA and QReCC over a sparse (BM25) backend. Baseline numbers come from ConvSearch-R1 [61]. Bold indicates the best result per column, and † indicates a statistically significant improvement over ConvSearch-R1 re-run from its open weights (paired t-test over per-query scores, p < 0.05). 
+
+TopiOCQA QReCC Method MRR nDCG@3 R@10 MRR nDCG@3 R@10 
+
+Baselines 
+
+Raw query 2.1 1.8 4.0 6.5 5.5 11.1 Step-1 + RM3 18.0 15.6 36.6 37.7 34.4 59.0 AdaQR 20.3 18.0 37.1 50.6 48.0 69.6 CHIQ-Fusion 25.6 23.5 44.7 54.3 51.9 78.5 
+
+ADACQR 28.3 26.5 48.9 55.1 52.5 76.5 RETPO 28.3 26.5 48.3 50.0 47.3 69.5 ConvSearch-R1 (Llama3.2) 37.8 36.2 59.6 55.9 54.3 77.2 ConvSearch-R1 (Qwen2.5) 35.2 33.5 57.8 56.5 54.8 76.3 
+
+Ours (single step, single rewriting action) Qwen3-32B 12.2 11.5 21.8 18.4 17.4 26.3 Qwen3-4B 3.2 2.9 5.7 6.2 5.8 8.6 + SFT 20.7 18.8 38.5 42.7 40.4 61.9 + SFT + RL 34.3 32.5 58.9 56.3 54.4 76.2 
+
+Ours (single step, multiple rewriting actions) Qwen3-32B 16.6 14.6 31.5 34.6 32.5 50.9 Qwen3-4B 3.4 2.9 6.8 7.0 6.5 10.8 + SFT 16.4 14.5 31.1 37.1 34.7 55.1 + SFT + RL 24.6 22.5 44.6 55.7 53.7 75.0 
+
+Ours (multiple steps, multiple rewriting actions) Qwen3-32B 21.6 19.8 38.9 41.3 38.9 60.5 Qwen3-4B 9.7 8.5 18.4 22.5 20.9 34.2 + SFT 19.4 17.5 34.7 38.5 36.3 56.2 + SFT + RL 41.4 † 40.6 † 59.6 57.2 † 55.8 † 75.8 
+
+multi-action agent achieves the strongest results, demonstrating that typed ac-tions become effective when the agent can sequence them in response to re-trieved evidence. QReCC shows the same pattern, although with smaller (yet significant) gains, consistent with the dataset being more saturated, i.e., even relatively simple rewriting methods already achieve MRR above 50%. It is also worth noting that the advantage of iteration is absent after su-pervised fine-tuning and emerges under reinforcement learning. The multi-step SFT checkpoint does not exceed the single-step, single-action SFT checkpoint, i.e., the gap emerges only after RL optimizes against the retriever. Distillation from the 32B-parameter version of the model instills the action format, but the policy that exploits iteration is discovered through the retrieval reward rather than transferred from the distilled trajectories. Multi-Step Query Rewriting via Corpus Feedback 91 2 3 4 5
+
+Max steps 
+
+> 20 30 40 50
+> Score
+
+MRR     
+
+> 12345
+
+Max steps 
+
+> 20 30 40 50
+
+NDCG@3     
+
+> 12345
+
+Max steps 
+
+> 40 50 60 70
+
+R@10  
+
+> TopiOCQA QReCC
+
+Fig. 1. Retrieval quality on TopiOCQA and QReCC (BM25) as the 5-step agent is truncated at inference to a maximum of one to five steps. 1 2 3 4 5             
+
+> Step
+> 0% 25% 50% 75% 100%
+> % of trajectories
+> TopiOCQA
+> 100 97 100 98 93
+> 96% acted
+> 12345
+> Step
+> 0% 25% 50% 75% 100%
+> QReCC
+> 100 95 63 26 36 32
+> 59% acted 6% acted
+> Intent Rephrase HyDE Stop Truncated (context limit)
+
+Fig. 2. Action distribution at each step of the RL-trained policy on TopiOCQA and QReCC (BM25). Bar heights are shares of all trajectories, and numbers inside the bars give the share taking each action. A trajectory stops acting once it emits <stop> or its context fills after retrieved passages are appended ( Truncated ). Label above the bars give the fraction still acting when it falls below 100%. 
+
+4.3 Analysis and Ablations 
+
+Interaction Budget. Figure 1 truncates the 5-step agent at inference without retraining, so every point uses the same policy and differs only in how many reformulations it may issue. Retrieval quality rises steeply over the first three steps and then flattens. Truncated to a single step, the agent scores below the reinforcement-learned baselines in Table 1, suggesting that the improvement depends substantially on sequential interaction rather than on the backbone or typed rewriting actions alone. 10 Coelho et al. 
+
+Learned Action Order. The policy converges to a consistent order that neither the prompt nor the reward enforces (Figure 2). Intent resolution takes the first step of every trajectory on both datasets, and pseudo-document generation dom-inates the final one. SFT alone does not enforce this behavior. Rollouts from the SFT checkpoints average 1.7 search steps, and only 60% open with intent reso-lution, the rest opening with a rephrase or a pseudo-document. Under RL these alternative openings disappear and episodes lengthen to 4.9 search steps on Top-iOCQA and 2.9 on QReCC. Since the reward scores only the ranking of the final rewrite and encodes no preference over order or length, the ordering appears to emerge from retrieval-reward optimization rather than inherited from distilla-tion. A single-step agent restricted to (ungrounded) pseudo-documents, trained with the same procedure, reaches 30.3 nDCG@3 on TopiOCQA, below both the free-form single-step rewriter (32.5) and the full agent (40.6). Pseudo-documents therefore help most when conditioned on passages retrieved by earlier steps. The policy’s transition to pseudo-document generation drives the perfor-mance gains observed in Figure 1, marking the sharpest retrieval improvements in the episode (i.e., step three on TopiOCQA and step two on QReCC). A po-tential issue is that this operation might reduce to trivial re-ranking, i.e., the agent could copy one of the lower-ranked passages among the top-5 results and reissue it verbatim, which, since a passage submitted as a query should retrieve itself at rank one, would promote it without any genuine reformulation. To rule this out, for each pseudo-document we measure 8-gram containment, i.e. the fraction of its 8-word spans occurring verbatim in a passage, maximized over all passages in the agent’s context, and the median was 0. The generation is nonetheless grounded in retrieved evidence, since unigram Jaccard between each pseudo-document and the passages (excluding stop-words) in its context gives a mean of 0.137, against 0.014 for passages drawn from an unrelated query’s context, roughly an order of magnitude higher. Thus, the model incorporates vocabulary from the retrieved passages without simply copying them. Consis-tent with this, replacing the contextual passages at inference with those from an unrelated query reduces nDCG@3 on TopiOCQA from 40.6 to 25.3. 
+
+4.4 Generalization Across Domains and Retrieval Backends 
+
+We next examine whether the learned multi-step rewriting policy generalizes beyond the retrieval setting used for training. We consider two forms of trans-fer: zero-shot evaluation on an unseen conversational search benchmark, and changing the retrieval backend at inference time without retraining the policy. Table 2 evaluates the multi-step, multi-action agent on TREC CAsT 2019 and 2020. Both policies transfer to CAsT without further training, with the TopiOCQA-trained policy being consistently the stronger of the two. A plausi-ble explanation is closer alignment between TopiOCQA and CAsT, since Topi-OCQA is built around topic shifts within a conversation, a property that CAsT conversations also exhibit, and its Wikipedia collection partially overlaps with the TREC CAR portion of the CAsT corpus. The TopiOCQA-trained model exceeds ConvSearch-R1 on NDCG@3 in both CAsT years, suggesting that the Multi-Step Query Rewriting via Corpus Feedback 11 
+
+Table 2. Zero-shot transfer retrieval results on TREC CAsT 2019 and 2020. Baseline numbers come from ConvSearch-R1 [61].                                                            
+
+> CAsT 2019 CAsT 2020 Method MRR NDCG@3 R@10 R@100 MRR NDCG@3 R@10 R@100
+> Baselines
+> Human Rewrite 74.0 46.1 –38.1 59.1 42.2 –46.5 LLM4CS 70.4 46.8 11.7 –58.6 41.5 19.3 –CHIQ-Fusion 73.3 50.5 12.9 –54.0 38.2 19.3 –ConvSearch-R1 76.6 54.0 14.2 42.0 70.6 42.6 15.6 43.8
+> Ours (multiple steps, multiple rewriting actions) – Trained on QReCC Qwen3-4B + SFT + RL 79.1 51.9 14.2 48.4 66.4 38.8 16.2 45.2
+> Ours (multiple steps, multiple rewriting actions) – Trained on TopiOCQA Qwen3-4B + SFT + RL 80.6 54.7 14.1 48.0 70.1 44.1 17.4 47.6
+
+Table 3. Retrieval results of the multi step, multi action agent on TopiOCQA and QReCC when changing search backend during inference. 
+
+TopiOCQA QReCC Inference Retriever MRR NDCG@3 R@10 MRR NDCG@3 R@10 BM25 41.4 40.6 59.6 57.2 55.8 75.8 ANCE 44.0 43.4 64.4 47.0 45.0 66.6 Qwen3-Embedding-0.6B 51.0 50.6 72.4 54.1 52.1 75.0 
+
+learned interaction between typed rewriting and retrieval feedback is not specific to the conversational distribution of the training data. Table 3 evaluates whether a policy trained against BM25 transfers to dense retrievers at inference time, without additional fine-tuning. On TopiOCQA, both dense backends improve over BM25 on every metric, with Qwen3-Embedding yielding the largest gains, indicating that the learned rewriting behavior is not tied to the retriever it was trained with. On QReCC, neither dense backend surpasses BM25, although the gap narrows considerably with the stronger em-bedding model, consistent with prior work reporting BM25 ahead of dense re-trievers on this benchmark [61]. A plausible factor is that QReCC answers share substantial word-level overlap with their supporting passages [58], which favours lexical matching once the rewrite restores the missing context. Overall, the policy transfers across retriever paradigms, while absolute performance still depends on how well the retriever suits the dataset. 
+
+4.5 Cost of Sequential Interaction 
+
+We quantify the inference cost of sequential interaction in terms of generated tokens. We compare against ConvSearch-R1 [61] run from its released weights. As a single-step rewriter, ConvSearch-R1 generates approximately 400 tokens 12 Coelho et al. 1 2 3 4 5        
+
+> Step
+> 0100 200 300 400 500
+> Generated tokens
+> n=2514 100% n=2514 100% n=2514 100% n=2469 98% n=2338 93%
+> TopiOCQA
+> 12345
+> Step
+> 0100 200 300 400 500
+> n=8208 100% n=8190 100% n=5296 65% n=2169 26% n=305 4%
+> QReCC
+> 12345
+> Step
+> 1000 2000 3000 4000 5000 6000
+> Total tokens
+> Trajectory length
+> TopiOCQA QReCC
+
+Fig. 3. (left, middle) Distribution of tokens generated per step, over trajectories that emit a rewrite at that step (i.e., <stop> not considered). (right) Mean trajectory length, i.e. prompt, actions and retrieved passages accumulated up to that step. The QReCC curve flattens at step 5 because longer trajectories have already stopped. 
+
+per example on both datasets. Our individual steps are shorter, e.g., intent res-olution and lexical reformulation typically produce only a few dozen tokens, while average pseudo-document synthesis remains below the length of a single ConvSearch-R1 generation (Figure 3 left and middle). Sequential interaction nevertheless increases total generation cost because each additional step is gen-erated over an expanding context containing previously retrieved passages. The resulting cost is dataset-dependent. On TopiOCQA, 93% of trajectories issue a fifth rewrite, making the later interactions the main source of additional gen-eration cost, whereas on QReCC only 4% issue a fifth rewrite. Thus, although individual rewriting actions are inexpensive, their cumulative cost depends on how long the learned policy continues interacting with the corpus. 
+
+## 5 Conclusions and Future Work 
+
+In this paper we studied conversational query rewriting as a sequential retrieval process driven by feedback from intermediate search results. We trained a multi-step agent with reinforcement learning and no human rewrite annotations. Re-warded solely on retrieval quality, the policy converges to a consistent action order: it first resolves conversational intent, optionally refines the lexical formu-lation, and then generates pseudo-documents grounded in the passages retrieved by earlier steps. This formulation achieves the strongest ranking precision among the compared methods on TopiOCQA and QReCC, transfers zero-shot to TREC CAsT, and remains effective under dense retrievers. Several directions extend from this sequential framework. While we leveraged the RIRS reward directly for better comparison with prior studies, incorporating step penalties or latency costs into the reward objective could yield cost-aware policies that adaptively terminate early when low conversational ambiguity per-mits. Also, the agent could issue multiple reformulations in parallel at each step and be rewarded on their fused ranking, encouraging complementary rewrites that broaden recall while shortening the sequential loop. Multi-Step Query Rewriting via Corpus Feedback 13 
+
+## A Reproducibility Details 
+
+The system prompt of the multi-step, multi-action agent is shown below. RL uses AReaL [8] with full fine-tuning, Adam at learning rate 5e-6 with a constant schedule, 16 prompts per step with 8 rollouts each, symmetric clipping ϵ = 0.4, and no KL penalty. Training runs one epoch over the RL split (1,420 steps on TopiOCQA, 930 on QReCC), and we report the final checkpoint. SFT uses 7,175 (TopiOCQA) and 7,682 (QReCC) Qwen3-32B trajectories, trained for one epoch at learning rate 2e-5. All generation samples at temperature 1.0 with Qwen3’s thinking mode enabled, although the RL policies stop emitting reasoning blocks. Training used four NVIDIA L40S GPUs. 
+
+System prompt: multi-step, multi-action rewriting 
+
+You are a query rewriting assistant for conversational search. You help resolve ambiguous, context-dependent conversational queries into effective standalone search queries. You will receive a conversational query line in the following format: 
+
+– The string contains the most recent user query first , followed by zero or more [SEP] -separated snippets representing dialogue history (earlier turns, which may include prior questions and/or short answers or facts). 
+
+– Format: CURRENT_QUERY [SEP] HISTORY_ITEM_1 [SEP] HISTORY_ITEM_2 [SEP] ... 
+
+– History is ordered from most recent to oldest as you move right. Your job is to rewrite the current (leftmost) query only , using the dialogue history purely for disambiguation and reference resolution. 
+
+# Workflow 
+
+At each step you will: 1. Think about what the user is looking for and what gaps remain in the current results. 2. Choose exactly one action from the four below. 
+
+# Actions 
+
+You have four actions. Each submits a single query to the search engine and returns results. 1. Intent query — a focused standalone query capturing the user’s underlying information need. Resolve all coreferences and ellipsis. 
+
+<think> . . . </think> <intent> focused standalone query </intent> 
+
+2. Rephrase query — the same information need expressed with alternative terminology, synonyms, or different phrasings. Think about how this topic might appear in encyclopedic or reference text. 
+
+<think> . . . </think> <rephrase> alternative phrasing of the query </rephrase> 
+
+3. HyDE query — a short hypothetical passage that would correctly answer the question, written using your own knowledge. This introduces answer-side vocabulary that helps the retriever match relevant documents. 
+
+<think> . . . </think> <hyde> short hypothetical answer passage </hyde> 
+
+4. Stop — submit the current retrieved results if they look relevant, or if further rewriting is unlikely to help. 
+
+<think> . . . </think> <stop></stop> 
+
+# Guidelines 
+
+– Resolve coreferences: replace pronouns (“he”, “it”, “they”) with the actual entities from conversation history. 
+
+– Resolve ellipsis: fill in omitted information from context. 
+
+– Handle topic shifts: if the conversation has shifted topics, focus on the current topic. 
+
+– Gap-bridging : after seeing retrieved passages, identify what’s missing and choose the action type most likely to bridge the gap. 
+
+– Adopt corpus vocabulary : if the retrieved passages use specific terminology (names, dates, technical terms), incorporate those exact terms. 
+
+– Stop early if results look relevant. Don’t rewrite unnecessarily. 
+
+– You MUST output exactly one action per turn. 14 Coelho et al. 
+
+## References 
+
+1. Adlakha, V., Dhuliawala, S., Suleman, K., de Vries, H., Reddy, S.: TopiOCQA: Open-domain Conversational Question Answering with Topic Switching. Transac-tions of the Association for Computational Linguistics (2022) 2. Anantha, R., Vakulenko, S., Tu, Z., Longpre, S., Pulman, S., Chappidi, S.: Open-Domain Question Answering Goes Conversational via Question Rewriting. In: Con-ference of the North American Chapter of the Association for Computational Lin-guistics (NAACL) (2021) 3. Cao, Z., Li, P., Zhu, Q.: ICR: Iterative Clarification and Rewriting for Conversa-tional Search. In: Conference on Empirical Methods in Natural Language Process-ing (EMNLP) (2025) 4. Coelho, J., Magalhães, J., Martins, B., Xiong, C.: Effective Reinforcement Learning for Agentic Search by Recycling Zero-Variance Queries During Training. ArXiv 
+
+abs/2606.10709 (2026) 5. Dalton, J., Xiong, C., Callan, J.: CAsT 2019: The Conversational Assistance Track Overview. In: Text REtrieval Conference, TREC (2019) 6. Dalton, J., Xiong, C., Callan, J.: CAsT 2020: The Conversational Assistance Track Overview. In: Text REtrieval Conference, TREC (2020) 7. Elgohary, A., Peskov, D., Boyd-Graber, J.: Can You Unpack That? Learning to Rewrite Questions-in-Context. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2019) 8. Fu, W., Gao, J., Shen, X., Zhu, C., Mei, Z., He, C., Xu, S., Wei, G., Mei, J., Wang, J., Yang, T., Yuan, B., Wu, Y.: AREAL: A Large-Scale Asynchronous Reinforcement Learning System for Language Reasoning. In: Annual Conference on Neural Information Processing Systems (NeurIPS) (2025) 9. Gao, L., Ma, X., Lin, J., Callan, J.: Precise Zero-Shot Dense Retrieval without Relevance Labels. In: Annual Meeting of the Association for Computational Lin-guistics (ACL) (2023) 10. Jagerman, R., Zhuang, H., Qin, Z., Wang, X., Bendersky, M.: Query Expansion by Prompting Large Language Models. ArXiv abs/2305.03653 (2023) 11. Jaleel, N.A., Allan, J., Croft, W.B., Diaz, F., Larkey, L.S., Li, X., Smucker, M.D., Wade, C.: UMass at TREC 2004: Novelty and HARD. In: Text REtrieval Confer-ence (TREC) (2004) 12. Jang, Y., Lee, K.i., Bae, H., Lee, H., Jung, K.: IterCQR: Iterative Conversational Query Reformulation with Retrieval Guidance. In: Conference of the North Amer-ican Chapter of the Association for Computational Linguistics (NAACL) (2024) 13. Jiang, P., Lin, J.C., Cao, L., Tian, R., Kang, S., Wang, Z., Sun, J., Han, J.: DeepRetrieval: Hacking Real Search Engines and Retrievers with Large Language Models via Reinforcement Learning. ArXiv abs/2503.00223 (2025) 14. Jiang, P., Xu, X., Lin, J., Xiao, J., Wang, Z., Sun, J., Han, J.: s3: You Don’t Need That Much Data to Train a Search Agent via RL. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2025) 15. Jin, B., Zeng, H., Yue, Z., Wang, D., Zamani, H., Han, J.: Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning. ArXiv 
+
+abs/2503.09516 (2025) 16. Jin, J., Paladugu, A., Xiong, C.: Beneficial Reasoning Behaviors in Agentic Search and Effective Post-training to Obtain Them. In: Annual Meeting of the Association for Computational Linguistics, (ACL) (2026) Multi-Step Query Rewriting via Corpus Feedback 15 17. Johnson, J., Douze, M., Jégou, H.: Billion-scale similarity search with GPUs. IEEE Transactions on Big Data 7(3) (2019) 18. Lai, Y., Wu, J., Wang, Z., Zhou, D.: AdaRewriter: Unleashing the Power of Prompting-based Conversational Query Reformulation via Test-Time Adaptation. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2025) 19. Lai, Y., Wu, J., Zhang, C., Sun, H., Zhou, D.: AdaCQR: Enhancing Query Refor-mulation for Conversational Search via Sparse and Dense Retrieval Alignment. In: International Conference on Computational Linguistics (COLING) (2025) 20. Lavrenko, V., Croft, W.B.: Relevance-Based Language Models. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2001) 21. Lei, Y., Cao, Y., Zhou, T., Shen, T., Yates, A.: Corpus-Steered Query Expan-sion with Large Language Models. In: Conference of the European Chapter of the Association for Computational Linguistics (EACL) (2024) 22. Li, X., Dong, G., Jin, J., Zhang, Y., Zhou, Y., Zhu, Y., Zhang, P., Dou, Z.: Search-o1: Agentic Search-Enhanced Large Reasoning Models. ArXiv abs/2501.05366 
+
+(2025) 23. Lin, J., Ma, X., Lin, S., Yang, J., Pradeep, R., Nogueira, R.: Pyserini: A Python Toolkit for Reproducible Information Retrieval Research with Sparse and Dense Representations. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2021) 24. Lin, S., Yang, J., Lin, J.: Contextualized Query Embeddings for Conversational Search. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2021) 25. Lin, S., Yang, J., Nogueira, R., Tsai, M.F., Wang, C.J., Lin, J.: Conversational Question Reformulation via Sequence-to-Sequence Architectures and Pretrained Language Models. ArXiv abs/2004.01909 (2020) 26. Lin, S., Yang, J., Nogueira, R., Tsai, M., Wang, C., Lin, J.: Multi-Stage Conver-sational Passage Retrieval: An Approach to Fusing Term Importance Estimation and Neural Query Rewriting. ACM Transactions on Information Systems 39 (4) (2021) 27. Lupart, S., Aliannejadi, M., Kanoulas, E.: ChatR1: Reinforcement Learning for Conversational Reasoning and Retrieval Augmented Question Answering. In: An-nual Meeting of the Association for Computational Linguistics (ACL) (2026) 28. Ma, X., Gong, Y., He, P., Zhao, H., Duan, N.: Query Rewriting in Retrieval-Augmented Large Language Models. In: Conference on Empirical Methods in Nat-ural Language Processing (EMNLP) (2023) 29. Mackie, I., Chatterjee, S., Dalton, J.: Generative Relevance Feedback with Large Language Models. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2023) 30. Mao, K., Deng, C., Chen, H., Mo, F., Liu, Z., Sakai, T., Dou, Z.: ChatRetriever: Adapting Large Language Models for Generalized and Robust Conversational Dense Retrieval. In: Conference on Empirical Methods in Natural Language Pro-cessing (EMNLP) (2024) 31. Mao, K., Dou, Z., Mo, F., Hou, J., Chen, H., Qian, H.: Large Language Models Know Your Contextual Search Intent: A Prompting Framework for Conversational Search. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2023) 32. Mao, K., Dou, Z., Qian, H.: Curriculum Contrastive Context Denoising for Few-shot Conversational Dense Retrieval. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2022) 16 Coelho et al. 33. Mao, S., Jiang, Y., Chen, B., Li, X., Wang, P., Wang, X., Xie, P., Huang, F., Chen, H., Zhang, N.: RaFe: Ranking Feedback Improves Query Rewriting for RAG. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2024) 34. Mo, F., Gao, Y., Li, S., Zeng, H., Liu, X., Tan, Z., Li, X., Chen, J., Wang, D., Jiang, M.: Agentic Conversational Search with Contextualized Reasoning via Re-inforcement Learning. In: Annual Meeting of the Association for Computational Linguistics (ACL) (2026) 35. Mo, F., Ghaddar, A., Mao, K., Rezagholizadeh, M., Chen, B., Liu, Q., Nie, J.Y.: CHIQ: Contextual History Enhancement for Improving Query Rewriting in Con-versational Search. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2024) 36. Mo, F., Mao, K., Zhao, Z., Qian, H., Chen, H., Cheng, Y., Li, X., Zhu, Y., Dou, Z., Nie, J.: A Survey of Conversational Search. ACM Transactions on Information Systems 43 (6) (2025) 37. Mo, F., Mao, K., Zhu, Y., Wu, Y., Huang, K., Nie, J.Y.: ConvGQR: Generative Query Reformulation for Conversational Search. In: Annual Meeting of the Asso-ciation for Computational Linguistics (ACL) (2023) 38. Park, J., Lee, H.: Conversational Query Reformulation with the Guidance of Re-trieved Documents. ArXiv abs/2407.12363 (2024) 39. Press, O., Zhang, M., Min, S., Schmidt, L., Smith, N., Lewis, M.: Measuring and Narrowing the Compositionality Gap in Language Models. In: Conference on Em-pirical Methods in Natural Language Processing (EMNLP) (2023) 40. Rocchio, J.J.: Relevance feedback in information retrieval. The SMART Retrieval System: Experiments in Automatic Document Processing (1971) 41. Shao, Z., Wang, P., Zhu, Q., Xu, R., Song, J., Bi, X., Zhang, H., Zhang, M., Li, Y.K., Wu, Y., Guo, D.: DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models. ArXiv abs/2402.03300 (2024) 42. Shen, T., Long, G., Geng, X., Tao, C., Lei, Y., Zhou, T., Blumenstein, M., Jiang, D.: Retrieval-Augmented Retrieval: Large Language Models are Strong Zero-Shot Retriever. In: Annual Meeting of the Association for Computational Linguistics (ACL) (2024) 43. Song, H., Jiang, J., Min, Y., Chen, J., Chen, Z., Zhao, W.X., Fang, L., Wen, J.: R1-Searcher: Incentivizing the Search Capability in LLMs via Reinforcement Learning. ArXiv abs/2503.05592 (2025) 44. Trivedi, H., Balasubramanian, N., Khot, T., Sabharwal, A.: Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions. In: Annual Meeting of the Association for Computational Linguistics (ACL) (2023) 45. Vakulenko, S., Longpre, S., Tu, Z., Anantha, R.: Question Rewriting for Conversa-tional Question Answering. In: International Conference on Web Search and Data Mining (WSDM) (2021) 46. Voskarides, N., Li, D., Ren, P., Kanoulas, E., de Rijke, M.: Query Resolution for Conversational Search with Limited Supervision. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2020) 47. Wang, L., Yang, N., Wei, F.: Query2doc: Query Expansion with Large Language Models. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2023) 48. Wang, X., MacDonald, C., Tonellotto, N., Ounis, I.: ColBERT-PRF: Semantic Pseudo-Relevance Feedback for Dense Passage and Document Retrieval. ACM Transactions on the Web 17 (1) (2023) Multi-Step Query Rewriting via Corpus Feedback 17 49. Wu, Z., Luan, Y., Rashkin, H., Reitter, D., Hajishirzi, H., Ostendorf, M., Tomar, G.S.: CONQRR: Conversational Query Rewriting for Retrieval with Reinforcement Learning. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2022) 50. Xiong, L., Xiong, C., Li, Y., Tang, K., Liu, J., Bennett, P.N., Ahmed, J., Overwijk, A.: Approximate Nearest Neighbor Negative Contrastive Learning for Dense Text Retrieval. In: International Conference on Learning Representations (ICLR) (2021) 51. Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K.R., Cao, Y.: ReAct: Synergizing Reasoning and Acting in Language Models. In: International Confer-ence on Learning Representations (ICLR) (2023) 52. Ye, F., Fang, M., Li, S., Yilmaz, E.: Enhancing Conversational Search: Large Lan-guage Model-Aided Informative Query Rewriting. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2023) 53. Yoon, C., Kim, G., Jeon, B., Kim, S., Jo, Y., Kang, J.: Ask Optimal Questions: Aligning Large Language Models with Retriever’s Preference in Conversation. In: Conference of the North American Chapter of the Association for Computational Linguistics (NAACL) (2025) 54. Yu, H., Xiong, C., Callan, J.: Improving Query Representations for Dense Retrieval with Pseudo Relevance Feedback. In: International Conference on Information and Knowledge Management (CIKM) (2021) 55. Yu, S., Liu, J., Yang, J., Xiong, C., Bennett, P., Gao, J., Liu, Z.: Few-Shot Gen-erative Conversational Query Rewriting. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2020) 56. Yu, S., Liu, Z., Xiong, C., Feng, T., Liu, Z.: Few-Shot Conversational Dense Re-trieval. In: International Conference on Research and Development in Information Retrieval (SIGIR) (2021) 57. Zamani, H., Trippas, J.R., Dalton, J., Radlinski, F.: Conversational Information Seeking. Foundations and Trends in Information Retrieval 17 (3-4) (2023) 58. Zhang, T., Li, K., Luo, H., Wu, X., Glass, J.R., Meng, H.M.: Adaptive Query Rewriting: Aligning Rewriters through Marginal Probability of Conversational Answers. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2024) 59. Zhang, Y., Li, M., Long, D., Zhang, X., Lin, H., Yang, B., Xie, P., Yang, A., Liu, D., Lin, J., Huang, F., Zhou, J.: Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models. ArXiv abs/2506.05176 (2025) 60. Zheng, Y., Fu, D., Hu, X., Cai, X., Ye, L., Lu, P., Liu, P.: DeepResearcher: Scaling Deep Research via Reinforcement Learning in Real-world Environments. In: Con-ference on Empirical Methods in Natural Language Processing (EMNLP) (2025) 61. Zhu, C., Wang, S., Feng, R., Song, K., Qiu, X.: ConvSearch-R1: Enhancing Query Reformulation for Conversational Search with Reasoning via Reinforcement Learning. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2025)

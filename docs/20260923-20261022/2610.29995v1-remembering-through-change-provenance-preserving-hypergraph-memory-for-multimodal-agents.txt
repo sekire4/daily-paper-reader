@@ -1,0 +1,1560 @@
+Title: Remembering Through Change: Provenance-Preserving Hypergraph Memory for Multimodal Agents
+
+URL Source: https://arxiv.org/pdf/2610.29995v1
+
+Published Time: Thu, 22 Oct 2026 01:47:59 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+Preprint. 
+
+# Remembering Through Change: Provenance-Preserving Hypergraph Memory for Multi-modal Agents 
+
+Jielong Tang 1,2∗ , Ling-An Zeng 2† , Xujie Yuan 1, Xiao Dong 3, Zhiqian Xia 4,2∗,Qingfeng Li 1, Shixiong Kai 2, Kaichao Liang 2, Rong Yao 2 and Jian Yin 1† 
+
+> 1
+
+Sun Yat-sen University 2 Huawei Technologies, Noah Arks’ Lab  
+
+> 3
+
+Shandong Normal University 4 Southeast University 
+
+Abstract 
+
+Long-term memory for multimodal agents remains challenging, as it must preserve fine-grained visual evidence while tracking entity evolution across sessions. Existing abstraction-based memories compress images into text, often discarding visually discriminative details, whereas pixel-preserving memories retain raw observations but struggle to reliably associate diverse observations with persistent entity identities and track their evolving states. To address these limitations, we propose MHG-Mem , a multimodal hy-pergraph memory that jointly organizes entity identity, state evolution, and provenance to visual evidence. Specifically, MHG-Mem represents dis-tinct entity mentions and their observed facts as individual nodes, grouping identity-consistent mentions and facts through occurrence hyperedges. It then synthesizes aspect-specific evolution states from these grouped obser-vations and links them to supporting entities, facts, and source evidence through evolutionary and evidential hyperedges. To navigate this struc-tured memory, we introduce hypergraph-based agentic search, which adap-tively selects an entry layer, traverses typed hyperedges across memory levels, and inspects source observations when fine-grained verification is required. These designs support both detailed visual verification and rea-soning over cross-session state changes. Extensive experiments across three benchmarks demonstrate the effectiveness of MHG-Mem, improving per-formance by 8.20–9.98% over the strongest baseline. 
+
+1 Introduction 
+
+Long-term memory enables large language model (LLM) agents to reuse past experience beyond their context windows (Packer et al., 2023; Xu et al., 2025). As agents increasingly browse websites and interact with users through images, multimodal memory becomes es-sential for understanding user needs and providing personalized assistance (Guo et al., 2026; Liu et al., 2026a). As shown in Fig. 1(a), a web agent encounters several backpacks across sessions, with varying page layouts, product views, prices, and availability. Subsequent queries require inspecting the main zipper of the purchased backpack (Q1) or determining whether an earlier offer for the same backpack was both cheaper and in stock (Q2). Answer-ing these queries remains challenging. Memory must preserve fine-grained visual evidence while tracking the entity’s state across sessions despite variations in its visual observation. Existing multimodal memories address these requirements only partially. As illustrated in Fig. 1(b), abstraction-based memory converts visual observations into textual descrip-tions or structured records for subsequent consolidation and retrieval (Wang & Chen, 2025; Feng et al., 2026). Such abstractions may omit visual details needed for inspection or for 
+
+> ∗
+
+Work done during internship. 
+
+> †
+
+Corresponding authors. 
+
+1arXiv:2610.29995v1 [cs.CL] 21 Oct 2026 Preprint. (a) Multimodal Agent Interaction History 
+
+> Session 1
+> Action: Save product photo
+> Wow...I like Jay’s A56 backpack... Saving...
+> Later Queries
+> About the bag I bought…
+> Q1 · Visual detail
+> Does its main zipper have two lockable pulls?
+> Q2 · Cross-session
+> Did I miss a cheaper in-stock offer of my bag?
+
+(b) Different Memory Representations  
+
+> (ii) Pixel-preserving Memory
+> All visual evidence retained
+> Fine visual evidence accessible Cross-session visual changes unlinked
+
+?    
+
+> Q1 Yes: both pulls have eyelets. Q2 Fails to track evolution
+> (i) Abstraction-based Memory
+> Visual evidence compressed to summary
+> The blue backpack related memory
+> A bag with price $49 is in stock a bag with price $69, sold out Maya spent $75 for her bag Visual detail loss
+> (iii) MHG-Mem (Ours)
+> Grouped mentions + Evolving States + Source Evidence
+> Session 5
+> Action: Search in App
+> I want to find a suitable bag... Searching...
+> Session 9
+> Action: Go to Product Page
+> Please compare their prizes and sizes...
+> OK. I will do it...
+> Session 20
+> Action: Go to Billing Page
+> Please help me to select a bag... Great...
+
+?
+
+...        
+
+> Q1 Fails to see Zipper detail Q2 Fails to see state changing Q1 Yes: both pulls have eyelets. Q2 No: $69 was sold out.
+> $89 available (Day 3) $69 sold out (Day 6) $75 purchased (Day 9) Fact-1: A56 is in the table...
+> F-2: A bag with $89 is in stock... F-3: A bag $69 is in detail page F4: Maya spent $75 for her bag
+> Hypergraph
+
+... 
+
+> Retrieval
+> Maya like A56 backpack.
+> Evolution
+> Caption / OCR
+
+... ... ...    
+
+> Entity-1: A56 E-2: blue backpack E-3: laptop bag E-4: Maya’s bag
+
+... 
+
+Figure 1: (a) Long-term agent–user multimodal interaction example. (b) Comparison of existing approaches: (i) Abstraction-based memory loses visual details (failing Q1, Q2); (ii) Pixel-preserving memory lacks persistent identity–evolution bindings (failing Q2); (iii) Our MHG-Mem organizes multimodal observations via typed hyperedges, preserving both fine-grained visual crops for inspection and traceable evolution across diverse entity mentions. distinguishing similar entities. Pixel-preserving memory retains original images, allow-ing relevant observations to be retrieved and inspected at query time (Lu et al., 2026). Yet the retrieved images remain isolated observations. Nothing records that the product photo in one session and the listing page in another show the same backpack, or how its price and availability evolved. Without reliable associations, an agent may confuse similar entities or incorrectly combine attributes in different observations. These raise the question: How can multimodal memory organize visually diverse observations of the same entity into coherent state histories while keeping each state traceable to its supporting evidence? 
+
+Addressing this question requires preserving individual observations while explicitly orga-nizing how they relate across sessions. The underlying memory structure is inherently 
+
+higher-order : the same entity may be observed differently across sessions, with each ob-servation jointly associating several entity mentions, facts, and visual evidence, while its evolutions must integrate these observations into coherent state histories. These relation-ships therefore extend beyond isolated entities or facts and naturally form structured groups at different semantic levels. Motivated by this, we propose MHG-Mem , a multimodal hy-pergraph memory that uses typed hyperedges to explicitly organize these higher-order rela-tionships while preserving each observation separately. Specifically, occurrence hyperedges group identity-consistent entity mentions and their associated facts across sessions, evolution nodes summarize aspect-specific state changes from temporally ordered observations, and evolutionary and evidential hyperedges connect each evolution to the participating entity mentions and its supporting facts, respectively. Because these facts retain provenance to the original dialogue and images, each inferred state remains traceable to its source evidence. This structured memory naturally exposes evidence at multiple granularities, but different queries require different retrieval paths. Q1 ultimately requires inspecting a particular source image, whereas Q2 requires first locating the backpack’s state history and then verifying the facts underlying the relevant price and availability states. A fixed retrieval strategy therefore cannot serve both effectively. To this end, we introduce Hypergraph-based Agentic Search , which adaptively selects an entry layer, traverses typed hyperedges across entity, evolution, and fact-level memory, and follows provenance links to inspect source observations when necessary. In this way, compact evolution records guide cross-session reasoning, while grounded facts and images provide fine-grained, verifiable evidence. Our contributions are summarized as follows: 2Preprint. • We propose MHG-Mem , a multimodal hypergraph memory framework that organizes cross-session observations into coherent entity evolution histories through typed hyper-edges, while preserving visual evidence and state-specific provenance. • We introduce Hypergraph-based Agentic Search , which adaptively accesses entity groups, state histories, and their supporting observations to assemble query-relevant evi-dence across granularities. • Experiments across three benchmarks and three backbones demonstrate MHG-Mem’s effectiveness, improving average performance by 8.20–9.98% over the strongest baseline. 
+
+2 Related Work 
+
+Long-Term Multimodal Agent Memory. As agents increasingly interact with the physical and digital world, long-term memory research has expanded beyond text-centric systems (Packer et al., 2023; Xu et al., 2025; Kang et al., 2025; Chhikara et al., 2025; Zhong et al., 2024; Yuan et al., 2026) to multimodal retrieval (Chen et al., 2022; Yeo et al., 2026; Tang et al., 2026), episodic video memory (Jeong et al., 2025; Fan et al., 2025), and multimodal conversational memory (Bei et al., 2026; Maharana et al., 2024). Recent bench-marks further examine whether agents can retain action trajectories, and visually evolving states across long-horizon interactions (Liu et al., 2026a; Guo et al., 2026). Existing sys-tems address important aspects of this problem by compressing observations into semantic abstractions (Wang & Chen, 2025; Feng et al., 2026; Jain et al., 2025), organizing experi-ences around entities or events for cross-session reasoning (Long et al., 2025; Chen et al., 2026; Nguyen et al., 2026; Liu et al., 2026b), and retrieving evidence across modalities or memory stores (Kang et al., 2026; Lu et al., 2026; Tian et al., 2026). Yet these capabilities remain difficult to reconcile: semantic abstraction improves memory organization but may discard visual cues needed to distinguish similar observations, while preserving raw pixels alone does not establish which observations refer to the same entity or how their attributes evolve over time. MHG-Mem jointly addresses these challenges by preserving multimodal occurrences, associating them with persistent entity identities, synthesizing aspect-specific state histories, and grounding each state in supporting facts and source images within a typed hypergraph, enabling agentic search to traverse between compact abstractions and verifiable evidence. 
+
+Hypergraph-based Agent Memory. Graph memory has evolved from knowledge graphs (Rasmussen et al., 2025; Gutierrez et al., 2024), toward entity-centered graph such as M3-Agent (Long et al., 2025) and query-aware evidence expansion in GraphMemix (Li et al., 2026). Hypergraph methods then make higher-order membership explicit: Hyper-GraphRAG (Luo et al., 2025b) represents n-ary facts for corpus-level RAG, HGMEM (Zhou et al., 2025) uses hypergraph working memory for multi-step reasoning, and HyperMem (Yue et al., 2026) organizes long conversations as topic–episode–fact hypergraphs with coarse-to-fine retrieval. Despite their effectiveness, these approaches remain largely confined to text-centric memory organization, limiting their applicability to information-dense and dynami-cally evolving multimodal agent interactions. In contrast, MHG-Mem uses typed hyperedges to jointly organize persistent multimodal occurrences, entity-specific aspect evolutions and provenance, enabling identity-aware state tracking and fine-grained visual verification within a unified long-term memory framework. 
+
+3 Methodology 
+
+To track entity states across sessions while preserving their supporting evidence, we propose MHG-Mem, a multimodal hypergraph memory framework. Typed hyperedges organize en-tity mentions, facts, and state evolutions into reusable histories while retaining observation-specific visual evidence and links from individual states to their sources. Hypergraph-based agentic search then adapts retrieval to the query, navigating these histories and inspecting the underlying evidence as needed. Figure 2 illustrates (a) memory construction, (b) the multimodal hypergraph memory structure, and (c) hypergraph-based agentic search. 3Preprint. Provenance-Preserving Multimodal Hypergraph Memory 
+
+(a) (b) MHG-Mem (c) Hypergraph Retrieval 
+
+Agent-User Interaction (same backpack, different observations)   
+
+> Multimodal history
+> Session 5 Session 9 Session 20
+
+1 Multimodal fact extraction   
+
+> Dialogue + images
+> Recent context
+> VLM
+> Atomic facts FactNodes
+> Text · image IDs Round · session · date
+> f1 f2 f3
+
+Entity extraction & occurrence linking    
+
+> VLM entity extraction
+> EntityNodes
+> Text + region similarity Occurrence Linking
+> Name · class modality · bbox
+> Top-K occurrence hyperedges
+> 123
+> +ADD
+> ↻UPDATE
+> ×SKIP
+> Occurrence hyperedge f1 u1 f2 u2 f3 u3
+> occ
+> Attach facts by mention name
+
+Evolution synthesis & grounding        
+
+> Facts in observation order Detect changes
+> Remove repeats; keep distinct values
+> EvolutionNode
+> Price history
+> $89 →$69 →$75 Evolutionary
+> Evolution ↔
+> participant mentions
+> Evidential
+> Evolution ↔
+> supporting facts
+> FactNode
+> (what happened)
+> EntityNode
+> (mentions)
+> EvolutionNode
+> (derived state)
+
+Occurrence Evolutionary Evidential 
+
+f1 
+
+> $89
+> in stock
+
+u1 
+
+> A56 backpack
+
+f2 
+
+> $69
+> sold out
+
+u2 
+
+> laptop bag
+
+f3 
+
+> $75
+> bought
+
+u3       
+
+> Maya’s bag
+> z1: Price history
+> $89 →$69 →$75
+> Source links Colored ring: Typed hyperedge Colored line: Cross-layer traversal
+> Facts, entity and evolution remain traceable.
+> Source evidence (original multimodal data)
+> Dialogues & Images
+> About the bag I bought,was an earlier offer cheaper AND in stock?
+
+LLM controller 
+
+> Select tool + entry layer
+
+Tool pool (choose adaptively) 
+
+Hypergraph 
+
+> Three layer entries Traverse hyperedges
+
+Visual 
+
+> Search images + captions
+
+Inspection 
+
+> Trace facts to originals
+
+Assembly 
+
+> Validate references
+> Observations /feedback
+
+Retrieved closed evidence   
+
+> u3 Maya’s bag
+> f2
+
+$69 
+
+> sold out
+> z1
+> Validate & assemble
+
+Answer with evidence chain   
+
+> No. The $69 offer was sold out.
+> [F1] [F2] [F3]
+> Write Memory access
+
+Memory Construction 
+
+23
+
+> Grounding
+
+?
+
+> Price history
+
+Figure 2: Overview of MHG-Mem . (a) Memory construction proceeds through three steps. (b) The three-layer MHG-Mem architecture and three types of hyperedges enable cross-layer traversal and provenance tracing. (c) Hypergraph-based agentic search employs four types of tools to adaptively construct query-aware evidence chains. 
+
+3.1 Problem Formulation 
+
+Let D≤T = ( d1, . . . , d T ) denote an agent’s ordered multimodal interaction history across sessions , where each round dt = ( xt, It, δ t) comprises dialogue text xt, images It, and a recorded date δt. A memory construction operator W maps this history to persistent memory MT = W(D≤T ) before subsequent queries are known. Given a query q = ( xq , Iq )with optional visual input Iq , a retrieval operator S selects relevant evidence from MT . A multimodal agent then generates an answer conditioned on the query and retrieved evidence: 
+
+Eq = S(q, MT ), ˆy ∼ pθ ( · | q, E q ), (1) where Eq denotes the retrieved evidence and θ denotes fixed model parameters. The objec-tive is to design W and S to support accurate answering of multimodal agent. 
+
+3.2 Multimodal Hypergraph Memory Structure 
+
+MHG-Mem represents multimodal memory using three node types and three types of n-ary hyperedges. Nodes encode memory units at different levels of granularity, while hyperedges capture cross-level associations and provenance, allowing high-level memory to be traced back to their supporting evidence. We formalize this memory as an attributed hypergraph: 
+
+H = ( V, E, ι, τ V , τ E ), V = F ˙∪ U ˙∪ Z , E = Eocc ˙∪ E evo ˙∪ E evd , ι : E → 2V (2) where ι(e) denotes the set of nodes incident to hyperedge e, while τV and τE specify the node and hyperedge types, respectively. The contribution of nodes and hyperedges is de-fined as follows: ❶ FactNodes store atomic multimodal observations. ❷ EntityNodes store individual textual or visual entity mentions. We denote EntityNodes linked to the same underlying entity as a referent group r. ❸ EvolutionNodes store state changes in an en-tity attribute or relation. ❹ Occurrence hyperedges bind a referent’s EntityNodes to its associated FactNodes. ❺ Evolutionary hyperedges connect EvolutionNodes to its associ-ated EntityNodes. ❻ Evidential hyperedges connect EvolutionNodes to the supporting FactNodes used for verification. The complete node, hyperedge, and incidence definitions are given in Appendix B.1. The no-tation is summarized in Appendix A. This memory structure supports cross-session identity tracking, state synthesis, and provenance tracing while preserving original visual evidence. 4Preprint. 
+
+3.3 MHG-Mem Construction 
+
+Step 1: Multimodal Fact Extraction. In each round dt, a vision-language model (VLM) extracts atomic multimodal fact descriptions from dialogue and images, using recent within-session context Ct to resolve references. These descriptions are grounded as FactNodes: 
+
+Ft = Ground t(VLM fact (dt; Ct)) , (3) where Ground t creates each f = ( ℓf , If , t f , s f , δ f ) by attaching the current round’s image identifiers and source metadata to the extracted description ℓf .
+
+Step 2: Multimodal Entity Extraction and Occurrence Linking. A VLM extracts multimodal entity mentions from dt. For each mention u, we score an occurrence hyperedge by independently maximizing textual and visual similarity over its constituent EntityNodes: 
+
+s(u, e occ  
+
+> r
+
+) = wT max 
+
+> v∈U r
+
+cT (u, v ) + wI max 
+
+> v∈U vis
+> r
+
+cI (u, v ). (4) Here, cT and cI are cosine similarities between mention-name and image-region embeddings, respectively, and Uvis  
+
+> r
+
+contains the visual mentions in Ur . Conditioned on dt, u, and the top-K hyperedges ranked by s, the model selects one of three actions for occurrence linking: 
+
+UPDATE adds u to the mention set Ur of a matching referent group, ADD creates a new group 
+
+r with Ur = {u} and its occurrence hyperedge, and SKIP rejects an invalid entity mention. Each accepted mention remains a distinct EntityNode, retaining its visual region when available. We then attach facts in Ft to occurrence hyperedges by mention-name matching: 
+
+Fr ← F r ∪ { f ∈ F t : A(f, e occ  
+
+> r
+
+) = 1 }. (5) Here, A(f, e occ  
+
+> r
+
+) ∈ { 0, 1} is a lexical matching indicator that equals 1 iff ℓf contains the name of at least one EntityNode in Ur . The resulting membership is ι(eocc  
+
+> r
+
+) = Ur ∪ F r .
+
+Step 3: Evolution Synthesis and Grounding. To track the evolving states of the same entity across sessions, we synthesize the facts grouped by each occurrence hyperedge into state histories with explicit evidence grounding. For each occurrence hyperedge eocc  
+
+> r
+
+,candidate EvolutionNodes ̂ Zr are generated from the associated facts Fr :̂
+
+Zr = LLM evo (Order( Fr )) , (6) where Order follows observation-order tf in D≤T . The model identifies changes in the same attribute or relation az across sessions, excluding repeated descriptions and incidental scene variation. Each retained z ∈̂ Zr records the subject referent rz = r, summary σz , update type κz (replacement, update, or addition), and state sequence 
+
+Sz = ((vj , f j ))mz
+
+> j=1
+
+, Fz = {fj : 1 ≤ j ≤ mz } ⊆ F rz , (7) where vj is the changing value extracted for az , and the mz states follow observation order. Retention requires valid references within Frz and at least two distinct values. The evolutionary hyperedge eevo  
+
+> z
+
+then connects z to subject mentions Usubj  
+
+> z
+
+⊆ U rz and coactor mentions Uco  
+
+> z
+
+. Coactors come from cited rounds of other groups r′̸ = rz sharing supporting facts, Fr′ ∩ F z̸ = ∅. The evidential hyperedge eevd  
+
+> z
+
+links z to its supporting facts 
+
+Fz , with Sz retaining the individual state–fact correspondence. Please refer to Appendix B.2 for more details of MHG-Mem construction. 
+
+3.4 Hypergraph-based Agentic Search 
+
+Since different queries require integrating evidence at different levels of granularity, fixed retrieval and graph traversal still struggle to get the optimal evidence chain (Luo et al., 2025a). We therefore implement S as agentic search that adaptively selects a memory layer, traverses hyperedges across memory layers, and follows provenance links to sources. 
+
+Adaptive Search. Given a multimodal query q with optional images and search history 
+
+hk = (( ai, o i)) i<k , an LLM controller πθ selects a tool call ak and receives observation ok:
+
+ak ∼ πθ ( · | q, h k), ok = Execute( ak, MT ). (8) 5Preprint. Four tool types support this agent loop: (i) Hypergraph Tool (ii) Visual Tool (iii) Inspection Tool and (iv) Assembly Tool. Table 4 shows the tool details, the search process is outlined in Algorithm 2. 
+
+Hypergraph Retrieval. Each memory layer provides an isolated search tool (as described in Table 4), with hyperedge traversal among retrieved entities, evolutions and facts. 
+
+Fact-layer Search. For a search query w generated by the LLM, we rank f ∈ F using 
+
+sF (w, q, f ) = λT sT (w, f ) + λT I sT I (w, f ) + λII sII (q, f ), (9) where sT , sT I , and sII measure text–text, text–image, and image–image cosine similarity with weights λT , λT I , and λII . Visual terms take the best match over associated images, including Iq for sII . Retrieved facts retain their source references for inspection. 
+
+Entity-layer Search. A name or query image identifies referent groups through maximum textual similarity to referent entity names and visual similarity over Uvis  
+
+> r
+
+(equation 4). We then traverse each matched occurrence hyperedge eocc  
+
+> r
+
+from the entity layer to the fact layer 
+
+Fr = ι(eocc  
+
+> r
+
+) ∩ F . This gathers observations of the same underlying entity across rounds. 
+
+Evolution-layer Search. To retrieve how an entity changes over time, we first identify its referent group r from a name or query image and retrieve the EvolutionNodes belonging to that group ( rz = r). The evolutionary hyperedge eevo  
+
+> z
+
+connects each such node to mentions of its subject entity. We then compare the query text xq with each node’s attribute az and summary σz to assess relevance: 
+
+sZ (q, z ) = cos (ϕT (xq ), ϕ T (az ∥ σz )). (10) Here, ϕT encodes text, cos( ·) denotes cosine similarity, and ∥ concatenates the attribute and summary. For each selected z, we traverse its evidential hyperedge eevd  
+
+> z
+
+from the evolution layer to the fact layer, getting the supporting facts Fz in the order recorded by Sz .
+
+Cross-layer Traversal. A traversal step moves from a retrieved node v ∈ V to another memory layer through incident hyperedges. Given selected hyperedges E′ ⊆ E and a target layer V′ ∈ {F , U, Z} with v / ∈ V ′, the cross-layer traversal can be formalized as: Traverse( v, E′, V′) = ⋃  
+
+> e∈E ′, v ∈ι(e)(ι(e)∩ V ′).
+
+(11) 
+
+Source Inspection and Evidence Assembly. The Inspection Tool follows ρ(·) from retrieved FactNodes to the original observations, enabling the controller to inspect fine-grained evidence for queries that require detailed information or visual verification. For an EvolutionNode z, traversing eevd  
+
+> z
+
+to supporting facts f ∈ F z and then following ρ(f )keeps its state history traceable to the original observations. The Assembly Tool organizes selected evidence and image references, together with optional summary, into an evidence chain Eq . After reference validation, this chain is submitted to the QA model with the cited textual and visual evidence to answer q as in Equation equation 1. 
+
+4 Experiment 
+
+4.1 Experimental Setup 
+
+Benchmarks and Metrics. We evaluate on three multimodal memory benchmarks: Mem-Eye (Guo et al., 2026), Mem-Gallery (Bei et al., 2026), and WorldMemArena-S (subset) (Liu et al., 2026a). We report exact match (EM) for MemEye’s multiple-choice (MCQ) ques-tions, token-level F1 for the other two benchmarks, and BLEU-1 (B-1) and LLM-as-a-judge (Judge) score for open-ended answers on all three. For memory quality evaluation, we fol-low (Liu et al., 2026a) using the same judging rubrics, recall, and retrieval coverage. Dataset and metric details are provided in Appendix C.1. 
+
+Implementation Details. We use Qwen3-VL-8B (Bai et al., 2025), GPT-4.1-mini (Ope-nAI, 2025), and Qwen3.8-27B (Qwen Team, 2026) as different memory backbones, GPT-5.4-mini (OpenAI, 2026) as LLM-as-a-judge model. MHG-Mem uses all-MiniLM-L6-v2 for text embeddings and SigLIP2 (Tschannen et al., 2025) for visual and cross-modal embeddings. 6Preprint. Table 1: Comparison with state-of-the-art memory systems across different back-bone models. We report Exact Match ( EM ), BLEU-1 ( B-1 ), and LLM-Judge ( Judge )on MemEye , Mem-Gallery , and WorldMemArena-S . Avg. J. denotes the average Judge score across the three benchmarks. Bold and underlined results indicate the best and second-best performance, respectively. 
+
+Type Method Venue MemEye Mem-Gallery WorldMemArena-S Avg. J. EM B-1 Judge F1 B-1 Judge F1 B-1 Judge 
+
+Qwen3-VL-8B 
+
+Unimodal A-Mem NIPS’25 45.15 19.22 29.38 47.68 41.76 66.93 25.23 12.16 46.57 47.63 MemoryOS EMNLP’25 40.23 17.22 26.28 39.36 35.28 58.86 10.24 3.50 20.18 35.11 SimpleMem ICML’26 44.27 16.04 31.26 37.36 33.12 52.43 14.33 4.71 33.50 39.06 HyperMem ACL’26 42.31 16.84 28.42 41.05 32.80 62.56 20.06 12.33 40.45 43.81 Multimodal M2A Arxiv’26 39.96 10.40 18.41 18.19 14.03 37.65 23.02 11.31 41.64 32.57 MMA AACL’26 46.92 20.62 38.17 34.80 30.34 57.49 21.73 10.82 38.95 44.87 SRAG Arxiv’26 56.78 24.87 41.80 40.74 35.89 63.62 23.53 11.21 43.93 49.78 UniversalRAG ACL’26 57.48 23.92 42.09 51.05 46.39 66.23 14.96 5.06 36.33 48.21 
+
+Ours MHG-Mem – 61.26 26.52 46.28 66.00 60.90 76.89 23.17 15.29 50.78 57.98 (+8.20) 
+
+GPT-4.1-mini 
+
+Unimodal A-Mem NIPS’25 49.73 21.11 38.27 44.08 38.37 64.35 33.39 17.54 60.40 54.34 MemoryOS EMNLP’25 45.75 13.12 34.91 43.09 37.76 64.64 17.46 6.63 35.87 45.14 SimpleMem ICML’26 50.34 9.42 42.59 34.73 28.90 58.33 23.75 14.71 56.13 52.35 HyperMem ACL’26 47.82 19.64 36.43 44.57 33.42 66.76 24.91 15.62 52.04 51.74 Multimodal M2A Arxiv’26 52.31 6.31 44.50 15.04 10.28 51.81 29.26 18.55 53.38 49.90 MMA AACL’26 50.96 16.32 43.81 26.99 20.60 60.87 30.10 16.33 51.15 51.95 SRAG Arxiv’26 58.36 31.48 50.54 41.07 35.03 67.06 30.47 18.34 54.27 57.29 UniversalRAG ACL’26 60.49 11.23 52.61 48.36 41.90 70.63 26.44 13.03 50.95 58.06 
+
+Ours MHG-Mem – 66.84 22.36 59.73 52.58 45.75 81.56 33.61 21.52 62.57 67.95 (+9.89) 
+
+Qwen3.8-27B 
+
+Unimodal A-Mem NIPS’25 45.10 18.13 33.64 60.56 54.37 75.98 27.99 13.92 57.49 55.71 MemoryOS EMNLP’25 42.24 16.67 28.25 42.82 37.49 70.19 10.17 3.76 20.95 39.80 SimpleMem ICML’26 47.84 5.37 37.40 49.43 43.26 68.70 18.95 7.34 46.33 50.81 HyperMem ACL’26 50.56 21.02 39.66 47.23 36.64 73.03 22.84 10.61 50.57 54.42 Multimodal M2A Arxiv’26 48.23 19.51 35.90 20.46 15.49 65.30 28.15 14.14 55.58 52.25 MMA AACL’26 56.47 24.95 47.30 35.18 29.03 69.32 26.66 13.35 52.80 56.47 SRAG Arxiv’26 66.95 28.26 53.37 41.45 35.68 75.80 28.78 13.97 59.69 62.95 UniversalRAG ACL’26 67.85 13.45 60.64 57.30 50.51 76.18 22.11 9.34 53.07 63.30 
+
+Ours MHG-Mem – 78.76 39.54 65.93 66.07 59.84 87.85 30.48 21.21 66.05 73.28 (+9.98) 
+
+For a fair comparison, we reproduce all baseline methods with the same model setting and running environment of MHG-Mem. Results are averaged over 3 runs. Additional imple-mentation settings are provided in Appendix C.2. 
+
+Baselines. We compare with four unimodal memory methods using dense image caption: A-Mem (Xu et al., 2025), MemoryOS (Kang et al., 2025), SimpleMem (Liu et al., 2026c), and HyperMem (Yue et al., 2026); and four multimodal memory or RAG methods: M2A (Feng et al., 2026), MMA (Lu et al., 2026), SRAG (Guo et al., 2026), and UniversalRAG (Yeo et al., 2026). Detailed baseline descriptions are deferred to Appendix C.3. 
+
+4.2 Main Results 
+
+Table 1 compares MHG-Mem with eight memory systems across three benchmarks and three backbones. Figure 3 shows memory quality on WorldMemArena-S and fine-grained task performance on WorldMemArena-S and Mem-Gallery. We highlight four key findings: 
+
+(1) MHG-Mem consistently outperforms existing memory systems across bench-marks and backbones. MHG-Mem achieves the highest Judge score in every benchmark– backbone setting, with Avg. J. scores of 57.98% ( +8.20% ), 67.95% ( +9.89% ), and 73.28% (+9.98% ) on Qwen3-VL-8B, GPT-4.1-mini, and Qwen3.8-27B, respectively. Moreover, MHG-Mem achieves the best or second-best results on metrics including EM, BLEU-1, and F1. These consistent improvements across models and benchmarks demonstrate the effectiveness and generalization of provenance-preserving multimodal hypergraph memory. 7Preprint. 60% 75% 90%                                                                                                                                                                
+
+> A-Mem MemoryOS SimpleMem M2A MMA UniversalRAG Semantic RAG
+> MHG-Mem
+> Memory Recall
+> 84% 88% 92%
+> Memory Correctness
+> 45% 55% 65%
+> Update Handling
+> 20% 50% 80%
+> Retrieval Coverage
+> FR VFR VS CMR TR DU VU MC KR TTL
+> WMA small
+> 79 83 75 47 33 36 56 52 38 49 21 17 617 3912 13 10 17 71 61 25 44 25 25 49 48 37 42 72 84 75 44 33 39 60 60 39 53 68 84 76 47 29 38 61 54 31 45 80 66 45 54 48 46 57 60 54 25 77 83 75 51 41 44 60 65 47 59 87 87 78 69 87 63 55 78 64 76
+> FR MR TR VR TTL VS CD KR AR
+> Mem-Gallery
+> 80 67 74 64 90 79 67 65 73 80 73 73 52 89 38 81 64 88 91 92 80 54 89 18 85 81 56 82 80 76 40 73 28 83 63 85 81 81 55 45 78 51 85 67 84 81 81 77 55 91 78 75 66 59 87 89 55 60 89 56 84 67 88 94 93 97 82 93 95 91 83 81
+> (a) Memory Quality (b) Task-wise Performance
+
+Figure 3: (a) Memory quality and (b) fine-grained tasks performance on WorldMemArena-S (WMA-S) and Mem-Gallery with Qwen3.8-27B. 
+
+(2) Effective visual memory requires structured access to preserved observa-tions. On the visual-centric MemEye benchmark, MHG-Mem with Qwen3.8-27B achieves 78.76% EM, compared with 67.85% for UniversalRAG and 66.95% for SRAG. A similar advantage appears in visually demanding categories in Figure 3(b): MHG-Mem achieves 82% versus 60% on visual reasoning (VR) in Mem-Gallery and 87% versus 83% on visual fact recall (VFR) in WorldMemArena-S. These results suggest that retaining images alone is insufficient when relevant observations cannot be reliably associated with the underlying entity. Occurrence hyperedges address this limitation by grouping visually diverse mentions of the same referent while preserving direct access to observation-specific visual evidence. 
+
+(3) Substantial performance gains on temporal and cross-modal reasoning. MHG-Mem achieves the best performance in 17 of the 19 task categories in Figure 3(b), with particularly large gains on tasks requiring integration of observations across sessions. On WorldMemArena-S, temporal reasoning (TR) improves from 48% to 87% over the strongest baseline, while dynamic update (DU), test-time learning (TTL), and cross-modal reasoning (CMR) improve by 17%, 17%, and 15%, respectively. On Mem-Gallery, visual reasoning (VR) and temporal reasoning (TR) improve by 18% and 17%. These gains are supported by our evolution design, which summarize time-ordered entity states to guide retrieval, together with evidential hyperedges that preserve state–fact correspondence and enable provenance tracing from synthesized states back to the originating dialogue and images. 
+
+(4) Memory quality and evidence accessibility improve together. As shown in Fig-ure 3(a), MHG-Mem achieves the highest memory recall, memory correctness, and retrieval coverage among all compared systems. The simultaneous improvement in memory qual-ity and coverage indicates that MHG-Mem preserves useful information accurately while keeping its supporting evidence readily accessible. 
+
+4.3 Ablation Study 
+
+Tables 2 and 3 evaluate memory construction and retrieval components using the average LLM-judge score across the three benchmarks. Memory components are introduced cumu-latively, whereas retrieval components are removed individually. Specifically, w/o Agentic Search replaces agentic search with three-layer top-k retrieval; w/o Inspection Tool , w/o Cross-layer Traversal , and w/o Visual Tool disable the corresponding functionality. 
+
+Memory-side ablation. (1) Effectiveness of the entity node with occurrence hy-peredge. The entity layer with occurrence hyperedges improves performance by 5 .48% over fact-only memory. Occurrence hyperedges account for 4 .78% of this gain, with improvements across all three benchmarks. These hyperedges connect mentions and facts associated with the same entity, enabling retrieval of its observations across sessions. (2) Effectiveness of the evolution node with evolutionary hyperedge. The evolution layer with evo-lutionary hyperedges yields a further 3 .37% improvement. This representation makes state histories directly retrievable and associates them with entities in subject and coactor roles, supporting reasoning about changes across sessions. (3) Effectiveness of the evidential 
+
+8Preprint. 
+
+Table 2: Ablation of memory side with Qwen3.8-27B.                                   
+
+> Layers Hyperedges MemEye Mem-Gallery WMA-S Avg.
+> F53.81 76.08 58.72 62.87
+> F˙∪ U 54.06 77.54 59.10 63.57
+> F˙∪ U Eocc 60.69 82.13 62.24 68.35
+> F˙∪ U ˙∪ Z Eocc ˙∪ E evo 64.70 85.48 64.97 71.72
+> F˙∪ U ˙∪ Z E occ ˙∪ E evo ˙∪ E evd 65.93 87.85 66.05 73.28
+
+Table 3: Ablation of retrieval side with Qwen3.8-27B.                         
+
+> Method MemEye Mem-Gallery WMA-S Avg.
+> w/o Agentic Search 60.59 82.06 61.90 68.18 w/o Inspection Tool 61.77 84.64 63.12 69.84 w/o Cross-layer Traversal 62.33 84.49 63.74 70.19 w/o Visual Tool 63.52 86.98 65.23 71.91
+> MHG-Mem (Full) 65.93 87.85 66.05 73.28 2025-03-20 Home_S3_R5 2025-04-28 Home_S6_R5 2025-08-10 Home_S10_R2
+> Here is a close-up of the first paint test in daylight...
+
+Multimodal History 
+
+> Here's new inspiration after the color pivot.... Here's the finished room after furnishing....
+
+MHG-Mem store    
+
+> f56
+> room wall paint test...
+> f129
+> new color inspiration...
+> f213
+> finish new furniture...
+> u21
+> green paint
+> u38 u41
+> sofa
+> u45
+> living room
+> z3
+> candidate color
+> green-> teeracotta
+> Occurrence Evidential Evolutionary
+> terracotta paint
+
+Agentic Retrieval        
+
+> Query: Which tested color was ultimately not used in the finished living room?
+> Terracotta is the final color
+> (1) UniversalRAG:
+> Terracotta was tested and used.
+> (2) M2A:
+> Both terracotta and green are used.
+> (3) MMA:
+> Sage green is not used.
+> (Ours) MHG-Mem:
+> resolve_entity(“living room”) resolve_evolution(“u21”) get_raw_verbatim(“f56,f129”) submit_evidence
+> 1234
+> [occ: u38, u21,u45...] [evd: z3,f56,f129,f213]
+
+Figure 4: Case study in a home renovation scenario. MHG-Mem tracks wall paint color changes through evolution nodes and traces supporting facts to source images via evidential hyperedges, forming a verifiable evidence chain. 
+
+hyperedge. Evidential hyperedges provide an additional 1 .56% gain by linking evolution states to their supporting facts. These connections preserve provenance and allow retrieved states to be checked against the observations from which they were derived. 
+
+Retrieval-side ablation. (1) Effectiveness of agentic search. Three-layer top-k re-trieval underperforms agentic search by 5 .10%, the largest decline among the retrieval abla-tions. This result supports query-adaptive selection of retrieval entry points and subsequent evidence expansion. (2) Effectiveness of the inspection tool. Without source inspec-tion, performance falls by 3 .44%, the largest decline among individual tool ablations. Access to original dialogue and images enables the agent to verify fine-grained evidence that facts and evolution summaries may omit. (3) Effectiveness of cross-layer traversal. Re-moving cross-layer traversal reduces performance by 3 .09%. Traversal connects entities to their associated facts and evolution records to supporting observations, allowing the agent to assemble evidence across memory granularities. (4) Effectiveness of the visual tool. 
+
+Performance decreases by 1 .37% when image retrieval is disabled. Direct visual search pro-vides a complementary route to relevant observations, extending evidence access beyond entity- and evolution-centred retrieval. 
+
+4.4 Case Analysis 
+
+Figure 4 illustrates the advantages of MHG-Mem in a home renovation scenario involving successive living room color schemes. To identify the scheme the user did not adopt, the memory system must trace the progression from color trials through revisions to completion and inspect the corresponding images. UniversalRAG and M2A retrieve bedroom images by similarity but miss the initial color information, while MMA preserves the pixels without tracking the evolving schemes. MHG-Mem identifies paint as the tracked entity, preserves its mentions across rounds, and links atomic facts through occurrence hyperedges. Evolution nodes record the change in candidate color from sage green to terracotta. During retrieval, the agent follows evidential hyperedges to f56 and f129 , then inspects their source images to verify the colors and answer correctly. 9Preprint. 
+
+Conclusion 
+
+We presented MHG-Mem, a multimodal hypergraph memory framework that organizes visually diverse observations of the same entity into coherent state histories while preserv-ing fine-grained visual evidence. Typed n-ary hyperedges connect entity mentions, atomic facts, and evolution records, keeping individual states traceable to their supporting obser-vations. Hypergraph-based agentic search adaptively navigates these memory levels, using state histories to guide retrieval and original dialogue and images to verify evidence. Abla-tions demonstrate the contributions of entity associations, explicit state histories, evidence grounding, and adaptive retrieval. These findings support the joint design of memory orga-nization and evidence access for reasoning over evolving multimodal experience. 
+
+References 
+
+Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Junyang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu, Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jianqiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yuxuan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu, Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu, and Ke Zhu. Qwen3-VL Technical Report. arXiv preprint arXiv:2511.21631, 2025. URL https://arxiv.org/abs/2511.21631 .Yuanchen Bei, Tianxin Wei, Xuying Ning, Yanjun Zhao, Zhining Liu, Xiao Lin, Yada Zhu, Hendrik Hamann, Jingrui He, and Hanghang Tong. Mem-Gallery: Benchmark-ing Multimodal Long-Term Conversational Memory for MLLM Agents. arXiv preprint arXiv:2601.03515, 2026. URL https://arxiv.org/abs/2601.03515 .Wenhu Chen, Hexiang Hu, Xi Chen, Pat Verga, and William W. Cohen. MuRAG: Mul-timodal Retrieval-Augmented Generator for Open Question Answering over Images and Text. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing , pp. 5558–5570, Abu Dhabi, United Arab Emirates, December 2022. Asso-ciation for Computational Linguistics. doi: 10.18653/v1/2022.emnlp-main.375. URL 
+
+https://aclanthology.org/2022.emnlp-main.375/ .Yijun Chen, Yaqi Zheng, Yanya Li, Boyi Xiao, Buqiang Xu, Shuofei Qiao, Jizhan Fang, Xinle Deng, Yunzhi Yao, Xuehai Wang, Liuxin Zhang, Hui Li, Huajun Chen, and Shumin Deng. EM 2Mem: Event-Centric Multimodal Memory for Large Language Models. arXiv preprint arXiv:2609.00551, 2026. URL https://arxiv.org/abs/2609.00551 .Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready ai agents with scalable long-term memory. arXiv preprint arXiv:2504.19413 , 2025. Yue Fan, Xiaojian Ma, Rujie Wu, Yuntao Du, Jiaqi Li, Zhi Gao, and Qing Li. VideoAgent: A Memory-Augmented Multimodal Agent for Video Understanding. In Computer Vision – ECCV 2024 , volume 15080 of Lecture Notes in Computer Science , pp. 75–92, Cham, 2025. Springer Nature Switzerland. doi: 10.1007/978-3-031-72670-5_5. URL https: //doi.org/10.1007/978-3-031-72670-5_5 .Junyu Feng, Binxiao Xu, Jiayi Chen, Mengyu Dai, Cenyang Wu, Haodong Li, Bohan Zeng, Yunliu Xie, Hao Liang, Ming Lu, and Wentao Zhang. M2A: Multimodal Memory Agent with Dual-Layer Hybrid Memory for Long-Term Personalized Interactions. arXiv preprint arXiv:2602.07624, 2026. URL https://arxiv.org/abs/2602.07624 .Minghao Guo, Qingyue Jiao, Zeru Shi, Yihao Quan, Boxuan Zhang, Danrui Li, Liwei Che, Wujiang Xu, Shilong Liu, Zirui Liu, Mubbasir Kapadia, Vladimir Pavlovic, Jiang Liu, Mengdi Wang, Yiyu Shi, Dimitris N. Metaxas, and Ruixiang Tang. MemEye: A10 Preprint. Visual-Centric Evaluation Framework for Multimodal Agent Memory. arXiv preprint arXiv:2605.15128, 2026. URL https://arxiv.org/abs/2605.15128 .Bernal Jimenez Gutierrez, Yiheng Shu, Yu Gu, Michihiro Yasunaga, and Yu Su. HippoRAG: Neurobiologically inspired long-term memory for large language models. In The Thirty-eighth Annual Conference on Neural Information Processing Systems , 2024. URL https: //openreview.net/forum?id=hkujvAPVsg .Jitesh Jain, Shubham Maheshwari, Ning Yu, Wen-mei Hwu, and Humphrey Shi. AU-GUSTUS: An LLM-Driven Multimodal Agent System with Contextualized User Memory. arXiv preprint arXiv:2510.15261, 2025. URL https://arxiv.org/abs/2510.15261 .Soyeong Jeong, Kangsan Kim, Jinheon Baek, and Sung Ju Hwang. VideoRAG: Retrieval-Augmented Generation over Video Corpus. In Findings of the Association for Com-putational Linguistics: ACL 2025 , pp. 21278–21298, Vienna, Austria, July 2025. Asso-ciation for Computational Linguistics. doi: 10.18653/v1/2025.findings-acl.1096. URL 
+
+https://aclanthology.org/2025.findings-acl.1096/ .Dingyi Kang, Dongming Jiang, Yi Li, Guanpeng Li, and Bingzhe Li. V-Mem: Modality-Routed Retrieval for Long-Term Multimodal Agentic Memory. arXiv preprint arXiv:2608.01543, 2026. URL https://arxiv.org/abs/2608.01543 .Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. Memory OS of AI Agent. In Pro-ceedings of the 2025 Conference on Empirical Methods in Natural Language Processing ,pp. 25961–25970, Suzhou, China, November 2025. Association for Computational Lin-guistics. doi: 10.18653/v1/2025.emnlp-main.1318. URL https://aclanthology.org/ 2025.emnlp-main.1318/ .Geng Li, Yuhao Wang, Dong Li, Jianye Hao, and Yuxin Peng. GraphMemix: Query-Aware Evidence Forests for Long-Term Multimodal Agent Memory. arXiv preprint arXiv:2608.26983, 2026. URL https://arxiv.org/abs/2608.26983 .Chengzhi Liu, Yuzhe Yang, Sophia Xiao Pu, Yepeng Liu, Lin Long, Yichen Guo, Nuo Chen, Zhaotian Weng, Elena Kochkina, Simerjot Kaur, Charese Smiley, Xiaomo Liu, James Zou, Sheng Liu, Yuheng Bu, Songyou Peng, and Xin Eric Wang. WorldMemArena: Evaluating Multimodal Agent Memory Through Action-World Interaction. arXiv preprint arXiv:2605.29341, 2026a. URL https://arxiv.org/abs/2605.29341 .Jiaqi Liu, Zipeng Ling, Shi Qiu, Yanqing Liu, Siwei Han, Peng Xia, Haoqin Tu, Zeyu Zheng, Cihang Xie, Charles Fleming, Mingyu Ding, and Huaxiu Yao. Omni-SimpleMem: Autoresearch-Guided Discovery of Lifelong Multimodal Agent Memory. arXiv preprint arXiv:2604.01007, 2026b. URL https://arxiv.org/abs/2604.01007 .Jiaqi Liu, Yaofeng Su, Peng Xia, Siwei Han, Zeyu Zheng, Cihang Xie, Mingyu Ding, and Huaxiu Yao. SimpleMem: Efficient Lifelong Memory for LLM Agents. arXiv preprint arXiv:2601.02553, 2026c. URL https://arxiv.org/abs/2601.02553 .Lin Long, Yichen He, Wentao Ye, Yiyuan Pan, Yuan Lin, Hang Li, Junbo Zhao, and Wei Li. Seeing, Listening, Remembering, and Reasoning: A Multimodal Agent with Long-Term Memory. arXiv preprint arXiv:2508.09736, 2025. URL https://arxiv.org/abs/2508. 09736 .Yihao Lu, Wanru Cheng, Zeyu Zhang, and Hao Tang. MMA: Multimodal Memory Agent. arXiv preprint arXiv:2602.16493, 2026. URL https://arxiv.org/abs/2602.16493 .Haoran Luo, Haihong E, Guanting Chen, Qika Lin, Yikai Guo, Fangzhi Xu, Zemin Kuang, Meina Song, Xiaobao Wu, Yifan Zhu, and Anh Tuan Luu. Graph-R1: Towards Agen-tic GraphRAG Framework via End-to-end Reinforcement Learning. arXiv preprint arXiv:2507.21892, 2025a. URL https://arxiv.org/abs/2507.21892 .Haoran Luo, Haihong E, Guanting Chen, Yandan Zheng, Xiaobao Wu, Yikai Guo, Qika Lin, Yu Feng, Zemin Kuang, Meina Song, Yifan Zhu, and Anh Tuan Luu. 11 Preprint. HyperGraphRAG: Retrieval-Augmented Generation via Hypergraph-Structured Knowl-edge Representation. In Advances in Neural Information Processing Systems , vol-ume 38, Main Conference, pp. 152206–152234. Curran Associates, Inc., 2025b. doi: 10.52202/085713-5089. URL https://proceedings.neurips.cc/paper_files/paper/ 2025/file/df55ee6e59f8ac4a625219e11fe9ddba-Paper-Conference.pdf .Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. Evaluating very long-term conversational memory of llm agents. In 
+
+Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 13851–13870, 2024. Viet Nguyen, Thao Nguyen, Vishal M. Patel, and Yuheng Li. Personal Visual Memory from Explicit and Implicit Evidence. arXiv preprint arXiv:2605.28806, 2026. URL https: //arxiv.org/abs/2605.28806 .OpenAI. GPT-4.1 Mini. OpenAI API model documentation, 2025. URL https: //developers.openai.com/api/docs/models/gpt-4.1-mini .OpenAI. GPT-5.4 Mini. OpenAI API model documentation, 2026. URL https: //developers.openai.com/api/docs/models/gpt-5.4-mini .Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. MemGPT: Towards LLMs as Operating Systems. arXiv preprint arXiv:2310.08560, 2023. URL https://arxiv.org/abs/2310.08560 .Qwen Team. Qwen3.8-27B. Hugging Face model card, 2026. URL https://huggingface. co/Qwen/Qwen3.8-27B .Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. Zep: A Temporal Knowledge Graph Architecture for Agent Memory. arXiv preprint arXiv:2501.13956, 2025. URL https://arxiv.org/abs/2501.13956 .Jielong Tang, Xujie Yuan, Jiayang Liu, Jianxing Yu, Xiao Dong, Lin Chen, Yunlai Teng, Shimin Di, and Jian Yin. SAKE: Self-aware knowledge exploitation-exploration for grounded multimodal named entity recognition. In Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2 , KDD ’26, pp. 4592–4603. Association for Computing Machinery, 2026. doi: 10.1145/3770855.3817763. URL 
+
+https://doi.org/10.1145/3770855.3817763 .Zhoujin Tian, Hao Zhang, Yao Tian, Cheng Chen, Yakun Li, Lei Zhang, and Xiaofang Zhou. Beyond Retrieval: Analytic Memory for Multimodal Agents. arXiv preprint arXiv:2607.29440, 2026. URL https://arxiv.org/abs/2607.29440 .Michael Tschannen, Alexey Gritsenko, Xiao Wang, Muhammad Ferjad Naeem, Ibrahim Al-abdulmohsin, Nikhil Parthasarathy, Talfan Evans, Lucas Beyer, Ye Xia, Basil Mustafa, Olivier Hénaff, Jeremiah Harmsen, Andreas Steiner, and Xiaohua Zhai. SigLIP 2: Multilingual Vision-Language Encoders with Improved Semantic Understanding, Lo-calization, and Dense Features. arXiv preprint arXiv:2502.14786, 2025. URL https: //arxiv.org/abs/2502.14786 .Yu Wang and Xi Chen. MIRIX: Multi-Agent Memory System for LLM-Based Agents. arXiv preprint arXiv:2507.07957, 2025. URL https://arxiv.org/abs/2507.07957 .Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-Mem: Agentic Memory for LLM Agents. In Advances in Neural Information Processing Sys-tems , volume 38, Main Conference, pp. 17577–17604. Curran Associates, Inc., 2025. doi: 10.52202/085713-0593. URL https://proceedings.neurips.cc/paper_files/paper/ 2025/file/19909c36f51abc4856b4560aff3d36d6-Paper-Conference.pdf .Woongyeong Yeo, Kangsan Kim, Soyeong Jeong, Jinheon Baek, and Sung Ju Hwang. Uni-versalRAG: Retrieval-Augmented Generation over Corpora of Diverse Modalities and Granularities. In Proceedings of the 64th Annual Meeting of the Association for Com-putational Linguistics (Volume 1: Long Papers) , pp. 3843–3871, San Diego, California, 12 Preprint. United States, July 2026. Association for Computational Linguistics. doi: 10.18653/v1/ 2026.acl-long.177. URL https://aclanthology.org/2026.acl-long.177/ .Xujie Yuan, Shimin Di, Jielong Tang, Libin Zheng, and Jian Yin. Towards self-cognitive exploration: Metacognitive knowledge graph retrieval augmented generation. In Pro-ceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Min-ing V.1 , KDD ’26, pp. 1844–1855. Association for Computing Machinery, 2026. doi: 10.1145/3770854.3780156. URL https://doi.org/10.1145/3770854.3780156 .Juwei Yue, Chuanrui Hu, Jiawei Sheng, Zuyi Zhou, Wenyuan Zhang, Tingwen Liu, Li Guo, and Yafeng Deng. HyperMem: Hypergraph Memory for Long-Term Conversations. In 
+
+Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 35237–35254, San Diego, California, United States, July 2026. Association for Computational Linguistics. doi: 10.18653/v1/2026.acl-long.1627. URL https://aclanthology.org/2026.acl-long.1627/ .Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. Memorybank: Enhanc-ing large language models with long-term memory. In Proceedings of the AAAI conference on artificial intelligence , volume 38, pp. 19724–19731, 2024. Chulun Zhou, Chunkang Zhang, Guoxin Yu, Fandong Meng, Jie Zhou, Wai Lam, and Mo Yu. HGMEM: Hypergraph-based Working Memory to Improve Multi-step RAG for Long-Context Complex Relational Modeling. arXiv preprint arXiv:2512.23959, 2025. URL 
+
+https://arxiv.org/abs/2512.23959 .13 Preprint. 
+
+Appendix Contents 
+
+A Notation Definition 15 B Additional Method Details 16 
+
+B.1 Detailed Hypergraph Memory Schema . . . . . . . . . . . . . . . . . . . . . . 16 B.2 Detailed Memory Construction . . . . . . . . . . . . . . . . . . . . . . . . . . 16 B.3 Agentic Search and Tool Specification . . . . . . . . . . . . . . . . . . . . . . 18 B.4 Provenance Preservation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 
+
+C Additional Experimental Details 19 
+
+C.1 Benchmarks and Metrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 C.2 Implementation Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21 C.3 Baselines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 
+
+D Additional Experiment Results and Analysis 23 
+
+D.1 Retrieval Tool Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 D.2 Cost Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24 D.3 Memory Quality and Fine-grained Analysis on More Backbones . . . . . . . . 25 D.4 Hyperparameter Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25 D.5 More Case Studies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26 
+
+E Prompt Templates 28 
+
+E.1 Atomic fact construction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28 E.2 Multimodal entity extraction . . . . . . . . . . . . . . . . . . . . . . . . . . . 29 E.3 Occurrence linking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29 E.4 State evolution synthesis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30 E.5 Hypergraph-based agentic search . . . . . . . . . . . . . . . . . . . . . . . . . 31 14 Preprint. 
+
+A Notation Definition 
+
+Symbol Meaning Symbol Meaning 
+
+D≤T Ordered multimodal history 
+
+dt Interaction round txt Dialogue text in round 
+
+t
+
+It Images in round tδt Date of round t Ct Recent within-session context 
+
+q = ( xq , Iq ) Multimodal query W, S Memory construction and retrieval operators 
+
+Eq , ˆy Retrieved evidence and generated answer 
+
+θ Fixed model parameters 
+
+H Attributed multimodal hypergraph 
+
+MT Persistent memory at history length T
+
+V, E Node and hyperedge sets 
+
+ι Hyperedge incidence map 
+
+τV , τ E Node-type and hyperedge-type maps 
+
+ρ Source-round reference map 
+
+F, U, Z FactNode, EntityNode, and EvolutionNode sets 
+
+K Stored embedding indices 
+
+Eocc , Eevo , Eevd Occurrence, evolutionary, and evidential hyperedge families 
+
+r Referent group 
+
+f = ( ℓf , If , t f , s f , δ f ) FactNode and its text, images, round, session, and date 
+
+u = ( nu, c u, μ u, i u, b u) EntityNode and its mention attributes 
+
+Ur , Fr Mentions and facts associated with referent reocc  
+
+> r
+
+Occurrence hyperedge of rz = ( rz , a z , σ z , S z , κ z ) EvolutionNode and its subject, aspect, summary, state trace, and update type 
+
+Fz Facts supporting evolution zSz = (( vj , f j )) mz 
+
+> j=1
+
+Ordered state–fact trace of zvj , m z State value at position 
+
+j and number of recorded states 
+
+Usubj  
+
+> z
+
+, Uco  
+
+> z
+
+Subject and coactor mentions of zeevo  
+
+> z
+
+, e evd  
+
+> z
+
+Evolutionary and evidential hyperedges 
+
+ak , o k , h k Tool action, observation, and search history at step kπθ LLM search controller 
+
+Bstep , B img Search-step and image budgets 
+
+w Controller-generated fact-search string 
+
+Ft,̂ Zr Current-round facts and candidate evolutions 
+
+A Fact-to-occurrence anchoring predicate 
+
+sT , s T I , s II ; λT , λ T I , λ II Fact-level component scores and weights 
+
+wT , w I , c T , c I Entity-linking weights and similarities 
+
+sF , s Z Fact- and evolution-level relevance scores 
+
+ϕT , ϕ I , ψ T Text, image, and cross-modal encoders Traverse( v, E′, V′) Cross-layer traversal operator 
+
+Rz Source rounds cited by evolution z
+
+R, Src( z) Retained archive and recorded source set of zK Candidate limit in construction 
+
+15 Preprint. 
+
+B Additional Method Details 
+
+This section provides more detailed hypergraph schema, notation definition, construction and search algorithms, tool specifications, and a source-recoverability proof. 
+
+B.1 Detailed Hypergraph Memory Schema 
+
+MHG-Mem is an attributed hypergraph with three node types and three typed n-ary hy-peredge families: 
+
+Nodes. FactNode is an atomic multimodal observation such as an event, state, visual attribute, or spatial relation. Each f ∈ F stores 
+
+f = ( ℓf , If , t f , s f , δ f ), (12) where ℓf is the fact description, If is its set of image identifiers, and ( tf , s f , δ f ) gives the source round, session, and date. 
+
+EntityNode represents a distinct entity mention expressed as a text span, an image region, or both. Each u ∈ U stores 
+
+u = ( nu, c u, μ u, i u, b u), bu = ( x1, y 1, x 2, y 2) ∈ [0 , 1] 4, (13) where nu is its name, cu its entity class, μu its modality, iu an optional image identifier, and 
+
+bu an optional normalized visual region. EntityNodes linked to the same underlying entity form a referent group r with mention set Ur ; every mention remains a distinct observation. 
+
+EvolutionNode records a change in an attribute or relation of a referent group, such as changes in appearance, price, or location. Each z ∈ Z stores 
+
+z = ( rz , a z , σ z , S z , κ z ), Sz = (( vj , f j )) mz
+
+> j=1
+
+, Fz = {fj : 1 ≤ j ≤ mz } ⊆ F rz , (14) where rz is the subject referent, az is the evolving attribute or relation, σz summarizes the observed states, Sz is the ordered state–fact trace, and κz is the update type. 
+
+Hyperedges. Occurrence hyperedge binds all mentions and associated facts of a ref-erent group: 
+
+ι(eocc  
+
+> r
+
+) = Ur ∪ F r , Ur = ι(eocc  
+
+> r
+
+) ∩ U . (15) 
+
+Evolutionary hyperedge binds an EvolutionNode to its subject and coactor mentions: 
+
+ι(eevo  
+
+> z
+
+) = {z} ∪ U subj  
+
+> z
+
+∪ U co  
+
+> z
+
+, (16) where Usubj  
+
+> z
+
+⊆ U rz contains mentions of the changing entity and Uco  
+
+> z
+
+contains mentions from other participating referents. 
+
+Evidential hyperedge connects the evolution to its supporting facts: 
+
+ι(eevd  
+
+> z
+
+) = {z} ∪ F z . (17) Finally, ρ(v) gives the source-round reference for v ∈ F ∪ U , while If and ( iu, b u) retain image-level and region-level grounding. The complete memory is 
+
+MT = ( H, ρ, K). (18) 
+
+B.2 Detailed Memory Construction 
+
+Algorithm 1 combines the three construction steps. Original rounds and images are archived before extraction. FactNodes retain round-level image references If , whereas visual Enti-tyNodes retain observation-specific regions ( iu, b u); both use ρ to locate their source rounds. 16 Preprint. 
+
+Algorithm 1 MHG-Mem construction 
+
+Require: History D≤T , construction models, candidate limit K
+
+Ensure: Memory MT = ( H, ρ, K) 
+
+> 1:
+
+Initialize the archive, H, ρ, and K 
+
+> 2:
+
+for t = 1 , . . . , T do  
+
+> 3:
+
+Archive dt; index its images and captions  
+
+> 4:
+
+Extract Ft using Equation equation 3 ▷ Step 1  
+
+> 5:
+
+Store Ft, source references, and text embeddings  
+
+> 6:
+
+Extract entity candidates from dt ▷ Step 2  
+
+> 7:
+
+for each candidate u do  
+
+> 8:
+
+Rank occurrence hyperedges by Equation equation 4  
+
+> 9:
+
+Condition on dt, u, and the top-K candidates  
+
+> 10:
+
+Select UPDATE , ADD , or SKIP  
+
+> 11:
+
+if the action is not SKIP then  
+
+> 12:
+
+Store u and ρ(u); execute the occurrence update  
+
+> 13:
+
+Index its name and available visual region  
+
+> 14:
+
+end if  
+
+> 15:
+
+end for  
+
+> 16:
+
+Anchor Ft using Equation equation 5  
+
+> 17:
+
+end for  
+
+> 18:
+
+for each referent group r with facts across sessions do  
+
+> 19:
+
+Generate ̂ Zr using Equation equation 6 ▷ Step 3  
+
+> 20:
+
+Filter and order state references; apply Equation equation 19  
+
+> 21:
+
+for each retained z ∈̂ Zr do  
+
+> 22:
+
+Set rz = r; construct subject and coactor memberships  
+
+> 23:
+
+Store z, eevo  
+
+> z
+
+, and eevd  
+
+> z
+> 24:
+
+Index ϕT (az ∥ σz ) in K 
+
+> 25:
+
+end for  
+
+> 26:
+
+end for  
+
+> 27:
+
+return MT
+
+Evolution validation and participants. The synthesizer reads ordered fact descriptions and their identifiers, and proposes histories for changing attributes or relations across ses-sions. Invalid fact references and repeated references are removed; the remaining state–fact pairs are ordered by tf . For a candidate with subject rz = r, retention requires 
+
+fj ∈ F r (1 ≤ j ≤ mz ),tfj ≤ tfj+1 (1 ≤ j < m z ),
+
+∣∣{vj : 1 ≤ j ≤ mz }∣∣ ≥ 2.
+
+(19) The values must be nonempty, and distinctness is checked after case and whitespace nor-malization. These checks validate the recorded sequence; identifying a meaningful change remains the synthesizer’s task. Let Rz = {ρ(f ) : f ∈ F z } be the cited round references. Subject mentions are selected from 
+
+Urz with ρ(u) ∈ Rz ; if none occurs in these rounds, one stored subject mention identifies the referent. For each other group r′̸ = rz with Fr′ ∩ F z̸ = ∅, a mention satisfying ρ(u) ∈ Rz is selected as a coactor when available. These role sets define eevo  
+
+> z
+
+; the distinct state references define eevd  
+
+> z
+
+through Equations equation 16 and equation 17. The ordered correspondence remains in Sz .
+
+Incremental construction. At a new session boundary, only groups receiving newly anchored facts require resynthesis. Their evolution records are regenerated from the updated 
+
+Fr . Successful replacements update the derived nodes, hyperedges, and embeddings while retaining the underlying facts, mentions, and original sources. 17 Preprint. Table 4: Four tool types for hypergraph-based agentic search. Query images, when supplied, are available to the visual lookups.                     
+
+> Type Tool Input Returned information Hypergraph resolve_facts Text query wRanked facts and source references.
+> resolve_entity Entity name or query image Candidate referent groups and corresponding occurrence linking facts.
+> resolve_evolution Referent name, query image, or evolution_id
+> Evolutions and evidential linking facts. Visual search_image Text query or query image Matching images. Inspection get_raw_verbatim Source-round identifier Original dialogue and images. Assembly submit_evidence Fact and image references; optional summary Validation feedback; accepted evidence forms
+> Eq.
+
+B.3 Agentic Search and Tool Specification 
+
+Table 4 specifies the six tools available to the controller. Algorithm 2 uses them under a step budget Bstep and a budget Bimg on distinct images presented during search. 
+
+Multimodal embedding scoring. Using the text encoder ϕT from the main text, let ϕI
+
+encode images and ψT encode text in ϕI ’s feature space. An image identifier is resolved to its pixels before encoding. The components of Equation equation 9 are 
+
+sT (w, f ) = cos (ϕT (w), ϕ T (ℓf )),sT I (w, f ) = max ({0} ∪ { cos( ψT (w), ϕ I (I)) : I ∈ I f }),sII (q, f ) = max ({0} ∪ { cos( ϕI (J), ϕ I (I)) : J ∈ I q , I ∈ I f }).
+
+(20) Visual scores are floored at zero, and unavailable terms contribute zero without renormal-izing λT , λ T I , λ II . The Visual Tool searches stored captions for a text lookup and image embeddings for a query-image lookup. 
+
+Traversal and evidence assembly. Entity and evolution lookups perform the member-ship expansions described in Section 3.4. Evolution relevance uses az ∥ σz , while readout dereferences the supporting facts in the order retained by Sz . Source inspection follows 
+
+ρ(f ) to recover original observations. Facts returned by retrieval or associated with ac-cessed rounds are registered for citation. At submission, fact identifiers must be registered and available, and attached image identifiers must belong to the cited fact’s source round. Invalid references are removed. The retained references select textual and visual evidence for Eq , together with the optional controller summary. These checks validate identifier associations, not the semantic content of that summary. 
+
+B.4 Provenance Preservation 
+
+Let R be the archive mapping source-round identifiers to retained observations, so ρ(f ) ∈
+
+dom( R) means that the source of f is available. For Sz = (( vj , f j )) mz
+
+> j=1
+
+, define the recorded source set Src( z) = {ρ(fj ) : 1 ≤ j ≤ mz }. (21) The following property concerns access to recorded evidence, independently of extraction accuracy or the truth of generated summaries. 
+
+Proposition 1 (Source recoverability) . Suppose every retained state cites fj ∈ F rz with 
+
+ρ(fj ) ∈ dom( R), and eevd  
+
+> z
+
+stores exactly the distinct facts cited in Sz as in Equation equa-tion 17. Then each state has a trace to its original observation, and expanding eevd  
+
+> z
+
+followed 
+
+18 Preprint. 
+
+by ρ recovers exactly Src( z). This property is preserved by fact and mention additions and validated evolution insertions or replacements with valid fact identifiers, source bindings, and archive records. Proof. Because F and Z are disjoint, z / ∈ F . Since every fj ∈ F rz ⊆ F , Equation equa-tion 11 gives Traverse( z, {eevd  
+
+> z
+
+}, F) = ι(eevd  
+
+> z
+
+) ∩ F 
+
+= ( {z} ∪ F z ) ∩ F = Fz . (22) For every 1 ≤ j ≤ mz , the membership fj ∈ F z and the source-availability assumption therefore define the trace 
+
+z eevd 
+
+> z
+
+−−−−→ fjρ
+
+−−→ ρ(fj ) R
+
+−−→ R (ρ(fj )) . (23) Applying ρ to all recovered fact members yields 
+
+{ρ(f ) : f ∈ Traverse( z, {eevd  
+
+> z
+
+}, F)}
+
+= {ρ(f ) : f ∈ F z }
+
+= {ρ(fj ) : 1 ≤ j ≤ mz } = Src( z).
+
+(24) Thus expansion neither adds nor omits a recorded source. The set equality deduplicates shared sources; the index-specific association j 7 → fj 7 → ρ(fj ) remains available through Sz .For preservation, denote the evolution sets before and after an update by Z− and Z+. If 
+
+Zdel contains removed evolutions and Znew contains validated new evolutions, then 
+
+Z+ = ( Z− \ Z del ) ˙ ∪ Z new . (25) For every surviving z, unchanged state references and source bindings give Src +(z) = Src −(z) ⊆ dom( R−) ⊆ dom( R+), (26) where superscripts identify the corresponding memory snapshots. Its evidential membership is unchanged, so Equations equation 22–equation 24 continue to hold. For every new evolu-tion, validation supplies the same assumptions, and the preceding argument applies directly. Fact and mention additions are the case Zdel = Znew = ∅. The empty memory satisfies the property vacuously; induction over these operations establishes it for every successfully constructed snapshot. 
+
+C Additional Experimental Details 
+
+C.1 Benchmarks and Metrics 
+
+MemEye. MemEye (Guo et al., 2026) evaluates visual memory along two axes: visual evidence granularity, from scene-level to pixel-level details, and memory reasoning depth, from atomic retrieval to evolutionary synthesis. It contains eight everyday scenarios and 371 questions, each with paired multiple-choice and open-ended versions. These tasks require agents to recover visually grounded facts, distinguish similar instances, and reason over observations accumulated across sessions. 
+
+Mem-Gallery. Mem-Gallery (Bei et al., 2026) evaluates long-term multimodal conversa-tional memory using persona-driven dialogues across 20 scenarios. The evaluated release contains 240 sessions, 3,962 dialogue rounds, 1,490 images, and 1,711 open-ended ques-tions. It probes memory extraction, reasoning, and knowledge management over extended text–image histories. 19 Preprint. 
+
+Algorithm 2 Hypergraph-based agentic search 
+
+Require: Query q, memory MT , controller πθ , step budget Bstep , image budget Bimg 
+
+Ensure: Retrieved evidence Eq 
+
+> 1:
+
+Initialize h1 = () and an empty registry of retrieved facts  
+
+> 2:
+
+for k = 1 , . . . , B step do  
+
+> 3:
+
+Reason over q, h k; select ak ∼ πθ ( · | q, h k) 
+
+> 4:
+
+if ak selects hypergraph retrieval then  
+
+> 5:
+
+ok ← layer-specific retrieval with applicable traversal (Eq. equation 11)  
+
+> 6:
+
+else if ak selects visual retrieval then  
+
+> 7:
+
+ok ← matching images and captions  
+
+> 8:
+
+else if ak selects source inspection then  
+
+> 9:
+
+ok ← original dialogue and images via ρ 
+
+> 10:
+
+else ▷ Evidence submission  
+
+> 11:
+
+Validate submitted references and source associations  
+
+> 12:
+
+if submission is accepted then  
+
+> 13:
+
+return Eq assembled from selected evidence and notes  
+
+> 14:
+
+end if  
+
+> 15:
+
+ok ← feedback requesting additional evidence  
+
+> 16:
+
+end if  
+
+> 17:
+
+Register retrieved facts and facts associated with accessed sources  
+
+> 18:
+
+Attach requested images to ok within Bimg  
+
+> 19:
+
+hk+1 ← hk ∥ (ak, o k) 
+
+> 20:
+
+end for  
+
+> 21:
+
+return Finalize Eq through forced evidence submission 
+
+WorldMemArena-S. WorldMemArena (Liu et al., 2026a) evaluates memory in GUI and embodied-agent trajectories, as well as lifelong personal and project interactions. We use its released 150-sample subset, denoted WorldMemArena-S, containing 7,906 questions. Its 11 question types cover textual memory, visual memory, and reasoning, including factual recall, dynamic updates, conflict resolution, and cross-modal reasoning. Evaluation follows the annotated QA checkpoints: MHG-Mem constructs memory from only the sessions cov-ered by each checkpoint. Prefix checkpoints reuse the corresponding historical state, while non-prefix session windows are constructed independently to prevent access to out-of-scope observations. 
+
+Evaluation Metrics. Let Qb denote the open-ended questions of benchmark b and 
+
+QMCQ MemEye its multiple-choice questions. Answers are lowercased, punctuation-normalized, and whitespace-normalized before scoring; all reported values are percentages. For MemEye, options are rotated across Rq equivalent instances. Exact Match (EM) is the mean accuracy over rotations and questions: EM = 1
+
+|Q MCQ MemEye |
+
+∑
+
+> q
+
+1
+
+RqRq
+
+∑
+
+> r=1
+
+1[ˆ cq,r = c⋆q,r ]. (27) For open-ended answers, let ˜T (·) be the normalized token multiset after Porter stemming and Cq = ˜T (ˆ yq ) ∩ ˜T (y⋆q ). Token F1 is 
+
+F1,q = 2Pq Rq
+
+Pq + Rq
+
+, Pq = |Cq || ˜T (ˆ yq )| , Rq = |Cq || ˜T (y⋆q )| , F1 b = 1
+
+|Q b|
+
+∑
+
+> q∈Q b
+
+F1,q (28) with F1,q = 0 when the overlap is empty. BLEU-1 uses the same normalization without stemming and combines clipped unigram precision with a brevity penalty: BLEU1 q = BP q
+
+∑ 
+
+> w
+
+min {cˆyq (w), c y⋆q (w)}
+
+∑ 
+
+> w
+
+cˆyq (w) , B-1 b = 1
+
+|Q b|
+
+∑
+
+> q∈Q b
+
+BLEU1 q (29) 20 Preprint. where BP q = 1 if |ˆyq | > |y⋆q | and otherwise BP q = exp(1 − | y⋆q |/|ˆyq |). We use NLTK method-1 smoothing for sentence-level BLEU-1. MemEye and Mem-Gallery use their native reference-based judge, whose parsed score is sq ∈{0, 0.5, 1}; Judge b = |Q b|−1 ∑ 
+
+> q∈Q b
+
+sq . WorldMemArena-S labels each answer as correct, hallucination, or omission and reports QA-C as its Judge: QA-C = Judge WMA-S = |{ q ∈ Q WMA-S : ℓq = correct }| 
+
+Nvalid 
+
+(30) For WorldMemArena memory diagnostics, let Gs be the gold memory points, Ds the stored add/update items, and Cs the gold points judged covered by Ds. With importance weight 
+
+wg , Memory Recall is 
+
+Memory_Recall s =
+
+∑ 
+
+> g∈C s
+
+wg
+
+∑ 
+
+> g∈G s
+
+wg
+
+, Memory_Recall = mean s: |G s|>0 Memory_Recall s. (31) If nC 
+
+> s
+
+stored items are judged correct, Memory Correctness is 
+
+Memory_Correctness = mean s: |D s|>0
+
+nC
+
+> s
+
+|D s| , (32) implemented by the released evaluator as 1 − nincorrect  
+
+> s
+
+/n checked  
+
+> s
+
+. For each update, the post-session memory is classified as updated, both, or outdated, yielding 
+
+Update_Handling = Nupdated + 0 .5Nboth + 0 Noutdated 
+
+Ntotal 
+
+. (33) Finally, if Vq is the gold evidence set and covered q is the number of evidence points found by the LLM judge in the returned retrieval list, retrieval hit rate is 
+
+retrieval_hit_rate = 1
+
+|Q WMA-S |
+
+∑
+
+> q∈Q WMA-S
+
+covered q
+
+|V q | , (34) where questions without gold evidence contribute zero. WMA metrics are first computed per trajectory and then averaged across evaluated instances. Table 5 consolidates the fine-grained task semantics used by Mem-Gallery and WorldMemArena-S. Shared capabilities are listed once, while benchmark-specific labels and definitions are retained. 
+
+C.2 Implementation Details 
+
+We use Qwen3-VL-8B, GPT-4.1-mini, and Qwen3.8-27B memory backbones. The selected backbone performs memory construction, agentic retrieval,and answer generation in MHG-Mem. We instantiate the text encoder ϕT with all-MiniLM-L6-v2 , and the image and cross-modal encoders ( ϕI , ψ T ) with google/siglip2-base-patch16-384 . Qwen3-VL-8B and Qwen3.8-27B are served using vLLM on four NVIDIA A800 GPUs, while GPT-4.1-mini is accessed through the official API. All models apply 65,536 max token limit and 0 temperature. Each result is averaged over three runs. In memory construction stage, the context Ct contains up to three preceding rounds from the same session, and at most eight images from It are passed to the construction models. Occurrence linking uses the top K = 3 candidate hyperedges in Eq. equation 4, with wT =
+
+wI = 0 .5. Evolution synthesis retains only records z grounded in at least two facts in Fz and observations from at least two sessions. For WorldMemArena-S, ̂ Zr is refreshed after every visible session checkpoint; for the static MemEye and Mem-Gallery corpora, it is synthesized after the available history D≤T has been constructed. In memory retrieval stage, the controller πθ follows the search loop in Algorithm 2 with 
+
+Bstep = 16 and Bimg = 10. The entity-layer search returns at most 3 referent groups; the 21 Preprint. Table 5: Fine-grained task definitions used by Mem-Gallery and WorldMemArena-S. A dash indicates that the benchmark has no directly corresponding task label. 
+
+Capability Mem-Gallery WorldMemArena-S Fact recall FR (Factual Retrieval): retrieve an explicit fact from the conversation. 
+
+FR (Fact Recall): retrieve one concrete fact stated earlier in the trajectory. Multi-entity reasoning 
+
+MR (Multi-entity Reasoning): combine retrieved information about multiple entities to infer an answer. –Temporal reasoning 
+
+TR (Temporal Reasoning): resolve a time-dependent question. 
+
+TR (Temporal Reasoning): reason about timing, ordering, or duration. Visual or cross-modal reasoning 
+
+VR (Visual-centric Reasoning): use visual information in addition to the dialogue. 
+
+CMR (Cross-modal Reasoning): combine textual and visual memory. Test-time learning 
+
+TTL (Test-time Learning): learn visual knowledge from historical images and apply it during QA. 
+
+TTL (Test-Time Learning): apply a rule or skill taught earlier in the trajectory. Visual search VS (Visual-centric Search): find the image(s) matching a query and return their image IDs. 
+
+VS (Visual Search): locate an object or attribute across visual memory. Conflict handling CD (Conflict Detection): detect a contradiction between the history and the question. 
+
+MC (Memory Conflict): resolve disagreement between two memory items using context. Knowledge reasoning or resolution 
+
+KR (Knowledge Resolution): resolve updates or conflicts by prioritizing the most recent information. 
+
+KR (Knowledge Reasoning): combine stored facts with general world knowledge. Answer boundary AR (Answer Refusal): answer “Not mentioned” when the information is absent. –Dynamic update – DU (Dynamic Update): report the latest value after a queried fact is overwritten. Visual fact recall – VFR (Visual Fact Recall): recover a fact anchored to a specific image. Visual update – VU (Visual Update): report the most recent state after a visual attribute changes. 
+
+visual search returns at most 5 images. Evolution-layer search returns at most 3 relevant evo-lution aspects. The fact-layer search returns at most 30 candidates facts. For MemEye and Mem-Gallery, source inspection exposes the rounds referenced by ρ(f ); WorldMemArena-S exposes the cited FactNodes f ∈ F . We follow the benchmark-specific QA and judging procedures defined above. 
+
+C.3 Baselines 
+
+A-Mem. A-Mem (Xu et al., 2025) organizes textual memories as interconnected notes inspired by the Zettelkasten method. It enriches each note with contextual descriptions and indexing attributes, establishes links to related notes, and updates existing memories as new observations arrive. 
+
+MemoryOS. MemoryOS (Kang et al., 2025) maintains short-term, mid-term, and long-term memory. Storage, updating, retrieval, and generation modules coordinate the transfer and consolidation of conversational information across these tiers to support persistent user knowledge and preferences. 22 Preprint. 
+
+SimpleMem. SimpleMem (Liu et al., 2026c) compresses interactions into compact, self-contained textual memory units. Its pipeline combines semantic structured compression, online semantic synthesis, and intent-aware retrieval planning to reduce redundancy and assemble query-relevant context. The unimodal category refers to textual memory repre-sentations. 
+
+HyperMem. HyperMem (Yue et al., 2026) organizes long-term conversations into topic, episode, and fact levels. Hyperedges group associated episodes and facts, while hybrid lexical–semantic indexing and coarse-to-fine retrieval recover related information across these levels. 
+
+M2A. M2A (Feng et al., 2026) combines an immutable raw-message store with a semantic-memory store of higher-level observations. A conversational agent and a memory manager coordinate memory updates and iterative retrieval, retaining links between semantic mem-ories and their original multimodal evidence. 
+
+MMA. MMA (Lu et al., 2026) is a confidence-aware multimodal memory agent. It com-bines semantic relevance with memory reliability, estimated from source credibility, temporal decay, and conflict-aware consensus, to reduce reliance on stale or conflicting observations. 
+
+SRAG. SRAG denotes the multimodal Semantic RAG baseline in MemEye (Guo et al., 2026). It ranks historical records by combining text and image embedding similarities and supplies retrieved text and associated original images to the answer model. It provides a direct retrieval comparison to methods that construct additional memory abstractions or relational structures. 
+
+UniversalRAG. UniversalRAG (Yeo et al., 2026) routes queries to corpora organized by modality and granularity. Modality-aware routing selects the appropriate evidence source, while retrieval at different granularities supplies context for answer generation. 
+
+D Additional Experiment Results and Analysis 0% 20% 40% 60% 80% 100%     
+
+> OA TTL TR CMR KR DU VU MC
+> 16.8% 20.4% 21.1% 9.1% 23.0% 31.6% 21.7% 9.2% 35.2% 42.6% 22.9% 38.6% 32.7% 33.1% 31.5% 48.1% 7.0% 4.6% 5.2% 11.1% 8.5% 31.2% 21.9% 32.2% 29.8% 26.1% 18.4% 29.6% 26.6% 9.9% 10.5% 18.7% 11.4% 15.8% 14.6% 8.7% 13.7%
+> resolve_entity resolve_fact search_image get_raw_verbatim resolve_evolution
+
+Figure 5: Average tool utilization on WorldMemArena-S with Qwen3.8-27B, reported overall and by 7 task types: OA (Overall Average), TTL (Test-time Learning), TR (Temporal Reasoning), CMR (Cross-modal Reasoning), KR (Knowledge Reasoning), DU (Dynamic Updating), VU (Visual Update), and MC (Memory Conflict). 
+
+D.1 Retrieval Tool Analysis 
+
+Figure 5 reports average tool usage on WorldMemArena-S with Qwen3.8-27B. Hyper-graph tools ( resolve_entity , resolve_fact , and resolve_evolution ) and the inspec-tion tool ( get_raw_verbatim ) dominate agentic search. In particular, resolve_fact and 
+
+get_raw_verbatim are invoked most frequently, suggesting that many questions can be 23 Preprint. traced through atomic facts and verified against original dialogue or visual evidence. Entity-and evolution-layer retrieval also accounts for substantial usage in TTL, TR, KR, DU, and VU tasks. This pattern suggests that, for temporal reasoning and multimodal updates, the agent links observations of the same entity and retrieves relevant state histories to reason about attribute updates, conflicts, and replacements. 
+
+D.2 Cost Analysis 8k 10k 15k 20k 30k 
+
+Average Tokens per sample 
+
+> 50 55 60 65 70 75
+> Average judge score
+> A-Mem MemoryOS SimpleMem M2A MMA SRAG UniversalRAG
+> MHG-Mem (w/o A.S.) MHG-Mem
+
+Figure 6: Trade-off between token consump-tion and QA performance among different baselines. w/o A.S. represents replace MHG-Mem’s agentic search with top-k retrieval. Figure 6 compares token consumption and QA performance across methods. Follow-ing prior work, we measure the average to-tal number of LLM input and output tokens per sample across memory construction, re-trieval, and QA. For multimodal methods, this count also includes image input tokens determined by the corresponding LLM’s vi-sual encoding. We additionally report MHG-Mem (w/o A.S.), an ablation that replaces agentic search with top-k hypergraph re-trieval. Among the baselines, unimodal memory methods that abstract images into textual captions consume fewer tokens but achieve lower QA performance, as fine-grained vi-sual details are omitted. Among multimodal methods, RAG-based approaches (SRAG, MMA, and UniversalRAG) require fewer to-kens than memory-based approaches (M2A and MHG-Mem) because they avoid explicit memory construction and iterative search. Although MHG-Mem improves benchmark-averaged QA performance by 8.20–9.98 points over the strongest baseline for each backbone, it consumes approximately 2x tokens, reflect-ing both the processing of multimodal information during memory construction and iterative tool calls during retrieval. The additional cost primarily arises from agentic search: MHG-Mem (w/o A.S.) requires only approximately 1–2k more tokens than multimodal baselines while still delivering performance gains of 5%–15%, offering a favorable balance between cost and performance. These results suggest using similarity-based hypergraph retrieval in resource-constrained settings and agentic hypergraph search when higher QA performance is the priority. 60% 75% 90%                                                                                                                                                              
+
+> A-Mem MemoryOS SimpleMem M2A MMA UniversalRAG Semantic RAG
+> MHG-Mem
+> Memory Recall
+> 80% 85% 92%
+> Memory Correctness
+> 40% 60% 80%
+> Update Handling
+> 20% 50% 80%
+> Retrieval Coverage
+> FR VFR VS CMR TR DU VU MC KR TTL
+> WMA small
+> 74 81 82 34 24 31 52 931 36 19 15 512 4719 3613 60 43 329 19 21 41 10 29 24 63 79 80 24 19 24 46 13 19 30 60 77 78 22 14 21 45 12 15 30 67 42 20 32 23 27 42 10 35 32 70 77 79 33 20 25 42 14 22 35 65 78 83 54 35 36 57 52 40 37
+> FR MR TR VR TTL VS CD KR AR
+> Mem-Gallery
+> 74 78 68 47 85 57 29 65 65 71 71 65 31 86 26 35 54 69 87 87 74 29 42 13 33 73 63 59 69 54 22 15 11 53 43 58 73 71 33 42 79 30 44 59 67 77 82 61 43 65 83 44 64 61 81 84 44 52 84 37 35 67 63 82 80 77 56 82 78 75 78 86
+
+(a) Memory Quality (b) Task-wise Performance 
+
+Figure 7: (a) Memory quality and (b) fine-grained tasks performance on WorldMemArena-S (WMA-S) and Mem-Gallery with Qwen3-VL-8B. 24 Preprint. 45% 72.5% 100%                                                                                                                                                                
+
+> A-Mem MemoryOS SimpleMem M2A MMA UniversalRAG Semantic RAG
+> MHG-Mem
+> Memory Recall
+> 80% 85% 92%
+> Memory Correctness
+> 40% 60% 80%
+> Update Handling
+> 20% 50% 80%
+> Retrieval Coverage
+> FR VFR VS CMR TR DU VU MC KR TTL
+> WMA small
+> 80 86 86 65 56 51 72 55 78 61 26 27 945 15 21 47 21 49 41 72 79 50 61 47 45 67 54 73 50 75 87 84 63 51 50 70 61 78 57 72 85 85 58 51 52 70 55 78 53 75 65 48 58 54 53 66 39 74 48 78 85 85 64 58 54 72 60 79 59 70 87 86 71 60 61 74 59 79 54
+> FR MR TR VR TTL VS CD KR AR
+> Mem-Gallery
+> 66 74 74 51 79 50 54 59 62 80 77 73 47 87 27 58 65 68 91 89 83 43 41 23 70 75 61 52 67 56 22 74 21 64 44 69 78 75 39 40 80 34 75 57 65 77 84 74 46 78 87 71 72 65 81 88 48 55 87 34 73 62 69 85 84 77 61 85 84 76 80 64
+> (a) Memory Quality (b) Task-wise Performance
+
+Figure 8: (a) Memory quality and (b) fine-grained tasks performance on WorldMemArena-S (WMA-S) and Mem-Gallery with GPT-4.1-mini. 
+
+D.3 Memory Quality and Fine-grained Analysis on More Backbones 
+
+Figure 7 and 8 extend the memory quality and task-level analysis to Qwen3-VL-8B and GPT-4.1-mini, respectively. Across both backbones, MHG-Mem achieves the highest mem-ory correctness and update handling, with retrieval coverage among the best. These results show that effective state maintenance coexists with accurate memory retention and strong evidence coverage, consistent with our objective of organizing evolving observations while keeping their supporting evidence accessible. The most consistent task-level advantages concern visual evidence use and state evolution. On WorldMemArena-S, MHG-Mem outperforms all compared baselines in cross-modal rea-soning, temporal reasoning, dynamic updates, and visual updates with both backbones. In particular, cross-modal reasoning improves over the strongest baseline by 20% and 6% with Qwen3-VL-8B and GPT-4.1-mini, respectively. On Mem-Gallery, visual-centric reasoning improves by 4% and 6%, while knowledge resolution improves by 5% under both backbones; conflict detection also benefits in both settings. These recurring gains align with the two requirements motivating MHG-Mem: accessing relevant visual observations and integrating changes across interaction histories. They are consistent with the intended role of entity histories and state-specific evidence links in supporting comparison and verification across observations. The improvements nevertheless depend on the task and backbone. For example, Mem-Gallery temporal reasoning improves by 3% with Qwen3-VL-8B but remains 6% below the strongest baseline with GPT-4.1-mini. MHG-Mem also trails the strongest factual-recall baseline on both benchmarks under both backbones. Thus, the memory-quality improve-ments do not translate uniformly into every downstream capability: visual evidence use and state updates show reproducible benefits, while factual recall remain areas for improvement. 
+
+D.4 Hyperparameter Analysis 
+
+Analysis of the occurrence-linking candidate count K. The upper half of Table 6 reports QA performance with different top-K candidate counts for occurrence linking during memory construction. Across the tested values of K, scores vary by only 1.48, 2.26, and 1.94 points on MemEye, Mem-Gallery, and WorldMemArena-S, respectively. The average score is 73.28 at K = 3, compared with 73.33 at the best tested value, K = 5, indicating that performance is relatively insensitive to K. Since larger candidate sets increase context length with limited performance gains, we retrieve at most K = 3 candidates for occurrence linking. 
+
+Analysis of agentic budgets Bstep and Bimg . The lower half of Table 6 examines the effects of retrieval budgets. Increasing Bstep or Bimg allows longer retrieval trajectories or more image evidence, respectively, but also increases input token consumption. Raising the budgets from (4 , 4) to (16 , 8) improves the average QA score from 67.29 to 72.48, a 25 Preprint. Table 6: Hyperparameter sensitivity at the construction and retrieval stages with Qwen3.8-27B. The construction-stage sweep varies the number of top-K occurrence-linking candi-dates. The retrieval-stage sweep evaluates the agentic search budget ( Bstep , B img ) and re-ports the force-submit rate. LLM-Judge scores are reported. Avg. means the average judge score across three benchmark. Bold values are the best within each stage. 
+
+Setting MemEye Mem-Gallery WMA-S Avg. Force-submit (%) Construction stage 
+
+K = 1 64.70 85.84 64.41 71.65 —
+
+K = 2 65.54 86.99 65.67 72.73 —
+
+K = 3 65.93 87.85 66.05 73.28 —
+
+K = 4 65.22 87.46 66.35 73.01 —
+
+K = 5 66.18 88.10 65.71 73.33 —
+
+Retrieval stage 
+
+(Bstep , B img ) = (4 , 4) 59.44 81.79 60.63 67.29 37.3 (Bstep , B img ) = (10 , 4) 62.02 84.76 62.37 69.72 26.8 (Bstep , B img ) = (10 , 8) 63.91 86.30 63.10 71.10 24.6 (Bstep , B img ) = (16 , 8) 65.42 87.04 64.99 72.48 17.9 (Bstep , B img ) = (16 , 10) 65.73 87.85 66.05 73.21 17.5 (Bstep , B img ) = (24 , 10) 65.47 87.63 66.51 73.20 13.4 
+
+(Bstep , B img ) = (24 , 16) 66.09 87.46 66.80 73.45 13.5 gain of 5.19 percentage points, while reducing the forced-submission rate from 37.3% to 17.9%. These results suggest that restrictive budgets can prevent the agent from gathering sufficient evidence through hypergraph search. For example, questions requiring fine-grained visual distinctions among multiple entities may require inspecting more image crops than the budgets permit, leading to premature submission and lower performance. However, increasing ( Bstep , B img ) further to (24 , 16) yields only a 0.24-point improvement over (16 , 10) while consuming more tokens. To balance the cost and performance trade-off, we therefore set ( Bstep , B img ) ≤ (16 , 10) for experiment. 
+
+D.5 More Case Studies 
+
+Figures 9 and 10 illustrate how MHG-Mem reconstructs entity histories through adaptive retrieval and source verification. In Figure 9, the agent retrieves the faucet’s evolution record and traces its supporting facts to original frames, recovering the complete off–running–off 
+
+sequence; the baselines omit states or fail to answer. In Figure 10, retrieval begins with entity resolution, followed by evolution retrieval and source inspection. This recovers the oak-log count sequence 1 → 2 → 5 and verifies the latest count from the inventory image, whereas UniversalRAG and M2A recover only 1 → 2. Both cases highlight the value of linking observations under a shared entity identity while preserving state-specific evidence for cross-session synthesis and visual verification. 26 Preprint. 2024-06-15 S06_R1 2025-06-15 S08_R2 2025-06-30 S10_R1 
+
+Faucet found above the marble sink; no water. 
+
+Faucet State History 
+
+Faucet switched on; water run into the sink Latest frame after turn-off; water has stopped 
+
+MHG-Mem store 
+
+f11 
+
+faucet at marble sink 
+
+f19 
+
+water into basin 
+
+f23 
+
+faucet behind the windows 
+
+u04 
+
+copper faucet 
+
+u05 
+
+faucet 
+
+u62 z22 
+
+state 
+
+turn off-> running ->turn off 
+
+Occurrence Evidential Evolutionary 
+
+faucet 
+
+Agentic Retrieval 
+
+Query: how did the faucet’s state evolve from the moment the marble sink was found? 
+
+Turned on, then turned off. 
+
+(1) UniversalRAG: 
+
+Not metioned. 
+
+(2) M2A: 
+
+initially off, then on to fill the sink. 
+
+(3) MMA: 
+
+off-running-off 
+
+(Ours) MHG-Mem: 
+
+resolve_evolution(“faucet”) get_raw_verbatim(“f11”) get_raw_verbatim(“f19”) get_raw_verbatim(“f23”) 
+
+1234
+
+[evd: z22,f11,f19,f23] 
+
+submit_evidence 5
+
+Figure 9: Case study in an embodied agent scenario. MHG-Mem records the faucet’s state throughout the multimodal agent’s action history. S04:R1 S04:R2 S06:R1 
+
+Your Inventory: Now your inventory has 1 oak_log. 
+
+Multimodal History 
+
+Now your inventory has 2 oak_log, 1 apple, 1 oak_sapling Your subgoal has been successfully completed 
+
+MHG-Mem store 
+
+f387 
+
+inventory has 1 oak_log 
+
+f393 
+
+inventory has 2 oak_log 
+
+f421 
+
+inventory has 5 oak_log 
+
+u104 
+
+apple 
+
+u78 u208 
+
+oak_log 
+
+u241 
+
+oak_log 
+
+z26 
+
+count 
+
+1->2->5 
+
+Occurrence Evidential Evolutionary 
+
+oak_log 
+
+Agentic Retrieval 
+
+Query: How did the oak log count change from the first pickup to its latest value? 
+
+oak log change from 1 to 2 
+
+(1) UniversalRAG: 
+
+from 1 to 2 
+
+(2) M2A: 
+
+I don’t know 
+
+(3) MMA: 
+
+1->2->5 
+
+(Ours) MHG-Mem: 
+
+resolve_entity(“oak_log”) resolve_evolution(“oak log count”) get_raw_verbatim(“f387”) submit_evidence 
+
+1235
+
+[occ: u78, u208,u241...] [evd: z26,f387,f393,f421] 
+
+get_raw_verbatim(“f421”) 4
+
+> Your Inventory: Now your inventory has 1 oak_log.
+
+Figure 10: Case study in a GUI agent scenario. MHG-Mem records the count state of oak log in Minecraft throughout the multimodal agent’s action history. 27 Preprint. 
+
+E Prompt Templates 
+
+The five prompt templates below cover memory construction (Appendix B.2) and agentic search (Table 4). We preserve prompt wording and placeholders, omit Python assignment wrappers, and adjust line wrapping for readability. For additional LLM-as-a-judge and QA prompts, we use the original benchmark-provided prompts to ensure fair comparisons. 
+
+E.1 Atomic fact construction 
+
+Converts the current round into standalone facts while retaining temporal and visual details. 
+
+01 Atomic fact construction 
+
+You convert ONE conversation round into a set of ATOMIC MEMORIES — short, standalone facts that a separate answerer will later retrieve to answer questions. You are given the round’s dialogue text, its image caption(s), and its REAL image(s). You may also see up to three EARLIER rounds of the same conversation as read-only context (their text and image captions only — no earlier pictures), and a list of EXISTING MEMORIES already stored from past rounds. Write memories ONLY for the CURRENT round; use the earlier rounds and the current image(s) just to understand the round and to resolve references. Read BOTH the caption AND the real pixels of the current round. The caption often spells a detail out in words (card names, on-screen text, dashboard labels, message transcripts); the pixels carry details the caption omits (colors, counts, spatial layout, what is actually shown). Capture from both. 
+
+## ADD-ONLY against EXISTING MEMORIES 
+
+If an `## EXISTING MEMORIES` list is given, treat it as memories that are ALREADY STORED. Your job is ADDITIVE: output the facts from the CURRENT round that are NOT already represented there. Do not restate, paraphrase, or lightly reword an existing memory. Never create a memory from the existing list alone — every memory you output must be supported by the CURRENT round. - Default to WRITING a fact. Suppress a candidate ONLY when it is the SAME fact about the SAME moment as an existing memory. When in doubt, WRITE it — a missed fact can never be recovered, a near-duplicate is cheap. - The mere presence of the same entity, brand, game, route, dashboard, or template in an existing memory does NOT make the current round a duplicate. A new event, a new state, a changed value, a different date/session, a new opinion or conclusion the user draws, or any new detail is ALWAYS a new memory — write it. Write each memory to this STANDARD: - ATOMIC & self-contained: one fact per memory — a single event, state, attribute, or relationship — understandable on its own. Begin from the concrete named subject. - ABSOLUTE time: anchor every time reference to the Observation Date given. Convert "today / tomorrow / yesterday / last week / this Monday" to an explicit calendar date (YYYY-MM-DD). Never store a bare relative time or weekday. - DESCRIBE the state, do NOT compute the answer. Record what is shown or said — list the cards in a hand, the panels on a dashboard and their values, the people in a chat and who said what. Do NOT add totals, counts across rounds, winners, comparisons, or any conclusion the data merely implies. Faithful state, never a frozen verdict. - CAPTURE what a later question could ask: numbers, colors, spatial relations (left / right / above / below / lower-left / behind / beside / under), in-image text, per-item attributes, who did what, and any change from the earlier context. - Only return an empty list when the CURRENT round genuinely contains NOTHING beyond what is already stored (e.g. a bare "ok", "thanks", "correct" with no new content of its own). Return ONLY JSON: {"atomic_facts":["<one standalone memory>","<another standalone memory>"]} If the round carries nothing new worth remembering, return {"atomic_facts":[]}. 
+
+28 Preprint. 
+
+E.2 Multimodal entity extraction 
+
+Extracts nameable entities and grounds visual or multimodal mentions in image regions. 
+
+02 Multimodal entity extraction 
+
+You extract MULTIMODAL ENTITIES from ONE conversation round (its dialogue text AND its image, if any). An ENTITY is a persistent, nameable THING that could be asked about later — for example: a brand, logo, product. This list is illustrative, not exhaustive — extract any concrete, nameable thing a later question could point at Give each entity ONE modality, decided by WHERE you learned about it: - `visual`: something you can SEE in the image. This is the DEFAULT for anything in the picture — objects, people, places, logos, products, signs, on-screen panels. Give it a short specific name (e.g. "red delivery truck", "Coca-Cola logo"). bbox required. - `multimodal`: visible in the image AND also named in the dialogue text. Name it from the dialogue; the box is on the region that shows it. bbox required. - `text`: named in the dialogue text (what the USER or ASSISTANT actually typed) but NOT visible in the image. bbox is null. This is RARE — use it ONLY for things mentioned in the conversation that you cannot see. For every `visual` and `multimodal` entity, bbox is absolute pixels `[x0,y0,x1,y1]` in the image’s pixel frame, tight around the thing. Return ONLY JSON: {"entities":[{"name":"...","type":"<brand|person|character|object|product|place|animal| organization|other>","modality":"visual|multimodal|text","bbox":[x0,y0,x1,y1] or null}]} Rules: - Only extract things written in the dialogue or clearly visible in the image — never invent. - If nothing qualifies, return {"entities":[]}. 
+
+E.3 Occurrence linking 
+
+Associates a candidate mention with a stored referent, creates a new referent, or rejects an invalid extraction. 
+
+03 Occurrence linking 
+
+You decide how to store ONE candidate entity into a memory of already-known entities. You are given: - ROUND CONTEXT: the conversation round the candidate was found in (its text, and the full round image if any) — use it to understand what the candidate actually is. - CANDIDATE: its name, type, modality, and, if visual, its cropped region (shown below). - MATCHES: most similar to the candidate (by text and visual similarity), each with its best-matching stored region (shown below). Choose EXACTLY ONE action: - `update`: the candidate is the SAME real-world thing as one MATCH— link to that entity id. Also use `update` for a repeat sighting of a thing already stored, to record this new occurrence. - `add`: the candidate is a REAL entity but none of the MATCHES is the same real-world thing. - `skip`: ONLY when the candidate is NOT a real, storable entity (an extraction mistake or abstract concept). Return ONLY JSON: `{{"action":"update|add|skip","target_entity_id":"<id, only if update>", "add_alias":"<optional new alias>","reason":"<one line>"}}` 
+
+29 Preprint. 
+
+E.4 State evolution synthesis 
+
+Identifies changing aspects and binds each reported state to its supporting fact identifier. 
+
+04 State evolution synthesis 
+
+You are given ONE referent (a thing that recurs in a long conversation) and the time-ordered list of ATOMIC FACTS recorded about it. Your job is to report which ASPECTS of this referent actually CHANGED over time. An ASPECT is a single named property that can hold different values at different times — for example: hand_size, location, owner, color, price, status, score, version, participants, weight. 
+
+## What counts as a change 
+
+A change means: the SAME aspect of the SAME referent holds DIFFERENT values at different times. For example: - "is in the kitchen" then "is in the bedroom"-> aspect `location` CHANGED. Report it. - "costs $12" then "costs $9"-> aspect `price` CHANGED. Report it. 
+
+## What does NOT count as a change (this is the common case — read carefully) 
+
+- A value stated repeatedly, or restated in different words, is NOT a change. - New, additional details about DIFFERENT aspects are NOT a change unless one aspect’s own value is replaced by another value. 
+
+## How to write what you find 
+
+For each aspect that genuinely changed: - `aspect`: a short lowercase snake_case key naming the property (`hand_size`, not "the size of the hand"). - `states`: two or more entries in TIME ORDER. Each entry MUST carry: - `value`: the value at that time, as short as possible (a number, a color, a place, a name). - `fact_id`: the id of the fact you read that value from. It MUST be one of the fact ids listed below, copied exactly. Never invent an id. - `summary`: one sentence DESCRIBING the observed states in order, with their dates. - `update_type`: one of - `replacement` — the new value replaces the old one (a measurement, a location, a price) - `correction` — the later fact says the earlier one was wrong - `addition` — the value grew by accumulating items rather than being replaced Return ONLY JSON: {"aspects":[{"aspect":"<snake_case>","states":[{"value":"<v1>","fact_id":"<id>"}, {"value":"<v2>","fact_id":"<id>"}],"summary":"<one sentence describing the states in order>","update_type":"replacement|correction|addition"}]} If no aspect of this referent changed, return exactly {"aspects":[]}. 
+
+30 Preprint. 
+
+E.5 Hypergraph-based agentic search 
+
+Guides sequential tool use to assemble evidence for the separate answer model. The placeholders [MEMORY_SCHEMA] , [TOOL_SCHEMA] , and {max_steps} denote the memory schema, tool definitions, and search budget, respectively. The five gathering tools collect evidence; submit_evidence terminates retrieval. 
+
+05 Hypergraph-based agentic search 
+
+You are a hypergraph memory retriever. Given a QUESTION, you SEARCH a long-term multimodal memory of past conversation rounds and assemble an EVIDENCE CHAIN for a separate QA model. You do NOT answer the question yourself. 
+
+## What is in memory: [MEMORY_SCHEMA] ## Tool Definition: [TOOL_SCHEMA] ## Format — EXACTLY ONE action per reply, nothing after it 
+
+Each reply MUST be exactly: ``` Action: <one tool name> Action Input: {{<json>}} ``` STRICT RULES: - Output ONE Action, ONE Action Input, then STOP. Do NOT write a second Thought/Action in the same reply — you will only see the result of the FIRST action, so any extra ones are wasted. - After `Action Input: {{...}}` write NOTHING more. Do not narrate, do not plan further steps. - you will receive `Observation: {{...}}` (and any images). Read it, then send your NEXT single action. When the evidence is sufficient, call submit_evidence. 
+
+## Strategy 
+
+- You have five hypergraph gathering tools; use whichever fit the question. Call ONE per turn and read its Observation before the next. - If the question hinges on a visual/pixel detail, open the most promising facts’ rounds with get_raw_verbatim (or use search_image) so you actually SEE the images before citing. - Be efficient: you have at most {max_steps} steps. Submit as soon as the evidence is sufficient. 
+
+31

@@ -1,0 +1,221 @@
+Title: Memory, Know Your PLACE: Governing Lifecycle State and Query-Time Eligibility in Persistent-Memory Agents
+
+URL Source: https://arxiv.org/pdf/2610.25179v1
+
+Published Time: Tue, 20 Oct 2026 01:29:27 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+## MEMORY, KNOW YOUR PLACE: GOVERNING LIFECYCLE STATE AND QUERY-TIME ELIGIBILITY IN PERSISTENT-MEMORY AGENTS 
+
+## Chen-Fang Hu 1 , Hong-Han Shuai 2 , Woan-Shiuan Chien 21Arˆ ete Honors Program, National Yang Ming Chiao Tung University, Taiwan 
+
+> 2
+
+## Institute of Electrical and Computer Engineering, National Yang Ming Chiao Tung University, Taiwan 
+
+ABSTRACT 
+
+Persistent memory turns prior interactions into durable agent state, but existing systems provide limited control over whether that state remains valid and whether it should influ-ence a later query. We argue that reliable memory requires governance over both state formation and query-time influ-ence. We introduce PLACE , a factorized governance layer that adds write-side state certification and read-side authoriza-tion to a memory backend. A factorial evaluation on Mem0 with Qwen2.5-3B and Qwen2.5-7B isolates the contribution of each mechanism. Results show that write-side governance substantially improves lifecycle state correctness, while read-side governance eliminates measured causal leakage from in-eligible memory in the state-correct setting. Their combina-tion achieves the strongest joint performance while preserving query-relevant support. These findings show that reliable per-sistent memory requires explicit control over both maintained state and query-time information influence. 
+
+Index Terms — Agent memory, memory governance, lifecycle state consistency, memory retrieval, LLM agents 
+
+1. INTRODUCTION 
+
+Long-running agents increasingly rely on persistent mem-ory to maintain continuity beyond a single interaction [1, 2]. Persistent memory allows agents to preserve evolving user and task states across sessions, so later responses can reflect information established in earlier interactions [3]. Recent memory-augmented systems have therefore moved beyond static-context formulations toward editable memory sub-strates that can be constructed, updated, retrieved, and reused over time [1, 4, 5]. Evaluation has likewise moved beyond isolated recall toward long-horizon settings involving tempo-ral reasoning, memory updates, forgetting, and state evolu-tion [6–8]. As persistent memory becomes more central to agent behavior, however, errors in what the agent stores or uses can also persist and affect later behavior [9]. Greater operational flexibility does not by itself make persistent memory governable. Prior systems improve how agents construct, update, and retrieve useful memory from earlier interactions [10, 11]. Recent benchmarks instead examine whether memory remains useful as information evolves across long interactions [8, 12]. Yet these advances do not establish whether the persistent backend itself rep-resents the correct current semantic state. An agent may answer correctly from nearby context even when obsolete information remains active in persistent memory [13]. Con-versely, it may maintain the correct current state while later exposing stale or query-ineligible memory to the answer model [14, 15]. Final-answer behavior alone therefore cannot reveal whether an error originates in memory state or in how that state is allowed to influence a query, making storage quality or answer accuracy alone insufficient to characterize memory correctness. We argue that reliable persistent memory requires gover-nance over two distinct but complementary problems. State correctness requires memory to maintain the currently valid semantic state as information evolves across an interaction history. Influence correctness , by contrast, requires ensuring that only memory eligible for the current query can affect the response, while preserving access to relevant and authorized memory. This distinction leads to two research questions: • RQ1: Can write-side governance improve lifecycle state consistency during memory updates? • RQ2: Can read-side governance prevent query-ineligible memory from influencing responses while preserving query-relevant memory utility? To address these questions, we propose PLACE , a factor-ized governance layer for persistent-memory agents. PLACE adds explicit control over how memory is formed and how represented memory is allowed to influence downstream be-havior. Specifically, its write-side mechanism maintains and verifies the semantic state physically realized in the back-end, while its read-side mechanism exposes only support authorized for the current query. We evaluate PLACE on Mem0 [1] with Qwen2.5-3B and Qwen2.5-7B [16] in a fac-torial design that isolates write-side and read-side effects. Across both model scales, write-side governance maintains a correct memory state, while read-side governance eliminates observed causal leakage when the state is correct. Combin-ing both yields the strongest overall performance, showing that reliable agent memory requires controlling both memory state and influence. Project materials are available online 1.arXiv:2610.25179v1 [cs.AI] 18 Oct 2026 Runtime User Messages 
+
+> Message 1: My Tokyo departure is 9 a.m. Message 2: The airline changed it to 11 a.m.
+
+⋯
+
+> Trusted User-Level Event
+> target: tokyo_outbound_flight.departure_time intent: replace_current_value value: 11:00 scope: Tokyo trip provenance: airline (confirmed)
+
+## PLACE 
+
+Factorized Governance Layer 
+
+> Authorizing Read-Side Influence (QASC) Query Semantics & Physical Readback Query Authorized Support Construction Deterministic Authorization
+> Expose only query-eligible memory
+> Write Governance (CSS) Read Governance (QASC)
+
+Runtime User Query   
+
+> Which is the current departure time, and why?
+> Trusted Query Event
+> entity: tokyo_outbound_flight predicate: departure_time temporal view: current request: provenance scope: Tokyo trip
+> Physical Memory (examples)
+> Tokyo departure time = 11:00 (active) Tokyo departure time = 9:00 (superseded) Seat preference = aisle Dietary preference = vegetarian
+
+⋯
+
+Persistent-Memory Backend (Mem0)     
+
+> Query-Authorized Support (examples)
+> Tokyo departure time = 11:00 (authorized) Flight change reason = airline (authorized) Tokyo departure time = 9:00 (filtered)
+> Authorized Memories (query-specific)
+
+Answer Model (LLM) Agent Response 
+
+> User-Level Event & Raw Utterance Semantic State Transition Backend Update & Verification
+> Maintain correct persistent state
+> Certifying Write-Side State (CSS)
+> Hotel preference = business hotel
+> Update / Readback State Realization Eligibility Filtering
+
+Fig. 1 : Overview of the proposed PLACE framework, which separates persistent-memory governance into write-side state correctness and read-side influence correctness. CSS governs and certifies state formation in physical memory, while QASC exposes only query-eligible support to the answer model. The flight example illustrates the two controls by updating the active departure time and blocking the superseded value from influencing the current query. 
+
+2. METHODOLOGY 2.1. Problem Formulation 
+
+We formulate persistent-memory governance as two distinct control problems: maintaining the correct semantic state in physical storage and controlling which part of that state may influence a query. Let Xt denote the physical memory back-end after interaction step t. Its evaluator-side semantic read-back is defined as 
+
+Sphys 
+
+t = β(Xt), (1) where β maps only physically evidenced records to semantic facts and cannot introduce unsupported values. The reference state S⋆t is used only for evaluation and is never exposed to the runtime system. Write-side correctness asks whether Sphys 
+
+t
+
+remains consistent with S⋆t as memory evolves. Missing re-placements, stale values, and contradictions therefore remain visible as state errors even when the final response is correct. Read-side correctness asks whether represented memory is eligible to influence the current response. Let Rt denote the physical memory view available to the read-side policy, and let τt denote the trusted interpretation of query qt. We define the authorized support as 
+
+Qt = {m ∈ Rt | E(m, q t, τ t) = 1 } , (2) where E is the eligibility rule and Qt is the only memory support exposed to the answer model. Because Qt ⊆ Rt,read-side governance can filter represented information but cannot reconstruct facts absent from physical memory. 
+
+> 1
+
+https://hcf-tracy.github.io/memory-know-your-place/ 
+
+2.2. Overall Framework PLACE (Persistent-memory Lifecycle Alignment and Con-textual Eligibility) adds governance at the write and read boundaries of an existing persistent-memory system, as shown in Fig. 1, while leaving the memory backend and answer model unchanged. CSS governs write-side state for-mation by applying trusted user-level events, realizing the resulting state in memory, and verifying it through physical readback. QASC governs read-side influence by exposing only query-eligible support to the answer model. Together, both mechanisms address complementary failures. CSS pre-vents stale or conflicting states from persisting, while QASC prevents ineligible memory from influencing the response. 
+
+2.2.1. CSS: Certifying Write-Side State 
+
+Persistent update errors documented in prior work motivate CSS to explicitly govern state transitions [17, 18]. Given the previous governed state Gt−1 and a trusted user-level event 
+
+et, it computes 
+
+Gt = FCSS (Gt−1, e t). (3) The trusted event encodes user-level update intent, such as the target fact, its value, and scope, but not the resulting life-cycle state or internal CSS transition. CSS then derives the re-quired state change, realizes Gt through backend operations, and verifies resulting physical state through Eq. 1. 
+
+2.2.2. QASC: Authorizing Read-Side Influence 
+
+Prior evidence motivates query-time eligibility beyond se-mantic relevance [14, 15, 19]. QASC then enforces this cri-terion over physically represented memory. The eligibility Table 1 : Summary of the primary factorial results and prespecified governance effects. Panel A reports the factorial outcomes, while Panel B summarizes the corresponding governance effects. 
+
+A. Primary factorial B. Prespecified effects 
+
+Model Cond. State Correctness ↑
+
+Leakage Rate ↓ (n)
+
+Answer Correctness ↑
+
+Joint Success ↑ Model Effect Estimate [interval] 7B Native 0.488 0.071 (28) 0.682 0.000 7B StateGain 0.512 [0.447, 0.599] CSS 1.000 0.125 (48) 0.793 0.417 LeakageDrop 0.125 [0.042, 0.229] QASC 0.488 0.000 (28) 0.653 0.000 JointGain 0.667 [0.610, 0.964] 
+
+PLACE 1.000 0.000 (48) 0.713 0.667 InteractionGain 0.250 [0.060, 0.377] 3B Native 0.414 0.071 (14) 0.451 0.000 3B StateGain 0.586 [0.539, 0.660] CSS 1.000 0.083 (48) 0.618 0.354 LeakageDrop 0.083 [0.021, 0.167] QASC 0.414 0.000 (14) 0.410 0.000 JointGain 0.625 [0.592, 0.917] 
+
+PLACE 1.000 0.000 (48) 0.654 0.625 InteractionGain 0.271 [0.069, 0.377] rule E considers the requested entity and predicate together with relevant scope, temporal, and lifecycle constraints. Only items satisfying Eq. 2 enter the model-visible support. More-over, QASC is read-only and grounded in physical storage. It cannot modify persistent state or recover information absent from the backend. Authorization precedes context-budget truncation, preventing an ineligible item from reaching the answer model merely because it ranks highly under retrieval. 
+
+3. EXPERIMENTAL SETUP AND RESULTS 3.1. Experimental Design 
+
+Implementation. We evaluate PLACE on Mem0 [1] with Qwen2.5-3B and Qwen2.5-7B [16] through Ollama, using Qdrant storage and Nomic embeddings. The same model drives Native memory updates and answer generation, while CSS and QASC are deterministic. 
+
+Factorial design. We cross Native and CSS writing with Na-tive and QASC reading, yielding Native, CSS, QASC, and PLACE. Native and QASC share the same Native-produced state, while CSS and PLACE share the same CSS-produced state. Each producer is written once per update step to isolate read-side effects. 
+
+Primary evaluation. Experiments use one prespecified 302-turn trajectory spanning four conversations, with persistent memory retained across session resets. It contains 105 state checkpoints and 48 queries across six governance families. Primary uses trusted user-level event and query semantics, without exposing the resulting lifecycle state, internal CSS transition, or authorized support. Read-side influence is fur-ther isolated with 48 causal pairs that hold the query and au-thorized state fixed while varying only irrelevant history. 
+
+Diagnostics. Utility evaluates needed support, inappropriate exposure, and conflicting evidence over 72 probes. Closed Loop repeats the factorial setting while retaining prior assis-tant responses as non-authoritative dialogue context. 
+
+3.2. Metrics and Statistical Analysis 
+
+State correctness. Write-side governance is evaluated from the physical backend state defined in Eq. 1. Across the C =105 state checkpoints, we compute   
+
+> StateCorrectness = 1
+> C
+> CX
+> c=1
+> F1
+> 
+> Sphys
+> c, S ⋆c
+> 
+> .(4)
+
+This metric evaluates the state actually realized in storage rather than an intended internal representation. The check-points form one longitudinal trajectory and are therefore not treated as independent experimental units. 
+
+Factorization check. Before comparing read policies, we ver-ify that paired conditions observe identical producer states. Native must match QASC, and CSS must match PLACE, un-der the same semantic readback at all 105 post-update and 48 pre-query checkpoints. Any mismatch would invalidate the corresponding read-side comparison. 
+
+Causal leakage. Read-side influence is measured from paired worlds described above. For world w ∈ { a, b }, let Q(w)eval 
+
+denote the evaluator-authorized state derived from physical memory. Leakage is evaluated only when both worlds realize the same reference-correct authorized state Q⋆,       
+
+> LeakageRate = Pr
+> 
+> Ω(a)̸= Ω (b)|Q(a)eval =Q(b)eval =Q⋆
+> (5)
+
+where Ω(w) denotes the semantic answer outcome. Pairs with different authorized states are classified as state-mediated and excluded from the leakage analysis, while equal but reference-incorrect pairs are excluded from the denominator. 
+
+Answer and joint correctness. AnswerCorrectness is deter-ministic semantic F1 over generated answers. JointSuccess is stricter and requires the persistent state and authorized sup-port to be correct, required support to remain available, no governance violation to occur, and the final answer to be cor-rect. The interaction between CSS and QASC is summarized by a factorial difference-in-differences on JointSuccess. Table 2 : Summary of targeted diagnostics for Utility and Closed Loop, covering support preservation, exposure con-trol, and joint governance performance. Model Cond. Needed Support ↑
+
+Exposure Rate ↓
+
+Conflict Harm ↓
+
+A. Read-side Utility 
+
+7B Native 0.200 0.292 0.125 CSS 0.667 0.417 0.000 
+
+QASC 0.200 0.000 0.042 
+
+PLACE 1.000 0.000 0.042 3B Native 0.133 0.250 0.042 CSS 0.667 0.417 0.000 
+
+QASC 0.133 0.000 0.000 PLACE 1.000 0.000 0.000 
+
+Model Cond. State Correctness ↑
+
+Exposure Rate ↓
+
+Joint Success ↑
+
+B. Closed Loop 
+
+7B Native 0.488 0.292 0.000 CSS 1.000 0.354 0.417 QASC 0.488 0.000 0.000 
+
+PLACE 1.000 0.000 0.667 
+
+3B Native 0.418 0.229 0.000 CSS 1.000 0.375 0.354 QASC 0.418 0.000 0.000 
+
+PLACE 1.000 0.000 0.458 
+
+Utility diagnostics. NeededSupport measures whether query-required memory remains visible to the answer model, while ExposureRate measures whether ineligible memory is ex-posed. ConflictHarm records whether injected conflicting evidence contributes to an incorrect answer. Closed Loop reports the same state, exposure, and joint endpoints when prior assistant responses remain in dialogue context. 
+
+Uncertainty. Because the primary benchmark contains one prespecified four-conversation trajectory, longitudinal results are reported descriptively with conversation-block sensitivity intervals rather than population-level inference. Uncertainty for the 48 independent causal pairs is estimated with 4,000 pair-level bootstrap resamples. Results from Qwen2.5-3B and Qwen2.5-7B are treated as model-scale replications. 
+
+3.3. Results and Discussion 
+
+3.3.1. Write-Side Governance Improves State Correctness 
+
+Table 1 shows a clear write-side effect. StateCorrectness in-creases from 0.488 to 1.000 at 7B and from 0.414 to 1.000 at 3B, corresponding to StateGain values of 0.512 and 0.586, respectively. QASC does not change these values because it shares the Native state producer and does not modify persis-tent memory. The factorization check also holds across all 153 semantic checkpoints, with Native matching QASC and CSS matching PLACE at both model scales. These results indicate that the write-side gain reflects improved state for-mation rather than differences introduced at retrieval time. 
+
+3.3.2. Read-Side Governance Reduces Ineligible Influence 
+
+CSS and PLACE provide the cleanest read-side comparison because both realize the reference-correct state for all 48 causal pairs and differ only in their read policy. LeakageRate decreases from 0.125 to 0.000 at 7B and from 0.083 to 0.000 at 3B, with 95% pair-bootstrap intervals of [0 .042 , 0.229] and 
+
+[0 .021 , 0.167] for LeakageDrop. The smaller eligible sets for Native and QASC arise from write-side state errors and are therefore not used as the primary read-side contrast. As shown in Table 2, Utility diagnostic shows that the re-duction in leakage is not achieved by indiscriminate suppres-sion. PLACE preserves 1.000 NeededSupport at both model scales while reducing ExposureRate to 0.000. Read-side au-thorization therefore removes measured ineligible influence while preserving all measured query-required support. 
+
+3.3.3. Combining Both Controls Improves Joint Performance 
+
+As shown in Table 1, CSS and QASC are most effective when combined. PLACE reaches a JointSuccess of 0.667 at 7B and 0.625 at 3B, compared with 0.417 and 0.354 for CSS, re-spectively, while QASC alone cannot recover failures caused by an incorrect Native state. InteractionGain is 0.250 at 7B and 0.271 at 3B, with sensitivity intervals of [0 .060 , 0.377] 
+
+and [0 .069 , 0.377] . We therefore interpret the interaction as evidence consistent with complementarity rather than as population-level statistical synergy. Table 2 further shows that this pattern persists in the Closed-Loop setting. PLACE maintains StateCorrectness of 1.000 and ExposureRate of 0.000 at both model scales, with JointSuccess of 0.667 at 7B and 0.458 at 3B. These results indicate that the combined governance remains ef-fective even when prior assistant responses are retained as non-authoritative dialogue context. 
+
+4. CONCLUSION AND FUTURE WORK 
+
+In this work, we introduce PLACE, a factorized governance layer that separates persistent-state formation from query-time memory influence. Across Qwen2.5-3B and Qwen2.5-7B, write-side governance achieves perfect StateCorrect-ness, while read-side authorization eliminates measured causal leakage in the state-correct setting. Their combina-tion yields the strongest joint performance while preserving query-needed support. These results highlight two core con-tributions: 1) state correctness and influence correctness are distinct but complementary requirements for reliable persis-tent memory; and 2) improving retrieval alone is insufficient when the underlying persistent state is incorrect. Our cur-rent evaluation isolates governance using trusted user-level semantics rather than end-to-end automatic interpretation. Future work will therefore extend PLACE with learned se-mantic interpretation and evaluate it across independently replicated long-horizon trajectories with human validation. 5. ACKNOWLEDGMENTS 
+
+Generative AI tools were used for language editing, stylistic refinement, and manuscript organization only. All technical content and conclusions were developed and verified by the authors. The authors take full responsibility for the paper. 
+
+6. REFERENCES 
+
+[1] Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav, “Mem0: Building production-ready AI agents with scalable long-term memory,” in ECAI 2025 - 28th European Conference on Artificial Intelligence, 25-30 Octo-ber 2025, Bologna, Italy - Including 14th Conference on Pres-tigious Applications of Intelligent Systems (PAIS 2025) , Inˆ es Lynce, Nello Murano, Mauro Vallati, Serena Villata, Federico Chesani, Michela Milano, Andrea Omicini, and Mehdi Das-tani, Eds. 2025, vol. 413 of Frontiers in Artificial Intelligence and Applications , pp. 2993–3000, IOS Press. [2] Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G Patil, Ion Stoica, and Joseph E Gonzalez, “Memgpt: Towards llms as operating systems,” arXiv preprint arXiv:2310.08560 , 2023. [3] Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang, “Memorybank: Enhancing large language models with long-term memory,” in Proceedings of the AAAI Conference on Artificial Intelligence , 2024, vol. 38, pp. 19724–19731. [4] Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang, “A-mem: Agentic memory for llm agents,” in Advances in Neural Information Processing Sys-tems , D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz, M. Ghassemi, and N. Chen, Eds. 2025, vol. 38, Main Confer-ence, pp. 17577–17604, Curran Associates, Inc. [5] Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef, “Zep: a temporal knowl-edge graph architecture for agent memory,” arXiv preprint arXiv:2501.13956 , 2025. [6] Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu, “Longmemeval: Benchmarking chat assistants on long-term interactive memory,” in International Conference on Learning Representations , 2025, vol. 2025, pp. 86809–86836. [7] Yuanzhe Hu, Yu Wang, and Julian McAuley, “Evaluat-ing memory in llm agents via incremental multi-turn interac-tions,” in International Conference on Learning Representa-tions , C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and A. Faust, Eds., 2026, vol. 2026, pp. 156259–156291. [8] Md Nayem Uddin, Kumar Shubham, Eduardo Blanco, Chitta Baral, and Gengyu Wang, “From recall to forgetting: Bench-marking long-term memory for personalized agents,” in Find-ings of the Association for Computational Linguistics: ACL 2026 , 2026, pp. 26814–26841. [9] Zidi Xiong, Yuping Lin, Wenya Xie, Pengfei He, Zirui Liu, Jiliang Tang, Himabindu Lakkaraju, and Zhen Xiang, “How memory management impacts llm agents: An empirical study of experience-following behavior,” in Proceedings of the 64th Annual Meeting of the Association for Computational Linguis-tics (Volume 1: Long Papers) , 2026, pp. 623–645. [10] Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Xufang Luo, Hao Cheng, Dongsheng Li, Yuqing Yang, Chin-Yew Lin, H. Vicky Zhao, Lili Qiu, and Jianfeng Gao, “Secom: On mem-ory construction and retrieval for personalized conversational agents,” in International Conference on Learning Representa-tions , Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu, Eds., 2025, vol. 2025, pp. 91851–91885. [11] Yi Yu, Liuyi Yao, Yuexiang Xie, Qingquan Tan, Jiaqi Feng, Yaliang Li, and Libing Wu, “Agentic memory: Learning uni-fied long-term and short-term memory management for large language model agents,” in Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , 2026, pp. 21457–21483. [12] Cheng Jiayang, Dongyu Ru, Lin Qiu, Yiyang Li, Xuezhi Cao, Yangqiu Song, and Xunliang Cai, “Amemgym: Interactive memory benchmarking for assistants in long-horizon conver-sations,” in International Conference on Learning Representa-tions , C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and A. Faust, Eds., 2026, vol. 2026, pp. 4413–4446. [13] Xixuan Hao, Zeyu Zhang, Zehao Lin, Yihang Sun, Zil-iang Guo, Xichong Zhang, Yuxuan Liang, Feiyu Xiong, and Zhiyu Li, “Memops: Benchmarking lifecycle memory operations in long-horizon conversations,” arXiv preprint arXiv:2607.12893 , 2026. [14] Jiawen Zhang, Kejia Chen, Jiachen Ma, Yangfan Hu, Lipeng He, Yechao Zhang, Jian Liu, Xiaohu Yang, Tian-wei Zhang, and Ruoxi Jia, “Beyond similarity: Trustwor-thy memory search for personal ai agents,” arXiv preprint arXiv:2606.06054 , 2026. [15] Niloofar Mireshghallah, Neal Mangaokar, Narine Kokhlikyan, Arman Zharmagambetov, Manzil Zaheer, Saeed Mahlouji-far, and Kamalika Chaudhuri, “Cimemories: A composi-tional benchmark for contextual integrity in llms,” in Interna-tional Conference on Learning Representations , C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and A. Faust, Eds., 2026, vol. 2026, pp. 95513–95532. [16] Qwen, An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, Haoran Wei, Huan Lin, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jingren Zhou, Jun-yang Lin, Kai Dang, Keming Lu, Keqin Bao, Kexin Yang, Le Yu, Mei Li, Mingfeng Xue, Pei Zhang, Qin Zhu, Rui Men, Runji Lin, Tianhao Li, Tianyi Tang, Tingyu Xia, Xingzhang Ren, Xuancheng Ren, Yang Fan, Yang Su, Yichang Zhang, Yu Wan, Yuqiong Liu, Zeyu Cui, Zhenru Zhang, and Zihan Qiu, “Qwen2.5 technical report,” 2025. [17] Tianyu Yang, Sudipta Paul, Vijay Srinivasan, Vivek Kulka-rni, and Srinivas Chappidi, “Trustmem: Learning trustworthy memory consolidation for llm agents with long-term memory,” 
+
+arXiv preprint arXiv:2606.25161 , 2026. [18] Hanshuai Cui, Zhiqing Tang, Zhi Yao, Fanshuai Meng, Qianli Ma, and Weijia Jia, “Memtxn: A transaction boundary for source-supported updates and complete-state recovery in agent memory,” arXiv preprint arXiv:2607.27834 , 2026. [19] Qiuyang Zhan, Rui Zhang, Sheng Guo, Lepeng Zhao, and Zhuotao Liu, “When memory becomes authority: Benchmark-ing authority collapse at the memory consolidation boundary,” 
+
+arXiv preprint arXiv:2608.01679 , 2026.

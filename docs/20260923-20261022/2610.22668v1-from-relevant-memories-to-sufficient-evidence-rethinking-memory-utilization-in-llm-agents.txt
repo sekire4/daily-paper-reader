@@ -1,0 +1,758 @@
+Title: From Relevant Memories to Sufficient Evidence: Rethinking Memory Utilization in LLM Agents
+
+URL Source: https://arxiv.org/pdf/2610.22668v1
+
+Published Time: Mon, 19 Oct 2026 00:26:05 GMT
+
+Number of Pages: 26
+
+Markdown Content:
+# From Relevant Memories to Sufficient Evidence: Rethinking Memory Utilization in LLM Agents 
+
+Shixuan Li 1*, Wei Yang 1*, Peiyu Zhang 1, Anzhe Cheng 1, Heng Ping 1,Xiaole Zhang 1, Jesse Thomason 2, Xuezhe Ma 1, Yue Zhao 1, Paul Bogdan 1,
+
+> 1
+
+University of Southern California 2Georgia Institute of Technology 
+
+Abstract 
+
+Long-term memory enables LLM agents to reuse past experiences, yet retrieving relevant memories does not necessarily provide suffi-cient evidence for answering a query. Essen-tial information may remain fragmented across memory records, obscured by abstraction, or disconnected from the relations required for reasoning. We identify this relevance– sufficiency gap and propose QEMem, a frame-work that reformulates memory utilization as the construction of query-specific evidence sets, shifting the focus from individual retrieval rel-evance to collective evidential support. QE-Mem integrates three complementary mecha-nisms: query-guided discovery retrieves evi-dence across multiple memory granularities; source-grounded reification organizes it into structured ViewCards with explicit evidential roles and source references; and sufficiency-guided refinement selectively recovers miss-ing information. Operating on existing mem-ory stores without modifying memory forma-tion, QEMem achieves 91.43% LLM-judge accuracy on LoCoMo with Claude Opus 4.5, outperforming the strongest evaluated base-line, MemR 3, by 7.6 percentage points and NEMORI by 10.7 points under a shared mem-ory store. Further analyses demonstrate im-proved evidence coverage and strong perfor-mance on questions requiring cross-session ev-idence integration. Code is available at https: //github.com/shixuanli01/QEMem .
+
+1 Introduction 
+
+Long-term memory enables large language model (LLM) agents to maintain continuity across ex-tended interactions and reuse past experiences. Recent systems, including Mem0 (Chhikara et al., 2025), A-Mem (Xu et al., 2025), and NEMORI (Nan et al., 2025), have advanced the persistent storage and structured organization of 
+
+> *These authors contributed equally to this work.
+
+memories, while SimpleMem (Liu et al., 2026) and related approaches improve memory consolidation and retrieval. Although these advances make past information increasingly accessible, retrieving rel-evant memories does not necessarily provide suffi-cient evidence to answer a query. A central difficulty lies in the mismatch between the granularity of retrieved memories and the facts and relations required to answer a query. Rele-vant information may remain fragmented across memory records or obscured by abstraction, while the relationships needed to connect individual facts may remain implicit. Recent approaches, includ-ing MemGAS (Xu et al., 2026), REMem (Shu et al., 2026), RaMem (Yang et al., 2026b) and MemR 3 (Du et al., 2025), have advanced multi-granular memory access, episodic reasoning, and reflective retrieval, respectively. Even with these advances, individually relevant memories may still fail to jointly provide the facts and relations needed for answering. We characterize this disconnect as the relevance–sufficiency gap , raising a fundamen-tal question: How can an agent construct a source-grounded evidence set that collectively satisfies a query’s information requirements? To address this question, we shift the fundamen-tal unit of memory utilization from individual mem-ory records to a query-specific evidence set , whose value lies in the joint support of complementary evidence rather than isolated retrieval relevance. Constructing such a set requires recovering the nec-essary facts and relations, preserving their source references, and identifying missing information within limited retrieval and reasoning budgets. Our diagnostic analysis illustrates why retaining past information is not enough to make the required ev-idence accessible. On LoCoMo (Maharana et al., 2024), although NEMORI retains nearly all origi-nal interaction records, its retrieved episodes cover the source turns of all annotated supporting evi-dence for only 68.8% of questions. On questions 1arXiv:2610.22668v1 [cs.AI] 15 Oct 2026 with complete source coverage, answer accuracy reaches approximately 93% (Section 5.2), suggest-ing that access to stored evidence remains a major bottleneck even for strong LLMs. These findings motivate query-specific evidence construction as a central objective of long-term memory utilization. To operationalize this perspective, we pro-pose QEMem, a framework that constructs query-specific evidence sets over an existing memory store. QEMem begins with query-guided evidence discovery , identifying the information requirements of a query and recovering complementary evidence across episodic memories, semantic facts, and orig-inal interaction turns. Through source-grounded evidence reification, retrieved fragments are orga-nized into structured ViewCards that make query-relevant claims, evidential relations, temporal in-formation, and supporting source spans explicit. Fi-nally, sufficiency-guided evidence refinement iden-tifies unresolved information needs and selectively retrieves additional evidence, providing a more complete basis for answer generation. Our main contributions are: (i) We identify the relevance–sufficiency gap in long-term agent memory and introduce the 
+
+query-specific evidence set as a perspective that shifts memory utilization from individual relevance to collective evidential support. (ii) We propose QEMem , a framework that uni-fies query-guided evidence discovery, source-grounded evidence reification, and sufficiency-guided refinement to construct structured, source-grounded evidence for reasoning. (iii) Comprehensive experiments on LoCoMo demonstrate that QEMem achieves 91.43% LLM-judge accuracy, outperforming the strongest evaluated baseline, MemR 3, by 7.6 percentage points and NEMORI by 10.7 points under an identical memory store. 
+
+2 Related Work 
+
+Our work connects long-term agent memory (Park et al., 2023; Hu et al., 2025) with retrieval and evidence reasoning, focusing on how stored infor-mation is assembled into query-specific evidence. 
+
+Long-Term Memory for LLM Agents. 
+
+MemGPT (Packer et al., 2024), Memory-Bank (Zhong et al., 2024), and MemoryOS (Kang et al., 2025) support persistent storage and hierar-chical memory management. Mem0 (Chhikara et al., 2025) extracts reusable facts, while A-Mem (Xu et al., 2025) and Zep (Rasmussen et al., 2025) organize interconnected knowledge. LightMem (Fang et al., 2025), SimpleMem (Liu et al., 2026), and MemGAS (Xu et al., 2026) improve consolidation and multi-granular access. NEMORI (Nan et al., 2025), AgeMem (Yu et al., 2026), and MemAgent (Yu et al., 2025) further explore adaptive retention and memory operations. These advances improve memory storage and access, while QEMem focuses on assembling complementary evidence for a given query. 
+
+Retrieval and Evidence Reasoning. Retrieval-augmented generation (Lewis et al., 2020) accesses external knowledge through dense and lexical re-trieval (Karpukhin et al., 2020; Robertson and Zaragoza, 2009), although additional context does not necessarily improve evidence utilization (Liu et al., 2024). GraphRAG (Edge et al., 2024) and LightRAG (Guo et al., 2025) exploit struc-tured knowledge, while ReAct (Yao et al., 2022), Self-RAG (Asai et al., 2024), and Search-R1 (Jin et al., 2025) enable adaptive information acqui-sition. For conversational memory, MemR 3 (Du et al., 2025) combines retrieval and reflection, RE-Mem (Shu et al., 2026) supports graph-guided episodic reasoning, and MRAgent (Ji et al., 2026) and E-mem (Wang et al., 2026) explore memory reconstruction. As conversational evidence spans sessions, temporal contexts, and abstraction lev-els (Maharana et al., 2024; Jia et al., 2025), QE-Mem explicitly organizes retrieved fragments into source-grounded evidence sets and refines them to address missing information. Further discussion appears in Appendix A. 
+
+3 Problem Formulation 
+
+Given a long-term interaction history D =
+
+{u1, . . . , u T }, a memory backbone constructs episodic memories ME and semantic memories 
+
+MS , while retaining original turns MU through source references. The resulting memory space is 
+
+M = {M E , MS , MU }. For a query q, individu-ally relevant records may provide only part of the evidence needed for answering. We therefore formulate memory utilization as constructing a query-specific evidence set Eq that collectively supports the information requirements of q. Let C(q, M) denote candidate evidence deriv-able from the stored memories. Our conceptual 2objective is 
+
+E∗ 
+
+> q
+
+= arg max  
+
+> E⊆C (q, M)
+
+Suff( q, E)
+
+s.t. Traceable( E, M), Cost( E) ≤ B, 
+
+(1) where Suff measures collective evidential support, 
+
+Traceable requires identifiable source references, and B bounds retrieval and reasoning cost. 
+
+4 Method 
+
+We propose QEMem , a framework that refor-mulates long-term memory utilization as query-conditioned evidence-set construction, as illus-trated in Figure 1. Rather than directly optimiz-ing the conceptual objective in Eq. (1), QEMem progressively constructs an evidence set through three complementary mechanisms: query-guided evidence discovery , source-grounded evidence reifi-cation , and sufficiency-guided evidence refinement .As illustrated in Figure 1, these mechanisms trans-form heterogeneous memory representations into complementary, source-grounded evidence that col-lectively supports the query, without modifying the underlying memory formation process. 
+
+4.1 Query-Guided Evidence Discovery 
+
+Constructing a sufficient evidence set requires re-covering complementary information that may be distributed across memory representations and in-teraction sessions. Conventional relevance-based retrieval ranks individual memories independently, potentially overlooking evidence whose contribu-tion becomes apparent only when combined with other facts. QEMem therefore conditions evidence discovery on the information requirements of the query rather than its surface-level semantic similar-ity alone. 
+
+Query-Conditioned Retrieval Planning. Given a query q, a planner P induces a structured infor-mation requirement: 
+
+P(q) = ( ηq, a q, α q, τ q, Qq) , (2) where ηq specifies the information need, aq denotes the expected answer type, and αq and τq indicate requirements for cross-memory aggregation and temporal reasoning, respectively. The query set Qq
+
+comprises the original query and complementary retrieval queries targeting semantic reformulations and intermediate information needs. This decom-position broadens evidence discovery beyond mem-ories directly matching the original query. 
+
+Multi-Granular Evidence Retrieval. QEMem searches three complementary memory spaces Mg,where g ∈ G = {E, S, U } denotes episodic memo-ries, semantic facts, and original interaction turns, respectively. For each qj ∈ Q q, dense and sparse retrieval produce ranked candidate lists Lhj,g , with 
+
+h ∈ { dense , sparse }. We aggregate these retrieval signals through reciprocal rank fusion: 
+
+Rg(m | q) = X 
+
+> qj∈Q q
+
+X
+
+> h
+
+I[m ∈ L hj,g ]
+
+k + rank Lhj,g (m) , (3) where k controls the contribution of individual rankings and absent candidates contribute zero. To account for dependencies across memory granularities, provenance links between semantic facts and their originating episodes further inform candidate ranking. Let eRg denote the resulting ranking score, with provenance adjustment applied to episodic memories. The initial candidate pool is constructed as 
+
+C(0)  
+
+> q
+
+= Ctx U
+
+ [
+
+> g∈G
+
+Top bg (q)
+
+
+
+Mg; eRg
+
+ , (4) where bg(q) specifies the granularity-dependent retrieval budget and Ctx U augments retrieved in-teraction turns with local conversational context. Source-level retrieval budgets adapt to aggregation requirements, allowing broader coverage when rel-evant facts may span multiple events or sessions. The resulting C(0)  
+
+> q
+
+preserves both abstract memory representations and fine-grained source observa-tions for subsequent evidence construction. 
+
+4.2 Source-Grounded Evidence Reification 
+
+Evidence discovery identifies potentially useful memory fragments, but their relationships to the query remain implicit. QEMem addresses this lim-itation through source-grounded evidence reifica-tion , transforming retrieved information into struc-tured evidence objects whose roles and supporting sources are explicitly represented. 
+
+Query-Conditioned Evidence Construction. 
+
+Given C(0)  
+
+> q
+
+and the information requirement ηq, an evidence constructor R jointly produces an initial evidence set and an evidence-gap assessment: 
+
+
+
+E(0)  
+
+> q
+
+, f (0) 
+
+> q
+
+
+
+= R
+
+
+
+q, η q, C(0)  
+
+> q
+
+; ∅
+
+
+
+, (5) where E(0)  
+
+> q
+
+= {vi}Nq 
+
+> i=1
+
+contains the constructed evidence objects, and f (0)  
+
+> q
+
+provides feedback for subsequent refinement. 3Existing memory backbone Interaction history Session 1 Session 2 Session T Memory backbone (e.g. NEMORI) Construct Multi-granular memory Episodic memories      
+
+> Event summaries
+> Semantic facts
+> Consolidated knowledge
+> Original turns
+> Retained source records
+> 1Query-guided evidence discovery 2Source-grounded evidence rei fi cation 3Su ffi ciency-guided evidence re fi nement
+> Query q₁
+> q₂
+> q₃
+> Query planning
+> Retrieve
+> Episodes Facts Turns
+> Multi-granular search
+> Cq
+
+ViewCards Claim 
+
+> Role Quote Source ID Time
+> Claim
+> Role Quote Source ID Time
+
+Assess su ffi ciency 
+
+> Coverage of query requirements
+
+?Covered Covered Missing Targeted gap queries qgap Unseen candidates           
+
+> Across rounds: retain + append
+> +Existing New Updated Eq
+> Memory bank M
+> Veri fi ed UNVERIFIED Retain + fl ag Evidence set Eq Answer generation ViewCards 3Final evidence set
+> Cited sources 2Linked source spans
+> Retrieved memories 1Candidate pool
+> Final LLM Final answer
+> Evidence fl ow Gap-driven re fi nement
+> Memory foundation QEMem: Query-time evidence construction Final evidence set Eq
+
+Figure 1: Overview of QEMem. The framework addresses the relevance–sufficiency gap by moving from individually relevant memories to collectively sufficient evidence. Given a query, QEMem discovers candidate evidence across multiple memory granularities, constructs source-grounded evidence representations, and iteratively refines the evidence set based on identified information gaps. The resulting query-specific evidence set supports grounded answer generation. 
+
+Each evidence object is represented as a struc-tured ViewCard :
+
+vi = ( γi, r i, π i, ξ i, t i) , (6) where γi denotes a query-relevant claim, ri speci-fies its evidential relation, πi identifies supporting memory sources, ξi preserves a verbatim source span, and ti represents temporal information when applicable. The relation ri characterizes how the evidence contributes to the query, including answer candi-dates, intermediate facts, temporal constraints, and inference support. Unlike ordinary memory sum-marization, this representation explicitly connects individual observations to their query-specific ev-idential functions, allowing complementary infor-mation from multiple memories to be organized within a common evidence set. 
+
+Source Grounding and Temporal Alignment. 
+
+To preserve traceability, QEMem assesses the cor-respondence between each ViewCard’s quotation and its cited sources: 
+
+κi = max 
+
+m∈Src( πi) Match( ξi, x m),νi = I[κi ≥ δ],
+
+(7) where xm denotes the source text, Match measures textual correspondence, and νi indicates whether the quoted evidence is source-verified. This pro-cedure establishes quotation fidelity rather than logical entailment of the structured claim. For temporally grounded evidence, relative ex-pressions are further interpreted against their origi-nating interaction timestamps, with deterministic normalization applied when appropriate. Unveri-fied quotations are flagged rather than discarded, while conflicting observations remain available for downstream reasoning. Consequently, E(0) 
+
+q
+
+provides a structured, traceable representation in which retrieved information is organized by its evi-dential contribution to the query. 
+
+4.3 Sufficiency-Guided Evidence Refinement 
+
+Although evidence reification makes supporting re-lations explicit, the assembled evidence may still omit information required for answering. QEMem therefore performs sufficiency-guided evidence re-finement , using the current evidence set to identify unresolved information needs and guide targeted retrieval. 
+
+Evidence Sufficiency Assessment. At refine-ment step t, the evidence constructor maintains feedback 
+
+f (t)
+
+q =
+
+
+
+ˆs(t)
+
+q , d (t)
+
+q , Q(t)
+
+q, gap 
+
+
+
+, (8) where ˆs(t)
+
+q ∈ { 0, 1} indicates estimated eviden-tial sufficiency, d(t)
+
+q describes unresolved informa-tion requirements, and Q(t)
+
+q, gap contains targeted retrieval queries addressing those gaps. The as-sessment considers whether the evidence set collec-4tively supports the query, including the intermedi-ate facts and cross-memory relations necessary for multi-hop and aggregate reasoning. This feedback is generated jointly with the ViewCards rather than by a separately trained sufficiency model. 
+
+Evidence-Gap-Conditioned Refinement. When 
+
+ˆs(t) 
+
+> q
+
+= 0 , QEMem retrieves additional evidence ac-cording to the identified gaps, excluding previously examined candidates: 
+
+∆C(t+1)  
+
+> q
+
+= Retrieve 
+
+
+
+Q(t)
+
+> q, gap
+
+, M
+
+
+
+\ C (t) 
+
+> q
+
+. (9) Rather than reconstructing the entire evidence set, QEMem conditions subsequent evidence construc-tion on previously established ViewCards: 
+
+
+
+∆E(t+1)  
+
+> q
+
+, f (t+1) 
+
+> q
+
+
+
+= R
+
+
+
+q, η q, ∆C(t+1)  
+
+> q
+
+; E(t)
+
+> q
+
+
+
+,
+
+E(t+1)  
+
+> q
+
+= E(t) 
+
+> q
+
+∪ ∆E(t+1)  
+
+> q
+
+.
+
+(10) Here, ∆E(t+1)  
+
+> q
+
+contains newly constructed evi-dence, while the existing set is preserved. The retrieved candidate pool is updated analogously. This refinement process progressively incorporates complementary evidence without repeatedly pro-cessing previously examined memories. Iteration terminates when sufficiency is estimated to be sat-isfied, no new candidates are available, or the re-trieval budget is exhausted. 
+
+Evidence-Grounded Answer Generation. Let 
+
+E(T ) 
+
+> q
+
+denote the evidence set obtained after refine-ment. The final answer is generated by a frozen LLM Fθ:
+
+ˆy = Fθ
+
+
+
+q, Assemble 
+
+
+
+E(T ) 
+
+> q
+
+, C(T )
+
+> q
+
+ 
+
+, (11) where Assemble presents the ViewCards together with their supporting source context and remaining retrieved memories. This evidence-first organiza-tion exposes the collective support of the assem-bled evidence while preserving access to original observations for verification and disambiguation. Sufficiency assessments remain approximate, serv-ing as feedback for evidence refinement rather than guaranteeing formal completeness. 
+
+5 Experiments 
+
+Experimental setup. We compare QEMem with seven baselines on 1,540 LoCoMo questions (Ma-harana et al., 2024), using Haiku 4.5 and Opus 4.5. Details appear in Appendix B.1. 
+
+5.1 RQ1: Overall Performance 
+
+QEMem achieves the highest overall accuracy (Table 1): 89.61% with Haiku 4.5 and 91.43% 
+
+with Opus 4.5, surpassing the strongest baseline, MemR 3, by 9.16 and 7.60 percentage points, re-spectively. Both gains are significant under paired evaluation ( p < 10 −5; 95% CIs: [7.1, 11.2] and [5.8, 9.3] points). Gains are pronounced on multi-hop questions (+8.16 and +10.29 points over Sim-pleMem) and temporal reasoning (+6.23 and +4.36 points over MemR 3). These improvements are con-sistent with more effective recovery and integration of complementary evidence across memory records. QEMem leads all four categories under Haiku and three under Opus, where open-domain reasoning is the only exception. Performance across back-bones. Switching from Opus to Haiku reduces QEMem’s accuracy by only 1.82 points, compared with 4.22 for NEMORI and 3.38 for MemR 3. QE-Mem with Haiku outperforms every baseline us-ing Opus, supporting its effectiveness across both backbones. Its gains over NEMORI under an iden-tical memory store highlight the value of improving query-time memory utilization. 
+
+5.2 RQ2: Evidence Coverage and Answer Accuracy 
+
+Figure 2 examines how annotated evidence cov-erage relates to answer accuracy. Evidence cov-erage. With Opus 4.5, QEMem increases com-plete retrieval-source coverage from 68.8% to 92.8% and complete source visibility from 16.2% to 91.7% (Figure 2(a)). ViewCard sources cover all annotated supporting turns for 86.6% of ques-tions through direct turn citations or provenance links through cited episodes. On multi-hop ques-tions, complete source visibility rises from 1.8% to 72.0%, improving exposure of distributed ev-idence. Answer accuracy. Figure 2(b) groups questions by NEMORI’s retrieval-source coverage. The methods achieve comparable accuracy in the complete-coverage group, while QEMem improves accuracy by 24.2 and 40.0 percentage points in the partial- and missing-coverage groups, respectively. These groups comprise 31.2% of questions but ac-count for 98.2% of the net accuracy gain, showing that QEMem’s improvements concentrate on ques-tions with incomplete baseline evidence coverage. This pattern supports evidence recovery as a major bottleneck in long-term memory reasoning. Haiku 4.5 shows a similar pattern (Appendix B.2). 5Table 1: Main results on LoCoMo across two Claude backbones, measured by LLM-judge accuracy (%). All memory stores are constructed using Claude Opus 4.5, while query-time processing uses the indicated backbone. 
+
+Bold and underlined values indicate the best and second-best results within each backbone, respectively. 
+
+Claude Haiku 4.5 Claude Opus 4.5 Method Multi-Hop Temporal Open Single-Hop Overall Multi-Hop Temporal Open Single-Hop Overall 
+
+NEMORI 69.50 71.65 50.00 83.71 76.49 70.92 77.88 61.46 87.28 80.71 Mem0 65.25 61.68 52.08 74.67 68.83 62.77 68.85 62.50 80.26 73.57 A-Mem 50.35 32.09 44.79 68.73 56.23 51.77 29.28 48.96 73.60 58.83 LightMem 63.48 81.62 57.29 78.24 74.94 62.41 84.42 59.38 80.14 76.49 SimpleMem 78.72 79.13 53.12 80.62 78.25 78.01 81.62 59.38 84.54 81.17 MemR 3 58.87 82.87 61.46 88.94 80.45 62.41 86.92 76.04 90.73 83.83 MemGAS 36.88 52.34 47.92 73.37 60.71 41.13 56.70 52.08 72.53 62.21 
+
+QEMem (Ours) 86.88 89.10 68.75 93.10 89.61 88.30 91.28 69.79 95.01 91.43 Multi-hop (n=279) Temporal (n=320) Open-domain (n=92) Single-hop (n=840) Overall (n=1531) 020 40 60 80 100   
+
+> Questions with complete gold evidence (%)
+> 68.8 16.2 92.8 91.7 86.6
+> (a) Evidence coverage by category
+> NEMORI: retrieved NEMORI: in prompt Ours: retrieved Ours: in prompt Ours: cited by ViewCard
+> Complete (n=1054) Partial (n=182) Missing (n=295)
+> NEMORI retrieval coverage (R)
+> 020 40 60 80 100
+> LLM-judge accuracy (%)
+> +0.3 pp +24.2 pp +40.0 pp
+> Partial + Missing: 31.2% of questions, 98.2% of net wins
+> (b) Accuracy by NEMORI coverage
+> NEMORI Ours
+
+Figure 2: Evidence coverage and answer accuracy on LoCoMo. (a) Complete coverage of annotated supporting turns. Retrieval-source coverage ( R) includes turns belonging to retrieved episodes or present in the final raw-turn context. Source visibility ( V ) counts original turns included verbatim in the answer prompt. Card-source coverage (C) includes directly cited turns and all turns belonging to cited episodes. Coverage is complete when all annotated supporting turns are covered. (b) Answer accuracy grouped by NEMORI’s retrieval-source coverage. Results use Opus 4.5 on 1,531 questions with fully mappable evidence annotations. 
+
+5.3 RQ3: Dissecting Query-Specific Evidence Construction 
+
+Table 2 compares the stages of query-specific evidence construction. Under matched final answer-context budgets, Full QEMem outperforms retrieval-only answering by 5.9 and 5.7 percent-age points with Haiku and Opus, respectively (p < 10 −10 for both). Evidence discovery. Query-guided multi-granular retrieval with direct answer-ing improves accuracy over matched-budget re-trieval by 4.7 points with Haiku and 5.2 points with Opus, accounting for most of the overall gain. 
+
+Evidence reification. The reification stage con-structs and verifies ViewCards and expands their cited source context. Compared with direct answer-ing, this stage increases complete source visibility from 82.6% to 89.3% with Haiku and from 83.1% to 90.7% with Opus. Accuracy changes by +0 .7
+
+and −0.3 points, respectively. Its clearest benefit in this comparison is greater exposure of annotated source evidence through card-guided context ex-pansion. Evidence refinement. Refinement fur-ther improves overall accuracy by 0.5 points with Haiku and 0.8 points with Opus. On the same 131 Opus questions that trigger refinement, accuracy rises from 61.8% to 71.0% ( +9 .2 points, paired McNemar p = 0 .0075 ). The corresponding gain for Haiku is positive but not statistically significant. Appendix B.4 provides reconstruction details, sen-sitivity analysis, and accuracy–cost comparisons. 
+
+5.4 RQ4: Source Grounding and Evidential Reliability 
+
+We evaluate the source traceability and quotation fidelity of ViewCards, together with the ground-edness of generated outputs. ViewCard ground-ing. Table 3 reports results over all 10,121 Haiku and 10,213 Opus ViewCards. Source references resolve to valid memory records for 98.4% and 100.0% of cards, respectively. Normalized quo-6Table 2: Ablation analysis of query-specific evidence construction on LoCoMo. Accuracy (%) is evaluated on 1,540 questions; ∆ is the difference from Full QEMem in percentage points. Visibility is the percentage of questions with all annotated supporting turns exposed verbatim in the final answer context, evaluated on 1,531 questions with fully mappable annotations. Matched-Budget Retrieval matches Full QEMem’s final answer-context token budget. Bold indicates the best result in each accuracy and visibility column.                                                                       
+
+> (a) Claude Haiku 4.5 Variant Multi-Hop Temporal Open-Domain Single-Hop Overall ∆Visibility
+> Matched-Budget Retrieval 79.1 80.4 64.6 88.7 83.7 −5.977.0 Query-Guided Retrieval 84.4 85.0 66.7 93.5 88.4 −1.282.6 w/o Evidence Refinement 84.0 88.2 67.7 93.6 89.1 −0.589.3
+> Full QEMem 86.9 89.1 68.8 93.1 89.6 –91.6 (b) Claude Opus 4.5 Variant Multi-Hop Temporal Open-Domain Single-Hop Overall ∆Visibility
+> Matched-Budget Retrieval 80.1 83.8 72.9 89.8 85.7 −5.775.0 Query-Guided Retrieval 86.9 89.4 71.9 95.0 90.9 −0.583.1 w/o Evidence Refinement 86.9 90.0 69.8 94.5 90.6 −0.890.7
+> Full QEMem 88.3 91.3 69.8 95.0 91.4 –91.7
+
+Table 3: Source traceability and quotation fidelity of QEMem ViewCards on LoCoMo. Percentages are computed over all generated cards (10,121 for Haiku and 10,213 for Opus), except original-turn traceability, which uses cards citing original dialogue turns. Multi-excerpt fidelity permits segment-wise quotation match-ing.             
+
+> Grounding Metric Haiku 4.5 Opus 4.5
+> Provenance Resolution 98.4 100.0
+> Exact Quotation Fidelity 82.7 95.9
+> Normalized Quotation Fidelity 85.5 97.7
+> Multi-Excerpt Quotation Fidelity 90.0 99.1
+> Original-Turn Traceability 100.0 100.0
+
+tation fidelity reaches 85.5% and 97.7%, increas-ing to 90.0% and 99.1% with segment-wise veri-fication of multi-excerpt quotations. All cards cit-ing original dialogue turns are traceable to their source identifiers. These results show that View-Cards make evidence provenance and quotation fidelity directly auditable. Additional claim–source consistency and temporal-grounding analyses are provided in Appendix B.3. Output grounding. 
+
+On 240 stratified questions evaluated with Opus, QEMem improves full-output groundedness over NEMORI and MemR 3 by 15.5 and 11.3 percentage points, respectively, while maintaining a lower ab-stention rate. This audit evaluates complete model outputs, including auxiliary reasoning and explana-tions. Appendix B.7 reports detailed comparisons, core-answer grounding, and the relationship be-tween output length and groundedness. 
+
+5.5 RQ5: Reasoning over Complex and Distributed Evidence 
+
+Table 4 evaluates questions requiring multiple sup-porting turns, cross-session evidence, and cross-session list/count aggregation. QEMem achieves the highest accuracy in every reported group under both backbones. On questions with at least three supporting turns, it reaches 81.0% accuracy with Haiku and 82.1% with Opus, exceeding the strongest included baseline by 6.0 and 8.2 percent-age points, respectively. The gains extend to cross-session evidence integration. QEMem achieves 81.3% and 83.4% accuracy on cross-session ques-tions, improving over the strongest included base-line by 9.3 and 11.7 points. For cross-session list/-count questions, the corresponding gains are 6.4 and 10.2 points. These results demonstrate QE-Mem’s effectiveness on questions requiring com-plementary evidence from multiple turns and ses-sions. Additional analyses of evidence cardinality, temporal dispersion, and statistical robustness are provided in Appendix B.5. 
+
+5.6 RQ6: Evidence Coverage under Source-Turn Budgets 
+
+We measure complete evidence coverage over pre-fixes of stored retrieval results, preserving retrieval order and limiting the number of unique source turns exposed. Figure 3 evaluates QEMem’s initial multi-granular retrieval pool before evidence reifi-cation and refinement. QEMem achieves higher evidence coverage under the same source-turn 
+
+7Table 4: LLM-judge accuracy (%) across evidence-complexity groups on LoCoMo. Overlapping groups are defined by supporting turns and sessions among 1,535 questions with valid evidence annotations. ∆ is QEMem’s gain over the strongest included baseline per group (percentage points). Bold/underlined values mark the best/second-best accuracy. 
+
+(a) Claude Haiku 4.5 Evidence Complexity n NEMORI SimpleMem MemR 3 QEMem ∆ vs. Best 
+
+Single evidence turn 1122 79.9 80.8 86.8 92.1 +5.3 
+
+≥3 evidence turns 184 63.6 75.0 53.8 81.0 +6.0 Cross-session evidence 332 63.3 72.0 59.0 81.3 +9.3 Cross-session list/count 235 59.6 74.0 54.5 80.4 +6.4 
+
+(b) Claude Opus 4.5 Evidence Complexity n NEMORI SimpleMem MemR 3 QEMem ∆ vs. Best 
+
+Single evidence turn 1122 84.8 83.8 90.1 94.0 +3.9 
+
+≥3 evidence turns 184 64.1 73.9 59.8 82.1 +8.2 Cross-session evidence 332 66.3 71.7 63.3 83.4 +11.7 Cross-session list/count 235 60.9 72.8 57.4 83.0 +10.2 0 20 40 60 80 100 120       
+
+> Budget (unique source turns shown verbatim)
+> 020 40 60 80 100 Complete evidence coverage (%)
+> NEMORI (actual) NEMORI top-10 (o ffl ine expansion) Matched retrieval-only Ours (query-guided, round-1 pool)
+> (a) Claude Haiku 4.5
+> 020 40 60 80 100 120
+> Budget (unique source turns shown verbatim)
+> NEMORI (actual) NEMORI top-10 (o ffl ine expansion) Matched retrieval-only Ours (query-guided, round-1 pool)
+> (b) Claude Opus 4.5
+
+Figure 3: Complete evidence coverage under source-turn budgets. (a) Haiku 4.5. (b) Opus 4.5. Curves measure coverage of all annotated supporting turns in offline retrieval prefixes, preserving retrieval order and candidate boundaries. Budgets count unique original turns exposed verbatim. QEMem uses its initial retrieval pool. NEMORI (actual) exposes source turns from its top-two episodes; NEMORI top-10 hypothetically expands all ten retrieved episodes into their associated source turns. Results cover 1,531 questions with fully mappable evidence annotations. 
+
+budgets. At 20 turns, coverage reaches 56.6% with Haiku and 58.1% with Opus, compared with 34.5% for matched retrieval-only, yielding gains of 22.1 and 23.6 percentage points. Across budgets of 10– 120 turns, the normalized area under the coverage curve improves by 14.5 and 15.7 points, respec-tively. QEMem also outperforms the hypothetical expansion of all retrieved NEMORI episodes into their associated source turns. These results show that QEMem’s initial retrieval provides more com-plete annotated evidence within limited source-turn prefixes. Token-budget results, statistical robust-ness checks, and query-planning analyses are pro-vided in Appendix B.6. 
+
+6 Conclusion 
+
+We present QEMem, a framework for addressing the relevance–sufficiency gap in long-term agent memory through query-specific evidence construc-tion. QEMem combines multi-granular evidence discovery, source-grounded ViewCards, and tar-geted refinement over existing memory stores. Ex-periments on LoCoMo show improved answer ac-curacy and evidence coverage across two LLM backbones, with strong performance on questions requiring cross-session evidence integration. These results highlight query-time evidence construction as an effective approach to improving memory uti-lization while making supporting sources explicit. 8Limitations 
+
+Our evaluation focuses on LoCoMo and two Claude backbones; broader validation across bench-marks and model families remains future work. Ev-idence coverage relies on benchmark annotations, while grounding is assessed through automated checks and sampled LLM-based audits. QEMem also trades additional query-time computation for structured evidence and targeted refinement, moti-vating further work on reducing this overhead while preserving its benefits. 
+
+References 
+
+Akari Asai, Zeqiu Wu, Yizhong Wang, Avi Sil, and Hannaneh Hajishirzi. 2024. Self-rag: Learning to re-trieve, generate, and critique through self-reflection. In International conference on learning representa-tions , volume 2024, pages 9112–9141. Iz Beltagy, Matthew E Peters, and Arman Cohan. 2020. Longformer: The long-document transformer. arXiv preprint arXiv:2004.05150 .Ching Chang, Yidan Shi, Defu Cao, Wei Yang, Jeehyun Hwang, Haixin Wang, Jiacheng Pang, Wei Wang, Yan Liu, Wen-Chih Peng, et al. 2025. A survey of rea-soning and agentic systems in time series with large language models. arXiv preprint arXiv:2509.11575 .Yiqun Chen, Qi Liu, Yi Zhang, Weiwei Sun, Xinyu Ma, Wei Yang, Daiting Shi, Jiaxin Mao, and Dawei Yin. 2025. Tourrank: Utilizing large language models for documents ranking with a tournament-inspired strat-egy. In Proceedings of the ACM on Web Conference 2025 , pages 1638–1652. Yiqun Chen, Wei Yang, Erhan Zhang, Shijie Wang, Qi Liu, Zechun Niu, Bin Zhang, Haitao Li, Rui Li, Lingyong Yan, et al. 2026. Unitymas-o: A general rl optimization framework for llm-based multi-agent systems. arXiv preprint arXiv:2605.26646 .Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. 2025. Mem0: Building production-ready ai agents with scalable long-term memory. arXiv preprint arXiv:2504.19413 .Zihang Dai, Zhilin Yang, Yiming Yang, Jaime Car-bonell, Quoc Le, and Ruslan Salakhutdinov. 2019. Transformer-XL: Attentive language models beyond a fixed-length context. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , pages 2978–2988, Florence, Italy. Asso-ciation for Computational Linguistics. Pengfei Du. 2026. Memory for autonomous llm agents:mechanisms, evaluation, and emerging fron-tiers. Preprint , arXiv:2603.07670. Xingbo Du, Loka Li, Duzhen Zhang, and Le Song. 2025. Memr 3: Memory retrieval via reflective reasoning for llm agents. arXiv preprint arXiv:2512.20237 .Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, Dasha Metropolitansky, Robert Osazuwa Ness, and Jonathan Larson. 2024. From local to global: A graph rag approach to query-focused summarization. 
+
+arXiv preprint arXiv:2404.16130 .Jizhan Fang, Xinle Deng, Haoming Xu, Ziyan Jiang, Yuqi Tang, Ziwen Xu, Shumin Deng, Yunzhi Yao, Mengru Wang, Shuofei Qiao, et al. 2025. Lightmem: Lightweight and efficient memory-augmented gener-ation. arXiv preprint arXiv:2510.18866 .Luyu Gao, Zhuyun Dai, Panupong Pasupat, Anthony Chen, Arun Tejasvi Chaganty, Yicheng Fan, Vin-cent Zhao, Ni Lao, Hongrae Lee, Da-Cheng Juan, et al. 2023a. Rarr: Researching and revising what language models say, using language models. In 
+
+Proceedings of the 61st Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 16477–16508. Tianyu Gao, Howard Yen, Jiatong Yu, and Danqi Chen. 2023b. Enabling large language models to generate text with citations. In Proceedings of the 2023 Con-ference on Empirical Methods in Natural Language Processing , pages 6465–6488. Zirui Guo, Lianghao Xia, Yanhua Yu, Tian Ao, and Chao Huang. 2025. Lightrag: Simple and fast retrieval-augmented generation. In EMNLP (Find-ings) , pages 10746–10761. Yuyang Hu, Shichun Liu, Yanwei Yue, Guibin Zhang, Boyang Liu, Fangyi Zhu, Jiahang Lin, Honglin Guo, Shihan Dou, Zhiheng Xi, et al. 2025. Memory in the age of ai agents. arXiv preprint arXiv:2512.13564 .Shuo Ji, Yibo Li, and Bryan Hooi. 2026. Memory is reconstructed, not retrieved: Graph memory for llm agents. arXiv preprint arXiv:2606.06036 .Zixi Jia, Qinghua Liu, Hexiao Li, Yuyan Chen, and Jiqiang Liu. 2025. Evaluating the long-term memory of large language models. In Findings of the Asso-ciation for Computational Linguistics: ACL 2025 ,pages 19759–19777, Vienna, Austria. Association for Computational Linguistics. Huiqiang Jiang, Qianhui Wu, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2023a. Llmlingua: Compressing prompts for accelerated inference of large language models. In Proceedings of the 2023 conference on empirical methods in natural language processing ,pages 13358–13376. Zhengbao Jiang, Frank F Xu, Luyu Gao, Zhiqing Sun, Qian Liu, Jane Dwivedi-Yu, Yiming Yang, Jamie Callan, and Graham Neubig. 2023b. Active retrieval augmented generation. In Proceedings of the 2023 conference on empirical methods in natural language processing , pages 7969–7992. 
+
+9Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon, Sercan Arik, Dong Wang, Hamed Zamani, and Jiawei Han. 2025. Search-r1: Training llms to reason and leverage search engines with reinforcement learning. 
+
+Preprint , arXiv:2503.09516. Hailey Joren, Jianyi Zhang, Chun-Sung Ferng, Da-Cheng Juan, Ankur Taly, and Cyrus Rashtchian. 2025. Sufficient context: A new lens on retrieval augmented generation systems. In International Conference on Learning Representations , volume 2025, pages 20310–20334. Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. 2025. Memory os of ai agent. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 25972–25981. Vladimir Karpukhin, Barlas O˘ guz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen tau Yih. 2020. Dense passage retrieval for open-domain question answering. Preprint ,arXiv:2004.04906. Kuang-Huei Lee, Xinyun Chen, Hiroki Furuta, John Canny, and Ian Fischer. 2024. A human-inspired reading agent with gist memory of very long contexts. 
+
+arXiv preprint arXiv:2402.09727 .Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Hein-rich Küttler, Mike Lewis, Wen-tau Yih, Tim Rock-täschel, et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in neu-ral information processing systems , 33:9459–9474. Shawn Li, Chenxiao Yu, Han Wang, Wei Yang, Ryan Rossi, Franck Dernoncourt, Xiyang Hu, Philip Yu, Chaowei Xiao, Huan Zhang, et al. 2026. Fortis: Benchmarking over-privilege in agent skills. arXiv preprint arXiv:2605.09163 .Jiaqi Liu, Yaofeng Su, Peng Xia, Siwei Han, Zeyu Zheng, Cihang Xie, Mingyu Ding, and Huaxiu Yao. 2026. Simplemem: Efficient lifelong memory for llm agents. arXiv preprint arXiv:2601.02553 .Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paran-jape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2024. Lost in the middle: How language mod-els use long contexts. Transactions of the association for computational linguistics , 12:157–173. Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. 2024. Evaluating very long-term conversational memory of llm agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 13851– 13870. Jiayan Nan, Wenquan Ma, Wenlong Wu, and Yize Chen. 2025. Nemori: Self-organizing agent memory in-spired by cognitive science. arXiv e-prints , pages arXiv–2508. Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2024. Memgpt: Towards llms as operating systems. 
+
+Preprint , arXiv:2310.08560. Joon Sung Park, Joseph C. O’Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein. 2023. Generative agents: Interac-tive simulacra of human behavior. Preprint ,arXiv:2304.03442. Heng Ping, Arijit Bhattacharjee, Peiyu Zhang, Shix-uan Li, Wei Yang, Anzhe Cheng, Xiaole Zhang, Jesse Thomason, Ali Jannesari, Nesreen Ahmed, et al. 2025. Verimoa: A mixture-of-agents frame-work for spec-to-hdl generation. arXiv preprint arXiv:2510.27617 .Heng Ping, Arijit Bhattacharjee, Peiyu Zhang, Shixuan Li, Wei Yang, Ali Jannesari, Nesreen Ahmed, and Paul Bogdan. 2026a. Rem-moa: Reasoning memory sustains mixture-of-agents scaling. arXiv preprint arXiv:2606.24437 .Heng Ping, Peiyu Zhang, Shixuan Li, Wei Yang, Anzhe Cheng, Shukai Duan, Xiaole Zhang, and Paul Bog-dan. 2026b. Coevo: Co-evolutionary framework for joint functional correctness and ppa optimiza-tion in llm-based rtl generation. arXiv preprint arXiv:2604.15001 .Heng Ping, Peiyu Zhang, Zhenkun Wang, Shixuan Li, Anzhe Cheng, Wei Yang, Paul Bogdan, and Shahin Nazarian. 2026c. Poet: Power-oriented evolution-ary tuning for llm-based rtl ppa optimization. arXiv preprint arXiv:2603.19333 .Yuehan Qin, Li Li, Linxin Song, Wei Yang, Jiate Li, Yuqing Yang, and Yue Zhao. 2026. Memory re-trieval for changing preferences. arXiv preprint arXiv:2606.02976 .Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. 2025. Zep: a tempo-ral knowledge graph architecture for agent memory. 
+
+arXiv preprint arXiv:2501.13956 .Stephen Robertson and Hugo Zaragoza. 2009. The probabilistic relevance framework: Bm25 and be-yond. Found. Trends Inf. Retr. , 3(4):333–389. Yiheng Shu, Padmaja Jonnalagedda, Xiang Gao, Bernal Jimenez Gutierrez, Weijian Qi, Kamalika Das, Huan Sun, and Yu Su. 2026. Remem: Reasoning with episodic memory in language agent. In International Conference on Learning Representations , volume 2026, pages 55958–55987. Kaixiang Wang, Yidan Lin, Jiong Lou, Zhaojiacheng Zhou, Bunyod Suvonov, and Jie Li. 2026. E-mem: Multi-agent based episodic context reconstruction for llm agent memory. arXiv preprint arXiv:2601.21714 .Derong Xu, Yi Wen, Pengyue Jia, Yingyi Zhang, Wenlin Zhang, Yichao Wang, Huifeng Guo, Ruiming Tang, 
+
+10 Xiangyu Zhao, Enhong Chen, et al. 2026. From sin-gle to multi-granularity: Toward long-term memory association and selection of conversational agents. In 
+
+International Conference on Learning Representa-tions , volume 2026, pages 91581–91617. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Jun-tao Tan, and Yongfeng Zhang. 2025. A-mem: Agentic memory for llm agents. arXiv preprint arXiv:2502.12110 .Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, and Zhen-Hua Ling. 2024. Corrective retrieval augmented generation. 
+
+arXiv preprint arXiv:2401.15884 .Wei Yang, Defu Cao, Jiacheng Pang, Muyan Weng, and Yan Liu. 2026a. Adaptive collaboration with humans: Metacognitive policy optimization for multi-agent llms with continual learning. arXiv preprint arXiv:2603.07972 .Wei Yang, Bryce Kan, Shixuan Li, Li Li, Yuehan Qin, Jiate Li, Paul Bogdan, and Jesse Thomason. 2026b. Ramem: Contextual reinstatement for long-term agentic memory. arXiv preprint arXiv:2606.22844 .Wei Yang, Shixuan Li, Heng Ping, Peiyu Zhang, Paul Bogdan, and Jesse Thomason. 2026c. Auditing multi-agent llm reasoning trees outperforms majority vote and llm-as-judge. arXiv preprint arXiv:2602.09341 .Wei Yang, Muyan Weng, Jiacheng Pang, Defu Cao, Heng Ping, Peiyu Zhang, Shixuan Li, Yue Zhao, Qiang Yang, Mengdi Wang, et al. 2025. Toward evo-lutionary intelligence: Llm-based agentic systems with multi-agent reinforcement learning. Available at SSRN 5819182 .Zixuan Yang, Yiqun Chen, Wei Yang, Erhan Zhang, Zihan Shen, Xiaochi Wei, Yan Gao, Yi Wu, Yao Hu, and Jiaxin Mao. 2026d. Tournament-grpo: Group-wise tournament rewards for reinforcement learning in open-ended long-form generation. arXiv preprint arXiv:2605.26958 .Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2022. React: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629 .Hongli Yu, Tinghong Chen, Jiangtao Feng, Jiangjie Chen, Weinan Dai, Qiying Yu, Ya-Qin Zhang, Wei-Ying Ma, Jingjing Liu, Mingxuan Wang, et al. 2025. Memagent: Reshaping long-context llm with multi-conv rl-based memory agent. arXiv preprint arXiv:2507.02259 .Yi Yu, Liuyi Yao, Yuexiang Xie, Qingquan Tan, Ji-aqi Feng, Yaliang Li, and Libing Wu. 2026. Agen-tic memory: Learning unified long-term and short-term memory management for large language model agents. arXiv preprint arXiv:2601.01885 .Manzil Zaheer, Guru Guruganesh, Kumar Avinava Dubey, Joshua Ainslie, Chris Alberti, Santiago On-tanon, Philip Pham, Anirudh Ravula, Qifan Wang, Li Yang, et al. 2020. Big bird: Transformers for longer sequences. Advances in neural information processing systems , 33:17283–17297. Erhan Zhang, Yiqun Chen, Zechun Niu, Wei Yang, Xiaochi Wei, Yan Gao, Yi Wu, Yao Hu, and Ji-axin Mao. 2026. Oases: Outcome-aligned search-evaluation co-training for agentic search. arXiv preprint arXiv:2604.03675 .Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, et al. 2025. Qwen3 em-bedding: Advancing text embedding and reranking through foundation models. Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. 2024. Memorybank: Enhancing large language models with long-term memory. In Pro-ceedings of the AAAI conference on artificial intelli-gence , volume 38, pages 19724–19731. 
+
+11 Appendix A Related Work 
+
+A.1 Long-Term Memory for LLM Agents 
+
+Recent advances in large language models have en-abled increasingly capable agentic systems that per-form complex tasks through reasoning, interaction, and collaboration (Chang et al., 2025; Chen et al., 2026; Yang et al., 2025, 2026c; Li et al., 2026). Multi-agent frameworks further coordinate special-ized agents to improve problem solving and deci-sion making (Yang et al., 2026a), with applications spanning code generation (Ping et al., 2026b,c), ranking and search (Chen et al., 2025; Zhang et al., 2026), and reinforcement learning for agentic rea-soning (Yang et al., 2026d; Zhang et al., 2026; Ping et al., 2025). As these systems evolve toward longer-horizon and more autonomous interactions, their effectiveness increasingly depends on the abil-ity to accumulate experience, preserve relevant context, and reuse previously acquired informa-tion. This growing need motivates long-term mem-ory as a fundamental component of LLM-based agents (Park et al., 2023; Hu et al., 2025). Existing research has explored diverse mecha-nisms for persistent memory storage, organization, and retrieval in LLM agents (Du, 2026; Qin et al., 2026; Ping et al., 2026a). Early approaches pri-marily address how conversational histories can be retained and accessed over time. MemGPT (Packer et al., 2024) introduces hierarchical memory man-agement inspired by operating systems, while MemoryBank (Zhong et al., 2024) maintains per-sistent user-related information for personalized interactions. MemoryOS (Kang et al., 2025) fur-ther organizes memory into multiple components to support long-term conversational continuity. Subsequent research explores how memory rep-resentations can become more compact, structured, and informative. Mem0 (Chhikara et al., 2025) extracts persistent facts from dialogue, while A-Mem (Xu et al., 2025) develops interconnected memory notes that evolve as new experiences ar-rive. Zep (Rasmussen et al., 2025) organizes conversational knowledge through temporal graph structures, supporting relationships and updates across events. LightMem (Fang et al., 2025) em-phasizes efficient memory consolidation through a lightweight architecture, whereas SimpleMem (Liu et al., 2026) constructs self-contained memo-ries with complementary retrieval views. Mem-GAS (Xu et al., 2026) further organizes memories at multiple granularities and adaptively selects re-trieval representations based on query characteris-tics. Collectively, these methods demonstrate the importance of memory organization and consolida-tion for effective long-term information access. Beyond memory representation, recent sys-tems increasingly adapt memory operations to the agent’s changing information needs. NEMORI (Nan et al., 2025) connects memory formation with predictability and prediction er-ror, while AgeMem (Yu et al., 2026) and MemA-gent (Yu et al., 2025) explore learned memory-management behaviors. These developments im-prove how agents retain, update, and retrieve past information. However, the quality of stored mem-ories and their individual relevance to a query do not necessarily determine whether the retrieved in-formation collectively supports a complete answer. QEMem addresses this complementary problem at query time, treating the construction of a suffi-cient, source-grounded evidence set as the central objective rather than introducing another memory storage architecture. 
+
+A.2 Retrieval and Evidence Reasoning 
+
+Effective memory utilization is closely related to retrieval-augmented generation and long-context reasoning. Retrieval-augmented generation (Lewis et al., 2020) provides external information to a language model, while dense retrieval (Karpukhin et al., 2020) and lexical retrieval (Robertson and Zaragoza, 2009) offer complementary mechanisms for identifying relevant content. Alternatively, long-context architectures allow models to process larger amounts of information directly (Beltagy et al., 2020; Zaheer et al., 2020; Dai et al., 2019). Nev-ertheless, access to additional context does not guarantee effective evidence utilization, as illus-trated by the lost-in-the-middle phenomenon (Liu et al., 2024). Methods such as LLMLingua (Jiang et al., 2023a) and ReadAgent (Lee et al., 2024) reduce context demands through compression or structured reading, while GraphRAG (Edge et al., 2024) and LightRAG (Guo et al., 2025) introduce graph-based organization to facilitate information retrieval and integration. Joren et al.Joren et al. (2025) distinguish insufficient context from failures to use available information in RAG. CRAG (Yan et al., 2024) evaluates retrieval quality to guide corrective retrieval actions. Complementary work examines source attribution: RARR (Gao et al., 12 2023a) retrieves evidence to revise unsupported generated content, while ALCE (Gao et al., 2023b) evaluates answer correctness and citation quality. QEMem brings these concerns to long-term agent memory by constructing source-linked evidence sets and refining them to address unresolved infor-mation needs before answering. These approaches improve information accessibility, but retrieving relevant content remains distinct from establishing whether the available evidence is sufficient for a particular question. A complementary direction incorporates rea-soning and feedback into retrieval decisions. Re-Act (Yao et al., 2022) interleaves reasoning with external actions, while Self-RAG (Asai et al., 2024) and active retrieval (Jiang et al., 2023b) allow re-trieval behavior to respond to evolving genera-tion needs. More recently, Search-R1 (Jin et al., 2025) explores reinforcement learning for multi-step search and reasoning. In long-term conversa-tional memory, MemR 3 (Du et al., 2025) coordi-nates retrieval, reflection, and answering through an iterative reasoning process. REMem (Shu et al., 2026) combines episodic memory graphs with agentic retrieval to support recollection and rea-soning over past events, while MRAgent (Ji et al., 2026) employs associative graph structures and ac-tive memory reconstruction. E-mem (Wang et al., 2026) further investigates episodic context recon-struction through multi-agent reasoning within re-trieved memory segments. Together, these ap-proaches move beyond single-pass retrieval toward more adaptive and context-aware memory reason-ing. Despite this progress, long-term conversational histories present a particular challenge: relevant ev-idence may be distributed across different sessions, represented at different levels of abstraction, or em-bedded within memories that contain only part of the information required to answer a query (Maha-rana et al., 2024; Jia et al., 2025). Consequently, retrieving individually relevant memories does not necessarily produce a collectively sufficient evi-dence set. Existing approaches emphasize mem-ory representation, retrieval control, or iterative reasoning, whereas QEMem explicitly centers on 
+
+query-specific evidence-set construction . It com-bines query-guided evidence discovery with source-grounded evidence reification, making supporting claims and their provenance explicit, and uses suf-ficiency feedback to refine the evidence set when necessary. This perspective shifts the objective from retrieving relevant memory units to assem-bling complementary, traceable evidence that col-lectively supports the information requirements of the query. 
+
+B Experiment 
+
+B.1 Experimental Setup Dataset. We evaluate QEMem on LoCoMo , a benchmark for long-term conversational memory comprising 10 extended, multi-session conversa-tions. Following the standard evaluation protocol, we consider 1,540 questions across four categories: Multi-hop (282), Temporal (321), Open-domain (96), and Single-hop (841), excluding adversarial questions. LoCoMo also provides annotated sup-porting dialogue turns, which we use exclusively for post-hoc evidence analysis and never expose during inference. 
+
+Baselines. We compare QEMem against seven representative memory systems: NEMORI ,
+
+Mem0 , A-Mem , LightMem , SimpleMem ,
+
+MemR 3, and MemGAS . These methods cover episodic and semantic memory organization, mem-ory extraction and consolidation, compression-based memory management, and iterative or struc-tured memory retrieval. We use their official imple-mentations or adaptations of the released code, fol-lowing the recommended LoCoMo configurations whenever applicable. All baselines are evaluated on the same questions under consistent backbone and evaluation settings. In particular, QEMem and NEMORI share an identical preconstructed mem-ory store, enabling a controlled comparison of their query-time memory utilization mechanisms. 
+
+Implementation Details. We evaluate two LLM backbones, Claude Haiku 4.5 and Claude Opus 4.5 , accessed through Amazon Bedrock. Memory construction is performed once using Opus 4.5, and the resulting memories are reused across both back-bone settings. QEMem operates on NEMORI’s episodic, semantic, and original dialogue memo-ries, employing dense retrieval and BM25 with reciprocal rank fusion for multi-granular evidence discovery. We use Qwen3-Embedding-4B (Zhang et al., 2025) as the embedding model for QEMem and compatible baselines, retaining the original em-bedding models when required by baseline-specific mechanisms. All LLM inference uses a tempera-ture of zero. Following the NEMORI evaluation protocol, we report LLM-judge accuracy as the pri-13 mary metric, using a fixed Opus 4.5 judge and the same evaluation prompt across all methods. We additionally conduct paired statistical comparisons and evidence-level analyses using existing predic-tions and execution traces, without exposing refer-ence answers or supporting-evidence annotations during inference. 
+
+B.2 Additional Evidence Sufficiency Analysis 
+
+To examine whether the relevance–sufficiency gap persists across answer models, we extend the RQ2 analysis to Claude Haiku 4.5, as summarized in Ta-ble 5. The results closely reproduce the evidence-recovery patterns observed with Opus 4.5. QE-Mem increases complete retrieval coverage from 68.8% to 93.5%, while complete source visibility rises from 16.2% to 91.6%. Moreover, ViewCard sources cover all annotated supporting turns for 83.3% of questions, including direct turn citations and provenance links through cited episodes. The improvement is particularly substantial for multi-hop questions, where complete source visibility increases from 1.8% to 72.8%. More importantly, the relationship between evidence availability and answer accuracy remains consistent across back-bones. When NEMORI retrieves records contain-ing all supporting evidence, QEMem provides a modest 2.1-point improvement. In contrast, the gains increase to 22.0 and 47.5 percentage points when baseline retrieval coverage is partial or miss-ing, respectively. Although these two groups rep-resent only 31.2% of questions, they account for 89.1% of QEMem’s net accuracy improvement. To-gether with the Opus results, these findings suggest that incomplete evidence recovery is a persistent bottleneck across model capabilities, and that con-structing query-specific evidence sets is especially beneficial when conventional retrieval fails to re-cover the necessary supporting information. 
+
+Coverage computation. Visibility is computed from the final turn IDs used to assemble the answer prompt, including card-derived source context. Card-source coverage uses resolvable turn and episode citations regardless of quotation-verification status. Semantic-memory provenance is excluded from these coverage metrics. Turn IDs sharing the same timestamp, speaker role, and con-tent are treated as aliases. 
+
+B.3 Additional Analysis of Source Grounding and Evidential Reliability Claim–Source Semantic Consistency. While quotation fidelity establishes whether cited text can be recovered from the referenced memory records, it does not establish whether the corresponding evidence claims are logically supported. To eval-uate this distinction, we conduct an independent claim–source consistency audit over 288 stratified samples (144 ViewCards per backbone), sampled across question categories and provenance types. An Opus 4.5 judge evaluates each claim using only its cited source content and timestamps, without access to the question, gold answer, or answer-correctness labels. As shown in Table 6, 97.2% of Haiku-generated claims and 98.6% of Opus-generated claims are fully or partially supported by their cited evidence. Under the stricter criterion of complete semantic entailment, the correspond-ing population-weighted estimates are 59.6% (95% CI: [49.5, 70.2]) and 67.0% (95% CI: [57.3, 76.5]). Unsupported or contradicted claims account for only 1.1% and 1.3%, respectively, under population weighting. The distinction between full and par-tial support is important: many partially supported claims correctly recover the central fact but intro-duce additional details not explicitly established by the source, particularly temporal or entity-level attributions. Thus, high quotation fidelity should be interpreted as evidence traceability rather than a guarantee of complete factual entailment. 
+
+Temporal Grounding Reliability. We further au-dit temporal grounding by comparing ViewCard time fields against mechanically checkable tempo-ral relations derived from their cited sources and conversation timestamps. As summarized in Ta-ble 7, 93.9% of Haiku-generated and 96.1% of Opus-generated time fields agree with the corre-sponding deterministic verification rules. Impor-tantly, these results are not solely attributable to the pipeline’s deterministic time normalizer: when restricting the evaluation to time fields originally produced by the LLM, consistency remains 93.3% and 95.7%, respectively. However, temporal nor-malization remains less reliable for particular rel-ative expressions. For instance, consistency on “yesterday” or “last night” is 62.4% for Haiku and 80.7% for Opus, while references to “last year” achieve 60.9% and 75.4%. These findings indicate that explicit temporal anchoring enables useful con-sistency checks, while relative-time interpretation 14 Table 5: Additional RQ2 analysis with Claude Haiku 4.5. (a) Complete coverage of annotated supporting evidence across question categories. R denotes retrieval-record coverage, V denotes original source-turn visibility in the answer prompt, and C denotes ViewCard citation coverage. (b) Answer accuracy conditioned on NEMORI’s retrieval coverage. All values are percentages unless otherwise stated. Results are computed on 1,531 questions with fully mappable evidence annotations.                                                         
+
+> (a) Complete Evidence Coverage Method / Metric Multi-Hop Temporal Open-Domain Single-Hop Overall
+> NEMORI – R 31.5 75.6 38.0 82.0 68.8 NEMORI – V 1.8 19.7 8.7 20.5 16.2 QEMem – R 78.8 97.8 70.7 99.3 93.5
+> QEMem – V 72.8 95.9 69.6 98.7 91.6 QEMem – C 49.5 90.9 59.8 94.2 83.3
+> (b) Accuracy Conditioned on NEMORI Retrieval Coverage Coverage Count NEMORI QEMem ∆(pp) 95% CI (pp)
+> Complete 1054 90.4 92.5 +2.1 [+0.7, +3.6] Partial 182 59.9 81.9 +22.0 [+15.4, +29.1] Missing 295 36.6 84.1 +47.5 [+41.4, +53.6] Overall 1531 76.4 89.6 +13.2 [+11.2, +15.2]
+
+Table 6: Claim–source semantic consistency of sampled ViewCards. Results are based on 288 stratified samples evaluated by Claude Opus 4.5. The percentages below are unweighted sample proportions. Fully or partially supported claims include both strict entailment and claims containing additional details not fully established by the cited sources. Population-weighted estimates are reported in the text.                   
+
+> Backbone Samples Fully Supported Partially Supported Unsupported Contradicted Full + Partial
+> Haiku 4.5 144 57.6 39.6 0.7 2.1 97.2
+> Opus 4.5 144 66.0 32.6 0.7 0.7 98.6
+
+remains a source of potential errors. Since the au-dit measures agreement with deterministic rules rather than independently verified event dates, the reported consistency rates should not be interpreted as comprehensive temporal factual accuracy. 
+
+Failure Modes and Limitations. The audit re-veals several limitations of source-grounded evi-dence construction. First, a small fraction of Haiku-generated cards (1.6%) contain unresolved prove-nance references, primarily because the model refers to evidence from previous refinement rounds without providing valid source identifiers; no such failures are observed for Opus. Second, citations to episodic memories frequently reproduce text from the episode summaries rather than verbatim orig-inal dialogue. Such citations remain traceable to memory records, but their fidelity to the underly-ing conversations cannot be established through quotation matching alone. Third, semantic incon-sistencies most commonly arise from over-specific temporal claims, incorrect attribution of informa-tion to speakers or events, and the merging of facts from different sources. Finally, the seman-tic audit relies on a limited stratified sample and a single LLM judge, while the temporal audit cov-ers only mechanically interpretable expressions. Together, these observations clarify the scope of QEMem’s grounding guarantees: its evidence rep-resentations provide explicit and verifiable prove-nance, but source traceability and quotation fidelity do not imply complete semantic correctness. 
+
+B.4 Performance–Cost Tradeoffs and Adaptive Computation Evaluation Protocol. We analyze the query-time inference cost of QEMem and its variants on all 1,540 LoCoMo questions using Claude Haiku 4.5 and Opus 4.5. We account for all query-time LLM calls, including query planning, evidence construc-tion and refinement, and final answer generation. Offline evaluation and one-time memory construc-tion are excluded from per-query costs. All con-figurations share the same preconstructed memory store, isolating the cost of query-time memory uti-15 Table 7: Temporal-grounding consistency of QEMem ViewCards. The audit covers cards with explicit time fields and reports agreement with deterministic source-timestamp-based rules. LLM-written time fields exclude values rewritten by the pipeline’s deterministic normalizer. Relative-time results are reported over applicable cases only.             
+
+> Backbone Time Fields Mechanically Verified LLM-Written Time Consistency Yesterday / Last Night Last Year
+> Haiku 4.5 9,541 5,398/5,746 (93.9%) 4,857/5,205 (93.3%) 121/194 (62.4%) 39/64 (60.9%) Opus 4.5 9,598 5,822/6,060 (96.1%) 5,287/5,525 (95.7%) 176/218 (80.7%) 49/65 (75.4%)
+
+lization. Cost estimates follow the pricing used in our experiments: $1.1/$5.5 per million input/out-put tokens for Haiku 4.5 and $5/$25 for Opus 4.5. Full QEMem and retrieval-only costs are derived from recorded token usage, while costs for vari-ants reusing intermediate stages are reconstructed from saved traces and measured answer-generation usage. 
+
+Ablation Implementation. Query-Guided Re-trieval answers directly from the initial candidate pool. The variant without refinement additionally constructs ViewCards, verifies quotations, normal-izes temporal fields, and assembles cited-source context. Turn citations include up to two neigh-boring turns on each side within the same ses-sion, while episode citations expose the episode’s first twelve original turns. These source expan-sions introduce no follow-up retrieval. The direct-answer variant removes card-specific prompt sec-tions while retaining the same substantive answer-ing rules and generation settings. 
+
+Trace Reconstruction and Sensitivity. For ques-tions that triggered refinement, initial semantic and turn pools were reconstructed through retrieval re-play, with a median Jaccard similarity of approxi-mately 0.97 in the reconstruction check. For ques-tions without refinement, the saved pool is the ini-tial pool, and the no-refinement variant reuses Full QEMem’s answer. Among the 131 Opus refine-ment questions, 113 have unambiguous first-round card boundaries. On this subset, refinement in-creases accuracy from 60.2% to 71.7% ( +11 .5
+
+percentage points; 95% CI: [+5 .3, +18 .6] ), con-sistent with the improvement observed across all refinement-triggered questions. 
+
+Accuracy–Cost Tradeoffs. Figure 4 and Table 8 illustrate how different evidence-construction con-figurations balance inference cost and answer qual-ity. Query-guided multi-granular retrieval pro-vides a particularly favorable accuracy–cost tradeoff. Compared with matched-context re-trieval, direct answering from the query-guided candidate pool improves accuracy by 4.7 percent-age points with Haiku 4.5 and 5.2 points with Opus 4.5, while reducing inference cost from 1.46 to 1.27 cents and from 5.93 to 5.54 cents per question, respectively. These results demonstrate that more effective evidence discovery can improve answer quality while reducing redundant context process-ing. Full QEMem achieves the highest overall accuracy under both backbones, reaching 89.6% with Haiku and 91.4% with Opus. Its additional computation supports structured evidence construc-tion, explicit source grounding, and targeted re-finement, increasing complete evidence visibility to 91.6% and 91.7%, respectively. Meanwhile, direct answering from query-guided retrieval of-fers a lightweight alternative, achieving 88.4% and 90.9% accuracy at approximately 40–43% of Full QEMem’s query-time cost. These operating points illustrate the flexibility of query-specific evidence construction, from efficient evidence discovery to more comprehensive, source-grounded reasoning. 
+
+Marginal Value of Selective Refinement. We further investigate the marginal benefit of sufficiency-guided refinement and its adaptive allo-cation of computation. Under Opus 4.5, refinement is triggered for only 8.5% of questions, concentrat-ing additional retrieval on cases with unresolved information needs. Within this subset, accuracy in-creases from 61.8% to 71.0%, yielding a 9.2-point improvement (p = 0 .0075 ). Averaged over the entire benchmark, refinement adds approximately 0.79 cents per query while improving overall accu-racy by 0.8 points. Under Haiku 4.5, refinement is triggered for 21.5% of questions and yields a further 2.4-point improvement within the selected subset. Importantly, refinement is more frequently activated when the initial evidence is incomplete: with Opus, questions lacking complete annotated evidence trigger refinement at a rate of 21.1%, com-16 0.75 1 1.5 2 3 4Inference cost per question (US cents, log scale) 75 80 85 90 LLM-judge accuracy (%)       
+
+> NEMORI Retrieval-only (matched context) Query-guided retrieval + direct answer Ours w/o re fi nement Ours (full)
+> (a) Claude Haiku 4.5
+> Pareto frontier
+> 346810 15 Inference cost per question (US cents, log scale) 75 80 85 90
+> NEMORI Retrieval-only (matched context) Query-guided retrieval + direct answer Ours w/o re fi nement Ours (full)
+> (b) Claude Opus 4.5
+
+Figure 4: Accuracy–cost tradeoffs on LoCoMo. Query-time inference cost versus LLM-judge accuracy for 
+
+(a) Claude Haiku 4.5 and (b) Claude Opus 4.5. Dashed lines indicate the Pareto frontier within each backbone. Query-guided retrieval with direct answering improves both accuracy and cost relative to matched-context retrieval. Full QEMem achieves the highest observed accuracy while providing structured evidence representations and selective refinement. Costs include all query-time LLM calls but exclude shared memory construction and offline evaluation. 
+
+pared with 7.3% when all supporting evidence is already visible. This pattern demonstrates that suffi-ciency feedback is responsive to evidence availabil-ity, directing additional computation toward queries more likely to require complementary information. 
+
+Cost Distribution and Limitations. Full QE-Mem requires an average of 3.34 LLM calls per question under Haiku 4.5 and 3.13 under Opus 4.5. Across the two backbones, approximately 3– 4% of query-time cost is attributable to planning, 51–52% to evidence construction and refinement, and 45–46% to final answering. The modest plan-ning overhead contrasts with the greater computa-tional investment in evidence construction, which provides structured provenance, improves source visibility, and enables targeted refinement. Con-sequently, query-guided retrieval with direct an-swering represents an economical operating point, while Full QEMem achieves the highest observed accuracy and offers explicitly traceable evidence representations. These tradeoffs reflect the distinct roles of evidence discovery and evidence-set con-struction rather than a uniform improvement in computational efficiency. The analysis is limited to the evaluated configurations, and certain ablation costs are reconstructed from intermediate traces. Finally, the shared memory store incurs a one-time construction cost of approximately $60.78 across the ten LoCoMo conversations, which is excluded from the query-time comparisons. 
+
+B.5 Additional Analysis of Evidence Complexity and Compositional Reasoning Evidence Complexity Definitions. We charac-terize evidence complexity using the annotated supporting dialogue turns provided by LoCoMo. Specifically, we consider three complementary di-mensions: (i) evidence cardinality, measured by the number of distinct annotated supporting turns; (ii) evidence dispersion, measured by the number of distinct conversation sessions containing these turns; and (iii) temporal dispersion, measured by the elapsed time between the earliest and latest supporting sessions. These characteristics are com-puted exclusively from benchmark annotations and conversation metadata, without using model pre-dictions or retrieval outcomes. Of the 1,540 bench-mark questions, 1,535 contain at least one valid supporting-turn annotation and are included in this analysis. Four questions with partially malformed annotations are retained using their valid support-ing identifiers. Importantly, the number of anno-tated supporting turns is an observable proxy for evidence complexity, rather than a definitive mea-sure of the minimum number of facts required to answer a question. 
+
+Performance across Evidence Cardinality. Fig-ure 5 examines how answer accuracy varies with the number of annotated supporting turns. Sev-eral memory systems exhibit substantial perfor-mance degradation as evidence requirements be-come more complex. Under Haiku 4.5, NEMORI decreases from 79.9% to 63.6%, while MemR 3 de-creases from 86.8% to 53.8% when moving from 17 Table 8: Query-time efficiency comparison on LoCoMo. Accuracy and complete evidence visibility are percent-ages. Input and output tokens are average counts per question. Cost is reported in US cents per question. Visibility measures complete coverage of annotated supporting turns in the final answer context, evaluated on 1,531 questions with fully mappable evidence annotations.                                                                    
+
+> Method Accuracy Calls Input Tokens Output Tokens Cost (cents) Visibility (a) Claude Haiku 4.5
+> NEMORI 76.5 1.00 5,186 205 0.68 16.2 Matched-Budget Retrieval 83.7 1.04 12,119 224 1.46 77.0 Query-Guided Retrieval (Direct Answer) 88.4 2.02 9,784 344 1.27 82.6 QEMem w/o Refinement 89.1 3.01 19,396 971 2.67 89.3
+> Full QEMem 89.6 3.34 23,003 1,199 3.19 91.6 (b) Claude Opus 4.5
+> NEMORI 80.7 1.00 5,186 164 3.00 16.2 Matched-Budget Retrieval 85.7 1.03 10,776 215 5.93 75.0 Query-Guided Retrieval (Direct Answer) 90.9 2.01 9,422 332 5.54 83.1 QEMem w/o Refinement 90.6 3.02 19,255 1,008 12.15 90.7
+> Full QEMem 91.4 3.13 20,499 1,077 12.94 91.7
+> Note: Matched-Budget Retrieval matches the final answer-context token budget, rather than total inference computation. Query-Guided Retrieval (Direct Answer) retains query planning and multi-granular retrieval but omits ViewCard construction and refinement. Cost estimates for variants reusing intermediate stages include reconstructed usage from those stages.
+
+one supporting turn to three or more. In con-trast, QEMem maintains 81.0% accuracy on ques-tions requiring at least three supporting turns, com-pared with 92.1% on single-turn questions. Similar patterns emerge under Opus 4.5, where QEMem achieves 82.1% on the most evidence-intensive group, compared with 64.1% for NEMORI and 59.8% for MemR 3. Although SimpleMem ex-hibits a smaller performance decline as evidence cardinality increases, QEMem consistently main-tains higher absolute accuracy across all evalu-ated groups. These results suggest that query-specific evidence construction is particularly bene-ficial when answering requires integrating comple-mentary information from multiple sources. 
+
+Temporal Dispersion of Supporting Evidence. 
+
+We further examine questions requiring multiple supporting turns distributed over different time peri-ods. Table 9 reports accuracy across four temporal-span intervals, measured using the source conver-sation timestamps. QEMem achieves the highest accuracy among the evaluated methods across all temporal-span groups. On questions whose sup-porting evidence spans more than 180 days, QE-Mem obtains 71.2% accuracy with Haiku 4.5 and 74.2% with Opus 4.5, exceeding NEMORI by 19.7 and 24.2 percentage points, respectively. The cor-responding improvements over MemR 3 are 22.7 points under both backbones. These observations further support QEMem’s ability to integrate tem-porally dispersed evidence. However, the longest-span subset contains only 66 questions, and tem-poral span is strongly correlated with multi-hop question categories. Accordingly, these findings should be interpreted as descriptive performance patterns rather than independent effects of temporal distance. 
+
+Robustness of Complexity-Dependent Improve-ments. To examine whether QEMem’s relative advantage changes with evidence complexity, we measure the difference in accuracy gaps between high- and low-complexity groups. For a baseline b,we define 
+
+∆gap = (Acc QEMem − Acc b)high 
+
+− (Acc QEMem − Acc b)low .
+
+A positive value indicates that QEMem’s advantage over the baseline is larger in the high-complexity group. Table 10 reports these gap differences with conversation-cluster bootstrap confidence intervals, using the ten LoCoMo conversations as resampling units. Compared with MemR 3, QEMem’s rela-tive advantage increases by 21.9 and 18.4 percent-age points from one supporting turn to three or more under Haiku and Opus, respectively. When moving from single-session to cross-session evi-dence, the corresponding increases are 16.7 and 16.0 points. These improvements remain positive under leave-one-conversation-out analysis, indicat-ing that the relative advantages are not driven by 18 1(n=1122) 2(n=229) 3+ (n=184) 
+
+> Annotated supporting turns
+> 50 60 70 80 90 100 Accuracy (%)
+> NEMORI SimpleMem MemR³ Ours
+> +6.0
+> (a) Claude Haiku 4.5
+> 1(n=1122) 2(n=229) 3+ (n=184)
+> Annotated supporting turns
+> NEMORI SimpleMem MemR³ Ours
+> +8.2
+> (b) Claude Opus 4.5
+
+Figure 5: Answer accuracy across evidence cardinality on LoCoMo. Results are grouped by the number of annotated supporting dialogue turns: one turn ( n = 1 ,122 ), two turns ( n = 229 ), and three or more turns ( n = 184 ). 
+
+(a) Claude Haiku 4.5. (b) Claude Opus 4.5. QEMem maintains the highest absolute accuracy among the evaluated methods across all complexity groups, while NEMORI and MemR 3 exhibit substantially greater performance degradation as evidence cardinality increases. Table 9: Accuracy across temporal dispersion of supporting evidence. Temporal span is measured between the earliest and latest annotated supporting sessions for questions with multiple supporting turns. All results are LLM-judge accuracy percentages.                                                  
+
+> Temporal Span nNEMORI SimpleMem MemR 3QEMem (a) Claude Haiku 4.5
+> Same day 81 81.5 69.1 79.0 88.9
+> 1–30 days 83 62.7 72.3 66.3 80.7
+> 31–180 days 183 67.8 73.2 59.6 85.2
+> >180 days 66 51.5 68.2 48.5 71.2 (b) Claude Opus 4.5
+> Same day 81 82.7 82.7 80.2 87.7
+> 1–30 days 83 68.7 74.7 68.7 83.1
+> 31–180 days 183 71.0 72.1 65.0 86.9
+> >180 days 66 50.0 66.7 51.5 74.2
+
+a single conversation. Compared with NEMORI, QEMem also exhibits larger advantages in high-complexity groups, particularly under Opus 4.5. By contrast, SimpleMem demonstrates relatively stable performance across complexity levels, and QEMem’s relative advantage does not consistently increase against this baseline. Nevertheless, QE-Mem maintains higher absolute accuracy across the reported complexity groups. 
+
+Limitations of Complexity-Based Analysis. Ev-idence complexity is not independent of question type in LoCoMo. In particular, 269 of the 332 cross-session questions belong to the multi-hop cat-egory, while most single-turn questions are single-hop or temporal questions. This correlation lim-its the extent to which performance differences can be attributed specifically to evidence cardi-nality or dispersion. Moreover, the annotations may contain redundant evidence or omit alternative supporting turns, and some temporal-dispersion groups contain relatively few questions. The ro-bustness analysis accounts for conversation-level variation, but the benchmark contains only ten con-versations. Therefore, the results support an asso-ciation between distributed evidence requirements and QEMem’s relative performance advantages, rather than a causal claim that evidence dispersion alone determines the observed improvements. 
+
+B.6 Additional Analysis of Budgeted Evidence Recovery Evaluation Protocol. We examine evidence-recovery efficiency using the stored retrieval out-puts from QEMem, NEMORI, and the matched-budget retrieval-only baseline introduced in Sec-tion 5.3. For each question, we preserve the orig-inal retrieval ordering and progressively expose source turns under a fixed budget. A support-ing turn is considered recovered only when its 19 Table 10: Change in QEMem’s accuracy advantage under increasing evidence complexity. Values represent                                     
+
+> ∆gap in percentage points with 95% conversation-cluster bootstrap confidence intervals. Positive values indicate a larger advantage for QEMem in high-complexity groups.
+> Complexity Contrast Baseline Haiku 4.5 Opus 4.5
+> 1 supporting turn →3+ supporting turns
+> NEMORI +5 .3 [ −4.4,+16 .8] +8 .7 [+3 .0,+15 .5]
+> SimpleMem −5.3 [ −14 .7,+4 .2] −2.1 [ −7.8,+4 .6]
+> MemR 3+21 .9[+11 .1,+36 .4] +18 .4[+11 .9,+27 .9]
+> Single-session →cross-session evidence
+> NEMORI +6 .3 [ −0.4,+13 .4] +8 .2 [+4 .5,+11 .6]
+> SimpleMem −2.5 [ −8.8,+4 .6] +1 .9 [ −3.0,+7 .9]
+> MemR 3+16 .7[+9 .9,+24 .4] +16 .0[+11 .8,+21 .7]
+
+original dialogue content is explicitly exposed; episodic summaries and semantic memories are not treated as verbatim source evidence. We dedu-plicate source turns across retrieved records and adopt a strict budget rule: retrieval stops when adding the next candidate would exceed the spec-ified budget. This rule preserves the atomicity of retrieved episodes and source-turn candidates. The primary evaluation covers 1,531 questions whose annotated supporting turns can be mapped exactly to the original memory store. Importantly, this is an offline prefix analysis of previously generated retrieval lists, not a rerun of the retrieval pipeline under alternative budgets. 
+
+Coverage under Source-Turn Budgets. Ta-ble 11 presents complete evidence coverage at rep-resentative retrieval budgets. QEMem’s initial re-trieval pool consistently achieves higher coverage than matched retrieval-only across both backbones. At 20 turns, the improvements are 22.1 and 23.6 percentage points for Haiku 4.5 and Opus 4.5, re-spectively. At 80 turns, the corresponding improve-ments remain 13.2 and 13.8 points. Across the full 10–120-turn interval, the normalized area un-der the coverage curve increases from 58.6% to 73.1% under Haiku and from 58.5% to 74.1% un-der Opus. These differences remain positive across all ten leave-one-conversation-out evaluations, with conversation-cluster bootstrap confidence intervals excluding zero. Furthermore, QEMem reaches 80% complete coverage with approximately 78 and 73 source turns under Haiku and Opus, respec-tively, whereas neither matched retrieval-only nor NEMORI reaches this threshold within its available retrieval list. 
+
+Robustness across Token Budgets. To examine whether the results depend on source-turn counts, we repeat the analysis using the tokenized lengths of exposed original dialogue turns. Figure 6 shows complete evidence coverage under source-turn to-ken budgets from 300 to 3,600 tokens. The results closely reproduce the turn-budget findings. QE-Mem improves normalized coverage AUC over matched retrieval-only by 16.1 and 17.1 percentage points under Haiku and Opus, respectively. We additionally evaluate an inclusive budget rule that allows the next retrieved episode to exceed the nom-inal budget, thereby reducing the disadvantage of episode-level retrieval granularity. Under this more permissive rule, QEMem still improves complete coverage by approximately 9–10 points at budgets of 20–80 turns. Similar results are obtained when restricting the analysis to questions without refine-ment, for which the initial retrieval pool is exactly recoverable from the saved traces. These checks in-dicate that the observed advantage is not solely an artifact of candidate granularity, budget truncation, or approximate retrieval-round reconstruction. 
+
+Query Planning versus Multi-Granular Re-trieval. The budgeted analysis also helps distin-guish the contribution of query planning from that of fine-grained evidence retrieval. Using the ex-isting 400-question ablation subset, we compare the retrieval outputs produced with and without query planning while retaining the multi-granular retrieval mechanism. Under a tight budget of 20 source turns, removing query planning actually im-proves complete evidence coverage by 11.8 and 9.8 percentage points under Haiku and Opus, respec-tively. However, when the complete retrieval lists are considered, query planning yields higher cov-erage by 3.8 and 3.0 points, with larger improve-ments on multi-hop and cross-session questions. This suggests that direct query retrieval can pri-20 Table 11: Complete evidence coverage under different source-turn budgets. Coverage and normalized AUC are reported as percentages. AUC is computed over budgets of 10–120 source turns. NEMORI top-10 denotes a hypothetical offline expansion of all retrieved episodes, not the original NEMORI answer context. 
+
+Retrieval Strategy B = 20 B = 40 B = 80 B = 120 AUC (a) Claude Haiku 4.5 
+
+NEMORI (actual) 9.3 15.0 16.2 16.2 14.5 NEMORI top-10 (hypothetical) 12.3 32.3 57.5 65.6 44.4 Matched Retrieval-Only 34.5 52.5 67.2 73.7 58.6 
+
+QEMem (Initial Retrieval) 56.6 67.9 80.4 82.6 73.1 (b) Claude Opus 4.5 
+
+NEMORI (actual) 9.3 15.0 16.2 16.2 14.5 NEMORI top-10 (hypothetical) 12.3 32.3 57.5 65.6 44.4 Matched Retrieval-Only 34.5 52.5 67.1 73.1 58.5 
+
+QEMem (Initial Retrieval) 58.1 69.4 81.0 83.0 74.1 0k 0.6k 1.2k 1.8k 2.4k 3k 3.6k       
+
+> Budget (source-turn tokens, cl100k)
+> 020 40 60 80 100 Complete evidence coverage (%)
+> NEMORI (actual) NEMORI top-10 (o ffl ine expansion) Matched retrieval-only Ours (query-guided, round-1 pool)
+> (a) Claude Haiku 4.5
+> 0k 0.6k 1.2k 1.8k 2.4k 3k 3.6k
+> Budget (source-turn tokens, cl100k)
+> NEMORI (actual) NEMORI top-10 (o ffl ine expansion) Matched retrieval-only Ours (query-guided, round-1 pool)
+> (b) Claude Opus 4.5
+
+Figure 6: Complete evidence recovery under source-turn token budgets. (a) Claude Haiku 4.5 and (b) Claude Opus 4.5. Budgets are measured using the cl100k_base tokenizer over original dialogue turns exposed verbatim. These counts exclude episodic summaries and semantic-memory text and are not equivalent to total answer-prompt tokens. The relative advantage of QEMem’s initial retrieval pool remains consistent with the source-turn-budget analysis in Figure 3. 
+
+oritize immediately relevant evidence under tight budgets, whereas query decomposition becomes more beneficial when sufficient capacity is avail-able to recover complementary information across multiple information needs. Since this ablation also removes planner-dependent budget adaptation and is evaluated on a smaller subset, the results do not isolate query planning as an independent causal factor. More broadly, the primary budget-efficiency advantage is most directly supported by QEMem’s multi-granular source-turn retrieval rather than query planning alone. 
+
+Refinement and Source Reification. Beyond the initial retrieval pool, QEMem further improves evidence availability through selective refinement and source-grounded evidence construction. Un-der Haiku, complete source visibility increases from 82.6% in the initial retrieval pool to 85.4% after refinement, and reaches 91.6% in the final answer context. The corresponding progression under Opus is 83.1%, 84.3%, and 91.7%. The fi-nal increase arises from additional original turns brought into the answer context through ViewCard source references. This distinction is important: the budget curves measure ordered retrieval-prefix cov-erage, whereas the final answer context addition-ally incorporates evidence selected through source-grounded reification. Consequently, the final vis-ibility values are reported as separate endpoints rather than points on the retrieval-budget curves. 
+
+Limitations. Several considerations qualify this analysis. First, truncating previously saved retrieval results does not reproduce the behavior of a system rerun under smaller retrieval budgets; query plan-ning, evidence construction, and refinement deci-sions could change. Second, budgets count original 21 source turns or their tokenized lengths, not the total prompt size, which additionally includes episodic summaries and semantic memories. Third, retrieval granularity differs across strategies: QEMem re-trieves fine-grained source turns, whereas episode-based baselines expose turns in larger groups. Al-though the inclusive-budget sensitivity analysis mit-igates this concern, it does not eliminate all differ-ences in retrieval behavior. Finally, the retrieval variants differ in ranking mechanisms, and anno-tated supporting turns are an imperfect proxy for all information sufficient to answer a question. There-fore, these results establish stronger recovery of annotated evidence within stored retrieval prefixes, rather than superior downstream accuracy under arbitrary inference budgets. 
+
+B.7 Answer-Level Groundedness and Faithfulness Evaluation Protocol. While RQ4 evaluates the provenance and fidelity of intermediate evidence representations, we further investigate whether these properties extend to the final generated an-swers. We conduct an answer-level grounding au-dit using 240 stratified LoCoMo questions and the existing predictions from NEMORI, Simple-Mem, MemR 3, and QEMem under Claude Opus 4.5. Questions are sampled across reasoning cat-egories, evidence complexity, and answer correct-ness, with sampling weights applied to estimate population-level results. For each question, we construct a shared verification context from the original conversations, including annotated sup-porting turns, neighboring dialogue context, and additional passages retrieved through BM25. All methods are evaluated against the same source evi-dence. An independent Opus 4.5 judge examines each answer without access to method identity, ref-erence answers, or existing correctness labels. Fac-tual claims are classified as supported, unsupported, contradicted, or unverifiable. Claims initially lack-ing evidence undergo an additional retrieval pass over the original conversation before final classi-fication. We distinguish claims constituting the final answer from auxiliary explanatory claims and report abstentions separately. 
+
+Answer-Level Groundedness. Figure 7 and Ta-ble 12 summarize the results. QEMem achieves a fully grounded answer rate of 77.7%, outper-forming NEMORI (62.2%) and MemR 3 (66.4%) by 15.5 and 11.3 percentage points, respectively. Both improvements are statistically significant un-der paired bootstrap analysis, with 95% confidence intervals of [7.2, 24.2] and [2.7, 20.1] percent-age points. Moreover, the proportion of answers that are both correct and fully grounded increases to 73.2%, compared with 55.4% for NEMORI and 58.9% for MemR 3. QEMem also produces substantially fewer answers containing source-contradicting assertions (4.6%) than NEMORI (14.3%) and MemR 3 (17.7%), while maintaining an abstention rate of only 0.7%. SimpleMem ex-hibits a slightly higher fully grounded rate (82.3%), although its difference from QEMem is not sta-tistically significant, and achieves a comparable correct-and-grounded rate (73.6%). These findings suggest that QEMem maintains strong answer-level grounding alongside its accuracy improvements, particularly relative to methods that generate more extensive explanatory responses. 
+
+The Role of Answer Verbosity. A closer exam-ination reveals that the observed improvements in full-output groundedness are partly associated with differences in answer verbosity. NEMORI and MemR 3 generate an average of 4.90 and 5.75 factual claims per answer, respectively, compared with 2.73 for QEMem and 2.38 for SimpleMem. Their additional explanatory claims frequently in-troduce temporal inaccuracies, incorrect entity at-tributions, or unsupported details. Consequently, when evaluation is restricted to core claims consti-tuting the final answer, the groundedness gap nar-rows substantially: QEMem achieves 79.3%, com-pared with 76.7% for NEMORI, 75.8% for MemR 3,and 82.3% for SimpleMem. These differences are not statistically significant. Similarly, claim-level support rates are broadly comparable across meth-ods, ranging from 89.6% to 93.3%. Therefore, the evidence does not establish that individual QEMem claims are intrinsically more reliable. Instead, QE-Mem achieves stronger full-output grounding than the more verbose baselines by limiting unsupported auxiliary assertions while preserving high answer accuracy. 
+
+Correctness versus Groundedness. Answer cor-rectness and evidence grounding capture distinct properties. An answer may be grounded in source material yet fail to fully answer the question, for ex-ample by omitting required items in a multi-entity query. Conversely, an answer may match the ref-erence answer while introducing additional claims that are not supported by the original conversation. 22 0 20 40 60 80 100               
+
+> Share of answers (%)
+> MemR³ SimpleMem NEMORI Ours
+> 66 18 82 62 14 78
+> (a) All claims (answer + explanation)
+> 020 40 60 80 100
+> Share of answers (%)
+> 76 782 77 879
+> (b) Core claims only ( fi nal answer)
+> Fully grounded Partially grounded Unveri fi able Unsupported Contradicted Abstain / no claim
+
+Figure 7: Answer-level groundedness across memory systems on LoCoMo. (a) Grounding classifications considering all factual claims, including auxiliary explanations. (b) Grounding classifications restricted to core claims constituting the final answer. Results are population-weighted estimates from 240 stratified questions using Claude Opus 4.5. The comparison distinguishes full grounding, partial grounding, unverifiable claims, unsupported claims, contradictions, and abstentions. Differences between the two panels highlight the influence of auxiliary explanatory content on answer-level faithfulness. Table 12: Answer-level groundedness and faithfulness on LoCoMo. All metrics except claims per answer are percentages. Results are population-weighted estimates from 240 stratified questions, evaluated using Claude Opus 4.5 predictions. Fully grounded requires all checkable factual claims in an answer to be supported by source evidence. Core-only grounding excludes auxiliary explanations. Grounding is evaluated over complete model outputs, including auxiliary reasoning and explanations; core-answer grounding considers only claims constituting the final answer. 
+
+Metric NEMORI SimpleMem MemR 3 QEMem 
+
+Fully Grounded ↑ 62.2 82.3 66.4 77.7 Fully or Partially Grounded ↑ 75.1 89.7 75.5 90.2 
+
+Correct & Fully Grounded ↑ 55.4 73.6 58.9 73.2 Contradicted Answers ↓ 14.3 2.4 17.7 4.6 Abstention Rate ↓ 7.1 5.8 4.3 0.7 
+
+Core-Claim Groundedness ↑ 76.7 82.3 75.8 79.3 Supported Claim Rate ↑ 91.2 93.3 92.5 89.6 Claims per Answer 4.90 2.38 5.75 2.73 
+
+This distinction is reflected in the joint evaluation: QEMem obtains 73.2% correct-and-fully-grounded answers, while 17.9% of its answers are correct but not fully grounded under the strict all-claims criterion. Among correctly answered questions, its full-output groundedness is 80.4%, compared with 70.1% for NEMORI, 73.6% for MemR 3, and 90.0% for SimpleMem. These observations mo-tivate evaluating both correctness and grounding rather than treating answer accuracy as a proxy for factual faithfulness. 
+
+Cross-Backbone Evidence. We additionally evaluate existing Haiku 4.5 answers on a smaller stratified subset of 68 questions. QEMem achieves a fully grounded rate of 74.4%, compared with 54.0% for NEMORI, 59.9% for SimpleMem, and 51.4% for MemR 3. Relative to NEMORI, the im-provement is 20.4 percentage points (95% CI: [8.4, 34.5]). The corresponding point estimates against SimpleMem and MemR 3 are also positive, but their question-level confidence intervals include zero. Furthermore, QEMem obtains a correct-and-fully-grounded rate of 74.0%, compared with 44.2%, 56.2%, and 47.7%, respectively. These results provide directional support for the findings under Opus 4.5, although the limited sample size prevents strong conclusions about cross-backbone consis-tency. 
+
+Reliability and Limitations. The grounding au-dit has several limitations. First, although all meth-ods share the same original-dialogue verification context, the evidence packs may still omit relevant passages. Additional claim-specific retrieval mit-igates this issue but cannot guarantee exhaustive source verification. Second, grounding judgments are produced by a single LLM judge and are sen-23 sitive to the interpretation of temporal relations, inferred facts, and question premises. In a stabil-ity check, 35 of 40 answer-level classifications re-mained unchanged after reordering the verification context. Manual inspection of 29 disputed cases identified nine erroneous judgments, indicating that the resulting estimates should be interpreted cau-tiously. Third, full-output groundedness depends on the number of factual claims: longer responses are more likely to contain at least one unsupported assertion. We therefore report core-only grounding, claim-level support, and answer length alongside the primary metrics. Finally, the main audit covers 240 stratified questions, while the Haiku analysis is limited to 68 questions. These results provide supplementary evidence that QEMem can produce well-grounded final answers, but do not establish a causal improvement in claim-level faithfulness attributable to evidence reification alone. 
+
+B.8 Prompt Templates 
+
+We provide the prompt templates used by QEMem for query planning, evidence construction, and an-swer generation. All prompts correspond to the final QEMem-v2.3-clean implementation and are issued as a single user message with temperature zero. Variables enclosed in braces are populated dy-namically at inference time. The illustrative dates are fictional and do not overlap with the evaluation data. 
+
+Query-Guided Evidence Discovery. The query planner identifies the information requirements of the question and generates complementary re-trieval queries. Its structured output also deter-mines whether aggregation or temporal reasoning is required. 
+
+> Query Planning Prompt
+> You are the query planner of a long-term conversational memory system. The memory stores a long multi-session conversation between {speakers}. Sessions span {span}. Question: {question} Analyse what information is needed to answer the question and plan retrieval. Think about: - which person(s), objects, events and attributes the question is about (resolve "he/she/they" to names when obvious), - whether the answer needs several facts combined (multi-hop), facts aggregated over many sessions (lists, counts, "what activities/places/books..."), a date or time computation, or an inference about someone's preferences, personality or likely behaviour, - which intermediate facts must be found first (e.g. to answer "What did X do after Y?" first find when Y happened). Return ONLY a JSON object: {"need": "<one sentence describing the information need>", "answer_type": "<one of: date, duration, count, list, yes_no, entity, description, reason, inference>", "aggregate": <true if the answer may be spread over multiple sessions, else false>, "temporal": <true if a date/time/order must be determined, else false>, "queries": ["<4-6 short, diverse search queries: sub-questions for intermediate facts, paraphrases with likely conversational wording, and key entity/keyword queries>"] }
+
+The original question is combined with up to six planned queries for retrieval across episodic memories, semantic memories, and original con-versation turns. The planner’s information need is subsequently provided to the evidence constructor. 
+
+Source-Grounded Evidence Reification. The evidence constructor transforms retrieved memo-ries into source-grounded ViewCards and jointly assesses whether the current evidence is sufficient to answer the question. Importantly, the sufficiency assessment and follow-up queries are generated within the same evidence-construction call. 
+
+> Evidence Construction Prompt
+> You are the evidence constructor of a long-term conversational memory system. Your job is NOT to answer the question but to build compact, source-grounded evidence cards that make the facts needed to answer it explicit. Question: {question} Information need: {need} Candidate memories retrieved from the memory store (each has an ID; [E*] episode summaries, [S*] semantic facts, [T*] raw conversation turns with their session date): {pool} {previous}
+
+24 Instructions: 1. Find every memory relevant to the question. For list/count/"what activities" questions collect ALL distinct instances across sessions; for multi-hop questions collect each intermediate fact. 2. For each relevant fact write a card. Prefer raw turns [T*] as sources because they are the original words; use [E*]/[S*] when no turn is available. 3. "quote" must be copied VERBATIM from the cited source (a short span, max ~30 words) - never paraphrase inside "quote". 4. "time": when the fact happened, resolved against the session date of the source: "yesterday" -> "11 March 2031" (absolute date); "last Friday"/"last weekend" -> "the Friday/weekend before 12 March 2031" (keep weekday-relative expressions relative to the session date, do not compute the calendar day); "last week" -> "the week before 12 March 2031"; "last year" -> "2030"; no relative expression -> the session date. Use "" if not time-relevant. 5. "relation": in a few words, how this card bears on the question (e.g. "answer candidate", "intermediate fact: date of Y", "supports inference: likes outdoors", "contradicts card 2"). 6. Do not invent facts. If the memories conflict, make cards for both and note it in "relation". 7. Then judge whether the cards suffice. If key information is missing, give up to 3 follow-up search queries aimed precisely at the missing facts. Return ONLY a JSON object: {"cards": [{"claim": "<fact relevant to the question, self-contained, with names>", "sources": ["T3"], "quote": "<verbatim span>", "time": "<absolute time or empty>", "relation": "<role>"}], "sufficient": <true/false>, "missing": "<what is still missing, or empty>", "follow_up_queries": ["..."] }
+
+The candidate pool is formatted with explicit memory identifiers and source timestamps. Dur-ing refinement, only newly retrieved memories are supplied, together with a summary of previously constructed evidence cards. 
+
+Candidate Memory Pool Format 
+
+## Episodes [E1] (<session date>) <episode title>: <episode content> ... ## Semantic facts [S1] (learned in session of <session date>) <semantic fact> ... ## Conversation turns (grouped by session, chronological) -- session <session date> --[T1] <Speaker>: <original conversation turn> [T2] <Speaker>: <original conversation turn> ... -- session <session date> --[T3] <Speaker>: <original conversation turn> ... 
+
+When the constructor reports insufficient evi-dence, up to three follow-up queries are used for another retrieval round. Previously retrieved items are excluded, and the newly constructed cards are merged into the existing evidence set. The addi-tional text supplied through the {previous} place-holder has the form: Evidence cards already constructed in the previous round followed by the existing claims and their source identifiers. 
+
+Evidence-Grounded Answer Generation. The answer model receives the constructed ViewCards, their associated original source context, and the remaining retrieved memories. Unverified cards are explicitly marked, while temporal and aggregation instructions guide the final response. 
+
+Answer Generation Prompt 
+
+You are an intelligent memory assistant answering questions about a long-term conversation between {speakers}, using evidence retrieved from memory. # QUESTION {question} # EVIDENCE CARDS (constructed for this question; each claim is grounded in a verbatim quote from the cited source; cards marked UNVERIFIED could not be matched to their source and must be treated with caution) {cards} # CITED SOURCE CONTEXT (original conversation turns around the cited evidence, with session dates) {sources} # OTHER RETRIEVED MEMORIES (background; use them if the cards miss something) {pool} # INSTRUCTIONS 
+
+25 1. Base the answer on the evidence. Prefer verified cards and original turns; use episode summaries and semantic facts to fill gaps. 2. Time. Dates shown are session dates (the day the conversation took place). Express event times the way people resolve them against the session date: - "yesterday", "today", "this morning", "two days ago" -> the absolute calendar date (e.g. said on 12 March 2031 "yesterday" -> 11 March 2031); - "last Friday", "last Sunday", "on the weekend" (a weekday-relative expression) -> "the Friday before 12 March 2031" (relative to the session date; do NOT convert it into a calendar day yourself); - "last week", "last month", "a few days ago" -> "the week before 4 April 2031", "the month before ..." , "a few days before ..."; - "last year", "next month" -> the year / month (e.g. said in 2031 "last year" -> 2030). If the event is reported without a relative expression, its time is the session date itself. When a card's time is of the form "the <weekday/week/weekend> before <date>", that is the resolved time: give it in exactly that form (episode summaries may contain mis-computed calendar days). 3. Lists / "what activities", "what books", "how many": aggregate ALL distinct items found across all sessions; count carefully and de-duplicate. 4. Questions about likely preferences, personality, opinions or hypotheticals ("Would X ...", "What might X ...", "Is X likely ..."): give the most plausible answer inferred from the evidence (start with "Probably yes"/"Probably no" for yes/no questions) rather than refusing. For questions about someone's traits or attributes, answer with a few short descriptive traits. 5. Always give the answer first. If the question's details (e.g. a date or name) do not exactly match the memories, answer with the memory that best matches the rest of the question -do not start with "there is no evidence". 6. Answer exactly what is asked; do not add extra facts, dates or explanations that are not asked for. 7. The final answer must be short and direct: a phrase, name, date, list or short sentence (ideally under 15 words). First think briefly step by step (max ~120 words) under "REASONING:", then give the answer on the last line exactly as: FINAL ANSWER: <answer> 
+
+ViewCards are rendered with their claims, source identifiers, quotations, temporal attributes, and ev-idential relations. Cards that fail quotation verifi-cation are retained but marked UNVERIFIED . The final answer is extracted from the FINAL ANSWER: 
+
+field. 
+
+Abstention Retry. If the initial answer matches the predefined abstention patterns, QEMem per-forms at most one additional answering call using the same evidence context, with the following in-struction appended to the original answer prompt. 
+
+Abstention Retry Prompt 
+
+# NOTE Your previous final answer was: "{prev}". A question usually refers to something that is in the conversation even when a detail in it (e.g. the year, month or a name) may be slightly wrong. Do not abstain: answer with the memory that best matches the question, as a short direct answer. 
+
+26

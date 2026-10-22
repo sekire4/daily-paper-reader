@@ -1,0 +1,624 @@
+Title: Memory as Belief: Bayesian Evolution of Memory for Self-Evolving LLM Agents
+
+URL Source: https://arxiv.org/pdf/2610.25119v1
+
+Published Time: Tue, 20 Oct 2026 01:25:05 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Memory as Belief: Bayesian Evolution of Memory for Self-Evolving LLM Agents 
+
+## Yiming Xu 1,2 , Qian Yang 1,2 , Zihan Chen 3, Yuefei Wu 4, Wenhan Zeng 1, Bin Shi 1,2 , Bo Dong 1,2 
+
+> 1
+
+School of Computer Science and Technology, Xi’an Jiaotong University 
+
+> 2
+
+Shaanxi Provincial Key Laboratory of Big Data Knowledge Engineering, Xi’an Jiaotong University 
+
+> 3
+
+University of Virginia, Charlottesville, Virginia, USA  
+
+> 4
+
+School of Cyber Science and Engineering, Zhengzhou University {xuyiming, shibin, dong.bo}@xjtu.edu.cn, yangqian@stu.xjtu.edu.cn,brf3rx@virginia.edu,wuyfei@zzu.edu.cn 
+
+Abstract 
+
+Large language model (LLM) agents increasingly rely on ex-ternal memory to accumulate past experiences for contin-ual adaptation. However, effectively reusing memory requires accurately assessing its value, as retrieved experiences may become unreliable when transferred across task contexts. De-spite its importance, memory valuation remains largely un-derexplored, with existing methods relying on historical re-trieval success rates that overlook the context dependency of memory usefulness and the varying reliability of estimates under different amounts of evidence. Inspired by the Bayesian brain hypothesis, we propose BEAM (Bayesian-style Evo-lutionary Agentic Memory), a framework that reformulates memory value evaluation as a parameterized cognitive in-ference process, where memory value is represented as a context-conditioned dynamic belief rather than a passive his-torical statistic. Specifically, BEAM infers memory value be-liefs from current task contexts and continuously calibrates them using execution feedback as empirical evidence, trans-forming memory from passive storage into an adaptive cog-nitive mechanism for continual self-evolution. Extensive ex-periments across reasoning and code generation benchmarks demonstrate that BEAM consistently improves memory uti-lization and enables continual self-evolution of LLM agents. 
+
+## Introduction 
+
+Large language models (LLMs) have demonstrated remark-able efficacy in natural language understanding, code genera-tion, knowledge-intensive QA, and complex reasoning (Yao et al. 2023; Zhao et al. 2024; Jimenez et al. 2024; Singh et al. 2025). As LLMs increasingly serve as the foundation for autonomous agents, the deployment paradigm is shifting from static benchmark evaluations to continuous streams of open-world tasks (Xie et al. 2023; Xu et al. 2026a). However, when operating over continuous task streams, contemporary agent systems largely fail to learn from accumulated cross-task experience (Zhang et al. 2026a; Xu et al. 2026b). Since they process each task in isolation, agents repeatedly en-counter similar failures and overlook valuable transferable insights from related tasks (Ouyang et al. 2026). Therefore, enabling agents to accumulate and leverage valuable expe-riences across tasks has become a fundamental challenge toward achieving reliable self-evolving systems. 
+
+Copyright © 2027, Association for the Advancement of Artificial Intelligence (www.aaai.org). All rights reserved. 
+
+In practical deployment, continuously fine-tuning or online-updating model parameters could be computationally expensive and engineering-intensive (Zhao et al. 2023; Xia et al. 2025). External memory modules have therefore been widely adopted to store experience and knowledge that can be reused across tasks (Hu et al. 2025). However, effectively leveraging external memories remains challenging, as stored experiences are not always reliable and may become ineffec-tive or even misleading when transferred to new task con-texts (Ouyang et al. 2026). Existing studies (Xu et al. 2026b; Zhang et al. 2026a; Han et al. 2025) rarely provide a prin-cipled assessment of whether a retrieved memory remains valuable under the current task context. Recently, a few stud-ies predominantly estimate memory value through heuris-tic scoring mechanisms, such as historical retrieval success rates or manually designed importance scores (Zhang et al. 2026c; Xia et al. 2025; Zhong et al. 2024). However, these metrics implicitly treat memory value as a task-independent and scalar quantity. In reality, memory value is inherently context-dependent and subject to uncertainty based on accu-mulated evidence. For instance, a reasoning memory contain-ing a "depth-first recursive traversal" strategy may achieve a high success rate on small-scale algorithmic tasks, but fails when transferred to large-scale problems with strict compu-tational or stack constraints. Moreover, scalar metrics fail to distinguish a memory proven over hundreds of trials from one that succeeded merely once by chance. This raises a central question: How can agents dynamically evaluate and cali-brate context-dependent memory values under uncertainty, thereby enabling reliable and continual evolution rather than merely accumulating experiences? 
+
+To overcome these limitations, we revisit memory value estimation from the perspective of the Bayesian brain hy-pothesis (Knill and Pouget 2004). This hypothesis posits that cognitive systems continuously update their probabilistic be-liefs about the world by integrating prior experience with incoming observations (Friston 2010; Pouget et al. 2013). In-spired by this principle, our key insight is to formulate mem-ory value evaluation as a parameterized cognitive inference process, where memory value is represented as a context-conditioned dynamic belief rather than a passive historical statistic. From this perspective, the parameterized cognitive system first infers the prior value of memories based on the current task context. After a memory is involved in reasoning arXiv:2610.25119v1 [cs.LG] 18 Oct 2026 and decision-making, the resulting execution feedback serves as empirical evidence for updating the posterior belief over its value. This belief calibration process transforms memory from passive storage into an adaptive cognitive mechanism, enabling LLM agents to continually refine their experience and self-evolve under open-world task streams. In this work, we propose BEAM (Bayesian-style Evolu-tionary Agentic Memory), a framework that enables LLM agents to perform continual memory valuation through context-conditioned belief modeling and evidence-driven calibration. The proposed framework consists of three com-ponents. First, we construct structured reasoning memories from historical trajectories by distilling transferable strate-gies while filtering task-specific details. Second, we de-sign a context-conditioned memory belief model, which is a lightweight LoRA-adapted estimator that carries out this cognitive inference without modifying the backbone LLM. Given the task context and candidate memories, it pre-dicts prior belief distributions over memory utility, enabling uncertainty-aware memory valuation and subsequent belief calibration. Third, we introduce an evidence-driven belief updating mechanism that leverages trajectory execution out-comes as empirical evidence to obtain memory-level super-vision and performs evidential calibration, preference-aware optimization, and selective regularization for continual value refinement. Extensive experiments across diverse reasoning and code generation benchmarks demonstrate that BEAM significantly enhances memory utilization and drives con-tinual self-evolution in LLM agents. Our contributions are summarized as follows: 
+
+• Perspective. We revisit memory valuation through the lens of the Bayesian brain hypothesis, transforming memory from a passive storage structure into an adaptive cognitive mechanism capable of dynamic belief calibration. 
+
+• Algorithm. We propose BEAM, a Bayesian memory evo-lution framework that integrates reasoning memory construc-tion, context-conditioned belief modeling, and evidence-driven belief calibration for continual memory valuation. 
+
+• Experiments. Extensive experiments across diverse rea-soning and code generation benchmarks demonstrate that BEAM consistently outperforms state-of-the-art baselines in memory utilization and drives long-term continual self-evolution for LLM agents. 
+
+## Related Work 
+
+Large Language Model Agents. Large language model (LLM) agents extend the capabilities of language models on complex tasks by integrating task planning, tool use, and environment interaction (Wang et al. 2024a). To further enhance agent capabilities, existing studies have explored reasoning-action coordination, reflective refinement, and ex-perience reuse (Zhang et al. 2025). ReAct (Yao et al. 2022) interleaves reasoning and acting, allowing models to adapt subsequent actions based on observations; Reflexion (Shinn et al. 2023) uses verbal feedback to revise future decisions; Voyager (Wang et al. 2023) continuously explores open-ended environments and accumulates reusable skills; and Synapse (Zheng et al. 2024) retrieves historical trajectory exemplars to support long-horizon task execution. These studies demonstrate that feedback and accumulated experi-ence can enhance agents’ adaptability across tasks. However, many existing agents still rely heavily on current-context prompting, heuristic reflection, or limited historical exam-ples for capability improvement, lacking stable mechanisms for experience consolidation, value assessment, and online updating (Gao et al. 2025). How to accumulate reusable experience and continuously optimize its selection and use remains a key challenge for self-evolving agents. 
+
+Agent Memory Organization. External memory allows agents to continually accumulate, organize and reuse inter-action experience without modifying the backbone model, making it an important mechanism for long-term adapta-tion (Wang et al. 2025a). Existing studies have explored diverse forms of memory representation and organization. MemoryBank (Zhong et al. 2024) and MemGPT (Packer et al. 2023) focus on long-term user memory and hierarchical context management; ReasoningBank (Ouyang et al. 2026) distills successful and failed trajectories into reusable reason-ing memories; A-Mem (Xu et al. 2026b), Zep (Rasmussen et al. 2025), and G-Memory (Zhang et al. 2026a) organize memories using graph-based or hierarchical structures; and LEGOMem (Han et al. 2025) and Buffer of Thoughts (Yang et al. 2024) abstract experience into procedural modules or thought templates to guide subsequent task solving. These efforts enable agents to accumulate and structure past ex-perience (Hu et al. 2025). However, stored memories may contain low-value or noisy experiences, leading to subopti-mal reasoning and decision-making (Wei et al. 2025). 
+
+Agent Memory Value Evaluation. Since stored memories are not necessarily reliable or beneficial, evaluating their value has increasingly attracted attention (Yu et al. 2026). Ex-isting studies (Zhong et al. 2024) primarily explore heuristic-driven approaches to model and quantify memory utility, such as historical retrieval success rates. MemRL (Zhang et al. 2026c) estimates memory benefits using Q-values; From Experience to Strategy (Xia et al. 2025) updates strat-egy weights based on counterfactual reward differences; and PlugMem (Yang et al. 2026) quantifies the decision-relevant information gain per memory token from a utility–cost per-spective. Another line of work learns memory operations or update policies: Memory-R1 (Yan et al. 2026) and Mem-
+
+α (Wang et al. 2025b) learn strategies for memory construc-tion, management, or updating, while MemSkill (Zhang et al. 2026b) and ReMe (Cao et al. 2026) further explore the dy-namic evolution of memory skills and procedural experience. Although recent studies have advanced memory utility esti-mation and management, they typically model memory value as a static scalar, overlooking its uncertainty and context-dependent reliability (Zhao et al. 2024). In contrast, we model memory value as a context-conditioned dynamic belief that is continuously refined through online feedback. 
+
+## Methodology 
+
+Problem Setting 
+
+Following Wei et al. (2025), we consider a self-evolving LLM agent Aθ that continuously solves a stream of tasks while maintaining an external reasoning memory. Let D =Prototype Space 
+
+Task  𝑥 1
+
+Task  𝑥 𝑡 
+
+Task  𝑥 𝑇 
+
+…
+
+…
+
+Memory Belief 
+
+Estimator 
+
+Task  𝑥 𝑡 
+
+> Router
+
+Memory Bank 
+
+Agent Executor 
+
+(frozen) Retrieve  Top-𝐾  value 
+
+> memories
+
+Combined Prompt 
+
+𝑥 𝑡 
+
+Trajectory 1 
+
+Trajectory 2 
+
+Trajectory  𝑛 
+
+…… 
+
+Experience Distill 
+
+Update 
+
+Memory 
+
+Synthesis  + =
+
+𝑚 𝑡,𝑖  𝑚 𝑡,𝑗  𝑚 𝑠𝑦𝑛 
+
+Inference & Memory Formation 
+
+Memory Belief Updating 
+
+Task  𝑥 𝑡 
+
+Memory Belief 
+
+Estimator 
+
+Memory Bank 
+
+Memory Belief Prediction 
+
+𝑚 𝑡,1 : Beta(  ො𝛼 𝑡,1 , መ 𝛽 𝑡,1 )
+
+…… 
+
+Test-time scaling 
+
+Retrieve  
+
+> Top-𝐾 memories
+
+𝑥 𝑡 , 𝒞 𝑡 
+
+𝒞 𝑡 = 𝑚 𝑡,1 , … , 𝑚 𝑡,𝐾 
+
+𝑥 𝑡 , 𝒞 𝑡 \ 𝑚 𝑡,1 
+
+…… 
+
+𝑥 𝑡 , 𝒞 𝑡 \ 𝑚 𝑡,𝐾 
+
+Leave-one-out Evaluation 
+
+𝑅 𝑡 
+
+𝑅 𝑡 −1 
+
+𝑅 𝑡 −2 
+
+𝑅 𝑡 −𝐾 
+
+𝑥 𝑡 , 𝒞 𝑡 \ 𝑚 𝑡,2 
+
+𝑚 𝑡,2 : Beta(  ො𝛼 𝑡,2 , መ𝛽 𝑡,2 )
+
+𝑚 𝑡,𝐾 : Beta(  ො𝛼 𝑡,𝐾 , መ 𝛽 𝑡,𝐾 )
+
+Memory Belief 
+
+Estimator 
+
+> Prior
+
+𝑚 𝑡,𝐾 
+
+> Posterior
+
+Task  𝑥 𝑡   
+
+> ො𝛼 𝑡,𝐾 , መ 𝛽 𝑡,𝐾 ො𝛼 𝑛𝑒𝑤 , መ 𝛽 𝑛𝑒𝑤
+
+𝑅 
+
+𝒞 𝑡  𝒞 𝑡  𝑚 𝑠𝑦𝑛 Figure 1: The overview of the BEAM. 
+
+{(xt, y t)}Tt=1 denote the task sequence, where xt is the input context and yt is the corresponding target output. At step t,the agent retrieves a set of relevant memories Ct from the previous memory bank Mt−1 and generates a prediction: 
+
+ˆyt = Aθ (xt, Ct). (1) The objective of the self-evolving agent is to maximize its cumulative task utility over the task stream: 
+
+J =
+
+> T
+
+X
+
+> t=1
+
+R(ˆ yt, y t) = 
+
+> T
+
+X
+
+> t=1
+
+R (Aθ (xt, Ct), y t) , (2) where R(·) denotes the task-specific utility of the prediction, such as answer correctness for reasoning tasks or execution success for coding tasks. 
+
+Inference and Memory Formation 
+
+We begin by detailing the forward task-solving process and the subsequent distillation of novel experiences, as illustrated in the upper pipeline of Figure 1. 
+
+Memory-Augmented Inference. Given an incoming task 
+
+xt, the agent leverages a memory belief estimator gϕ(·)
+
+(which will be formally defined in the next section) to in-fer the utility value of candidate memories in the external memory bank M. Based on the estimated values, a set of top-K memories Ct = {mt, 1, . . . , m t,K } relevant to the cur-rent task context is retrieved. To better align these retrieved experiences with the specific requirements of xt, the agent performs memory synthesis to additionally extract a highly transferable working memory msyn from Ct. This synthe-sized working memory, together with the retrieved top-K
+
+memories Ct, is combined with xt to guide the frozen back-bone LLM agent during reasoning, yielding the task execu-tion response ˆyt:
+
+ˆyt ∼ A θ (· | xt, Ct, m syn ). (3) Upon task completion, the environment returns a feedback signal ft, producing a complete task interaction context. 
+
+Reasoning Memory Formation. To ensure high-quality experience abstraction and prevent redundant noise from contaminating long-term memory, we employ a test-time scaling strategy during inference by sampling multiple ex-ecution trajectories {τ (i) 
+
+> t
+
+}Ni=1 , where τ (i) 
+
+> t
+
+= ( xt, ˆy(i) 
+
+> t
+
+, f (i) 
+
+> t
+
+).Conditioned on the environment feedback across these scaled trajectories, the agent reflects on the collective reasoning pro-cess, distilling actionable insights, such as transferable suc-cessful strategies or failure-aware lessons, into a structured reasoning memory entry: 
+
+mt = ( ut, d t, c t), (4) where ut denotes a concise memory title, dt summarizes the experience, and ct describes the reusable reasoning principle. The newly formed memory mt, along with its context, is incorporated into the external memory bank M for future task retrieval and belief calibration. 
+
+Context-conditioned Memory Belief Modeling 
+
+Existing memory-augmented agents typically retrieve se-mantically relevant memories to facilitate task solving (Reza-zadeh et al. 2025), but fail to evaluate their reliability across changing task contexts. Recent studies estimate mem-ory utility using scalar statistics, such as historical success rates (Zhang et al. 2026c). However, these approaches suffer from two main limitations. First, they assume memory value is task-independent, ignoring the fact that a memory’s utility is highly context-dependent. For instance, a memory advocat-ing "depth-first recursive traversal" succeeds on small tasks but fails under strict stack constraints in large-scale settings. Second, scalar point estimates ignore evidence-based uncer-tainty, treating a single lucky success ( 1/1) identically to a proven record ( 97 /100 ). Therefore, memory value should be modeled as a context-dependent belief that captures both contextual relevance and evidence-based uncertainty. Inspired by the Bayesian brain hypothesis (Knill and Pouget 2004; Friston 2010), which posits that intelligent sys-tems continuously infer and update probabilistic beliefs by integrating prior knowledge with incoming evidence, we re-visit memory value estimation from an evidential perspec-tive. Instead of assigning each memory a deterministic util-ity score, we model its usefulness as a context-conditioned probabilistic belief. Specifically, given a task context xt, we represent the latent utility of a candidate memory mt,i as a random variable: 
+
+vt,i ∼ Beta( αt,i , β t,i ), (5) where vt,i denotes the latent probability that memory mt,i 
+
+provides beneficial guidance for the current task xt. We adopt the beta distribution, as it serves as the conjugate prior to the Bernoulli likelihood, which naturally aligns with the binary success-or-failure feedback of task execution. The parame-ters αt,i and βt,i characterize the accumulated positive and negative evidence, respectively. This allows the agent to ex-plicitly quantify both the expected memory utility and its associated uncertainty. To parameterize the context-conditioned memory belief, we introduce a lightweight LoRA-adapted value estimator based on a pretrained language model. Rather than learning memory values directly, the estimator is trained to infer the parameters of the Beta belief distribution by jointly consider-ing the current task context and candidate memory represen-tations. Specifically, given the current task xt and a candidate memory mt,i , the estimator produces the corresponding be-lief parameters: 
+
+[ˆ αt,i , ˆβt,i ] = 1 + softplus ( gϕ(xt, m i)) , (6) where gϕ(·) denotes the LoRA-adapted estimator with frozen backbone parameters, and ˆαt,i and ˆβt,i represent the esti-mated parameters of the context-conditioned Beta belief. The softplus transformation ensures that the predicted evidence remains non-negative, while the unit offset corresponds to the uniform prior Beta(1 , 1) in the absence of supporting evidence. Consequently, when the estimator observes insuf-ficient contextual evidence for a memory item, the resulting belief remains close to an uninformative distribution rather than producing an overconfident utility estimation. As more evidence is accumulated through interactions, the belief can gradually become more concentrated, reflecting increasing confidence in the reliability of the memory. 
+
+Evidence-driven Memory Belief Updating 
+
+The context-conditioned belief estimation above provides an initial prior over memory utility before the current interac-tion. However, such priors are inevitably uncertain due to incomplete contextual information and limited historical ev-idence. Similar to humans who continually revise beliefs through new experiences, we treat the feedback ft obtained after applying retrieved memories as empirical evidence to calibrate and refine prior beliefs, enabling memory values to continuously evolve with accumulated experience rather than remaining fixed after initial estimation. Given a current task xt and a candidate memory mt,i , the context-conditioned belief estimator models its usefulness as a belief distribution Beta(ˆ αt,i , ˆβt,i ). To strike a balance between exploitation and exploration, we adopt Thompson sampling (Thompson 1933; Chapelle and Li 2011) to draw a stochastic utility score ˜vt,i directly from this distribution: 
+
+˜vt,i ∼ Beta(ˆ αt,i , ˆβt,i ). (7) Unlike deterministic point estimates (e.g., predicted means), this sampling scheme intrinsically accounts for epis-temic uncertainty. Consequently, memories with limited ev-idence retain higher variance, naturally yielding greater op-portunities for exploration alongside the exploitation of well-supported experiences. Since effective reasoning often benefits from complemen-tary experiences (Xu et al. 2026b), the agent retrieves a set of top-K memories based on sampled utilities rather than selecting a single memory. However, the obtained feedback only reflects the joint effect of the retrieved memory set, mak-ing it difficult to determine the individual contribution of each memory. To address this challenge, we introduce leave-one-out counterfactual credit assignment to derive memory-level evidence. For a task xt, let Ct = {mt, 1, . . . , m t,K } denote the retrieved memory set. We estimate the contribution of each memory by comparing the full retrieval outcome with leave-one-out counterfactual outcomes: 
+
+Rt = R(Aθ (xt, Ct), y t),R−it = R(Aθ (xt, Ct \ { mt,i }), y t),At,i = Rt − R−it ,
+
+(8) where R(·) ∈ { 0, 1} denotes the task reward ( 1 for suc-cess, 0 otherwise), and R−it is the reward without memory 
+
+mt,i . The marginal contribution At,i reflects mt,i ’s net im-pact, where positive and negative values indicate beneficial memories and harmful interference, respectively. To evalu-ate robustness across retrieval contexts, we aggregate out-comes retaining mt,i into an average counterfactual reward 
+
+¯Rret  
+
+> t,i
+
+= ( K − 1) −1 P  
+
+> j̸=i
+
+R−jt . We then combine the overall reward, counterfactual outcomes, and marginal contribution to construct the memory-level utility target: 
+
+yevi  
+
+> t,i
+
+= λ 1 + At,i 
+
+2 + (1 − λ) Rt + ¯Rret 
+
+> t,i
+
+2 , (9) where At,i ∈ {− 1, 0, 1} is the marginal contribution of mt,i .We normalize At,i as (1+ At,i )/2 ∈ { 1, 0.5, 0} to align with the support of the Beta distribution, mapping positive, neu-tral, and negative impacts accordingly. The resulting target 
+
+yevi  
+
+> t,i
+
+integrates both individual contribution and contextual effectiveness to supervise belief distribution calibration. For the predicted distribution Beta(ˆ αt,i , ˆβt,i ), let ˆμt,i and 
+
+ˆσ2 
+
+> t,i
+
+denote its mean and variance, respectively. We optimize the memory value estimator with an evidential objective: 
+
+Levi = 1
+
+|D| 
+
+X
+
+> (t,i )∈D
+
+(yevi  
+
+> t,i
+
+− ˆμt,i )2 + λvar ˆσ2
+
+> t,i
+
+ , (10) where D denotes a training mini-batch. This objective aligns the predicted expected utility with evidence-derived supervi-sion, while encouraging the predicted distribution to become more concentrated when supported by sufficient evidence. However, calibrating absolute utility values alone does not guarantee preserving the relative preference among can-didate memories retrieved for the same task. Since mem-ory selection relies on ranking candidate experiences by their expected utilities, we further introduce a pairwise rank-ing objective based on counterfactual contributions. Specif-ically, for a mini-batch D, we construct preference pairs 
+
+PD = {(t, i, j ) | t ∈ D , A t,i > A t,j }, where memory 
+
+mt,i is preferred over mt,j due to its strictly higher marginal contribution. We optimize a margin-based ranking loss: 
+
+Lrank = 1
+
+|P D |
+
+X
+
+> (t,i,j )∈P D
+
+[ρ − (ˆ μt,i − ˆμt,j )] + , (11) where ρ > 0 is a margin enforcing separation between pre-ferred pairs. This objective encourages memories with larger marginal contributions to yield higher utilities, preserving within-task preference ordering among experiences. Due to noisy feedback in multi-memory interactions and limited observations, accumulated evidence can deviate from true memory utilities, leading to distorted belief strengths and poorly calibrated uncertainty estimates. To address this, we introduce a selective Beta-KL regularizer that suppresses un-supported evidence accumulation while preserving evidence consistent with the utility target. Specifically, we isolate po-tentially conflicting evidence for selective regularization: 
+
+eαt,i = 1+(1 −yevi  
+
+> t,i
+
+)(ˆ αt,i −1) , eβt,i = 1+ yevi  
+
+> t,i
+
+( ˆβt,i −1) ,
+
+(12) where ˆαt,i − 1 and ˆβt,i − 1 denote the accumulated pos-itive and negative evidence underlying the predicted Beta distribution, respectively. When yevi  
+
+> t,i
+
+is high, negative evi-dence is regarded as conflicting and selectively regularized; conversely, when yevi  
+
+> t,i
+
+is low, excessive positive evidence is suppressed. For intermediate targets, both evidence terms are softly weighted according to the utility target. The selective regularization objective is formulated as: 
+
+Lkl = 1
+
+|D| 
+
+X
+
+> (t,i )∈D
+
+DKL 
+
+h
+
+Beta( eαt,i , eβt,i ) Beta(1 , 1) 
+
+i
+
+,
+
+(13) where Beta(1 , 1) denotes the uninformative prior represent-ing zero accumulated evidence. This objective selectively contracts target-inconsistent evidence toward the prior, pre-venting unsupported belief accumulation and improving the calibration of memory value estimates. The overall training objective jointly optimizes evidential utility calibration, preference-aware ranking, and selective evidence regularization: 
+
+Lvalue = Levi + λrank Lrank + λkl Lkl , (14) where λrank and λkl are trade-off hyperparameters control-ling the contributions of the ranking and evidence regular-ization objectives, respectively. We further assess the contri-bution of each loss term through individual ablations, with the results reported in the supplementary material. 
+
+## Experiments 
+
+Experiment Settings 
+
+Datasets. We evaluate BEAM on five benchmarks spanning mathematical reasoning, using AIME24 and AIME25 (Hug-ging Face H4 2024; OpenCompass 2025); scientific reason-ing, using GPQA-Diamond (Rein et al. 2023); philosophi-cal reasoning, using MMLU-Pro (Philosophy) (Wang et al. 2024b); multidisciplinary reasoning, using the valid text-only multiple-choice subset of HLE (Phan et al. 2025); and code generation, using BigCodeBench-Hard-Instruct (Zhuo et al. 2025). We report accuracy for reasoning benchmarks and Pass@1 for BigCodeBench. 
+
+Baselines. We compare BEAM with six representative base-lines spanning diverse memory paradigms: No Memory, which solves tasks using only the frozen backbone lan-guage model; Self-RAG (Asai et al. 2024), which con-trols retrieval through self-reflection; Mem0 (Chhikara et al. 2025), a general-purpose long-term memory framework; A-Mem (Xu et al. 2026b), which organizes structured memory notes and semantic associations; Memp (Fang et al. 2026), which distills procedural knowledge from trajectories; and MemRL (Zhang et al. 2026c), which combines semantic re-trieval with learned Q-values. All methods use the same task streams, executors, output parsers, and evaluation protocols while preserving each baseline’s core memory mechanisms. 
+
+Evaluation Protocol. Following Evo-Memory’s streaming search–predict–evolve protocol (Wei et al. 2025), we adopt a zero-reset task-stream setting. For each benchmark, the cor-responding task stream is partitioned into consecutive stages and processed in a strictly fixed order, without resetting the memory bank or value estimator at any point throughout the stream. For each task, inference relies exclusively on expe-rience accumulated from preceding tasks, while feedback from the current task is used only to update the system for subsequent tasks, preventing it from influencing the current prediction. Additional implementation details, including the key prompts used throughout BEAM, are provided in the supplementary material. 
+
+Main Results and Analysis 
+
+Table 1 compares memory methods across two executors and five benchmarks. BEAM achieves the best average per-formance under both executors, surpassing the strongest baselines by 3.93 and 2.43 percentage points, respectively. It outperforms all baselines on AIME, GPQA-Diamond, HLE, and BigCodeBench, while remaining competitive on MMLU-Pro. These consistent gains across reasoning and code-generation tasks show that BEAM generalizes across the two tested executors and diverse task settings, rather than relying on a specific backbone or evaluation scenario. They further demonstrate its effectiveness on knowledge-intensive problems, where the utility of past experience varies sub-stantially across instances. More broadly, the baseline comparison shows that external memory does not necessarily yield consistent gains. Several methods vary substantially across tasks, and some even un-derperform No Memory, suggesting that semantic relevance alone may retrieve seemingly related memories with lim-Accuracy (%) ↑ Pass@1 (%) ↑
+
+Method AIME GPQA-Diamond HLE MMLU-Pro (Philo.) BigCodeBench Avg. ↑
+
+DeepSeek-V4-Flash 
+
+No Memory 58.33 69.10 9.09 73.61 31.08 48.24 Self-RAG 56.67 70.70 10.83 71.83 31.08 48.22 Mem0 61.67 69.70 11.61 72.62 29.73 49.07 A-Mem 56.67 70.71 11.99 77.78 30.41 49.51 Memp 60.00 68.18 7.93 75.79 28.38 48.06 MemRL 58.33 69.70 11.03 75.79 28.38 48.65 BEAM (Ours) 66.67 75.25 12.77 77.38 35.13 53.44 Gemini-2.5-Flash 
+
+No Memory 53.33 73.23 12.96 77.58 25.68 48.56 Self-RAG 56.67 71.72 13.35 78.37 24.32 48.89 Mem0 58.33 76.76 11.99 78.77 25.68 50.31 A-Mem 63.33 77.78 15.09 76.79 27.70 52.14 Memp 53.33 74.75 10.83 78.37 26.35 48.73 MemRL 56.67 75.25 10.44 77.78 27.03 49.43 BEAM (Ours) 68.33 78.79 15.47 79.17 31.08 54.57 
+
+Table 1: Performance comparison of memory methods across five benchmarks and two fixed task executors. Scores are accuracy except on BigCodeBench, where Pass@1 is reported. Avg. denotes the arithmetic mean across the five benchmarks. 0510 15 20   
+
+> HLE Accuracy (%)
+> 12.8 10.3 10.8 11.8
+> 60 65 70 75 80 85
+> Accuracy (%)
+> 75.3 77.4 72.2 75.8 73.2 74.4 73.7 76.2
+> GPQA-Diamond MMLU-Pro (Philo.) HLE
+> BEAM (Full Method) w/o Memory Synthesis w/o Belief-guided Selection w/o Combination-Aware Credit
+
+Figure 2: Ablation results on GPQA-Diamond, MMLU-Pro (Philo.), and HLE. The left axis reports accuracy on GPQA-Diamond and MMLU-Pro, while the right axis reports accu-racy on HLE. ited practical utility for current tasks, increasing the risk of negative transfer. Although A-Mem and MemRL improve memory use through structured organization and value-aware selection, respectively, their overall performance remains be-low that of BEAM. In contrast, BEAM models the task-conditioned utility of past experience through probabilis-tic value estimation and continually calibrates candidate-memory rankings using counterfactual feedback, yielding more consistent gains across both executors and diverse tasks. Two qualitative case studies illustrating BEAM’s end-to-end reasoning and memory-utilization process are provided in the supplementary material. 
+
+Ablation Studies 
+
+As shown in Figure 2, we assess BEAM’s key components on DeepSeek-V4-Flash across GPQA-Diamond, MMLU-Pro (Philo.), and HLE. To further assess the impact of test-time scaling, we compare different memory methods under the same three-rollout inference budget, using either random se-lection (Random-of-3) or a shared judge to select the best output (Best-of-3); the corresponding results are reported in the supplementary material. 
+
+Belief-guided Memory Selection. When belief-guided se-lection is removed, the system selects memories solely ac-cording to semantic similarity, resulting in consistent perfor-mance degradation across all three benchmarks. This indi-cates that semantic relevance alone is insufficient to charac-terize the actual utility of a memory for the current task. In contrast, task-conditioned belief estimation helps filter out memories that are superficially relevant but only marginally useful or potentially misleading. 
+
+Memory Synthesis. When memory synthesis is removed, the system still injects the selected raw memories but no longer constructs an additional working memory. The result-ing performance drop suggests that raw memories may still contain redundancy, conflicts, and task-irrelevant details. By distilling transferable reasoning principles and integrating complementary information, memory synthesis provides the executor with more focused and task-conditioned guidance. 
+
+Combination-Aware Credit Assignment. BEAM uses leave-one-out evaluation to estimate the conditional marginal contribution of each memory within the actual multi-memory context, whereas the ablated variant compares each individ-ual memory against an empty context: 
+
+At,i = Rfull  
+
+> t
+
+− R−it , Asingle  
+
+> t,i
+
+= Rit − Rempty  
+
+> t
+
+. (15) The latter measures only the effect of a memory when used in isolation, while ignoring interactions among memories in the actual multi-memory reasoning context. As a result, it performs worse on all three benchmarks. These results show Stage1 Stage2 Stage3 Stage4                
+
+> Stage of Task Stream
+> 60 65 70 75 80 85
+> Stage Accuracy (%)  (a) GPQA-Diamond: Stage Accuracy
+> Stage1 Stage2 Stage3 Stage4 Stage5
+> Stage of Task Stream
+> 46810 12 14 16 18
+> Stage Accuracy (%)  (b) HLE: Stage Accuracy
+> Stage1 Stage2 Stage3 Stage4
+> Stage of Task Stream
+> 8
+> 6
+> 4
+> 2
+> 02468
+> Accuracy Gain (pp)  (c) GPQA-Diamond: Accuracy Gain
+> = 0
+> Stage1 Stage2 Stage3 Stage4 Stage5
+> Stage of Task Stream
+> 2
+> 0246810
+> Accuracy Gain (pp)  (d) HLE: Accuracy Gain
+> = 0
+> BEAM Memp A-Mem Mem0 No Memory
+
+Figure 3: Stage-wise self-evolution on GPQA-Diamond and HLE. Each stage is a consecutive segment of the task stream; GPQA-Diamond uses four stages (0–25%, 25–50%, 50– 75%, 75–100%), and HLE uses five. Panels (a,b) report stage accuracy, while panels (c,d) show gains over no memory in percentage points (pp), ∆ = Acc method − Acc no -memory .that, compared with isolated evaluation, combination-aware counterfactual supervision provides more reliable training signals for the value model. 
+
+Continual Self-Evolution 
+
+To assess whether BEAM can progressively improve mem-ory use through continual interaction, we partition each task stream into consecutive stages and report stage-wise ac-curacy and the gain over the no-memory baseline: ∆ = Acc method − Acc no -memory . Neither the memory bank nor the value model is reset throughout the stream. Leave-one-out supervision from completed tasks is used only to update the value model for subsequent tasks, preventing it from af-fecting the current prediction. As shown in Figure 3, the stage-wise accuracy of all meth-ods fluctuates because task difficulty varies across stages. Nevertheless, BEAM generally achieves larger gains over the no-memory baseline as the task stream progresses, with more pronounced improvements in later stages. In contrast, other memory-based methods exhibit less stable gains, with some falling below the no-memory baseline at certain stages. This suggests that continual experience accumulation alone does not guarantee sustained improvement; memory qual-ity and selection remain critical. As counterfactual supervi-sion accumulates, BEAM’s belief model progressively cal-ibrates candidate-memory utility estimates, increasing the likelihood of selecting task-relevant memories while reduc-ing interference from mismatched ones. Although this trend may be affected by stage difficulty and finite-sample variabil-ity, the larger relative gains in later stages provide empirical evidence that BEAM gradually improves memory utilization through continual self-evolution. Stage1 Stage2 Stage3     
+
+> Stage of Task Stream
+> 45 55 65 75 85
+> Stage Accuracy (%)  (a) Stage-wise Accuracy
+> Stage1 Stage2 Stage3
+> Stage of Task Stream
+> 0510 15
+> Accuracy Gain (pp)  (b) Accuracy Gain over No Memory
+> = 0
+> Pre-trained on MATH-500 Trained from Scratch No Memory
+
+Figure 4: Cross-task transfer from MATH-500 to AIME. The AIME task stream is divided into three consecutive stages (0– 33%, 33–67%, 67–100%). Panel (a) reports stage accuracy, while panel (b) reports gains over no memory in percentage points (pp), ∆ = Acc method − Acc no -memory .
+
+Cross-Task Transferability 
+
+To examine whether BEAM’s value model transfers across related tasks, we initialize the AIME value network with parameters learned on MATH-500 (Hendrycks et al. 2021; Lightman et al. 2024) and compare it with a value model trained from scratch on AIME and a no-memory baseline. As shown in Figure 4, the transferred model achieves the best stream-level average performance and consistently out-performs the no-memory baseline across all stages. In partic-ular, it shows a clear early-stage advantage over training from scratch, indicating that memory-utility judgments learned on MATH-500 provide an effective initialization for selecting useful memories on AIME when target-task feedback is still scarce. As AIME feedback accumulates, the scratch-trained model narrows the gap and achieves a comparable gain in the final stage. These results suggest that cross-task transfer improves early adaptation, feedback efficiency, and overall stream-level performance, while having only a limited effect on final-stage performance. 
+
+## Conclusion 
+
+In this paper, we introduced BEAM, a framework that re-formulates memory valuation for self-evolving LLM agents as inference over context-conditioned probabilistic beliefs. Rather than assigning each memory a static scalar utility, BEAM jointly models its expected usefulness and uncer-tainty, and continually calibrates these beliefs using exe-cution feedback and counterfactual credit assignment. By integrating structured reasoning memory formation, belief-guided selection, and evidence-driven updating while keep-ing the backbone LLM frozen, BEAM enables reliable expe-rience reuse across continual task streams. Experiments on diverse reasoning and code-generation benchmarks show that BEAM achieves consistent gains over strong memory base-lines, progressively improves memory utilization through online interaction, and transfers learned utility judgments across related tasks. These findings underscore context-aware memory valuation as a promising foundation for reli-able and continual self-evolution in LLM agents. 
+
+## References 
+
+Asai, A.; Wu, Z.; Wang, Y.; Sil, A.; and Hajishirzi, H. 2024. Self-rag: Learning to retrieve, generate, and critique through self-reflection. In International conference on learning rep-resentations , volume 2024, 9112–9141. Cao, Z.; Deng, J.; Yu, L.; Zhou, W.; Liu, Z.; Ding, B.; and Zhao, H. 2026. Remember me, refine me: A dynamic proce-dural memory framework for experience-driven agent evo-lution. In Findings of the Association for Computational Linguistics: ACL 2026 , 16803–16822. Chapelle, O.; and Li, L. 2011. An empirical evaluation of thompson sampling. Advances in neural information pro-cessing systems , 24. Chhikara, P.; Khant, D.; Aryan, S.; Singh, T.; and Yadav, D. 2025. Mem0: Building production-ready ai agents with scal-able long-term memory. arXiv preprint arXiv:2504.19413 .Fang, R.; Liang, Y.; Wang, X.; Wu, J.; Qiao, S.; Xie, P.; Huang, F.; Chen, H.; and Zhang, N. 2026. Memp: Exploring agent procedural memory. In Findings of the Association for Computational Linguistics: ACL 2026 , 17490–17502. Friston, K. 2010. The free-energy principle: a unified brain theory? Nature reviews neuroscience , 11(2): 127–138. Gao, H.-a.; Geng, J.; Hua, W.; Hu, M.; Juan, X.; Liu, H.; Liu, S.; Qiu, J.; Qi, X.; Wu, Y.; et al. 2025. A Survey of Self-Evolving Agents: What, When, How, and Where to Evolve on the Path to Artificial Super Intelligence. Transactions on Machine Learning Research .Han, D.; Couturier, C.; Diaz, D. M.; Zhang, X.; Rühle, V.; and Rajmohan, S. 2025. Legomem: Modular procedural memory for multi-agent llm systems for workflow automation. arXiv preprint arXiv:2510.04851 .Hendrycks, D.; Burns, C.; Kadavath, S.; Arora, A.; Basart, S.; Tang, E.; Song, D.; and Steinhardt, J. 2021. Measuring mathematical problem solving with the math dataset. arXiv preprint arXiv:2103.03874 .Hu, Y.; Liu, S.; Yue, Y.; Zhang, G.; Liu, B.; Zhu, F.; Lin, J.; Guo, H.; Dou, S.; Xi, Z.; et al. 2025. Memory in the age of ai agents. arXiv preprint arXiv:2512.13564 .Hugging Face H4. 2024. AIME 2024 Benchmark. https: //huggingface.co/datasets/HuggingFaceH4/aime_2024. Jimenez, C. E.; Yang, J.; Wettig, A.; Yao, S.; Pei, K.; Press, O.; and Narasimhan, K. 2024. Swe-bench: Can lan-guage models resolve real-world github issues? In Inter-national Conference on Learning Representations , volume 2024, 54107–54157. Knill, D. C.; and Pouget, A. 2004. The Bayesian brain: the role of uncertainty in neural coding and computation. 
+
+TRENDS in Neurosciences , 27(12): 712–719. Lightman, H.; Kosaraju, V.; Burda, Y.; Edwards, H.; Baker, B.; Lee, T.; Leike, J.; Schulman, J.; Sutskever, I.; and Cobbe, K. 2024. Let’s verify step by step. In International Con-ference on Learning Representations , volume 2024, 39578– 39601. OpenCompass. 2025. AIME 2025 Benchmark. https: //huggingface.co/datasets/opencompass/AIME2025. Ouyang, S.; Yan, J.; Hsu, I.; Chen, Y.; Jiang, K.; Wang, Z.; Han, R.; Le, L. T.; Daruki, S.; Tang, X.; et al. 2026. Rea-soningBank: Scaling Agent Self-Evolving with Reasoning Memory. In International Conference on Learning Repre-sentations (ICLR) .Packer, C.; Fang, V.; Patil, S.; Lin, K.; Wooders, S.; and Gonzalez, J. 2023. MemGPT: towards LLMs as operating systems. Phan, L.; Gatti, A.; Han, Z.; Li, N.; Hu, J.; Zhang, H.; Zhang, C. B. C.; Shaaban, M.; Ling, J.; Shi, S.; et al. 2025. Human-ity’s last exam. arXiv preprint arXiv:2501.14249 .Pouget, A.; Beck, J. M.; Ma, W. J.; and Latham, P. E. 2013. Probabilistic brains: knowns and unknowns. Nature neuro-science , 16(9): 1170–1178. Rasmussen, P.; Paliychuk, P.; Beauvais, T.; Ryan, J.; and Chalef, D. 2025. Zep: a temporal knowledge graph architec-ture for agent memory. arXiv preprint arXiv:2501.13956 .Rein, D.; Hou, B. L.; Stickland, A. C.; Petty, J.; Pang, R. Y.; Dirani, J.; Michael, J.; and Bowman, S. R. 2023. Gpqa: A graduate-level google-proof q&a benchmark. arXiv preprint arXiv:2311.12022 .Rezazadeh, A.; Li, Z.; Wei, W.; and Bao, Y. 2025. From isolated conversations to hierarchical schemas: Dynamic tree memory representation for llms. In International Conference on Learning Representations , volume 2025, 990–1023. Shinn, N.; Cassano, F.; Gopinath, A.; Narasimhan, K.; and Yao, S. 2023. Reflexion: Language agents with verbal re-inforcement learning. Advances in neural information pro-cessing systems , 36: 8634–8652. Singh, A.; Fry, A.; Perelman, A.; Tart, A.; Ganesh, A.; El-Kishky, A.; McLaughlin, A.; Low, A.; Ostrow, A.; Anan-thram, A.; et al. 2025. Openai gpt-5 system card. arXiv preprint arXiv:2601.03267 .Thompson, W. R. 1933. On the likelihood that one unknown probability exceeds another in view of the evidence of two samples. Biometrika , 25(3/4): 285–294. Wang, B.; Liang, X.; Yang, J.; Huang, H.; Wu, Z.; Wu, S.; Ma, Z.; and Li, Z. 2025a. Scm: Enhancing large language model with self-controlled memory framework. In International Conference on Database Systems for Advanced Applications ,188–203. Springer. Wang, G.; Xie, Y.; Jiang, Y.; Mandlekar, A.; Xiao, C.; Zhu, Y.; Fan, L.; and Anandkumar, A. 2023. Voyager: An open-ended embodied agent with large language models. arXiv preprint arXiv:2305.16291 .Wang, L.; Ma, C.; Feng, X.; Zhang, Z.; Yang, H.; Zhang, J.; Chen, Z.; Tang, J.; Chen, X.; Lin, Y.; et al. 2024a. Asurvey on large language model based autonomous agents. 
+
+Frontiers of Computer Science , 18(6): 186345. Wang, Y.; Ma, X.; Zhang, G.; Ni, Y.; Chandra, A.; Guo, S.; Ren, W.; Arulraj, A.; He, X.; Jiang, Z.; et al. 2024b. Mmlu-pro: A more robust and challenging multi-task language un-derstanding benchmark. Advances in Neural Information Processing Systems , 37: 95266–95290. Wang, Y.; Takanobu, R.; Liang, Z.; Mao, Y.; Hu, Y.; McAuley, J.; and Wu, X. 2025b. Mem-{\ alpha }: Learn-ing memory construction via reinforcement learning. arXiv preprint arXiv:2509.25911 .Wei, T.; Sachdeva, N.; Coleman, B.; He, Z.; Bei, Y.; Ning, X.; Ai, M.; Li, Y.; He, J.; Chi, E. H.; et al. 2025. Evo-memory: Benchmarking llm agent test-time learning with self-evolving memory. arXiv preprint arXiv:2511.20857 .Xia, S.; Xu, Z.; Chai, J.; Fan, W.; Song, Y.; Wang, X.; Yin, G.; Lin, W.; Zhang, H.; and Wang, J. 2025. From experi-ence to strategy: Empowering llm agents with trainable graph memory. arXiv preprint arXiv:2511.07800 .Xie, T.; Zhou, F.; Cheng, Z.; Shi, P.; Weng, L.; Liu, Y.; Hua, T. J.; Zhao, J.; Liu, Q.; Liu, C.; et al. 2023. Openagents: An open platform for language agents in the wild. arXiv preprint arXiv:2310.10634 .Xu, F. F.; Song, Y.; Li, B.; Tang, Y.; Jain, K.; Bao, M.; Wang, Z.; Zhou, X.; Guo, Z.; Cao, M.; et al. 2026a. Theagentcom-pany: benchmarking llm agents on consequential real world tasks. Advances in Neural Information Processing Systems ,38. Xu, W.; Liang, Z.; Mei, K.; Gao, H.; Tan, J.; and Zhang, Y. 2026b. A-mem: Agentic memory for llm agents. Advances in Neural Information Processing Systems , 38: 17577–17604. Yan, S.; Yang, X.; Huang, Z.; Nie, E.; Ding, Z.; Li, Z.; Ma, X.; Bi, J.; Kersting, K.; Pan, J. Z.; et al. 2026. Memory-r1: Enhancing large language model agents to manage and utilize memories via reinforcement learning. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 12805–12825. Yang, K.; Chen, Z.; He, X.; Jiang, J.; Galley, M.; Wang, C.; Gao, J.; Han, J.; and Zhai, C. 2026. Plugmem: A task-agnostic plugin memory module for llm agents. arXiv preprint arXiv:2603.03296 .Yang, L.; Yu, Z.; Zhang, T.; Cao, S.; Xu, M.; Zhang, W.; Gonzalez, J. E.; and Cui, B. 2024. Buffer of thoughts: Thought-augmented reasoning with large language mod-els. Advances in Neural Information Processing Systems ,37: 113519–113544. Yao, S.; Yu, D.; Zhao, J.; Shafran, I.; Griffiths, T.; Cao, Y.; and Narasimhan, K. 2023. Tree of thoughts: Deliberate problem solving with large language models. Advances in neural information processing systems , 36: 11809–11822. Yao, S.; Zhao, J.; Yu, D.; Du, N.; Shafran, I.; Narasimhan, K.; and Cao, Y. 2022. React: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629 .Yu, Y.; Yao, L.; Xie, Y.; Tan, Q.; Feng, J.; Li, Y.; and Wu, L. 2026. Agentic memory: Learning unified long-term and short-term memory management for large language model agents. arXiv preprint arXiv:2601.01885 .Zhang, G.; Fu, M.; Wang, K.; Wan, F.; Yu, M.; and Yan, S. 2026a. G-memory: Tracing hierarchical memory for multi-agent systems. Advances in Neural Information Processing Systems , 38: 12988–13018. Zhang, G.; Geng, H.; Yu, X.; Yin, Z.; Zhang, Z.; Tan, Z.; Zhou, H.; Li, Z.; Xue, X.; Li, Y.; et al. 2025. The landscape of agentic reinforcement learning for llms: A survey. arXiv preprint arXiv:2509.02547 .Zhang, H.; Long, Q.; Bao, J.; Feng, T.; Zhang, W.; Yue, H.; and Wang, W. 2026b. MemSkill: Learning and Evolving Memory Skills for Self-Evolving Agents. arXiv preprint arXiv:2602.02474 .Zhang, S.; Wang, J.; Zhou, R.; Liao, J.; Feng, Y.; Li, Z.; Zheng, Y.; Zhang, W.; Wen, Y.; Li, Z.; et al. 2026c. Memrl: Self-evolving agents via runtime reinforcement learning on episodic memory. arXiv preprint arXiv:2601.03192 .Zhao, A.; Huang, D.; Xu, Q.; Lin, M.; Liu, Y.-J.; and Huang, G. 2024. Expel: Llm agents are experiential learners. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,volume 38, 19632–19642. Zhao, H.; Zhou, T.; Long, G.; Jiang, J.; and Zhang, C. 2023. Does continual learning equally forget all parameters? In In-ternational Conference on Machine Learning , 42280–42303. PMLR. Zheng, L.; Wang, R.; Wang, X.; and An, B. 2024. Synapse: Trajectory-as-exemplar prompting with memory for com-puter control. In International Conference on Learning Rep-resentations , volume 2024, 19036–19066. Zhong, W.; Guo, L.; Gao, Q.; Ye, H.; and Wang, Y. 2024. Memorybank: Enhancing large language models with long-term memory. In Proceedings of the AAAI conference on artificial intelligence , volume 38, 19724–19731. Zhuo, T. Y.; Vu, M. C.; Chim, J.; Hu, H.; Yu, W.; Widyasari, R.; Yusuf, I. N. B.; Zhan, H.; He, J.; Paul, I.; et al. 2025. Bigcodebench: Benchmarking code generation with diverse function calls and complex instructions. In International Conference on Learning Representations , volume 2025, 66602–66656. Appendix 
+
+## Implementation Details 
+
+The memory belief estimator is initialized from Qwen2.5-7B-Instruct and equipped with a lightweight evidential Beta head that predicts context-conditioned belief parameters 
+
+(α, β ) for each task–memory pair. The pretrained backbone remains frozen, while LoRA adapters are applied to the query, key, value, and output projection layers with rank 
+
+r = 8, scaling factor αLoRA = 16 , and dropout 0.05 .Pairwise inputs are encoded with a maximum sequence length of 4,096 tokens. Dense retrieval is performed us-ing text-embedding-3-large embeddings stored in a local Qdrant vector database. For each task, six candidate memories are retrieved, and semantic similarity is combined with Thompson-sampled memory utility after z-score nor-malization. The value weight η follows a sigmoid schedule over [0 .10 , 0.50] according to task-stream progress. After reranking, up to three memories with semantic similarity scores above the injection threshold of 0.5 are retained for subsequent reasoning. The estimator is optimized online us-ing AdamW, with learning rates of 5 × 10 −5 for the LoRA adapters and 1 × 10 −3 for the evidential Beta head, and a batch size of 8. The weights of Levi , Lkl , and Lrank are set to 
+
+1.0, 0.03 , and 0.6, respectively. Experiments are conducted on a Linux server equipped with multiple NVIDIA GeForce RTX 4090 GPUs. The memory belief estimator runs locally on one of the GPUs using bfloat16 precision, while external LLM and embedding services are accessed via APIs. 
+
+## Contribution of Value-Model Training Objectives 0510 15 20      
+
+> HLE Accuracy (%)
+> 12.8 10.8 11.4 11.8
+> 60 65 70 75 80 85
+> Accuracy (%)
+> 75.3 77.4 73.2 76.0 74.2 77.0 74.7 76.6
+> GPQA-Diamond MMLU-Pro (Philo.) HLE
+> BEAM (Full) w/o rank
+> w/o evi
+> w/o kl
+
+Figure 5: Ablation of the value-model training objectives on GPQA-Diamond, MMLU-Pro (Philo.), and HLE. The left y-axis reports accuracy on GPQA-Diamond and MMLU-Pro (Philo.), while the right y-axis reports accuracy on HLE. As shown in Figure 5, we evaluate the contribution of each value-model objective by individually removing Levi ,
+
+Lrank , or Lkl . The full objective achieves the best perfor-mance on GPQA-Diamond, MMLU-Pro (Philo.), and HLE, while removing any individual loss consistently degrades performance, confirming their complementary roles. Removing Levi causes the largest decline, with an aver-age drop of 1.83 percentage points across the three bench-marks. This highlights the importance of evidential supervi-sion for calibrating predicted mean utility and establishing a stable task-conditioned value scale. Without this objective, the model can still learn relative preferences through ranking supervision but lacks stable absolute utility estimates on a common scale. Removing Lrank also consistently reduces performance, indicating that fitting individual utility targets alone does not guarantee correct candidate ordering within the same task. Explicit preference constraints improve the separation be-tween high- and low-utility memories, thereby supporting more reliable final selection. Removing Lkl yields a smaller but consistent decline, supporting its role in regularizing unsupported evidence, mitigating overconfidence, and sta-bilizing belief estimation. Overall, Levi provides absolute utility calibration, Lrank strengthens candidate discrimina-tion, and Lkl regularizes uncertain beliefs, jointly enabling more accurate and stable memory utility estimation. 
+
+## Effect of Test-Time Scaling Mem0 Memp MemRL BEAM        
+
+> 60 65 70 75 80 85
+> Accuracy (%)
+> GPQA-Diamond
+> 69.7 68.2 69.7 72.7 70.2 71.2 72.7 75.3
+> Random Best-of-3 Mem0 Memp MemRL BEAM
+> 60 65 70 75 80 85
+> Accuracy (%)
+> MMLU-Pro (Philo.)
+> 72.6 75.8 75.8 76.4 74.8 76.2 76.8 77.4
+> Random Best-of-3
+
+Figure 6: Comparison of Random-of-3 and Best-of-3 in-ference across memory methods on GPQA-Diamond and MMLU-Pro (Philo.). BEAM employs memory-augmented test-time scaling (MATTS), generating multiple memory-conditioned reason-ing trajectories and using a shared judge to select the output. This raises the possibility that part of the gain comes from additional test-time computation rather than memory selec-tion itself. To control for this factor, we allocate the same three-rollout budget to Mem0, Memp, and MemRL, and re-port Random-of-3 and Best-of-3, using random selection and the same judge, respectively. As shown in Figure 6, Best-of-3 outperforms Random-of-3 in most settings, confirming that test-time scaling provides additional benefits. Nevertheless, under the same inference budget and selection mechanism, all baselines remain below BEAM on GPQA-Diamond and MMLU-Pro (Philo.). Moreover, BEAM’s Random-of-3 per-formance already matches or approaches that of the strongest Best-of-3 baseline. These results indicate that repeated sam-pling is not the primary source of BEAM’s performance advantage: high-quality memory selection and synthesis first improve the quality of candidate trajectories, while MATTS further mitigates the randomness and instability of rollouts. Prompt 1: Reasoning Memory Generation Prompt Template 
+
+System Prompt 
+
+[System]: 
+
+User Prompt Template 
+
+[User]: 
+
+Extract concise, high-signal reusable reasoning memories for domain: {dom}. Input: multiple trajectories for the SAME query with authoritative success/failure labels. Goal: extract memories that can help solve future similar but not identical problems. A good memory is a transferable reasoning rule, calculation procedure, decision check, or pitfall-avoidance instruction. It is not a summary of this query and not the final answer to this query. Rules: 1) Extract transferable reasoning patterns, not summaries of the original query. 2) Prefer contrastive rules from successes or failures. 3) Trust successful trajectories over failed ones when they conflict. 4) If all trajectories fail, output only a pitfall or verification check, not a positive answer. 5) Generalize one-off entities, numbers, compounds, and symbols; keep only reusable formulas. 6) Avoid exact answers, options, product names, and computed values unless generally reusable. 7) Avoid vague advice; state the concrete check or action. 8) Prefer fewer, stronger, non-overlapping memories. 9) If no strong success rule exists, output the strongest reliable pitfall or decision check. Output ONLY a JSON object matching the schema (no markdown). Must contain `items`; each item has: - "title": short label (3-8 words) - "description": one-line summary (<= 20 words) - "content": concise reusable rule, procedure, decision check, or pitfall-avoidance instruction At most {max_items} items. Do not output an empty `items` array. The word json is intentionally included to enable JSON Output mode. 
+
+Query: {retrieval_query} Task Context: {task_context} Labels (aligned with candidate index): {labels} --- Candidate 0 ---MODEL_RESPONSE: {response_0} --- Candidate 1 ---MODEL_RESPONSE: {response_1} --- Candidate 2 ---MODEL_RESPONSE: {response_2} Figure 7: System and user prompt templates for reasoning memory generation. Prompt 2: Memory Synthesis Prompt Template 
+
+System Prompt 
+
+[System]: 
+
+User Prompt Template 
+
+[User]: 
+
+You synthesize task-conditioned working guidance from LOCAL EXPERIENCE MEMORIES already selected by a memory value model. Do not rank, prune, or reselect memories, and do not output memory-level relevance judgments. Synthesize only the content that is applicable to the current task; do not force every memory into working_memory. Do not solve the task, state an answer, or imply a preferred answer choice. Extract reusable strategies, decision criteria, checks, and distinctions that apply to the current task. Adapt the memories into guidance rather than summarizing them. Convert applicable lessons from failure memories into warnings, not positive evidence. Include memory disagreements or task ambiguity in warnings when they affect reasoning. Do not introduce unsupported facts, formulas, assumptions, or answer preferences. Keep working_memory answer-neutral and limited to at most 3 concise actionable points. Give at most 2 applicable warnings, and do not restate memory metadata. Dataset guidance: - AIME: methods, constraints, case checks, and verification steps. - GPQA/HLE: reasoning criteria and factual checks without unsupported claims. - MMLU-Philosophy: concept distinctions, argument structures, and distractor checks. 
+
+Current Task: {problem_context} Selected Local Experience Memories: {candidate_text} Return exactly: {"working_memory": "concise task-specific guidance without an answer", "warnings": "applicable pitfalls, or an empty string" }
+
+Figure 8: System and user prompt templates for memory synthesis. 
+
+## Prompt Templates 
+
+We present the key prompts used for reasoning memory gen-eration and memory synthesis in BEAM. Both use structured JSON outputs to support reliable downstream processing. 
+
+Reasoning Memory Generation. Figure 7 shows how BEAM extracts reusable memories from multiple labeled trajectories of the same task. The prompt prioritizes pat-terns supported by successful trajectories and converts fail-ures into pitfalls or verification checks; when all trajectories fail, only cautionary guidance is produced. Instance-specific details are generalized, and each memory is returned with structured title , description , and content fields. 
+
+Memory Synthesis. Figure 8 presents the prompt that gen-erates an answer-neutral, task-conditioned working memory from the current task and the memories selected by the value model, without reranking the memories or solving the task. Applicable lessons from failed memories and conflicts among memories are expressed as warnings. The output is organized into working_memory and warnings .
+
+## Case Studies 
+
+We present two cases illustrating BEAM’s closed-loop self-evolution process. The first shows how robust multi-trajectory reasoning supports reliable memory formation, while the second demonstrates how task-conditioned mem-ory utilization subsequently improves reasoning accuracy. 
+
+Case 1: Robust Reasoning and Memory Formation. As shown in Figure 9, BEAM generates multiple memory-conditioned trajectories and uses a shared judge to select a reliable response. More importantly, the resulting trajectory-level feedback provides contrastive evidence for memory for-mation. By comparing successful and failed reasoning paths, BEAM distills a concise, high-signal reasoning principle and stores it for future tasks. Thus, test-time scaling improves not only the reliability of the current prediction but also the qual-ity and transferability of newly formed memories. 
+
+Case 2: Task-Conditioned Memory Utilization. Fig-ure 10 compares memory-free reasoning with BEAM. With-out memory, the executor identifies the relevant transfor-mation but fails to resolve the structural ambiguity. BEAM instead selects memories according to their estimated task-conditioned utility and synthesizes the applicable informa-tion into actionable guidance, enabling the executor to elim-inate incompatible candidates and reach the correct answer. Case 1: Robust Reasoning and Memory Formation via Test-Time Scaling 
+
+[Task] [Multi-Trajectory Reasoning and Memory Formation] 
+
+Step 1: Retrieve the Top-6 candidate memories and inject the top-1 reranked memory ( Only the highest-ranked candidate exceeds the injection threshold ). 
+
+Step 2: Memory synthesis converts the selected memory into task-conditioned working guidance: identify the 1,5-diene system, track the [3,3]-sigmatropic shift, and check alkene geometry. 
+
+Step 3: BEAM generates three memory-conditioned reasoning trajectories through test-time scaling. 
+
+> Memory Synthesis
+
+[Result] 
+
+Question: The Cope rearrangement is a chemical reaction where a 1,5-diene molecule undergoes rearrangement. Select the major products from the two rearrangements. Options: A. 4-methyl-1-phenylpent-3-en-1-ol; tetrahydro fused product B. (Z)-2-methyl-5-phenylpent-2-en-1-ol; hexahydro fused product C. (Z)-2-methyl-5-phenylpent-2-en-1-ol; tetrahydro fused product D. 4-methyl-1-phenylpent-3-en-1-ol; hexahydro fused product 
+
+> Memory Selection TTS Solving
+
+SUCCESS Final Answer: A Rollouts: 3 (2 correct) Selected: Rollout 0 Memory Stored: 1 
+
+Step 4: The shared judge selects Rollout 0 as the final output. The selected trajectory correctly identifies both products and returns the correct answer A. 
+
+Step 5: After task completion, execution feedback assigns labels [1, 0, 1] to the three trajectories. By contrasting successful and failed trajectories, the system distills a transferable reasoning memory: 
+
+In oxy-Cope rearrangements, the chair transition state typically leads to the more stable trans double bond geometry, not the Z-isomer. 
+
+> Judge Selection Feedback & Memory Formation
+
+Figure 9: Case study illustrating BEAM’s test-time scaling and feedback-driven memory formation. The task text and answer choices are abridged for readability. Case 2: Belief-Guided Memory Resolves Inconclusive Reasoning 
+
+[Task] [Reasoning Comparison] [Result]    
+
+> Question: Determine the starting material needed to synthesize 5-isopropyl-3,4-dimethylcyclohex-1-ene via ring-closing metathesis.
+> Options: A. 5-isopropyl-3,4-dimethylocta-2,6-diene B. 5-isopropyl-3,4-dimethylocta-1,7-diene
+> C. 5-isopropyl-3,4-dimethylocta-1,6-diene D. 4-isopropyl-5,6-dimethylocta-1,7-diene
+
+Without Memory: No Valid Final Answer With BEAM: Correct (B) Selected Memories: 3 SUCCESS 
+
+> Memory Synthesis
+> Guided Solving Belief-Guided Selection
+
+Without Memory With BEAM 
+
+Step 1: The base LLM reasons solely from the current task. 
+
+Step 2: It correctly identifies ring-closing metathesis as the required transformation, but cannot reliably distinguish the 2,6-, 1,6-, and 1,7-diene candidates due to the lack of a clear structural connectivity check. 
+
+Step 3: As a result, the model repeatedly revisits the 2,6-, 1,6-, and 1,7-diene alternatives, producing a lengthy and inconclusive response without a properly formatted final answer. 
+
+Outcome: No Valid Final Answer 
+
+Step 1: The memory belief estimator scores candidate memories by their estimated task-conditioned utility and selects the Top-3 for reasoning. 
+
+Step 2: Applicable information from the selected memories is synthesized into actionable working guidance: verify that the terminal alkenes are connected such that ring closure forms the target cyclohexene with the required substitution pattern, while avoiding confusion with Diels–Alder or ring-opening metathesis. 
+
+Step 3: Using the selected Top-3 memories and synthesized working guidance, the executor eliminates the incompatible options and returns the correct answer. 
+
+Outcome: Correct Answer B 
+
+Figure 10: Case study illustrating BEAM’s belief-guided memory selection and task-conditioned memory synthesis. The task text and answer choices are abridged for readability.

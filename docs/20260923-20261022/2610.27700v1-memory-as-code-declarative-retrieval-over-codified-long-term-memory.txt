@@ -1,0 +1,845 @@
+Title: Memory as Code: Declarative Retrieval over Codified Long-Term Memory
+
+URL Source: https://arxiv.org/pdf/2610.27700v1
+
+Published Time: Wed, 21 Oct 2026 00:51:21 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# MEMORY AS CODE : D ECLARATIVE RETRIEVAL OVER 
+
+# CODIFIED LONG -T ERM MEMORY 
+
+Aoting Zeng 1, Yuxin Du 1, Jianwei Wang 2, Yizhang He 1
+
+Shan Jiang 1, Xuemin Lin 3, Kai Wang 1
+
+> 1
+
+Shanghai Jiao Tong University 
+
+> 2
+
+University of New South Wales 
+
+> 3
+
+The Chinese University of Hong Kong, Shenzhen  
+
+> {aotingzeng,dyx20031122,yizhang.he,greatjs,w.kai}@sjtu.edu.cn jianwei.wang1@unsw.edu.au, xueminlin@cuhk.edu.cn
+
+ABSTRACT 
+
+In long-term memory systems, memories are constructed from interaction his-tories and retrieved in response to queries, enhancing the reasoning ability of LLM agents. In complex scenarios, facts are scattered across sessions and their relationships evolve over time, making it difficult for existing memory systems to compose them to adapt to diverse queries. Motivated by the modularity and composability of code, we propose Memory as Code (MaC), a unified mem-ory framework that jointly designs memory construction and retrieval through a shared code abstraction. MaC couples codified construction , which establishes ex-ecutable memory abstractions, with declarative retrieval , which translates queries into structured retrieval programs. Specifically, codified construction builds a three-layer executable memory structure that progresses from an atomic function layer, through a relational layer, to a modular composition layer. Declarative re-trieval recasts retrieval from relevance-based fact selection into declarative query processing over memory. Experiments on L OCOMO and L ONG MEM EVAL show relative gains of up to 15.91% in overall LLM-judge accuracy over the strongest baseline in each setting, while substantially reducing token consumption, high-lighting the effectiveness of memory as code for long-horizon memory tasks. 
+
+1 INTRODUCTION 
+
+Long-term memory enables Large Language Model (LLM) agents to retain and use information across interactions, supporting personalized assistance and long-horizon tasks (Zhong et al., 2024; Park et al., 2023). A memory system Xu et al. (2026a); Packer et al. (2023) comprises memory construction, which organizes interaction histories into memory data, and memory retrieval, which processes memory queries over memory data. For memory construction, MemoryOS (Kang et al., 2025) organizes dialogue into topic segments and summaries, Mem0 (Chhikara et al., 2025) consol-idates facts through update operations, and A-Mem (Xu et al., 2026b) constructs dynamically linked memory notes. These methods support memory organization and maintenance, but provide lim-ited support for encapsulating computations over stored facts for reuse across queries. For memory retrieval, existing approaches combine search with contextual or relational expansion to gather rele-vant evidence (Borgeaud et al., 2022; Liu et al., 2023), using either predefined pipelines (Han et al., 2024; Rasmussen et al., 2025) or agentic workflows (Yao et al., 2022; Li et al., 2025; Ji et al., 2026). However, predefined pipelines offer limited flexibility for diverse queries, whereas stepwise agen-tic methods achieve this flexibility through repeated LLM planning, incurring additional inference overhead(Kim et al., 2023; Tan et al., 2025). The above observations motivate a joint design in which memory construction encapsulates reusable computations over stored facts, and retrieval composes them for each query while reducing the need for repeated planning. Code provides a suitable foundation: shared references preserve consistent fact identities, functions expose reusable computations through explicit interfaces, and programs specify their composition and conditional branches before execution begins. This leads to a code-1arXiv:2610.27700v1 [cs.CL] 20 Oct 2026 (i) Construction (ii) Retrieval                 
+
+> Question
+> How many work gaps has Alex had?
+> Fixed flow
+> Stepwise
+> MaC
+> Search: work gap F1 Count
+> F2, F3 missed Keyword mismatch may omit events.
+> LLM Search gap: F1 LLM Search illness: F2 LLM Count
+> Repeated planning; stops before wedding leave. F3 missed
+> LLM plan
+> Execute query-specific program
+> answer = gap_count()
+> F1 + F2 + F3
+> 1 gap
+> 2 gaps
+> 3 gaps
+> Facts
+> F1 · Mar 2023: Alex had a work gap due to a vacation.
+> F2 · Jun 2023: Alex was off work with the flu.
+> F3 · Sep 2023: Alex took leave to attend a wedding.
+> MaC: Code-based
+> def gap_count(): events = [vacation_f1(),sick_leave_f2(), wedding_leave_f3()]
+> return len({e.id for ein events})
+> vacation_f1()
+> sick_leave_f2()
+> wedding_leave_f3()
+> Similarity-based Graph-based
+> …
+> …
+> …
+> 0.12
+> 0.67
+> 0.35
+> 0.09
+> 0.42
+> 0.27
+> [MRAgent] [MemoryOS,A-Mem,Mem0] [A-Mem] [MRAgent] [MemoryOS] [Mem0]
+> Declarative retrieval
+> (a) (b)
+
+Figure 1: (a) An example illustrating the limitations of relevant methods. (b) MaC achieves the highest LLM-judge accuracy with the lowest token consumption among the compared methods on both L OCOMO and L ONG MEM EVAL .centric formulation in which memory is a library of callable computations and retrieval is a query-specific program over that library. However, achieving these goals through a shared code abstraction poses two challenges: (1) How can interaction histories be transformed into executable memory code? Facts expressed across ses-sions may overlap, supplement one another, or supersede earlier states, distinctions that are not automatically resolved by encoding facts as functions. Preserving consistent fact identities and dis-tinguishing current from historical states is a key challenge. (2) How can retrieval compose memory code to accommodate diverse queries? Relevant functions alone do not specify how their outputs should be combined, and subsequent operations may depend on intermediate results. Capturing these dependencies and conditional continuations in a complete retrieval program while reducing repeated LLM planning is another key challenge. To address these challenges, we propose Memory as Code (MaC), a framework that represents long-term memory as executable code and retrieves information through query-specific programs. The framework comprises two components: (1) codified construction transforms facts extracted from in-teraction histories into a three-level executable memory structure. The atomic function layer encodes facts as functions with canonical identifiers and source references; the relational layer connects fact functions through explicit supersession relations while retaining historical evidence; and the modu-lar composition layer composes base functions into reusable current-state and history computations. A compact memory index exposes function capabilities, arguments, and available operators for re-trieval. (2) Declarative retrieval interprets each query as a high-level specification and compiles it into a complete retrieval program in one LLM planning call. Using the memory index, the program selects and composes the required memory computations, specifying operator arguments, dependen-cies, and conditional continuations. An executor checks and runs the program, following predefined branches based on intermediate results and assembling supporting evidence without stepwise LLM planning during successful execution. The two components work together through the memory in-dex and a common evidence representation. The index connects constructed capabilities to query requirements, while the evidence representation supports result composition and source tracing. As illustrated in Figure 1, this design connects facts distributed across sessions through reusable func-tions to answer the query. Our main contributions are as follows: • We study long-term memory for LLM agents to support reasoning over evolving informa-tion across interactions. We propose Memory as Code (MaC), a framework that uses a shared code abstraction to connect memory capabilities with query-specific composition. • We develop two complementary techniques: codified construction organizes facts, their evolving relations, and reusable computations in a three-level executable memory structure with consistent state semantics and source provenance; declarative retrieval compiles each query into a complete retrieval program that selects and composes these capabilities in one LLM planning call. 2• Extensive experiments on widely used memory benchmarks show that MaC achieves the highest overall LLM-judge accuracy in all four evaluation settings, improving over the strongest baseline by up to 15.91% on L OCOMO and 9.06% on L ONG MEM EVAL . Abla-tion studies further support the benefits of both techniques. Retrieval Program Atomic Facts 
+
+> Concept: Joanna
+
+Interface Index        
+
+> Operators Index Function Index Callable Function ID
+> View Index View Function ID
+> Memory Access Context Expansion Evidence Composition Verification
+> search resolve execute match select search functions
+> validate union where rank expand scope expand relation aggregate
+> As of July 2022, what career change had Joanna made, and what motivated it?
+
+Question LLM Planner Execution Answer 
+
+a) Codified Construction b) Declarative Retrieval    
+
+> Memories = (F1,F2,F3,F4,D1)
+> Session: S1
+> Memories = (F1,F4)
+> Session: S2
+> Memories = (F2,F3)
+> Derived function: D1
+> def career_history_d1():
+> return (banker_f1(), teacher_f2())
+> F1
+
+. banker_f1()  
+
+> value = banker valid_form: 20220123 source: S1
+> F2
+
+.teacher_f2()  
+
+> value = teacher valid_form: 20220606 source: S2
+> F3 F4
+
+. bank_reason_f4() 
+
+> value = stable income source: S1
+
+.teach_reason_f3() 
+
+> value =volunteer teaching source: S2
+> Dialogue History
+
+Code Library                   
+
+> supersedes
+> imports imports imports call call imports
+> motivated by motivated by
+> concepts.Joanna [F1,F2,F3,F4,D1] session.s1 [F1, F4] session.s2 [F2, F3] F4 facts.banking_reason:bank_reason_f4 F3 facts.teacher_reason:teach_reason_f3 F2 facts.teacher:teacher_f2 F1 facts.banker:banker_f1 D1 derived.career_history:career_history_d1
+> Construct Indexing Transform Input Generate
+> Locate person history Resolve current and previous roles Trace the reason for the switch
+> Input Program Check search search functions execute
+> resolve
+> expand relation
+> expand relation union
+> validate
+> previous current reason
+> Joanna moved from banking to teaching, inspired by her volunteer teaching experience.
+> D1
+> current previous reason union
+> [F1,F2] F2 F1 [F1,F2,F3]
+> F3
+> LLM Answer Base fact functions Available interface Stage flow imports call relation operators
+
+Figure 2: Overview of MaC. (a) Codified construction extracts atomic facts from dialogue history and builds a code library of fact functions, relations, derived functions, and concept and session views, along with an interface index that maps views to function identifiers (view index), identifiers to callable entry points (function index), and lists available memory operations (operators index). (b) Declarative retrieval passes the question and indexed interfaces to an LLM planner , which gen-erates a retrieval program ; after checking, an executor runs the program over the library to assemble supporting evidence for the answer LLM. 
+
+2 MEMORY AS CODE 
+
+In this section, we present MaC for long-term agent memory. We first introduce the problem def-inition and solution framework (§2.1), then describe codified construction (§2.2) and declarative retrieval (§2.3), and finally analyze the time and space complexity (§2.4). 2.1 PROBLEM DEFINITION AND SOLUTION FRAMEWORK 
+
+Problem Definition. Given a dialogue history H = ( s1, . . . , s nsess ) of nsess sessions, memory construction organizes its information into an external memory M. For a query q, memory retrieval accesses and combines information in M to produce supporting evidence Eq , which is used to generate an answer aq . Appendix A.1 summarizes the notation used throughout the paper. 
+
+Solution Framework Overview. MaC organizes memory construction and retrieval around a shared code abstraction: memory provides reusable functions, and retrieval composes these functions into query-specific computations. As illustrated in Figure 2, the framework comprises two stages. Cod-ified construction transforms dialogue history H into a code library of fact functions and reusable computations over current and historical states. A memory index exposes the callable interfaces and the available memory operators. Declarative retrieval uses these interfaces to translate a query q
+
+into a complete retrieval program in one LLM planning call. After checking, the program executes over the library to assemble supporting evidence Eq for answer generation. The two stages are con-nected by indexed interfaces and a common evidence representation, allowing retrieval to discover and compose the capabilities established during construction. 32.2 CODIFIED CONSTRUCTION : F ACT -TO -F UNCTION 
+
+Given dialogue history H, memory construction begins by extracting atomic facts to distill salient information and filter out irrelevant conversational details. We then encode these facts as executable memory to support reusable computation. However, directly encoding these facts into code is chal-lenging because they are expressed in natural language, and the relations among them are complex and evolve over time. To address these challenges, we design codified construction to organize facts into callable functions, explicitly represent their relations, and compose them into reusable operators. We first introduce the codified memory representation (§2.2.1), then describe memory organization and indexing (§2.2.2). 2.2.1 CODIFIED MEMORY REPRESENTATION 
+
+We define codified memory M that includes a code library L and a memory index I. The code library comprises four sets: base fact functions F, memory views V, fact relations R, and derived functions D:
+
+M = ( L, I ), L = ( F, V, R, D).
+
+The library organizes memory into three layers. The atomic function layer represents individual facts as callable functions in F. The relational layer specifies fact connections and state replace-ments through R. The modular composition layer provides derived functions in D for reusable computations over facts and their relations, including current-state resolution and history retrieval. Base and derived functions return evidence with fact identifiers and source references, supporting composition and provenance. The set of memory views V contains concept views , which group function references by person or topic, and session views , which group them by dialogue session. The memory index I specifies view membership, callable function interfaces, and available memory operators, enabling retrieval to select and compose memory computations. 2.2.2 MEMORY ORGANIZATION AND INDEXING 
+
+We construct the three layers of the code library L from extracted facts, then build the memory index 
+
+I to expose the resulting functions and memory operators for retrieval. 
+
+Code Library Organization. To translate natural-language facts into executable memory, we use an LLM to produce structured function specifications. A structured prompt specifies the required fact fields and function interface, and a local generator converts each specification into an executable base fact function. At the atomic function layer , we canonicalize and deduplicate facts and assign each a canonical identifier i. For each canonical fact, the LLM produces a specification containing its structured value vi, including the subject, predicate, and available time information, together with a statefulness annotation. The local generator uses this specification and the supporting dialogue references Si to create a base fact function fi ∈ F that returns an evidence record ei = ( vi, {i}, S i). Concept views and session views import shared references to these functions. At the relational layer , we group stateful facts by subject and predicate and ask the LLM to identify explicit replacements. Each replacement becomes a supersession relation (j, supersedes , i ) ∈R, indicating that fact j replaces fact i while both functions remain available. We also connect facts by temporal order, shared subject, and shared topic. At the modular composition layer , we instantiate derived functions in D from reusable current-state and history templates over linked facts and register them in the relevant views. The resulting functions invoke base fact functions in F and use their relations in R to compute results. For a state group G sharing a subject and predicate, let G(τ ) contain the identifiers of facts whose recorded times do not exceed the time boundary τ . The current-state template computes the active facts 4AG(τ ) and resolves the current value: 
+
+AG(τ ) = {i ∈ G(τ ) |̸ ∃ j ∈ G(τ ) : ( j, supersedes , i ) ∈ R} ,
+
+current G(τ ) = 
+
+vi, AG(τ ) = {i},
+
+⊥, |AG(τ )|̸ = 1 .
+
+(1) Here ⊥ denotes an unresolved state when there is no unique active fact. The history template retains all eligible facts, including superseded ones; in Figure 2, D1 combines the banking fact F1 and teaching fact F2 into Joanna’s career history. Both templates preserve supporting fact identifiers, dialogue references, and applied computation rules as provenance. 
+
+Memory Index Construction. The code library provides executable memory, but downstream retrieval also needs to discover its contents and determine how to use them. We therefore construct the memory index I with two parts: indices over library contents and interfaces to memory operators. For the library contents, we build indices at two levels. The function index Ifunc maps each base or derived function identifier to its entry point, description, and accepted arguments, extracted from function metadata. The view index Iview maps each concept or session view in V to the identifiers of the functions it references. Together, these indices support navigation from views to callable functions without inspecting their implementations. We define four categories of memory operators for downstream computation. The operator index 
+
+Iops records their interfaces. Memory access retrieves facts and invokes functions; context expan-sion follows views and relations to gather additional facts and source context; evidence composition 
+
+combines, filters, ranks, and aggregates evidence; and verification provides heuristic checks of ev-idence completeness and unresolved states. The content indices and operator interfaces together form I = ( Iview , I func , I ops ), exposing both available memory resources and the operations for using them. Table 6 in Appendix A.2 provides detailed operator descriptions. 2.3 DECLARATIVE RETRIEVAL : Q UERY -TO -P ROGRAM 
+
+To adapt retrieval to diverse queries, declarative retrieval interprets each query as a high-level spec-ification and compiles it into a structured retrieval program that selects and composes the required memory computations. We first describe declarative query planning (§2.3.1), then present retrieval program execution (§2.3.2). 
+
+Retrieval Program. Given a query q and codified memory M = ( L, I ), we define a retrieval program Pq as an executable query plan over the memory operators exposed by I. The program specifies operator arguments and dependencies, together with any conditional continuations. These operators encapsulate memory access and computation, allowing the program to compose existing memory functions and process their results through predefined operations. Executing Pq over M
+
+produces the supporting evidence Eq specified in the problem definition. 2.3.1 DECLARATIVE QUERY PLANNING 
+
+Diverse queries require retrieval plans tailored to their information needs. A question about a current attribute may need a single function call. Questions combining facts across sessions may require context expansion and evidence composition. We use an LLM planner to interpret each query and reason about the required memory operations. Initial retrieval selects a set of candidate function identifiers Kq using the memory index I built during construction. Their entries in Ifunc and the operator interfaces in Iops form the planning context Iq (M). Function entries describe what each callable computes and which arguments it accepts. Operator interfaces specify the available operations and their input and output constraints. This compact context supports planning without loading the full code library .Our structured prompt presents the query, function information, operator constraints, and planning guidance (Appendix B). The guidance illustrates how query requirements translate into operations, such as temporal filtering or expansion across sessions. The prompt also specifies evidence compati-bility constraints and requires the program to return supporting evidence. The LLM uses the query’s constraints to select relevant functions and operators, then links their outputs to subsequent inputs. 5Table 1: Performance across different question types on L OCOMO. F1 is reported in percent, and LLM-Judge accuracy (J) is reported as mean ± standard deviation in percent over five independent judge evaluations. Improv. denotes the relative improvement of MaC over each corresponding base-line in Overall J. Bold and underline mark the best and second-best results. 
+
+Model Method Multi-hop Temporal Open-domain Single-hop Overall Improv. F1 ↑ J ↑ F1 ↑ J ↑ F1 ↑ J ↑ F1 ↑ J ↑ F1 ↑ J ↑
+
+Qwen 3.6-27B A-Mem 39.44 57.73 ±2.92 37.16 45.23 ±3.39 20.13 45.00 ±0.87 54.40 68.80 ±1.72 45.93 60.38 ±0.80 +43.82% MemoryOS 29.42 42.06 ±2.17 35.96 22.12 ±0.58 23.43 43.96 ±1.71 38.93 50.20 ±0.96 35.60 42.47 ±1.03 +104.47% Mem0 43.67 71.06 ±2.19 60.27 81.68 ±0.14 30.53 56.88 ±0.93 53.93 75.70 ±0.35 51.91 74.92 ±0.28 +15.91% MRAgent 48.88 75.04 ±2.49 58.36 71.03 ±0.38 28.19 57.92 ±1.58 55.01 70.11 ±0.69 52.92 70.44 ±0.81 +23.28% 
+
+MaC 56.20 87.09 ±0.74 65.78 83.93 ±0.87 37.36 63.75 ±0.47 73.49 90.51 ±0.41 66.46 86.84 ±0.35 –ChatGPT 5.6-Luna A-Mem 41.59 60.43 ±1.24 54.26 62.55 ±0.81 25.32 51.46 ±2.03 53.23 70.06 ±0.95 49.58 65.57 ±0.94 +33.69% MemoryOS 32.45 58.65 ±1.11 42.22 38.69 ±0.14 22.01 50.00 ±1.47 41.64 68.80 ±1.05 38.85 59.49 ±0.75 +47.35% Mem0 40.96 70.78 ±3.09 55.25 73.96 ±0.28 28.83 57.50 ±1.36 52.54 88.09 ±0.26 49.51 80.06 ±0.69 +9.49% MRAgent 51.86 71.56 ±1.51 67.64 76.82 ±1.28 38.60 60.21 ±1.71 69.15 86.66 ±0.50 63.76 80.19 ±0.77 +9.32% 
+
+MaC 52.41 82.20 ±0.68 69.81 86.29 ±0.44 39.78 64.58 ±1.28 68.41 92.65 ±0.21 63.99 87.66 ±0.15 –DeepSeek V4-Flash A-Mem 41.63 63.69 ±1.89 37.58 42.74 ±2.07 25.15 52.92 ±1.71 55.88 77.53 ±1.33 47.54 66.21 ±1.40 +31.99% MemoryOS 27.26 52.06 ±2.72 32.80 32.09 ±4.70 22.96 50.83 ±2.00 40.84 66.06 ±0.96 35.57 55.47 ±2.11 +57.54% Mem0 39.44 76.45 ±0.89 58.09 83.49 ±0.00 34.16 65.21 ±0.93 50.54 82.28 ±1.07 49.06 80.40 ±0.79 +8.69% MRAgent 48.02 76.10 ±1.47 69.67 81.74 ±0.28 27.92 55.42 ±0.87 66.45 90.11 ±0.35 61.35 83.64 ±0.49 +4.48% 
+
+MaC 52.99 86.81 ±0.30 70.48 84.74 ±0.00 40.01 64.58 ±0.00 74.07 91.20 ±0.12 67.34 87.39 ±0.03 –
+
+The planner combines these inputs to produce a complete retrieval program Pq = Fplan (q, I q (M)) 
+
+in one planning call. In restricted Python, it specifies operator calls, arguments, dependencies, and conditional retrieval actions based on intermediate evidence. 2.3.2 RETRIEVAL PROGRAM EXECUTION 
+
+Before execution, MaC checks the retrieval program’s structural compatibility with the available memory operations, including permitted language constructs, operator calls, variable references, and evidence dependencies. These dependencies connect function invocation, any selected view expan-sion, and subsequent evidence processing, preserving the information required by each operation. The query determines which computations and conditional continuations the program combines. Once accepted, Pq executes over the code library L, with function calls resolved through the memory index I. Calls to base and derived functions reuse the fact definitions and state computations estab-lished during construction, while evidence composition preserves their fact identities and sources. Intermediate results determine which conditional continuations already specified in Pq are followed. Execution can therefore perform additional memory access when indicated by these conditions with-out a new LLM planning decision. This planning–execution separation combines operator compo-sition tailored to each query with reusable memory computation. The final evidence assembly combines selected facts, supporting dialogue, and computation prove-nance into Eq , loading source context as specified by the program; execution also produces a trace 
+
+Tq . A separate answer model generates the response as aq = Fanswer (q, E q ). A valid first attempt uses one planning call and a separate answer-generation call; checking or execution failures may trigger bounded repair attempts, followed by a fixed retrieval fallback if needed. Algorithm 1 in Appendix C summarizes construction, retrieval, and answer generation using the same notation. 2.4 COMPLEXITY ANALYSIS 
+
+One-time construction costs Tbuild = O(h log h + n2 log n + Cbuild ), where n and h are the number of extracted facts and dialogue length in tokens and Cbuild aggregates construction-stage model inference. Each query costs Tq = O Cq + p(n2 + h + b2) + p2 time for a retrieval program with p
+
+syntax-tree nodes and evidence expansions of size up to b, with Cq capturing planning and answering. Persistent codified memory occupies O(n + h) space because stored references satisfy r = O(n),and query processing adds O(pb ) for program intermediates and execution traces. Appendix A.3 states the assumptions and gives the full time and space analysis. 6Table 2: Performance across different question types on L ONG MEM EVAL using the Qwen back-bone. F1 and LLM-Judge accuracy (J) are reported in percent. Sgl.: single-session-user; Tmp.: temporal-reasoning; Pref.: single-session-preference; Upd.: knowledge-update. Bold indicates the best result, and underline indicates the second best in each column.                                                                                 
+
+> Method Sgl. Tmp. Pref. Upd. Overall Improv. F1 ↑J↑F1 ↑J↑F1 ↑J↑F1 ↑J↑F1 ↑J↑
+> A-Mem 71.74 84.29 32.41 36.84 7.05 50.00 61.81 73.08 47.16 59.40 +25.59% MemoryOS 70.69 80.00 30.63 32.33 6.43 63.33 54.99 69.23 43.33 54.20 +37.64% Mem0 82.63 92.86 34.62 54.89 19.15 70.00 62.71 76.92 50.95 68.40 +9.06% MRAgent 73.87 88.57 34.03 56.39 6.94 53.33 43.21 53.85 43.67 61.20 +21.90%
+> MaC 84.28 94.29 53.28 68.42 14.49 73.33 69.69 87.18 58.58 74.60 –
+
+3 EXPERIMENTS 
+
+3.1 EXPERIMENTAL SETUPS 
+
+In this section, we describe the experimental setup and present comprehensive results to systemati-cally evaluate MaC and address the following research questions (RQs): • RQ1 (Overall performance) How does MaC perform against representative long-term memory systems across benchmarks, question types, and LLM backbones? • RQ2 (Cost, runtime, and storage) What are the token consumption, wall-clock runtime, and storage footprint of MaC during memory construction and retrieval? • RQ3 (Ablation study) How do executable memory and programmatic search individually and jointly contribute to MaC’s performance? 
+
+Datasets. We evaluate MaC on two benchmarks for long-term conversational memory: LO-COMO (Maharana et al., 2024), which evaluates question answering over long conversations, and LONG MEM EVAL (Wu et al., 2024), which evaluates memory across multiple sessions with longer interaction histories per query. 
+
+Baselines. We compare MaC with representative baselines: A-Mem (Xu et al., 2026b), Memo-ryOS (Kang et al., 2025), Mem0 (Chhikara et al., 2025), and MRAgent Ji et al. (2026). 
+
+Implementation Details. We conduct our experiments on NVIDIA A100 GPUs. On L OCOMO,we evaluate all methods using three LLM backbones: Qwen3.6-27B, ChatGPT-5.6-Luna, and DeepSeek-V4-Flash. On L ONG MEM EVAL , we use Qwen3.6-27B as the backbone for all methods. Following prior work, we report F1 and LLM-Judge (J) scores. LLM-Judge (J) scores are obtained using DeepSeek-V4-Flash. Our code is available at: https://github.com/zengaoting/ MemoryasCode .3.2 MAIN RESULTS (RQ1) To evaluate the effectiveness of MaC, we compare it with four representative memory systems on LOCOMO and L ONG MEM EVAL , with three generation backbones evaluated on L OCOMO. Ta-bles 1 and 2 summarize the results, from which we draw two main observations. 
+
+Overall performance. Tables 1 and 2 show that MaC achieves the highest overall J in all four evaluation settings. On L OCOMO, it outperforms the strongest baseline for each backbone by 3.75– 11.92 percentage points in overall J. On L ONG MEM EVAL , it improves overall F1 and J by 7.63 and 6.20 points, respectively. 
+
+Temporal reasoning and knowledge updates. MaC achieves the best temporal F1 and J across all three L OCOMO backbones. On L ONG MEM EVAL , it surpasses the strongest respective baselines by 18.66 points in temporal F1, 12.03 points in temporal J, and 10.26 points in knowledge-update J, highlighting its effectiveness on queries involving temporal constraints and evolving facts. 7DeepSeek-V4-Flash GPT-5.6-Luna Qwen3.6-27B 
+
+> 10 2
+> 10 3
+> 10 4
+> 10 5
+> 10 6
+> 10 7
+> Token count (log scale)
+> 1.78M
+> 19.86k
+> 467k
+> 4.51k
+> 5.23M
+> 854.92
+> 302k
+> 24.14k
+> 107k
+> 17.01k
+> 2.14M
+> 12.61k
+> 1.41M
+> 4.46k
+> 6.22M
+> 2.60k
+> 332k
+> 14.31k
+> 245k
+> 20.84k
+> 838k
+> 7.70k
+> 439k
+> 4.00k
+> 5.47M
+> 788.95
+> 355k
+> 35.61k
+> 104k
+> 17.60k
+
+(a) Token Consumption 
+
+> A-Mem Construction A-Mem Retrieval MemoryOS Construction MemoryOS Retrieval Mem0 Construction Mem0 Retrieval MRAgent Construction MRAgent Retrieval MaC Construction MaC Retrieval
+
+DeepSeek-V4-Flash GPT-5.6-Luna Qwen3.6-27B 
+
+> 10 −1
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> Runtime (s, log scale)
+> 2.32k
+> 1.94
+> 1.55k
+> 0.95
+> 495.83
+> 0.93
+> 834.66
+> 29.19
+> 543.00
+> 1.81
+> 17.57k
+> 29.41
+> 16.31k
+> 17.65
+> 11.42k
+> 16.05
+> 3.28k
+> 69.02
+> 2.12k
+> 40.61
+> 11.14k
+> 45.66
+> 2.09k
+> 0.87
+> 8.15k
+> 14.43
+> 9.43k
+> 304.78
+> 5.40k
+> 31.86
+
+(b) Runtime 
+
+> A-Mem Construction A-Mem Retrieval MemoryOS Construction MemoryOS Retrieval Mem0 Construction Mem0 Retrieval MRAgent Construction MRAgent Retrieval MaC Construction MaC Retrieval
+
+Figure 3: Normalized token consumption (a) and runtime (b) on L OCOMO across different genera-tion models. Construction is normalized by 10 conversations and retrieval by 1,540 questions. Both panels use logarithmic vertical axes. Table 3: Per-sample token consumption and runtime on L ONG MEM EVAL across different memory systems using the Qwen backbone. Results include both memory construction and retrieval. Bold 
+
+indicates the best result, and underline indicates the second best. 
+
+Method Token Consumption ↓ Runtime (s) ↓
+
+A-Mem 1,723k 16,417.98 MemoryOS 636k 11,256.63 Mem0 4,812k 11,952.47 MRAgent 249k 2,963.90 
+
+MAC 173k 4,663.66 
+
+3.3 COST AND EFFICIENCY ANALYSIS (RQ2) We report construction and query-processing costs separately on L OCOMO in Figure 3, and their combined per-sample costs on L ONG MEM EVAL in Table 3. 
+
+Token consumption. Figure 3(a) shows that MaC requires the fewest tokens for memory con-struction across all three backbones on L OCOMO. This demonstrates that building an executable memory library and its interface index can be achieved with a lower construction token budget than the evaluated baselines. The advantage is most consistent during construction, while query-stage token consumption varies across backbones and methods. On L ONG MEM EVAL , MaC also achieves the lowest combined token consumption, using approximately 173k tokens per sample compared with 249k for MRAgent, a reduction of approximately 30.5%. 
+
+Runtime. Figure 3(b) shows that MaC achieves competitive runtime across all three backbones on LOCOMO. It ranks first or second in memory construction time and consistently achieves lower query latency than MRAgent. On L ONG MEM EVAL , Table 3 shows that MaC achieves the second-lowest end-to-end runtime among the evaluated methods, alongside the lowest token consumption. Together with the highest overall LLM-judge accuracy reported in Table 2, these results show that MaC maintains competitive computational efficiency while providing effective memory-based rea-soning. 
+
+Storage space. As shown in Table 4, MaC maintains a competitive storage footprint among the methods evaluated on L OCOMO. MaC requires 2,859.18 KB of total storage, a 33.5% reduction compared with MRAgent, a strong baseline. Although A-Mem has a smaller storage footprint (1,338.88 KB), it achieves substantially lower accuracy than MaC under the same setting. 3.4 ABLATION STUDY (RQ3) Table 5 reports sequential ablations on L OCOMO with DeepSeek-V4-Flash. MaC w/o DR retains the codified library but uses a fixed retrieval program; MaC w/o DR+CC applies that program to extracted atomic facts only. 
+
+Effect of declarative retrieval . MaC w/o DR keeps the codified library but uses a fixed retrieval pro-gram that combines lexical recall over facts with execution of candidate memory functions through predefined memory operators. Enabling DR improves overall J by 6.62 percentage points, demon-strating the benefit of adapting retrieval operations and their composition to each query. 8Table 4: Storage space usage on L OCOMO (KB). Construction storage is averaged per conversation, and retrieval storage is averaged per question. Bold indicates the best result, and underline indicates the second best in each column.                      
+
+> Method Construction ↓Retrieval ↓Total ↓
+> A-Mem 1,161.82 177.06 1,338.88
+> MemoryOS 11,452.02 415.59 11,867.61 Mem0 7,105.06 13.20 7,118.25 MRAgent 3,870.32 428.13 4,298.46 MaC 2,565.79 293.39 2,859.18
+
+Table 5: Sequential ablation of declarative retrieval (DR) and codified construction (CC) on L O-COMO with DeepSeek-V4-Flash. F1 and binary LLM-judge accuracy (J) are percentages. Bold indicates the best result in each column. We use ↑ to indicate an improvement in the performance of one module, and ↑↑ to indicate improvements in two modules.                                                                               
+
+> Method Multi-hop Temporal Open-domain Single-hop Overall Improv. F1 ↑J↑F1 ↑J↑F1 ↑J↑F1 ↑J↑F1 ↑J↑
+> MaC w/o DR+CC 44.01 70.92 50.30 64.80 36.97 58.33 61.09 78.00 54.21 72.73 +20.17% MaC w/o DR 50.54 ↑85.46 ↑59.63 ↑69.78 ↑39.00 ↑62.50 ↑67.15 ↑85.49 ↑60.79 ↑80.78 ↑+8.20%
+> MaC 52.99 ↑↑ 86.52 ↑↑ 70.48 ↑↑ 84.74 ↑↑ 40.01 ↑↑ 64.58 ↑↑ 74.07 ↑↑ 91.32 ↑↑ 67.34 ↑↑ 87.40 ↑↑ –
+
+Effect of codified construction . Under fixed retrieval, CC improves overall J by 8.05 percentage points, supporting the value of reusable memory computations and indexed access. Removing both DR and CC applies the same fixed program to extracted atomic facts only and reduces overall J by 14.67 percentage points relative to full MaC. 
+
+4 RELATED WORK 
+
+Memory Construction. Memory construction concerns retaining useful information from growing interaction histories and revising it as new interactions arrive. A related foundation is retrieval-augmented generation (RAG) (Lewis et al., 2020), which indexes external passages as dense vec-tors for generation; GraphRAG (Han et al., 2024) augments this setting with graph structure, community summaries, and neighborhood-based access. For persistent conversational memory, Mem0 (Chhikara et al., 2025) extracts salient facts and reconciles them with existing memory, whereas MemoryOS (Kang et al., 2025) organizes information across short-, mid-, and long-term stores. Other methods emphasize relational and temporal structure: A-Mem (Xu et al., 2026b) dy-namically links and updates structured notes, and Zep (Rasmussen et al., 2025) records fact validity and historical changes in a bi-temporal graph. More recently, MemSkill (Zhang et al., 2026) learns to select and evolve memory-construction skills. Collectively, these methods improve information selection, consolidation, and structural organization through different memory representations and construction strategies. 
+
+Memory Retrieval. Memory retrieval addresses both locating relevant records and deciding how further evidence should be accessed and composed. SeCom (Pan et al., 2025) improves retrieved context through topic-based segmentation and compression-based denoising. Structured retrieval extends access beyond flat text matching: Zep (Rasmussen et al., 2025) combines semantic and full-text search with graph traversal and reranking. In external-knowledge search, Search-o1 (Li et al., 2025) integrates on-demand search into document-based reasoning, and Search-R1 (Jin et al., 2025) uses reinforcement learning to learn multi-turn search behavior. At the execution-interface level, Text2Mem (Wang et al., 2026) translates memory instructions into typed, validated operations and supports workflows with dependencies across backends. MRAgent (Ji et al., 2026) uses intermedi-ate evidence to guide exploration and pruning over a Cue–Tag–Content graph. These approaches improve context quality, structured access, or adaptive exploration; nevertheless, candidate-based retrieval remains bounded by the records selected for access, while iterative reasoning can require repeated context processing and model calls. Thus, retrieving sufficient evidence under a limited budget remains a central challenge. 95 CONCLUSION 
+
+We presented MaC, a unified framework that jointly designs memory construction and retrieval. We develop two complementary techniques: codified construction organizes facts, their evolving relations, and reusable computations into a three-layer executable memory structure. declarative retrieval compiles queries into complete programs that select and compose these computations, enabling query-specific conditional execution without stepwise LLM planning. Experiments on LOCOMO and L ONG MEM EVAL show that MaC achieves the highest overall F1 and LLM-judge scores across the evaluated settings while substantially reducing token consumption. 
+
+REFERENCES 
+
+Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Milli-can, George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, et al. Improving language models by retrieving from trillions of tokens. In International conference on machine learning , pp. 2206–2240. PMLR, 2022. Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready ai agents with scalable long-term memory. In European Conference on Artificial Intelligence , 2025. Haoyu Han, Yu Wang, Harry Shomer, Kai Guo, Jiayuan Ding, Yongjia Lei, Mahantesh Halap-panavar, Ryan A Rossi, Subhabrata Mukherjee, Xianfeng Tang, et al. Retrieval-augmented gen-eration with graphs (graphrag). arXiv preprint arXiv:2501.00309 , 2024. Shuo Ji, Yibo Li, and Bryan Hooi. Memory is reconstructed, not retrieved: Graph memory for llm agents. arXiv preprint arXiv:2606.06036 , 2026. Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon, Sercan Arik, Dong Wang, Hamed Zamani, and Jiawei Han. Search-r1: Training llms to reason and leverage search engines with reinforcement learning. arXiv preprint arXiv:2503.09516 , 2025. Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. Memory os of ai agent. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pp. 25972–25981, 2025. Sehoon Kim, Suhong Moon, Ryan Tabrizi, Nicholas Lee, Michael W Mahoney, Kurt Keutzer, and Amir Gholami. An llm compiler for parallel function calling. arXiv preprint arXiv:2312.04511 ,2023. Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. Retrieval-augmented gener-ation for knowledge-intensive nlp tasks. Advances in neural information processing systems , 33: 9459–9474, 2020. Xiaoxi Li, Guanting Dong, Jiajie Jin, Yuyao Zhang, Yujia Zhou, Yutao Zhu, Peitian Zhang, and Zhicheng Dou. Search-o1: Agentic search-enhanced large reasoning models. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pp. 5420–5438, 2025. Lei Liu, Xiaoyan Yang, Yue Shen, Binbin Hu, Zhiqiang Zhang, Jinjie Gu, and Guannan Zhang. Think-in-memory: Recalling and post-thinking enable llms with long-term memory. arXiv preprint arXiv:2311.08719 , 2023. Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. Evaluating very long-term conversational memory of llm agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,pp. 13851–13870, 2024. Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G Patil, Ion Stoica, and Joseph E Gonzalez. Memgpt: Towards llms as operating systems. arXiv preprint arXiv:2310.08560 , 2023. 10 Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Xufang Luo, Hao Cheng, Dongsheng Li, Yuqing Yang, Chin-Yew Lin, H Vicky Zhao, Lili Qiu, et al. On memory construction and retrieval for personal-ized conversational agents. arXiv preprint arXiv:2502.05589 , 2025. Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Meredith Ringel Morris, Percy Liang, and Michael S Bernstein. Generative agents: Interactive simulacra of human behavior. In Proceedings of the 36th annual acm symposium on user interface software and technology , pp. 1–22, 2023. Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. Zep: a tem-poral knowledge graph architecture for agent memory. arXiv preprint arXiv:2501.13956 , 2025. Zhen Tan, Jun Yan, I-Hung Hsu, Rujun Han, Zifeng Wang, Long Le, Yiwen Song, Yanfei Chen, Hamid Palangi, George Lee, et al. In prospect and retrospect: Reflective memory management for long-term personalized dialogue agents. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 8416–8439, 2025. Leo Wang, Lihai Yang, Boyu Chen, Kerun Xu, Gongyi Zou, Bo Tang, Feiyu Xiong, Siheng Chen, and Zhiyu Li. Text2mem: A unified memory operation language for memory operating system. In Findings of the Association for Computational Linguistics: ACL 2026 , pp. 2105–2119, 2026. Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. Longmemeval: Benchmarking chat assistants on long-term interactive memory. arXiv preprint arXiv:2410.10813 ,2024. Buqiang Xu, Yijun Chen, Jizhan Fang, Ruobin Zhong, Yunzhi Yao, Yuqi Zhu, Lun Du, and Shumin Deng. Structmem: Structured memory for long-horizon behavior in llms. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) ,pp. 122–146, 2026a. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-mem: Agentic memory for llm agents. Advances in Neural Information Processing Systems , 38:17577–17604, 2026b. Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. React: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629 ,2022. Haozhen Zhang, Quanyu Long, Jianzhu Bao, Tao Feng, Weizhi Zhang, Haodong Yue, and Wenya Wang. Memskill: Learning and evolving memory skills for self-evolving agents. arXiv preprint arXiv:2602.02474 , 2026. Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. Memorybank: Enhancing large language models with long-term memory. In Proceedings of the AAAI conference on artificial intelligence , volume 38, pp. 19724–19731, 2024. 
+
+A APPENDIX 
+
+A.1 NOTATION 
+
+The table below follows the problem definition and summarizes the notation for memory construc-tion, retrieval, and complexity analysis. MaC constructs M from dialogue history H, executes a program Pq generated for query q to assemble evidence Eq , and generates an answer aq while recording an execution trace Tq . Local variables used only in Algorithm 1 are introduced alongside the algorithm. 11 Notation used throughout the paper 
+
+Symbol Meaning 
+
+Task notation 
+
+H, sj , nsess Dialogue history, its jth session, and the number of sessions. 
+
+M External memory constructed from H.
+
+q, Eq , aq Query, supporting evidence assembled for it, and the generated answer. 
+
+Codified memory 
+
+L, I Code library and memory index, with M = ( L, I ).
+
+F, V Base fact functions and views referencing base and derived functions. 
+
+R, D Explicit memory relations and derived memory functions. 
+
+Iview , Ifunc , Iops View-to-identifier mapping, function descriptors, and operator interfaces. 
+
+i, fi Canonical fact identifier and its base fact function. 
+
+ei, vi, Si Evidence record, structured value, and supporting source references for fact i.
+
+G, G(τ ), AG(τ ) Linked state group, its temporally eligible fact identifiers, and its active fact identifiers. 
+
+τ , ⊥ Requested time boundary and the marker for an unresolved state. 
+
+Declarative retrieval 
+
+Kq Candidate function identifiers supplied to the planner for q.
+
+Iq (M) Compact index context supplied to the planner for q.
+
+Pq , Tq Retrieval program for q and its execution trace. 
+
+Fplan , Fanswer Model stages for program generation and evidence-grounded answering. 
+
+Complexity analysis 
+
+n, h Number of facts before deduplication and source-dialogue length in to-kens. 
+
+p, b Syntax-tree size of Pq and maximum expanded evidence size, counting scalar entries and text tokens. 
+
+r Stored references across views, relations, derived functions, and source annotations. 
+
+Tbuild , Tq Construction time and total processing time for query q.
+
+Cbuild , Cq Model inference costs during construction and query processing. 
+
+A.2 MEMORY OPERATORS 
+
+Table 6 summarizes the operators exposed to MaC search programs. Table 6: Memory operators exposed to MaC search programs. 
+
+Category Core Operation Description 
+
+Memory Access  
+
+> resolve
+
+Executes selected memory functions.  
+
+> match
+
+Matches candidate facts to query keywords without code retrieval.  
+
+> search
+
+Ranks and retrieves canonical facts using a natural-language query.  
+
+> select
+
+Filters facts by structured constraints.  
+
+> search_functions
+
+Finds memory functions matching the query constraints.  
+
+> execute
+
+Runs a memory function and returns evidence. 
+
+Context Expansion  
+
+> expand_scope
+
+Adds related memories from the same concept or session.  
+
+> expand_relation
+
+Follows graph links to add temporally or semantically related facts.  
+
+> hydrate
+
+Loads canonical facts and nearby dialogue for answer context. 
+
+Evidence Composition  
+
+> union
+
+Merges evidence with its facts and dialogue sources.  
+
+> rank
+
+Orders evidence by relevance to the query.  
+
+> where
+
+Filters evidence by a specified time range.  
+
+> aggregate
+
+Counts evidence while retaining its facts and sources. 
+
+Verification validate Checks evidence completeness and unresolved states. 
+
+12 A.3 COMPLEXITY ANALYSIS 
+
+This subsection expands Section 2.4. To characterize the cost of reusable memory computation, we distinguish one-time construction from per-query retrieval and account for model inference sepa-rately. Let n be the number of extracted facts before deduplication, so |F| ≤ n, and let h be the total length of the source dialogue H in tokens. For a query q, let p be the number of syntax-tree nodes in 
+
+Pq and b the maximum fully expanded size of an evidence collection materialized during retrieval, counting scalar entries and text tokens in its values and provenance. We assume bounded fact text, structured values, and query length, bounded annotations per extracted fact, and fixed retrieval and repair limits. 
+
+Time Complexity. Construction compares facts for deduplication and scans and sorts candidate neighbors for each canonical fact. The latter costs O(n2 log n) in the worst case, even though only a bounded number of neighbors is retained per structural relation. Including source preprocessing and model inference, the construction bound is Tbuild = O(h log h+n2 log n+Cbuild ). During retrieval, candidate matching scans and sorts the memory index, while view expansion and provenance com-position can incur quadratic work through list-based deduplication. Structural program checking takes O(p) time, and the loop-free language permits at most O(p) operator calls. Accounting for memory access, source loading, evidence composition, and trace generation gives the conservative bound Tq = O Cq + p(n2 + h + b2) + p2. Here Cbuild and Cq sum the model inference costs in the corresponding stage, including extraction, semantic compilation, retrieval preprocessing, plan-ning, and answer generation as applicable. This accounting includes both operator execution and the model calls used across the query pipeline. 
+
+Space Complexity. Let r count stored references across memory views, fact relations, derived functions, and source annotations. The code library, memory index, construction records, and source dialogue require O(n + r + h) space. A query additionally retains intermediate evidence and its exe-cution trace Tq , giving O(n + r + h + pb ) space, excluding model weights and inference workspace. Under the stated annotation bounds and the implemented relation limits, r = O(n), so memory storage is linear in the input size. The pb term accounts for the generated program’s intermediate results, including matching pairs materialized by joins and their provenance. A.4 CASE STUDY (RQ4) Figure 4 presents a temporal-reasoning case in which the system must connect the user’s keyboard-playing activity with a later bluegrass-band discovery across separate dialogue sessions. MaC gen-erates a question-specific search program that retrieves the relevant activity memories, expands their temporal relations to recover the event needed by the question, and restores the associated source dialogue for temporal grounding. From the recovered evidence, the answer model correctly infers an interval of 6 days ; its cited evidence exactly matches the annotated evidence. This example demon-strates how programmatic memory search combines structured retrieval, relation-based expansion, and source-context recovery to answer temporally grounded conversational questions. 
+
+B PROMPT DETAILS 
+
+Box 1: Fact to Code Prompt    
+
+> Task: Convert canonical facts into structured specifications that a local generator turns into executable Python memory functions.
+> Input: Canonical facts with identifiers, factual content, subjects, temporal information, and source references.
+> System prompt:
+> You are a semantic compiler. Produce one function specification for each fact while preserving its identifier and meaning. Specify a concise Python function name, a query predicate, the factual value, optional attributes, and whether the fact describes a time-varying state. Use only the supplied facts. Do not invent information or infer state-update links in this stage. The specifications will be converted locally into Python functions.
+> User prompt template:
+
+13 QUESTION 
+
+How many days passed between the day I started playing along to my favorite songs on my old keyboard and the day I discovered a bluegrass band? 
+
+> FINAL ANSWER
+
+6 days Judge: correct Exact evidence match 
+
+01 Executable memory 
+
+Indexed facts and stored entrypoints 
+
+Initial retrieval 
+
+24 
+
+> resolve
+
+25 
+
+> match
+
+12 
+
+> expand_scope
+
+F304 · Keyboard activity 
+
+> user_keyboard_playing_activity()
+> Selected · played along to songs
+
+F753 · Bluegrass interest 
+
+> user_exploring_bluegrass()
+> Selected · exploring bluegrass
+
+F752 · Band discovery 
+
+> user_enjoys_bluegrass_music()
+> Recovered via relation expansion
+> 51 initial fact IDs after union
+> This result is replaced by the independent select in line 5.
+
+02 Question-specific search program 
+
+LLM-generated Python · original operators and arguments 
+
+search_program.py FINAL EXECUTED PROGRAM 
+
+code = memory. resolve () lexical = memory. match () scoped = memory. expand_scope (code, scopes=["concept", "session"]) evidence = memory. union (memory. union (code, scoped), lexical) evidence = memory. select (subject="user", predicate="did_the_user_play_along_to_songs_on_their_keyboard", topics=["keyboard"], complete=True, limit=24) evidence = memory. union (evidence, memory. select (subject="user", predicate="is_the_user_thinking_of_exploring_bluegrass_music", topics=["bluegrass"], complete=True, limit=24)) evidence = memory. expand_relation (evidence, relations=["temporal_before"]) result = memory. hydrate (evidence) 12345678
+
+7 operator types 10 executed calls 
+
+03 Evidence operations 
+
+The path used to build final context  
+
+> 1
+
+SELECT ×2 
+
+F304 and F753  
+
+> 1 fact per selection
+> 2
+
+UNION 
+
+2 fact IDs retained  
+
+> F304 + F753
+> 3
+
+EXPAND_RELATION 
+
+temporal_before → 4 facts  
+
+> F752, F303, F305, F302
+> 4
+
+HYDRATE 
+
+4 canonical facts 
+
+> + source dialogue context
+
+The answer LLM interprets the dates; the program retrieves their evidence. 
+
+Two dialogue turns establish the temporal interval Gold evidence = predicted evidence {D18:9, D37:1}  
+
+> 25 MAR 2023 D18:9
+
+“I started playing along to my favorite songs on my old keyboard today”  
+
+> 31 MAR 2023 D37:1
+
+“I recently discovered a bluegrass band … and started enjoying their music today.” 
+
+25 Mar → 31 Mar 
+
+6 days 
+
+> Answer inferred from dated dialogue
+
+Figure 4: Temporal-reasoning case study on L OCOMO. MaC generates a question-specific re-trieval program, expands temporal relations across sessions, and hydrates source dialogue; the an-swer model infers a 6-day interval matching the annotated evidence. 
+
+Facts: 
+
+{{facts}} 
+
+Compile these facts into function specifications. 
+
+Output: A JSON object containing the fact specifications, not Python source code. 
+
+Box 2: Declarative Query Planning Prompt 
+
+Task: Generate a complete Python retrieval program that selects and composes memory operations for the given question. 
+
+Input: The question, compact candidate-function metadata, available memory interfaces, and general human-designed retrieval guidance. 
+
+System prompt: 
+
+Write one complete program over the read-only executable-memory SDK. Determine the required functions, operations, and dependencies from the question and interface information. Plan the retrieval as a whole rather than requesting further LLM decisions after each operation. Use the human-designed guidance as reference, not as a fixed pipeline: direct lookup may suffice for a specific fact; distributed evidence may require expansion and composition; temporal questions may require state or history computations and source context. These patterns may not fit every question; adapt or omit them according to the actual evidence requirements. Use compatible operations to retrieve, execute, filter, and combine evidence as needed. Preserve source information and assign the supporting evidence to result . Do not modify memory or generate the final natural-language answer. 
+
+User prompt template: Question: 
+
+{{question}} 
+
+Candidate functions: 
+
+{{functions}} 
+
+Generate a complete retrieval program for this question using the available interfaces. 
+
+Output: A Python program whose result contains supporting memory evidence. 
+
+14 C FRAMEWORK ALGORITHM 
+
+Algorithm 1 uses the memory and query notation defined in Section 2. The local collections Xraw 
+
+and X contain extracted and canonical fact records, respectively; a canonical record xi supplies the value vi and source references Si encoded by fi ∈ F . For a query q, Kview  
+
+> q
+
+contains function identifiers obtained through view expansion, and Ecode  
+
+> q
+
+, Eview  
+
+> q
+
+, and Elex  
+
+> q
+
+denote evidence from code recall, view expansion, and lexical recall. Their merged evidence is cached in Bq ; the program returns intermediate evidence E, which is assembled into the final evidence Eq . Here G denotes the LLM used for extraction, annotation, and repair, while Fplan and Fanswer denote the planning and answering stages defined in the main text. Only values used by subsequent steps are shown. 
+
+Algorithm 1: Memory as Code (MaC) Framework 
+
+Input: Dialogue history H = ( s1, . . . , s nsess ), query set Q, LLM G
+
+Output: Codified memory M, answers {aq | q ∈ Q}, and traces {T q | q ∈ Q} 
+
+> 1:
+
+▷ Stage 1: Codified Construction  
+
+> 2:
+
+Xraw ← ∅  
+
+> 3:
+
+foreach non-empty dialogue session sj ∈ H do  
+
+> 4:
+
+Extract source-annotated records with G.ExtractAtomicFacts( sj ) and add them to Xraw  
+
+> 5:
+
+X ← CanonicaliseAndSemanticDeduplicate( Xraw ); assign each record xi a canonical ID i 
+
+> 6:
+
+Store X in facts_by_id.json ; initialize R with temporal, same-subject, and shared-topic relations  
+
+> 7:
+
+Annotate records in X using G; group state facts by subject and predicate  
+
+> 8:
+
+Use G to identify explicit state replacements and add (j, supersedes , i ) to R 
+
+> 9:
+
+F ← ∅  
+
+> 10:
+
+foreach canonical record xi ∈ X do  
+
+> 11:
+
+Add to F a function fi returning ei = ( vi, {i}, S i); emit its applicable supersedes references  
+
+> 12:
+
+Construct views V, derived current/history functions D, and code for R 
+
+> 13:
+
+Construct L = ( F, V, R, D), I = ( Iview , I func , I ops ), and M = ( L, I ) 
+
+> 14:
+
+Persist memory_code , function_index.json , and view_index.json  
+
+> 15:
+
+▷ Stage 2: Declarative Retrieval  
+
+> 16:
+
+foreach query q ∈ Q do  
+
+> 17:
+
+Kq ← CodeRecall( q, I func , 24) in parallel with terms q ← G .ExtractRetrievalTerms( q) 
+
+> 18:
+
+Ecode  
+
+> q
+
+← ExecuteAndRehydrate( Kq , M);
+
+Elex  
+
+> q
+
+← KeywordRecall(terms q , facts_by_id , 32)  
+
+> 19:
+
+Kview  
+
+> q
+
+← ViewExpandAndRank( Kq , I view , I func , q, 32) ;
+
+Eview  
+
+> q
+
+← ExecuteAndRehydrate( Kview  
+
+> q
+
+, M) 
+
+> 20:
+
+Bq ← Deduplicate( Ecode  
+
+> q
+
+∪ Eview  
+
+> q
+
+∪ Elex  
+
+> q
+
+) 
+
+> 21:
+
+Form Iq (M) from {Ifunc (κ) | κ ∈ Kq } and Iops  
+
+> 22:
+
+Pq ← Fplan (q, I q (M))  
+
+> 23:
+
+for ℓ ← 0 to 2 do  
+
+> 24:
+
+if ValidatePlan( Pq ) and RunInNetworkIsolatedSandbox( Pq , M, Bq ) succeed then  
+
+> 25:
+
+E ← ExecutionResult( Pq ); break  
+
+> 26:
+
+Pq ← G .RepairProgram( Pq ) 
+
+> 27:
+
+if no generated program succeeds then  
+
+> 28:
+
+Pq ← DefaultFallbackProgram( Iq (M)) ;
+
+E ← RunInNetworkIsolatedSandbox( Pq , M, Bq ) 
+
+> 29:
+
+Eq ← RenderEvidenceContext( E, Bq , M); aq ← Fanswer (q, E q ) 
+
+> 30:
+
+if aq is malformed, empty, or a refusal then  
+
+> 31:
+
+aq ← G .RepairAnswer( q, E q , a q ) 
+
+> 32:
+
+Record Pq , Eq , aq , and line-level provenance in Tq 
+
+> 33:
+
+return M, {aq | q ∈ Q}, and {T q | q ∈ Q}
+
+15

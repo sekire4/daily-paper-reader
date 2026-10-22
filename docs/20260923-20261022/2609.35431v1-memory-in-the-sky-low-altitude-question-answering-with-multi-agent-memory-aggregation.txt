@@ -1,0 +1,2340 @@
+1
+Memory in the Sky: Low-Altitude Question
+Answering with Multi-Agent Memory Aggregation
+Chengyang Li, Yujie Wan, Shuai Wang, Kejiang Ye, Weijie Yuan, Boyu Zhou, Yik-Chung Wu,
+Chengzhong Xu, Fellow, IEEE, and Huseyin Arslan, Fellow, IEEE
+Abstract—This paper studies low-altitude question answering
+(LAQA), in which distributed unmanned aerial vehicle (UAV)
+memories are aggregated at a ground server to answer questions
+about observations over a long horizon. Unlike conventional
+resource allocation based on sensing, communication, control,
+or computation metrics, LAQA requires an explicit measure
+of memory value. We propose a generative adversarial exam
+(GAE) that uses forward simulation to evaluate memory retrieval
+and exam scores to quantify memory quality. This enables the
+downstream QA value of candidate memories to be measured
+and optimized without accessing the internal mechanisms of the
+black-box captioning, retrieval, and reasoning pipeline. Building
+on this metric, we develop a memory-centric (MemCen) frame-
+work that jointly selects UAVs and allocates transmit power to
+maximize memory quality under communication constraints. In
+the noise-limited regime, we derive a QoM-aware capped water-
+filling law that explicitly connects task utility with physical-
+layer power allocation. We further develop penalty successive
+optimization (PSO) and learning to memorize (L2M) solvers.
+MemCen achieves QA accuracies of 92.4% and 84.0% in CARLA
+Town04 and Town05 under static and dynamic communication
+conditions, respectively. In real-world experiments, MemCen
+achieves 88.5% QA accuracy on the panoramic multi-agent
+system (PMAS) benchmark. Finally, UAV-to-robot-dog demon-
+strations further validate the practical utility of the acquired
+memories for environmental understanding and navigation.
+Index
+Terms—Low-altitude
+wireless
+network,
+multi-agent
+memory, resource allocation, panoramic multi-agent system.
+I. INTRODUCTION
+A low-altitude wireless network (LAWN) integrates sensing,
+communication, control, and computing across aerial and
+terrestrial nodes to support diverse functions in mission-critical
+scenarios [1], [2]. In a LAWN, unmanned aerial vehicles
+(UAVs), or drones, operate over broad areas and continuously
+observe buildings, roads, objects, and dynamic events while
+performing missions such as delivery. As UAVs may operate
+for extended periods, e.g., several hours, their accumulated ob-
+servations provide a rich source of historical information that
+can be queried over long time horizons. For instance, a user
+may ask where a particular object was previously observed
+[3]. This motivates low-altitude question answering (LAQA)
+A preliminary version of this work has been accepted by IEEE Global
+Communications Conference (GLOBECOM) 2026, Macau SAR, China [1].
+Chengyang Li and Yik-Chung Wu are with The University of Hong Kong,
+Hong Kong SAR, China.
+Shuai Wang and Kejiang Ye are with the Shenzhen Institutes of Advanced
+Technology, Chinese Academy of Sciences, Shenzhen, China.
+Yujie Wan, Weijie Yuan, and Boyu Zhou are with the Southern University
+of Science and Technology, Shenzhen, China.
+Chengzhong Xu is with the University of Macau, Macau SAR, China.
+Huseyin Arslan is with the Istanbul Medipol University, Istanbul, Turkey.
+Corresponding author: Shuai Wang (s.wang@siat.ac.cn).
+[4]–[6], where local memories collected by distributed UAVs
+are aggregated into a global memory at a ground server to
+support agentic large language model (LLM) inference.
+A. Related Work
+Conventional QA methods are often constrained by short
+observation horizons, e.g., several minutes [7], high token
+costs [8], or the lack of explicit spatial information in natural-
+language outputs, such as returning “beside the building”
+rather than a precise position [x, y, z] [9]. Emerging retrieval-
+augmented memory methods [3] employ LLM agents to
+retrieve task-relevant memories over long horizons through
+function calls conditioned on textual, spatial, and temporal
+queries. However, the amount of memory required grows with
+spatial and temporal coverage, making standalone ground-
+robot solutions increasingly inefficient for large-scale out-
+door scene understanding. To address this limitation, LAQA
+constructs memory over a LAWN, leveraging broader fields
+of view, higher mobility, and multiple distributed agents to
+substantially extend memory coverage [4]–[6].
+Existing LAWN systems adopt sensing coverage [10], [11],
+communication throughput [12], control safety [6], [13], com-
+putation efficiency [14], or their combinations [2] as design ob-
+jectives. LAQA instead explicitly maximizes memory quality.
+This objective distinguishes LAQA resource allocation from
+traditional LAWN schemes [2], [6], [10]–[14] that overlook
+differences in how UAV memories contribute to QA accuracy.
+Thus, the methods in [2], [6], [10]–[14] exhibit degraded
+QA accuracy for diverse questions spanning large spatial and
+temporal ranges.
+To prioritize transmissions based on data value, seman-
+tic communication (SemCom) [15], [16] has been explored.
+These systems reduce information redundancy while preserv-
+ing semantic similarity (e.g., cosine similarity between BERT
+embeddings) between the transmitter and receiver. However,
+semantic similarity may overlook subtle but critical differences
+in long memory contexts. It is an intermediate rather than end-
+to-end task metric for QA. Task-oriented communication [17]–
+[20] enables end-to-end optimization of inference performance
+within integrated sensing, communication, and computation
+systems. If the tasks are closed-set with well-defined object
+classes and labels [17]–[20], the objective function can be
+explicitly formulated. In LAQA, however, the task is open-set,
+and the memory must be constructed without prior knowledge
+of the questions. This uncertainty complicates end-to-end
+optimization and leaves the design of a suitable memory-
+oriented objective for LAQA unresolved.
+arXiv:2609.35431v1  [cs.RO]  28 Sep 2026
+
+
+2
+B. Contributions of This Work
+We introduce a memory-oriented objective based on the ob-
+servation that, although specific user questions are unbounded
+and unpredictable, their patterns and templates are finite and
+predictable. Accordingly, we employ an LLM as a proxy
+questioner to perform forward simulation of potential QA
+processes. Building on this principle, we develop a generative
+adversarial exam (GAE) pipeline that evaluates quality-of-
+memory (QoM) by generating exams whose difficulty reflects
+the informativeness of the underlying memory. A UAV mem-
+ory that induces fewer correct answers corresponds to a more
+challenging exam and thus carries higher information value,
+whereas the converse indicates lower value. Therefore, the
+number of unanswered questions provides an explicit and task-
+oriented measure of memory utility. This evaluation makes the
+downstream QA value of candidate memories measurable and
+optimizable, even when the captioning, retrieval, and reasoning
+pipeline is treated as a black box.
+We integrate GAE with wireless communication conditions
+into a unified formulation for end-to-end memory optimiza-
+tion, termed memory-centric (MemCen) resource allocation.
+For MemCen, we derive a QoM-aware capped water-filling
+law that characterizes how memory quality governs UAV
+activation, transmit-power allocation, and power saturation.
+We further develop penalty successive optimization (PSO)
+and learning to memorize (L2M) as practical optimization
+and low-latency inference methods, respectively. To facilitate
+the design and evaluation of LAQA systems, we develop
+OpenMAMS, an open-source multi-agent memory system and
+benchmarking platform. Finally, we validate LAQA through
+physical multi-UAV experiments and an embodied memory-
+reuse demonstration.
+Our contributions are summarized as follows:
+• We characterize the relationship between a candidate
+UAV memory and its utility for future open-set QA. GAE
+forward-simulates candidate-grounded questions against
+the current global memory and converts the resulting
+knowledge gap into a computable QoM score. This
+score exposes task-level memory utility to the resource
+optimizer without requiring a differentiable captioning,
+retrieval, or reasoning pipeline.
+• We formulate MemCen as a joint memory-selection and
+power-allocation problem that integrates memory utility,
+payload size, channel gain, interference, and transmit
+power constraints. We derive a QoM-aware capped water-
+filling law that characterizes how task-weighted QoM
+determines UAV activation priority and power allocation
+until memory transmission saturates. We further develop
+penalty successive optimization (PSO) and learning to
+memorize (L2M) as practical optimization and low-
+latency inference methods, respectively.
+• We implement MemCen in OpenMAMS and evaluate
+it in Town04 and Town05 under heterogeneous UAVs,
+non-uniform memory payloads, mobility, and building
+blockage. We further demonstrate UAV-to-ground-robot
+memory reuse, showing how aerial memories support
+downstream environmental understanding and navigation.
+C. Outline and Notations
+The remainder of this paper is organized as follows. Sec-
+tion II states the LAQA problem. Section III presents the
+GAE model. Section IV presents the cross-layer formulation,
+its QoM-aware allocation structure, and practical PSO/L2M
+solvers. Subsequently, Section V presents the simulation re-
+sults. Section VI reports the real-world experiments. Finally,
+Section VII concludes this work.
+Italic, lowercase bold, uppercase bold, and calligraphic
+letters denote scalars, vectors, matrices, and sets, respectively.
+The operators (·)T , (·)H, (·)−1 take the transpose, conjugate
+transpose, and inverse of a matrix, respectively. ∇f represents
+the gradient of a function f. CN(0, 1) is the standard circularly
+symmetric complex Gaussian distribution. R and C denote the
+real and complex fields, respectively. Finally, [a1, a2, · · · ]T
+represents a column vector, ∥·∥p represents the ℓp-norm of
+a vector, and O(·) means the order of arithmetic operations.
+II. SYSTEM MODEL AND PROBLEM FORMULATION
+We consider the LAQA system illustrated in Fig. 1, con-
+sisting of a ground server and K UAVs. Let K = {1, . . . , K}
+denote the UAV set and D = {Dk}k∈K the distributed
+data collected by the UAVs. The LAQA system aggregates
+these data at the ground server to construct a long-horizon
+global memory M. Based on M, the system answers a
+set of spatiotemporal questions Q = {qj} and produces
+the corresponding answers A = {aj}, where qj and aj
+denote the vector representations of the j-th question and its
+corresponding answer, respectively.
+A. System Overview
+1) Memory Collection:
+Each UAV performs simulta-
+neous
+localization
+and
+mapping
+(SLAM)
+to
+obtain
+a
+sequence
+of
+time-stamped
+pose-image
+frames,
+Dk
+=
+{(ti,k, si,k, vi,k)}i∈Ik, where ti,k denotes the timestamp,
+si,k ∈R6 denotes the 6D pose [3], and vi,k ∈RL×W ×C
+denotes the i-th image collected by UAV k. Here, L, W, and
+C denote the image height, width, and number of channels,
+respectively, with C = 3 for red-green-blue (RGB) images.
+The frame index set is defined as Ik = {1, . . . , |Dk|}, where
+|Dk| denotes the number of frames collected by UAV k.
+Let Vi,k denote the payload size of frame i at UAV k. The
+aggregate candidate payload of UAV k is Sk = P
+i∈Ik Vi,k,
+which accommodates heterogeneous frame sizes and different
+numbers of frames across UAVs. The payload associated
+with timestamp and pose metadata is negligible under the
+considered settings. Due to limited communication resources,
+the LAWN can upload memories from only a subset of
+UAVs to the ground server. We therefore introduce a bi-
+nary memory-selection set X = {x1, · · · , xK} (vector form
+x = [x1, · · · , xK]T ), where xk ∈{0, 1} indicates whether
+UAV k is selected for memory upload. Equivalently, let
+S(X) = {k ∈{1, · · · , K} : xk = 1} denote the set of selected
+UAVs. The resulting memory data collected from the LAWN
+are then given by
+E(X) =
+[
+k∈S(X)
+[
+i∈Ik
+n
+(ti,k, si,k, vi,k)
+o
+.
+(1)
+
+
+3
+…
+pose (i,1)
+Ground QA Server
+image (i,1)
+UAV 1
+time (i,1)
+pose (i,K)
+image (i,K)
+UAV K
+time (i,K)
+VLM
+.db
+Memory
+QA
+Time
+Pose
+Captions
+Image
+Fig. 1: System architecture of LAQA with memory collection and memory-empowered query.
+2) Memory-Empowered Query: For each selected UAV, the
+ground server captions the uploaded images using a VLM,
+ci,k = VLM (vi,k), yielding a set of captions C = {ci,k : k ∈
+S(X), i ∈Ik}. These captions summarize the visual obser-
+vations collected by the UAVs over time and are organized
+into a queryable memory. We encode the captions using a
+text embedding function E(·) and store the resulting time-
+pose-embedding tuples in a vector database, e.g., Milvus. The
+global memory is given by
+M(X) =M0
+[
+[
+k∈S(X)
+Mk,
+(2)
+Mk =
+[
+i∈Ik
+{(ti,k, si,k, E (ci,k))} ,
+(3)
+where M0 denotes the historical memory available at the
+ground server before the current memory collection. The re-
+sulting vector memory supports efficient retrieval over millions
+of embeddings [3]. Conditioned on M(X), the system answers
+each query qj ∈Q as aj(X) = LLM(qj | M(X)). Accord-
+ingly, the complete QA process can be written compactly as
+A(X) = LLM(Q|M(X)).
+(4)
+B. Memory Quality Optimization
+In the considered system, the controllable design vari-
+ables include the UAV memory-selection decisions X
+=
+{x1, . . . , xK} and the corresponding transmit powers P =
+{p1, . . . , pK}. For each selected UAV, i.e., xk
+= 1, its
+achievable transmission rate must be sufficient to upload
+the candidate memory payload Sk within the transmission
+deadline T. Under spatial multiplexing, this requirement can
+be modeled as [17]
+B log2
+ 
+1 +
+Hkpk
+PK
+j̸=k Ik,jpj + σ2
+!
+≥xkSk
+T
+, ∀k ∈K,
+(5)
+where pk denotes the transmit power of UAV k, B is the
+transmission bandwidth, and σ2 denotes the noise power.
+Moreover, Hk denotes the desired-link channel gain from UAV
+k to its corresponding receive stream at the ground server,
+while Ik,j (Ik,k = Hk) denotes the effective interference gain
+from UAV j to the receive stream associated with UAV k [17].
+To limit energy consumption and inter-UAV interference, the
+transmit powers are subject to both individual and sum-power
+constraints: {0 ≤pk ≤Pmax, ∀k} and PK
+k=1 pk ≤Psum,
+where Pmax and Psum denote the individual and total transmit-
+power budgets, respectively [12], [17], [21].
+Subject to the communication constraints, our objective is
+to maximize the answer accuracy of the LAQA system. For
+a question q drawn from the target query distribution, this
+accuracy is Pr(a(q|M) = a∗(q)), where a(q|M) and a∗(q)
+denote the predicted and ground-truth answers, respectively.
+Since the answer accuracy is determined by the aggregated
+vector memory M, we define a memory-quality function
+Ψ(M) as the resulting LAQA accuracy conditioned on M.
+Accordingly, the MemCen problem is formulated as follows:
+P :
+max
+M,X,P
+Ψ [M(X)] ,
+(6a)
+s.t. log2
+ 
+1 +
+Hkpk
+PK
+j̸=k Ik,jpj + σ2
+!
+≥xkSk
+BT , ∀k,
+(6b)
+0 ≤pk ≤Pmax, ∀k,
+K
+X
+k=1
+pk ≤Psum.
+(6c)
+xk ∈{0, 1}, ∀k.
+(6d)
+Since Ψ(M) differs fundamentally from the classical sum-
+rate objective R(P) = PK
+k=1 B log2
+
+1 +
+Hkpk
+PK
+j̸=k Ik,jpj+σ2
+
+,
+there exists an inherent memorization–communication tradeoff.
+A direct weighted combination of Ψ and R is inappropriate
+because they have different units and numerical scales. Let
+(ΨA, RA) denote the point obtained by maximizing QA ac-
+curacy, and let (ΨR, RR) denote that obtained by maximizing
+the sum rate. We normalize the two objectives as
+¯Ψ = Ψ −ΨR
+ΨA −ΨR , ¯R = R −RA
+RR −RA .
+(7)
+Accordingly, the normalized accuracy–rate optimization prob-
+lem is formulated as
+Q :
+max
+M,X,P µ¯Ψ [M(X)] + (1 −µ) ¯R(P),
+s.t. constraints (6b), (6c), (6d).
+(8)
+where µ ∈(0, 1) controls the tradeoff between memorization
+and communication performance. By varying µ and repeatedly
+solving Q, a set of boundary operating points can be obtained,
+thereby characterizing the achievable accuracy–rate region.
+
+
+4
+The challenge in solving P and Q is that the memory-quality
+function Ψ has no explicit analytical form. Section III therefore
+introduces GAE to obtain a computable surrogate for Ψ.
+Remark 1 (Modeling of Hk, Ik,j): We do not impose a
+distance-based threshold to discard potential interferers. For
+receive stream k, all other active UAVs constitute the interfer-
+ence set Jk = {j ∈K : j̸ = k, pj > 0} and the aggregate
+interference power is given by P
+j∈Jk Ik,jpj. Hence, weak
+interferers are retained in the model, while their impact is
+naturally attenuated by the corresponding beamformers. Let
+hk ∈CN denote the channel vector from UAV k to the
+N-antenna array at the ground server. Given the receive
+beamformer wk, the effective desired-link and interference-
+link gains are respectively defined as Hk = |wH
+k hk|2 for the
+desired link and Ik,j = |wH
+k hj|2 for the interference link from
+UAV j to k.
+Remark 2 (MRC and IRC Receivers): We consider two
+representative choices of the receive beamformer wk. The
+first is the low-complexity maximum-ratio combining (MRC)
+receiver, wk = ∥hk∥−1
+2
+hk, which requires only the desired-
+link channel and is therefore attractive for low-complexity
+reception [17]. However, MRC does not explicitly suppress
+multiuser interference. Under MRC, the effective gains re-
+duce to Hk
+=
+∥hk∥2
+2 and Ik,j
+=
+|hH
+k hj|2
+∥hk∥2
+2 . The sec-
+ond is interference rejection combining (IRC), which ac-
+tively suppresses multiuser interference [22]. Defining the
+interference-plus-noise covariance matrix for stream k as
+Rk = P
+j̸=k hjhH
+j + σ2IN, the IRC beamformer is obtained
+from wk = arg maxw
+wHhkhH
+k w
+wHRkw . We construct Rk without
+transmit-power weighting for receive-beamformer design. IRC
+is particularly suitable for interference-limited operation when
+the ground server has access to multiuser channel information
+and can estimate the interference-plus-noise covariance matrix.
+III. PROPOSED MEMORY QUALITY MODEL
+The value of a memory is determined by its contribution
+to downstream QA rather than by the information it contains
+alone. Even a frame containing task-relevant evidence may
+provide little benefit if the deployed system fails to caption it
+accurately, retrieve it effectively, or reason over it correctly.
+Accordingly, we define memory quality with respect to both
+the deployed black-box QA pipeline and the current global
+memory M0. Specifically, the utility of a candidate memory
+Mk is defined by the marginal improvement in QA perfor-
+mance obtained when Mk augments M0. However, this utility
+cannot be evaluated directly at collection time because the
+future user questions are unknown.
+A. Generative Adversarial Exam
+GAE estimates this latent utility through a candidate-
+grounded proxy exam. Specifically, candidate memory Mk
+acts as the examiner and generates a set of questions eQk =
+{eqk,ℓ}Lk
+ℓ=1 from verified facts contained in its pilot data, while
+…
+…
+③Practice Test
+𝐒𝐜𝐨𝐫𝐞𝟏,
+𝐒𝐜𝐨𝐫𝐞𝟐,
+⋯,
+𝐒𝐜𝐨𝐫𝐞𝐊
+⋯
+⋯
+Test Answers
+Gen Questions
+Current Memory 
+Ground Server
+Drone 1
+Drone 2
+Drone k
+Drone K
+𝐱𝟏= 𝟏: √
+𝐱𝑲= 𝟎:×
+𝐱𝟐= 𝟏: √
+𝐷1
+𝐷2
+𝐷𝐾
+𝐷2/෩𝐷2
+𝐷1/෩𝐷1
+𝐷𝐾/෩𝐷𝐾
+෩𝐷1
+෩𝐷2
+෩𝐷𝐾
+②Exam Generation
+VLM Captioning
+➢Have you seen a yellow taxi?
+➢Have you seen a traffic cone?
+①Pilot Upload
+LLM
+GAE
+Scores
++
+User question: 
+Where is the 
+traffic cone?
+Fig. 2: Architecture of GAE for QoM computation.
+the current global memory M0 acts as the examinee. The
+normalized QoM is defined as
+QoMk = 1
+Lk
+Lk
+X
+ℓ=1
+1 {M0 incorrectly answers eqk,ℓ}
+|
+{z
+}
+:=Scorek
+.
+(9)
+where 1{·} denotes the indicator function and Scorek
+denotes the number of questions that cannot be correctly
+answered using M0. Correctness is evaluated through the
+deployed retrieval-and-answering pipeline. Hence, a larger
+QoMk indicates a larger knowledge gap in the current global
+memory and, consequently, a higher potential utility of Mk.
+To account for nonuniform future queries, we partition their
+evidence sources as Q = SK
+k=1 Qk and define the query prior
+ηk = Pr(q ∈Qk),
+K
+X
+k=1
+ηk = 1.
+(10)
+The first-order marginal utility is then approximated by
+ηkQoMk. If a total exam budget L is allocated according to
+Lk ≈Lηk, then Scorek = LkQoMk ≈LηkQoMk. This yields
+the following optimization-compatible approximation:
+Ψ [M(X)] ≈Ψ(M0) +
+K
+X
+k=1
+ηkQoMkxk.
+(11)
+When no task-specific prior is available, ηk can be chosen
+according to the data-size prior under identical sampling
+density. For task-conditioned missions, a semantic belief map
+B(i, j) can be used to assign ηk ∝P
+(i,j)∈Ωk B(i, j), where
+Ωk denotes the region observed by UAV k. The server can
+recompute these weights whenever the mission prior changes.
+The architecture of GAE is illustrated in Fig. 2. Its inputs are
+the distributed candidate datasets {Dk} and the pre-collection
+memory M0 at the ground server. The GAE pipeline consists
+of three steps.
+• First, each UAV uploads a representative pilot subset
+eDk ⊆Dk. Random sampling provides a low-complexity
+fallback, whereas key-frame sampling reduces the risk of
+overlooking sparse but informative events.
+• Second, the server captions the pilot data and generates
+Lk grounded question–answer pairs from the resulting
+observations.
+• Third, the deployed retrieval-and-answering pipeline eval-
+uates whether M0 can correctly answer these questions
+and outputs structured answerability decisions. The re-
+
+
+5
+sulting decisions are deterministically counted to obtain
+Scorek and QoMk without prompting.
+B. Overhead Analysis
+GAE incurs two sources of overhead:
+∆TGAE = TPilot + TComp,
+(12)
+where TPilot denotes the wireless latency for uploading pilot
+data, and TComp denotes the server-side latency for captioning,
+exam generation, retrieval, and answering. Let eIk denote the
+pilot-frame index set of UAV k, and define the corresponding
+pilot payload as eSk = P
+i∈eIk Vi,k. Under a feasible equal-
+power pilot uplink with ¯p = min{Pmax, Psum/K}, the com-
+mon pilot-upload duration is given by
+TPilot = max
+k∈K
+eSk
+B log2
+
+1 +
+Hk ¯p
+P
+j̸=k Ik,j ¯p+σ2
+.
+(13)
+Define the pilot ratio as ρk = | eDk|/|Dk|. For a small pilot,
+eSk ≪Sk, and hence the pilot-upload overhead is substantially
+lower than that of uploading the complete candidate memory.
+Increasing the pilot size may improve the reliability of QoM
+estimation and ranking, but incurs a larger TPilot.
+For the computational overhead TComp, directly feeding
+the entire historical memory M0 to the LLM for every
+proxy question would require repeatedly processing a long
+context. Instead, iterative memory retrieval (IMR) [3] retrieves
+a compact evidence subset S∗
+0 ⊆M0 and performs
+e
+Ak = LLM( eQk|S∗
+0), S∗
+0 ⊆M0.
+(14)
+The retrieval process terminates once sufficient supporting
+evidence is identified or the maximum number of retrieval
+rounds is reached. To ensure reliable scoring, exam generation
+is conditioned on verified scene facts and produces grounded
+question–answer pairs in structured JSON format. The answer-
+ability prompt prohibits unsupported guessing and requires
+evidence identifiers. Malformed or truncated JSON outputs are
+treated as invalid runs rather than incorrect answers, preventing
+formatting failures from biasing the QoM score.
+Let Zk,ℓdenote the number of retrieval rounds required
+for the ℓ-th question of UAV k, Tgen the latency of one
+exam-generation call, and T0 the latency of one retrieval-
+and-answering round. With Ninf effective concurrent inference
+slots, the computational latency can be approximated as
+TComp ≈Tcap +
+ K
+Ninf
+
+Tgen +
+P
+k,ℓZk,ℓ
+Ninf
+
+T0,
+(15)
+where Tcap denotes the one-time latency for captioning the
+pilot data. Accordingly, one GAE evaluation requires
+NLLM = K +
+X
+k,ℓ
+Zk,ℓ, Nret =
+X
+k,ℓ
+Zk,ℓ.
+(16)
+where NLLM and Nret denote the numbers of LLM calls and
+retrieval operations, respectively. The total computational work
+scales as O
+
+K + PK
+k=1
+PLk
+ℓ=1 Zk,ℓ
+
+. Concurrency reduces
+wall-clock latency but does not reduce the total amount of
+computation.
+IV. MEMCEN RESOURCE ALLOCATION
+Substituting the task-driven marginal utility derived in Sec-
+tion III renders P computable:
+P1 : max
+X,P
+K
+X
+k=1
+ηkQoMkxk,
+(17a)
+s.t.
+log2
+ 
+1 +
+Hkpk
+PK
+j̸=k Ik,jpj + σ2
+!
+≥λkxk, ∀k,
+(17b)
+constraints (6c), (6d).
+(17c)
+Compared with constraint (6b), constraint (17b) accounts for
+the pilot data that have already been uploaded during GAE.
+Specifically, given the measured pilot payload eSk and the
+common pilot-upload duration TPilot in (13), the normalized
+rate requirement for transmitting the remaining candidate
+memory is λk =
+Sk−eSk
+(T −TPilot)B . Thus, only the residual payload
+Sk −eSk needs to be delivered within the remaining wireless
+transmission budget T −TPilot.
+P1 couples binary selection and continuous power. It re-
+mains nonconvex after relaxing x because of multiuser inter-
+ference. In the following, we adopt PSO to obtain a stationary
+solution through convex surrogate subproblems. We also use
+a learned L2M policy to achieve real-time inference.
+A. Penalty Augmentation
+To address the discontinuity in constraint (6d), we relax
+the binary constraint xk ∈{0, 1} into an affine constraint
+0 ≤xk ≤1, ∀k. However, the relaxation is generally not tight
+and the solution to the relaxed problem could be 0 < xk < 1.
+To promote a binary solution for the relaxed variable {xk}, we
+augment the objective function with a penalty term as in [23].
+Here, we adopt the following penalty function [24]: Ξ(X) =
+1
+β
+PK
+k=1 xk(1 −xk), where β > 0 is the penalty parameter.
+With this penalty, problem P1 is transformed into
+P2 : min
+X,P
+−
+K
+X
+k=1
+ηkQoMkxk + Ξ(X),
+(18a)
+s.t.
+Θk(X, P) ≤0, ∀k,
+(18b)
+0 ≤pk ≤Pmax, ∀k,
+K
+X
+k=1
+pk ≤Psum,
+(18c)
+0 ≤xk ≤1, ∀k,
+(18d)
+where
+Θk(X, P) = λkxk −log2
+ 
+1 +
+Hkpk
+P
+j̸=k Ik,jpj + σ2
+!
+. (19)
+According to [24, Proposition 1], there exists ¯β > 0 such
+that P1 and P2 are globally equivalent for a sufficiently small
+0 < β ≤¯β.
+B. Successive Optimization and Learning to Memorize
+The remaining nonconvex terms are the functions Ξ(X) in
+(18a) and Θk(X, P) in (18b). We apply successive optimiza-
+tion to these terms by constructing a sequence of upper bounds
+
+
+6
+{bΞ} on Ξ(X) and replacing Ξ(X) in P2 with {bΞ} to obtain
+the surrogate problems. Similarly, we construct upper bounds
+{bΘk} on Θk and replace Θk in P2 with {bΘk}. Specifically,
+given any feasible solution {X ⋆, P⋆} to P2, we define two
+surrogate functions
+bΞ(X|X ⋆) =
+K
+X
+k=1
+ 1
+β xk −2
+β x⋆
+kxk + 1
+β x⋆2
+k
+
+,
+(20a)
+bΘk(X, P|P⋆) = λkxk −1
+ln2
+"
+ln
+ K
+X
+l=1
+Ik,lpl
+σ2
++ 1
+!
+−ln
+
+
+K
+X
+l=1,l̸=k
+Ik,lp⋆
+l
+σ2
++ 1
+
+−
+
+
+K
+X
+l=1,l̸=k
+Ik,lp⋆
+l
+σ2
++ 1
+
+
+−1
+×
+
+
+K
+X
+l=1,l̸=k
+Ik,lpl
+σ2
++ 1
+
++ 1
+#
+,
+(20b)
+and the following proposition can be established.
+Proposition 1. The functions {bΞ, bΘk} satisfy the following:
+(i) Upper bound:
+bΞ(X|X ⋆) ≥Ξ(X), bΘk(X, P|P⋆) ≥Θk(X, P).
+(ii) Convexity: bΞ(X|X ⋆) is convex in X, and bΘk(X, P|P⋆) is
+jointly convex in (X, P).
+(iii) Local equivalence:
+bΞ(X ⋆|X ⋆) = Ξ(X ⋆), ∇X bΞ(X ⋆|X ⋆) = ∇X Ξ(X ⋆),
+bΘk(X ⋆, P⋆|P⋆) = Θk(X ⋆, P⋆),
+∇(X,P) bΘk(X ⋆, P⋆|P⋆) = ∇(X,P)Θk(X ⋆, P⋆).
+(21)
+Proof. Part (i) follows from
+bΞ(X|X [n]) −Ξ(X) = 1
+β
+K
+X
+k=1
+(xk −x[n]
+k )2 ≥0,
+bΘk(X, P|P⋆) −Θk(X, P) ≥0.
+Part (ii) follows from the positive-semidefinite Hessians of bΞ
+and bΘk. Part (iii) follows by evaluating their function values
+and gradients at the expansion point.
+By part (i) of Proposition 1, we obtain an upper bound by
+replacing the functions {Ξ, Θk} by {bΞ, bΘk} around a feasible
+point. We tighten the bound iteratively by using each solution
+as the expansion point for the next surrogate. In particular,
+assuming that the solution at the nth iteration is given by
+{X [n], P[n]}, the following problem is considered at the (n +
+1)th iteration:
+P2[n + 1] : min
+X,P
+−
+K
+X
+k=1
+ηkQoMkxk + bΞ(X|X [n]),
+(22a)
+s.t.
+bΘk(X, P|P[n]) ≤0, ∀k,
+(22b)
+constraints (18c), (18d).
+(22c)
+By part (ii) of Proposition 1, the problem P2[n+1] is con-
+vex and can be solved by off-the-shelf software packages (e.g.,
+Mosek) for convex programming. Denote its optimal solution
+LAWN Conditions
+Successive Optimization
+MemCen Designs
+Learning to Mem
+Memory Samples
+Wireless Channels
+Drone Selection
+Drone Power
+P
+P₁
+P₂
+GAE
+Penalty
+P₂ [1]
+P₂ [2]
+…
+Fig. 3: L2M for real-time decision making.
+as {X ∗, P∗}. Then we set X [n+1] = X ∗and {P[n+1] = P∗},
+and repeat the process by solving P2[n + 2]. By part (iii) of
+Proposition 1 and [25, Theorem 1], every limit point of the
+generated sequence is a stationary point of P2 when the initial
+point is feasible. After convergence, we apply thresholding to
+the relaxed selection variables to obtain binary UAV-selection
+decisions.
+PSO starts from a feasible point and iteratively solves
+P2[n + 1] until both the objective value and optimization
+variables converge. Each subproblem involves 2K decision
+variables, and the computational cost of the interior-point
+solver grows polynomially with K. The repeated optimization
+required by PSO may therefore limit online responsiveness.
+To mitigate this computational cost, we develop an L2M
+solver following the learning-to-optimize paradigm [26], [27].
+Solutions obtained by PSO are used as supervision for train-
+ing. The input features include task-weighted QoM values,
+memory payload sizes, desired-link and interference gains,
+noise power, and power budgets, while the labels consist of
+the corresponding joint UAV-selection and power-allocation
+decisions. A three-layer fully connected network with 100,
+72, and 20 hidden units is trained using focal loss and
+AdamW. During online inference, the server feeds the current
+memory-utility and channel-state features into the trained
+network. A constraint-aware decoder then masks infeasible
+UAV selections and determines the corresponding transmit-
+power allocation. The overall training and inference workflow
+is illustrated in Fig. 3.
+To accommodate a varying number of UAVs, L2M adopts a
+fixed Kmax-slot representation. Unused slots are zero-padded
+and their output logits are masked, enabling the same network
+architecture to support any K ≤Kmax. Thus, L2M learns to
+reproduce PSO decisions under the same MemCen objective
+while substantially reducing online optimization overhead.
+C. QoM-Aware Capped Water Filling
+To gain analytical insight into MemCen, we consider the
+asymptotic relaxation of P2 as β →∞. In this limit, the
+penalty term Ξ(X) vanishes. For any fixed p, an optimal
+relaxed selection can be chosen as
+x⋆
+k(p) = min
+(
+1, 1
+λk
+log2
+ 
+1 +
+Hkpk
+P
+j̸=k Ik,jpj + σ2
+!)
+.
+(23)
+Substituting (23) into the objective removes the explicit selec-
+tion variables X. We define bT = T −TPilot as the remaining
+upload time and bSk = Sk −eSk as the remaining payload of
+UAV k. Under the noise-limited condition P
+j̸=k Ik,jpj ≪σ2,
+P2 reduces to the following power-allocation problem:
+P3 : max
+P
+U(p),
+s.t. (18c).
+(24)
+
+
+7
+where the utility as a function of the power allocation is
+U(p) =
+K
+X
+k=1
+ηkQoMk min
+(
+1,
+bTB
+bSk
+log2
+
+1 + Hkpk
+σ2
+)
+.
+(25)
+The following proposition characterizes the global optimum
+of P3 and exposes its QoM-aware power-allocation structure.
+Proposition 2. An optimal power allocation p⋆to P3 is
+p⋆
+k(ν) = min
+
+
+¯pk,
+"
+νηkQoMk bTB
+bSk
+−σ2
+Hk
+#+
+
+,
+(26a)
+¯pk = min
+
+Pmax, psat
+k
+	
+,
+(26b)
+psat
+k
+= σ2
+Hk
+
+2
+bSk/( b
+T B) −1
+
+,
+(26c)
+where psat
+k
+is the saturation power. If P
+k:ηkQoMk>0 ¯pk ≥Psum,
+ν is chosen such that P
+k p⋆
+k(ν) = Psum. Otherwise, p⋆
+k = ¯pk
+for ηkQoMk > 0 and p⋆
+k = 0 for ηkQoMk = 0.
+Proof. The proof is based on the Karush–Kuhn–Tucker (KKT)
+conditions. Define ak = ηkQoMk and ck = bTB/bSk. The k-
+th utility term is constant for pk ≥psat
+k . Hence, an optimal
+solution can be chosen with pk ≤¯pk. Over 0 ≤pk ≤¯pk,
+each utility term is nondecreasing and concave, so the KKT
+conditions are necessary and sufficient. Let λ ≥0 be the
+multiplier of the sum-power constraint. For an active and
+unsaturated UAV, stationarity gives
+akckHk
+ln 2 (σ2+Hkpk) = λ, which
+yields pk =
+akck
+λ ln 2 −
+σ2
+Hk . Applying complementary slack-
+ness to the lower and upper power bounds gives (26a) with
+ν = 1/(λ ln 2). Solving ck log2(1 + Hkpk/σ2) = 1 gives
+psat
+k
+in (26c). If the caps of the positive-utility UAVs sum to
+at least Psum, ν is chosen to meet the sum-power constraint
+with equality. Otherwise, each positive-utility UAV receives
+¯pk, and the unused budget cannot increase the objective. This
+proves the stated solution.
+Proposition 2 extends classical water filling with a task-
+utility weight and an upload-completion cap. When the ag-
+gregate cap of the positive-utility UAVs meets or exceeds the
+power budget, the water level ν can be found by bisection so
+that the allocation exhausts Psum. Otherwise, every positive-
+utility UAV receives its capped power, and any remaining
+power provides no additional memory utility. Within the
+unsaturated region, the allocated power is nondecreasing in
+ηkQoMk and is favored by a smaller remaining payload bSk. A
+UAV with QoMk = 0 receives no power, while the cap prevents
+additional allocation after its upload is complete. Thus, QoM
+changes both UAV activation and power-allocation priority
+beyond channel-only water filling.
+V. SIMULATION RESULTS
+We implement the proposed methods in Python using
+CARLA [28]. We develop OpenMAMS for the design and
+evaluation of LAQA systems. OpenMAMS is an open-source
+multi-drone simulation platform1 that supports: (1) multi-agent
+1https://github.com/SIAT-INVS/OpenMAMS
+multi-modal dataset generation, including timestamps, high-
+fidelity images, 6D poses, and lidar point cloud data; (2)
+memory generation for image data, including VLM captioning,
+text embedding, and vector database building; (3) question
+answering framework, including LLM inference, chain-of-
+thought reasoning, and interactive interface; (4) optimization
+algorithms, including PSO/L2M optimizers and eight other
+baselines. The OpenMAMS platform is deployed on a Linux
+workstation with an NVIDIA RTX 5090 GPU. Unless other-
+wise specified, we use Qwen3-VL-8B for image captioning,
+Mxbai-Embed-Large-v1 for text embedding, Milvus
+for top-5 memory retrieval, and Qwen3-8B for question
+answering. We report the sum GAE score PK
+k=1 Scorekxk
+and the sum QoM PK
+k=1 QoMkxk, and compare the following
+methods under the same setting within each run:
+• ComCen [12]: maximizes the sum rate.2
+• SenCen [10]: maximizes sensing coverage.
+• FairCen [29]: maximizes the minimum rate.
+• Greedy [30]: selects UAVs by GAE score without joint
+channel optimization.
+• Remember [3]: retrieves only from M0.
+• SemCom [15]: ranks memories by embedding similarity.
+• MemCen+PSO: solves MemCen by penalty successive
+optimization.
+• MemCen+L2M: predicts MemCen decisions with the
+learned L2M surrogate.
+• MemCen+Relax-Round: relaxes and then rounds the
+selection variables.
+• MemCen+DQN: uses a deep Q-learning neural network
+with a feasibility mask.
+A. Town04 Evaluation
+We consider the Town04 map in CARLA. We randomly
+generate 10 objects (i.e., [green car, blue car, white car, purple
+car, black car, fire truck, motorcycle, bus, taxi, traffic cone])
+on the road. The questions cover 3 types, with 30 questions
+in each realization. For a fire truck, the questions are:
+1) Is there a fire truck? The answer should be YES/NO.
+2) Where is the fire truck? The answer should be an explicit
+[x,y] coordinate that is within 50 m from the ground-truth
+object location.
+3) Which UAV sees the fire truck? The answer should be
+the UAV ID k.
+The inspection UAVs are randomly distributed using the de-
+fault CARLA map spawn points. Each UAV conducts inspec-
+tions within a 500-meter range starting from its spawn point.
+Each frame has a measured data volume of Vi,k = 1600 kbits
+(i.e., 200 kB). The frame rate is set to 35 FPS and 1050 frames
+are recorded for each UAV, with a total of 1050K frames
+generated in a single run. The GAE exam uses Lk ∈{5, 10}
+generated questions. The pilot sampling ratio is ρk ≈1%,
+implemented by sampling 10 images per UAV.
+For the air-to-ground communication link, the system band-
+width is set to B = 10 MHz and the noise power to σ2 =
+2We adopt the objective function and power constraint in [12] and omit its
+trajectory and sensing constraints.
+
+
+8
+Fig. 4: Simulation settings for the 5-UAV Town04 scenario.
+(a) Drone 1
+(b) Drone 2
+(c) Drone 3
+(d) Drone 4
+(e) Drone 5
+(a) Visualization of five UAV frames and captions.
+(b) Visualization of LAQA.
+Fig. 5: Captioning and QA in the 5-UAV scenario.
+TABLE I: Evaluation of GAE. GAE scores are mean unanswered-question counts for five-question exams. Purple denotes
+the best memory selected by the method. Bold denotes the highest value.
+UAV ID
+SemCom
+Qwen3-8B (6.43 s per QA)
+Qwen3-14B (12.17 s per QA)
+Qwen3-8B
+[15]
+GAE Score
+GAE QA Accuracy
+GAE Score
+GAE QA Accuracy
+Downstream QA Accuracy
+UAV 01
+0.8913
+1.05
+79%
+0.60
+88%
+39%
+UAV 02
+0.8664
+2.75
+45%
+1.65
+67%
+48%
+UAV 03
+0.8746
+3.25
+35%
+1.20
+76%
+59%
+UAV 04
+0.9009
+3.65
+27%
+2.25
+55%
+70%
+UAV 05
+0.9394
+1.40
+72%
+0.20
+96%
+38%
+(a) Drone 1
+(b) Drone 2
+(c) Drone 3
+(d) Drone 4
+(e) Drone 5
+(f) Drone 6
+(g) Drone 7
+(h) Drone 8
+(i) Drone 9
+(j) Drone 10
+Fig. 6: Visualization of ten UAV configurations, image frames, and the associated captions.
+−70 dBm [21]. The wireless collection budget is T = 600 s,
+i.e., 10 minutes. The total transmit-power budget is set to
+Psum = 300 mW, while the maximum per-UAV transmit
+power is Pmax = 100 mW. The ground server is located
+at the map center (0, 0) at a height of 20 m, and the UAV-
+to-server distance is sampled as dk ∼U[50, 250] m. We
+assume that UAV inspection and wireless transmission are
+performed in separate phases. For dense-building scenarios,
+the air-to-ground channel follows a Rayleigh fading model,
+hk =
+q
+h0ωkd−α
+k hCN
+k , where h0 = −30 dB denotes the ref-
+erence path loss at 1 m, ωk = −20 dB denotes the shadowing
+factor of UAV k, and α = 3 is the path-loss exponent. The
+small-scale fading component satisfies hCN
+k
+∼CN(0, IN),
+with N = 256 antennas at the ground server. MRC is adopted
+unless otherwise stated. Unless otherwise specified, quantita-
+tive results are averaged over 20 independent simulation runs,
+with independently generated object locations and wireless
+channels in each run.
+B. Validation of the GAE
+We first test whether GAE predicts downstream memory
+utility. We consider the case of K = 5 and the UAV spawn
+points are illustrated in Fig. 4. To simulate the heterogeneous
+memories, we place [0, 1, 2, 3, 4] abnormal objects/events in
+inspection regions of UAVs [1, 2, 3, 4, 5], and the VLM cap-
+tioning results are illustrated in Fig. 5(a). The captions show
+accurate scene understanding with the VLM Qwen3-VL-8B.
+We set the historical memory to M0 = M5 and evaluate
+the candidate memories of UAVs 1–5 over 20 random runs. In
+each run, Lk = 5 questions are generated from 10 randomly
+sampled images for each UAV. Table I reports the average
+GAE scores and QA accuracies obtained with Qwen3-8B
+and Qwen3-14B. Both SemCom and GAE correctly identify
+the high similarity between the sampled memory of UAV 5
+and the historical memory M0. However, SemCom provides
+similar scores for UAVs 1–4 and therefore has limited ability
+to distinguish their relative memory values. In contrast, under
+
+
+9
+0
+2
+4
+6
+8
+10
+Iteration
+10−15
+10−12
+10−9
+10−6
+10−3
+100
+‖Δx‖
+(a) ∥∆x∥versus n.
+0
+2
+4
+6
+8
+10
+Iteration
+10−16
+10−13
+10−10
+10−7
+10−4
+10−1
+‖Δp‖
+(b) ∥∆p∥versus n.
+0
+2
+4
+6
+8
+10
+Iteration
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+Zero-One Loss
+(c) Zero-one loss versus n.
+(d) Objective gap.
+(e) Different N.
+Fig. 7: Convergence analysis of PSO.
+TABLE II: Comparison of solvers under the same MemCen formulation.
+Method
+↑Sum GAE
+UAVs
+↑Sum rate (Mbps)
+↓Time (s)
+MemCen+PSO
+24.62±9.00
+3.50±1.41
+45.03±16.57
+4.60±0.40
+MemCen+L2M
+23.38±12.99
+3.10±1.69
+42.44±21.91
+0.04±0.03
+MemCen+Relax-Round
+20.75±7.12
+3.20±1.20
+35.26±14.19
+9.16±0.43
+MemCen+DQN
+22.20±8.83
+2.93±1.14
+47.81±18.67
+0.017±0.0003
+Qwen3-8B, the GAE scores progressively increase from
+UAV 1 to UAV 4, consistent with the increasing seman-
+tic richness of their observations. We further observe that
+Qwen3-14B achieves consistently higher QA accuracy than
+Qwen3-8B. Nevertheless, both models clearly differentiate
+heterogeneous memory qualities.
+We then evaluate downstream QA using each memory union
+Mk ∪M0 with Qwen3-8B. GAE selects UAV 4 under both
+answering models, yielding 70% downstream QA accuracy.
+SemCom selects UAV 2, yielding 48%. The comparison
+supports using GAE to select useful additional memory in this
+scenario. The QA results for memory M4 ∪M0 are shown
+in Fig. 5(b). All answers about the presence, position, and
+reporting UAVs of the purple car, yellow taxi, traffic cone,
+and pedestrian are correct.
+C. Evaluation of PSO and L2M
+We examine the convergence of PSO with Psum = 200 mW
+and K = 10 as illustrated in Fig. 6. We define the consecutive-
+iteration changes as ∆x = x[n] −x[n−1] and ∆p = p[n] −
+p[n−1]. As shown in Figs. 7(a) and 7(b), both ∥∆x∥and ∥∆p∥
+fall below 10−8 after five iterations. Fig. 7(c) reports the total
+zero-one residual ϕ(x) = PK
+k=1 xk(1 −xk). The residual
+falls below 0.1 within five iterations. Fig. 7(d) shows that
+the normalized objective gap of P2 approaches zero within
+five iterations. We examine the sensitivity of binary feasibility
+to the penalty parameter over ten channel realizations. For
+β ∈{0.01, 0.05, 0.1, 0.5, 1, 2, 5}, the final mean total zero-
+one residual ranges from 0.073 to 0.080 when β ≤0.5, while
+it exceeds 0.1 for β ≥1. Thus, all tested values with β ≤0.5
+satisfy the near-binary criterion of 0.1 for K = 10. We select
+β = 0.5, which yields a residual of 0.080 and represents the
+upper end of the range that maintains near-binary feasibility.
+We further investigate whether the number of server anten-
+nas affects PSO convergence. We vary N ∈{128, 256, 512}
+under a total power budget of Psum = 200 mW and average
+the results over ten random channel realizations. All runs are
+initialized with x[0]
+k
+= 0.5 and p[0]
+k
+= Psum/K. As shown
+in Fig. 7(e), the mean normalized objective gap approaches
+TABLE III: Quantitative results of QA tasks.
+Metric
+QA Accuracy ↑
+Sum GAE Score ↑
+UAVs↑
+Sum Rate↑
+ComCen
+[12]
+65.6%
+10.2
+4.1
+74.70 Mbps
+SenCen
+[10]
+88.6%
+19.9
+8.1
+25.48 Mbps
+FairCen
+[29]
+46.0%
+2.5
+1.0
+21.46 Mbps
+Greedy
+[30]
+89.8%
+17.3
+4.4
+44.56 Mbps
+Remember
+[3]
+41.0%
+–
+–
+–
+MemCen
+(Ours)
+92.4%
+20.7
+7.4
+24.31 Mbps
+zero within five iterations for all three antenna configurations.
+From iterations 4 to 5, the relative objective changes are only
+0.53%, 0.009%, and 0.10% for N = 128, 256, and 512,
+respectively. Although increasing N improves the attained
+objective value, it does not materially slow PSO convergence,
+since the dimensions of the optimization variables x and p
+remain unchanged.
+We then benchmark the solver performance under the same
+MemCen objective and power budget. Table II reports the
+results over 20 random IRC channel realizations. PSO achieves
+the highest average sum GAE score. L2M retains 95.0% of the
+PSO performance while reducing the average execution time
+from 4.60 s to 0.04 s, corresponding to a 115× speedup. In
+comparison, Relax-Round incurs a 15.7% performance loss
+relative to PSO. DQN also achieves a lower GAE score
+than L2M, as it learns solely from reward feedback without
+access to expert demonstrations generated by PSO. These
+results demonstrate that PSO provides high-quality solutions
+to the proposed MemCen formulation, while L2M effectively
+amortizes the optimization cost for low-latency inference.
+We further test L2M under UAV-density shifts. The fixed-
+capacity model is trained only at K = 10 and tested without
+fine-tuning at K ∈{5, 10, 15, 20}. Across three model seeds,
+it retains 100.00%, 99.80%, 98.93%, and 97.46% of the
+branch-and-bound optimal QoM, respectively. The selected-
+UAV counts closely match the optimum, and all decoded
+decisions satisfy the communications constraints.
+
+
+10
+30
+40
+50
+60
+70
+80
+Sum Rate (Mbps)
+70
+75
+80
+85
+90
+95
+100
+QA Accuracy (%)
+MemCen
+ComCen
+(a) Accuracy–rate region.
+(b) Sum GAE score.
+(c) Selected UAVs.
+(d) Sum rate.
+Fig. 8: Accuracy–rate tradeoff and power-budget sensitivity.
+TABLE IV: Evaluation of the 10-UAV Case
+Method
+↑Sum GAE Score
+↑UAVs
+↑Sum Rate
+↑Min. Rate
+ComCen
+[12]
+12
+4
+63.9 Mbps
+0 Mbps
+SenCen
+[10]
+16
+7
+21.9 Mbps
+0 Mbps
+FairCen
+[29]
+0
+0
+17.2 Mbps
+1.72 Mbps
+Greedy
+[30]
+16
+3
+33.5 Mbps
+0 Mbps
+MemCen
+(Ours)
+21 (+31.25%)
+6
+20.1 Mbps
+0 Mbps
+The Best Channel Drone
+The Best Memory Drone
+MemCen (ours)
+Fig. 9: GAE scores, channel conditions, and UAV selections
+of different schemes.
+D. Comparison with Existing Benchmarks
+We next evaluate the complete MemCen framework against
+the baselines in Town04. We consider a scenario with K = 10
+UAVs and a total power budget of Psum = 300 mW, as
+illustrated in Fig. 6. Among the 10 UAVs, five are randomly
+selected to construct the initial ground memory M0. For
+GAE, we generate Lk = 10 questions for each UAV from
+10 randomly sampled images. The quantitative results are
+reported in Table III.
+MemCen achieves the highest QA accuracy of 92.4% and
+the highest GAE score of 20.7. Compared with the standalone-
+memory baseline Remember [3], MemCen improves QA ac-
+curacy by more than 50%, highlighting the importance of
+memory aggregation for city-scale QA. Although ComCen
+achieves the highest communication rate, its QA accuracy
+is 26.8 percentage points lower than that of MemCen. This
+result shows that higher communication throughput does not
+necessarily translate into greater memory utility, particularly
+when nearby UAVs upload redundant observations that con-
+tribute little new knowledge to the ground server. Similarly,
+SenCen performs worse despite achieving the largest sensing
+coverage in Town04, i.e., 8.1× unit inspection areas. This is
+because the value of additional sensing depends not only on
+coverage, but also on the information density and freshness
+of the observed regions. Together, these results demonstrate
+that MemCen effectively identifies UAV memories that pro-
+vide greater downstream QA utility. Among the baselines,
+Greedy achieves the performance closest to MemCen. Greedy
+prioritizes UAVs with larger GAE scores but does not jointly
+account for their communication costs and delivery feasibility.
+As a result, it may allocate excessive resources to a few high-
+scoring UAVs, reducing the number of successfully connected
+UAVs and making the resulting memory aggregation less
+robust to discrepancies between GAE-estimated and actual
+memory utility.
+Fig. 8(a) illustrates the accuracy–rate tradeoff in the ten-
+UAV Town04 scenario. The resulting boundary reveals the key
+cross-layer tradeoff between communication-efficient mem-
+ories delivered over strong links and high-value memories
+associated with weaker links. The formulation Q makes this
+operating tradeoff explicit through the dimensionless prefer-
+ence parameter µ.
+Fig. 8(b)–(d) evaluates the impact of the total power budget
+by varying Psum ∈{100, 200, 300, 400} mW. MemCen con-
+sistently achieves the highest sum GAE score across all tested
+power budgets. Its memory utility and number of admitted
+UAVs gradually saturate beyond 300 mW, as most feasible
+high-value memories have already been acquired. At 400 mW,
+ComCen achieves nearly four times the sum rate of MemCen
+but does not attain comparable memory utility. This result
+highlights that higher communication throughput does not
+necessarily translate into more task-relevant information.
+Fig. 9 and Table IV further examine a representative al-
+location with the initial memory set {1, 2, 5, 7, 10}. ComCen
+prioritizes UAVs with strong communication links but may
+select memories with limited task utility. SenCen admits more
+UAVs but excludes weak-link UAV 3 despite its rare task-
+
+
+11
+(a) MRC channel map.
+(b) IRC channel map.
+(c) Sum GAE score versus T.
+(d) Data volume versus T.
+Fig. 10: Comparison between MRC and IRC.
+TABLE V: Town05 results over 20 random trials.
+Method
+↑QA accuracy
+↑Sum QoM
+Selected UAVs
+↑Sum rate (Mbps)
+Remember
+33.0±14.9%
+0.000±0.000
+0.00±0.00
+0.00±0.00
+FairCen
+33.0±14.9%
+0.000±0.000
+0.00±0.00
+31.06±0.29
+ComCen
+59.0±16.5%
+1.505±0.544
+4.00±0.00
+369.10±0.29
+SenCen
+71.0±15.2%
+2.435±0.509
+7.00±0.00
+289.84±0.22
+SemCom
+79.0±16.5%
+2.770±0.540
+7.80±0.41
+230.18±25.07
+MemCen
+84.0±10.5%
+2.775±0.454
+6.70±0.73
+285.91±0.29
+TABLE VI: Sensitivity of MemCen to image loads in Town05. FW and MR denote fixed-wing and multirotor UAVs.
+FW frames
+per UAV
+MR frames
+per UAV
+Mean frame size
+FW/MR (MB)
+↑Sum rate (Mbps)
+Selected UAVs
+↑Sum QoM
+↑QA accuracy
+1,000
+1,000
+0.666/0.286
+184.87±0.03
+9.00±0.00
+3.390±0.409
+93.0±9.8%
+1,500
+1,000
+0.667/0.286
+244.66±4.14
+8.45±0.83
+3.185±0.627
+89.0±12.1%
+2,000
+1,000
+0.666/0.286
+285.91±0.29
+6.70±0.73
+2.775±0.454
+84.0±10.5%
+relevant observations. In contrast, MemCen selects UAV 3
+while maintaining six successful memory uploads by jointly
+balancing memory utility and delivery cost. Greedy considers
+memory utility alone, whereas FairCen fails to complete any
+full-memory upload under the considered constraints. This
+case further demonstrates the importance of jointly optimizing
+memory utility, payload size, and communication cost.
+We finally compare MRC and IRC at σ2 = −90 dBm over
+T ∈{250, 300, 350, 400} s. Under this setting, the system
+operates in an interference-limited regime, where aggregate
+multi-UAV interference dominates the background noise. As
+shown in Fig. 10(a)–(b), IRC preserves the desired-link gain
+while substantially suppressing off-diagonal interference leak-
+age. Consequently, IRC achieves higher memory utility and
+a larger successfully delivered data volume than MRC, as
+shown in Fig. 10(c)–(d). These results support the operating
+conditions discussed in Remark 2 and motivate joint receiver,
+coding, and resource-allocation design as an interesting direc-
+tion for future work.
+E. Dynamic and Heterogeneous Town05 Evaluation
+We next test whether MemCen remains effective when
+mobility, blockage, and sensing workloads vary jointly. As
+shown in Fig. 11(a)–(b), we consider a 200-s search-and-
+rescue mission in CARLA Town05 with K = 10 UAVs.
+Four fixed-wing UAVs capture images at a resolution of
+1920 × 1080 pixels, whereas the six multirotor UAVs use
+1280×720 pixels. The average image sizes are approximately
+666.5 kB and 286.0 kB, respectively. Their effective workloads
+are 2, 000 and 1, 000 frames per UAV, respectively. The server
+is placed on a rooftop, and the channel is computed using
+UAV trajectories. Town05 building geometry yields a 40.9%
+blockage ratio, and each blocked link incurs an additional 20-
+dB attenuation.
+MemCen operates at two time scales. Before flight, the
+server selects the memory set using the task-conditioned QoM
+and the channel statistics. During flight, it adapts transmit
+power using instantaneous CSI while keeping the selected set
+fixed. A task change triggers a new slow-time-scale selection.
+We use B = 10 MHz, Psum = 0.3 W, Pmax = 0.1 W,
+and a noise power of −100 dBm. Results are averaged over
+20 random trials. In each trial, three randomly sampled UAV
+memories form M0, and five rescue targets are assigned to five
+distinct suburban UAVs. The initial set, target assignment, and
+fading realization vary across trials. For SemCom, 25 evenly
+spaced frames per UAV are ranked by their cosine dissimilarity
+from M0.
+Fig. 11(c)–(f) instantiates the belief-map interface intro-
+duced in Section III. Let Bres(i, j) be the normalized distance
+from grid cell (i, j) to its nearest building and let Bins(i, j) =
+1 −Bres(i, j). The former emphasizes suburban rescue areas,
+whereas the latter emphasizes the urban building core. We
+integrate the active map along each recorded route and nor-
+malize the resulting ten scores to obtain ηk. Switching from
+
+
+12
+(a) Town05 geometry, ground station, and UAV trajectories.
+(b) Time-varying blockage across the ten UAV links.
+−400
+−200
+0
+200
+400
+CARLA x (m)
+−400
+−200
+0
+200
+400
+CARLA y (m)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+task belief
+(c) Urban-inspection belief.
+−400
+−200
+0
+200
+400
+CARLA x (m)
+−400
+−200
+0
+200
+400
+CARLA y (m)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+task belief
+(d) Suburban-rescue belief.
+UAV 01
+UAV 02
+UAV 03
+UAV 04
+UAV 05
+UAV 06
+UAV 07
+UAV 08
+UAV 09
+UAV 10
+0.000
+0.025
+0.050
+0.075
+0.100
+0.125
+0.150
+0.175
+0.200
+normalized weight 
+k
+(e) Inspection route weights.
+UAV 01
+UAV 02
+UAV 03
+UAV 04
+UAV 05
+UAV 06
+UAV 07
+UAV 08
+UAV 09
+UAV 10
+0.000
+0.025
+0.050
+0.075
+0.100
+0.125
+0.150
+0.175
+0.200
+normalized weight 
+k
+(f) Rescue route weights.
+Fig. 11: Dynamic Town05 setting. (a)–(b) show the trajectories and geometry-induced channel blockage. (c)–(f) show task
+switch on the same map and routes. Hatched and solid bars denote fixed-wing and multirotor profiles, respectively.
+urban inspection to suburban rescue decreases the aggregate
+weight of the three urban routes from 0.354 to 0.060 and shifts
+the prior toward the seven suburban routes. This controlled
+analysis validates that the same scene and memory interface
+can be reweighted without platform-specific retraining.
+Table V shows that MemCen achieves the highest QA
+accuracy of 84.0% in Town05. SenCen admits fewer UAVs
+than SemCom because some of its selected UAVs fail to
+complete their memory uploads under the dynamic channels.
+In contrast, MemCen successfully completes all selected up-
+loads and reduces the standard deviation of QA accuracy from
+16.5% to 10.5%. Its selected UAV set contains 1.70 fixed-wing
+UAVs and 5.00 multirotor UAVs on average. This result shows
+that MemCen can jointly accommodate the two heterogeneous
+UAV platforms. Overall, these results demonstrate robust
+memory selection and resource allocation under heterogeneous
+payloads, UAV mobility, and building blockage.
+Table VI evaluates the impact of nonuniform image volume
+by increasing each fixed-wing workload from 1,000 to 2,000
+frames while fixing each multirotor workload at 1,000 frames.
+As the fixed-wing workload increases, MemCen becomes
+more selective. The number of admitted UAVs decreases from
+9.00 to 6.70, the aggregate QoM decreases from 3.390 to
+2.775, and the QA accuracy drops from 93.0% to 84.0%.
+Despite the heavier communication load, all selected memory
+uploads remain feasible. The higher sum rate observed under
+larger workloads results from admitting fewer UAVs, which
+reduces multiuser interference among the active links.
+VI. REAL-WORLD EXPERIMENT
+A. Physical Multi-UAV Field Evaluation
+We build a panoramic multi-agent system (PMAS) with
+three DJI AVATA 360 UAVs flying distinct 200-s routes in
+the same outdoor scene. Fig. 12 shows the experimental
+setup, UAV trajectories, and representative observations. Each
+original 10-Hz video contains 2,000 frames. Panoramic cap-
+ture supports spatial intelligence by providing broad visual
+coverage as each UAV changes heading. This reduces blind
+spots and preserves context for spatial grounding. We use
+COLMAP-based panoramic structure from motion (SfM) to
+register observations and trajectories in a shared 3D coordinate
+frame. Unless otherwise specified, we use Qwen3-VL-8B
+for image captioning, Mxbai-Embed-Large-v1 for text
+embedding,
+and
+Milvus
+for
+top-5
+memory
+retrieval.
+Qwen3-30B-Instruct is used to generate evidence-
+grounded answers.
+We conduct 20 random trials. Each trial samples the initial
+memory and an independent channel realization, then evaluates
+ten object-presence and ten spatial-grounding questions. The
+aerial data are collected in the field, while communication is
+evaluated through offline channel replay. The ground server is
+placed at (0, 35) in the COLMAP coordinates. We use B = 5
+MHz, N = 8, σ2 = −100 dBm, Psum = 100 mW, and T =
+200 s. Each link involves a 20-dB blockage loss.
+
+
+13
+Fig. 12: Real-world PMAS benchmark. The figure shows simultaneous operation, reconstructed trajectories, representative
+onboard views, semantic memories, and evidence-grounded spatial QA.
+SenCen
+(b) MemCen vs SenCen
+Fig. 13: Case-level comparison of spatially grounded QA and the visual evidence retrieved by MemCen.
+TABLE VII: Quantitative results over 20 random trials on the PMAS data.
+Method
+↑QA accuracy
+↑YES/NO
+↑Where
+↑Sum QoM
+Avg. uploads
+↑Sum rate
+Remember
+45.25±4.32%
+50.5%
+40.0%
+0.000
+0.00
+–
+SenCen
+76.50±8.67%
+83.5%
+69.5%
+0.640
+1.90
+36.53 Mbps
+ComCen
+61.50±12.05%
+71.0%
+52.0%
+0.320
+1.15
+36.68 Mbps
+FairCen
+62.00±12.19%
+72.5%
+51.5%
+0.310
+1.30
+36.63 Mbps
+MemCen
+88.50±4.50%
+98.0%
+79.0%
+0.990
+1.90
+25.65 Mbps
+MemCen improves the mean QA accuracy by at least 12.0
+percentage points over all baselines in Table VII. Although
+MemCen and SenCen request the same average number of
+uploads, i.e., 1.90, MemCen achieves a 54.7% higher sum
+QoM. This result confirms that the performance gain primarily
+arises from selecting more valuable memories rather than
+simply uploading more data. The relatively lower accuracy
+on “Where” questions further indicates that spatial grounding
+remains the dominant failure mode.
+We next examine a representative trial with M0 constructed
+from UAV 3. As shown in Fig. 13, the selected memories
+provide sufficient evidence to answer all three spatial queries.
+For the yellow-bicycle query, the estimated position has an
+error of only 0.054 m, whereas the compared baselines omit
+the required memory and return an unknown answer. Fig. 14(a)
+shows QoM values of 0.4, 0.6, and 0 for UAVs 1–3, respec-
+tively, while Fig. 14(b) shows the corresponding unanswered-
+question counts of 4, 6, and 0. MemCen selects UAVs 1
+and 2, yielding an aggregate QoM of 1.0. This representative
+trial illustrates the complete MemCen pipeline from GAE-
+estimated memory utility and physical-layer resource alloca-
+tion to memory retrieval and downstream QA performance.
+To examine whether MemCen can effectively handle re-
+dundant observations across different UAV viewpoints, we
+conduct a controlled case study. We set M0 to the memory
+of UAV 1 and allow one additional UAV upload. UAV 3
+exhibits 7.7% trajectory overlap and 41.2% semantic overlap
+with UAV 1, resulting in a marginal QoM of 0.40. In contrast,
+UAV 2 has lower trajectory and semantic overlaps of 6.4% and
+23.8%, respectively, and therefore achieves a higher marginal
+
+
+14
+UAV 1
+UAV 2
+UAV 3
+Candidate memory
+UAV 1
+UAV 2
+UAV 3
+Initial memory
+0.0
+0.5
+0.4
+0.7
+0.0
+0.5
+0.4
+0.6
+0.0
+0.0
+0.2
+0.4
+0.6
+QoM
+(a) Marginal QoM matrix.
+UAV 1
+UAV 2
+UAV 3
+Candidate memory
+UAV 1
+UAV 2
+UAV 3
+Initial memory
+0
+5
+4
+7
+0
+5
+4
+6
+0
+0
+1
+2
+3
+4
+5
+6
+7
+Unanswerable questions
+(b) GAE scores.
+UAV 1
+UAV 2
+UAV 3
+M0 only
+MemCen
+UAV 1 + UAV 3
+(c) One-upload redundancy ablation.
+Fig. 14: QoM and GAE matrices for each initial memory, and a case study with M0 = M1.
+1
+2
+5
+10
+20
+Pilot sampling ratio (%)
+0
+20
+40
+60
+80
+100
+QA accuracy (%)
+(a) End-to-end QA after optimization
+key-frame
+Full-data reference
+random
+1
+2
+5
+10
+20
+Pilot sampling ratio (%)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Spearman correlation
+(b) QoM stability
+key-frame
+random
+Fig. 15: QoM stability and downstream QA versus the pilot
+sampling ratio. Error bars show the standard deviation of
+random sampling. Dashed lines show the full-data reference.
+QoM of 0.50. As shown in Fig. 14(c), MemCen selects UAV 2.
+The resulting QA accuracy reaches 75%, compared with 70%
+for the combination of UAV 1 and UAV 3 and 50% for M0
+alone. This case demonstrates that GAE naturally discounts
+observations that are redundant with respect to different view-
+points, thereby favoring candidate memories that contribute
+more complementary information.
+We then evaluate pilot ratios ρk ∈{1%, 2%, 5%, 10%, 20%}
+using the PMAS data. A pilot setting is considered reliable
+if its mean Spearman correlation with the full-data QoM
+ranking is at least 0.8 and its mean downstream QA regret
+is no more than five percentage points. As shown in Fig. 15,
+random sampling satisfies both criteria at a pilot ratio of
+10%, achieving a Spearman correlation of 0.847 and a QA
+accuracy of 87.75%. In contrast, key-frame sampling satisfies
+both criteria at only 2%, with a Spearman correlation of 0.939
+and a QA accuracy of 88.50%. No error bar is reported for
+key-frame sampling because the selection is deterministic.
+Thus, the minimum observed reliable pilot ratios are 10% for
+random sampling and 2% for key-frame sampling under the
+evaluated setting. These thresholds are specific to the tested
+scene and frame rate. Accordingly, we adopt 10% random
+sampling when onboard key-frame extraction is unavailable.
+Table VIII evaluates the sensitivity of QoM estimation and
+memory selection to model choice. Within each comparison,
+the input images, questions, and top-5 retrieval setting are kept
+fixed. First, increasing the model size generally improves QA
+accuracy, reflecting the stronger reasoning capability of larger
+models. Changing the VLM shifts the mean QoM from 0.450
+to 0.567, while preserving the preferred candidate memory in
+TABLE VIII: Model sensitivity on the real-world data.
+VLM
+LLM
+Embedding
+QA accuracy
+Mean QoM
+Comparison of different VLMs
+(tested on the 20-question benchmark)
+4B
+30B
+Mxbai
+80.00%
+0.500
+8B
+30B
+Mxbai
+90.00%
+0.567
+32B
+30B
+Mxbai
+100.00%
+0.450
+Comparison of different LLMs and embeddings
+(tested on 30 grounded source-memory questions)
+8B
+4B
+Mxbai
+80.00%
+0.717
+8B
+4B
+BGE
+86.67%
+0.683
+8B
+8B
+Mxbai
+90.00%
+0.650
+8B
+8B
+BGE
+96.67%
+0.617
+8B
+30B
+Mxbai
+96.67%
+0.517
+8B
+30B
+BGE
+100.00%
+0.383
+all three initial-memory cases. With captions fixed, replacing
+Mxbai-Embed-Large-v1 with BGE-Large-EN-v1.5
+likewise preserves all three selections when using the 4B
+and 8B answering models. For the 30B answering model, the
+embedding change results in one tie and alters one selection.
+These results show that the absolute QoM values are model
+dependent, whereas the resulting memory selections remain
+stable in most tested settings and are mainly sensitive when
+candidate memories have similar QoM scores.
+Note that top-5 retrieval results contain a supporting pose
+for 26 questions, corresponding to a support-hit rate of 86.7%
+and a miss rate of 13.3%. Despite these retrieval misses,
+the complete top-5 QA pipeline correctly answers 29 of
+the 30 questions. This difference indicates that final answer
+correctness does not always require retrieval of the annotated
+supporting pose, as alternative retrieved evidence may still
+be sufficient. In our pipeline-conditioned QoM evaluation,
+retrieval failures are nevertheless treated as part of the end-
+to-end system behavior.
+Lastly, we profile the computational overhead of GAE on
+a single RTX 5090. For the physical three-UAV setting with
+Lk = 5 and one top-5 retrieval round, a single GAE evaluation
+requires 18 local LLM calls and 15 local retrieval operations.
+It processes 20,778 input tokens and 2,257 output tokens, with
+an average latency of 29.96 s. All models are executed locally,
+incurring no external API cost. The model execution reaches
+
+
+15
+NUC
+Motor 
+Camera 
+3D Lidar
+(a) UAV.
+Orin
+Odin
+WIFI
+Motor 
+Power
+Dog
+(b) Dog.
+Point Cloud Map
+Start
+End
+B
+A
+C
+D
+Start
+A
+B
+C
+D
+End
+Drone path
+Dog path
+Drone Viewpoint
+Dog Viewpoint
+(c) Point cloud map and UAV–ground-robot trajectories.
+Fig. 16: Experimental setup of the real-world UAV-to-ground-robot collaboration task.
+Start
+View A
+View B
+View C
+View D
+End
+FPV
+TPV
+Start
+View A
+View B
+View C
+View D
+End
+Fig. 17: Single-UAV views. Their positions are marked by purple boxes in Fig. 16(c).
+(a) GAE accuracy vs. segment.
+(b) GAE score vs. segment.
+Fig. 18: GAE accuracy and score in real-world experiments.
+a peak GPU memory usage of approximately 23.3 GB. For a
+larger setting with K = 50, GAE requires 300 LLM calls and
+250 local retrieval operations. Assuming Ninf = 16 concurrent
+inference slots, extrapolation from the serial measurements
+yields an inference latency of approximately 31.2 s.
+B. Drone-to-Dog Collaboration
+Finally, we conduct campus experiments using the quad-
+copter and Unitree Go2 robotic dog shown in Fig. 16(a) and
+Fig. 16(b). Our drone is equipped with four cameras, a 3D
+lidar, and an onboard NUC computer. FAST-LIO2 is used
+to obtain real-time centimeter-level localization of the drone,
+with the recorded trajectory shown as a green line in the point
+cloud map of Fig. 16(c). The front camera collects a total
+of 1207 images. We divide the entire video into 5 equal-
+length segments [0, 1, 2, 3, 4]. The start and end frames of all
+segments are shown in Fig. 17, including both first-person
+views (FPVs) and third-person views (TPVs). The images are
+captioned using VLM Qwen3-VL-8B. As shown in Fig. 17,
+FPV
+Start
+View A
+View B
+View C
+View D
+End
+TPV
+Start
+View A
+View B
+View C
+View D
+End
+Robot QA
+①
+②
+Fig. 19: Robot-dog QA and navigation using the UAV memory.
+Dog positions are marked by yellow boxes in Fig. 16(c).
+the drone recognizes the campus park, identifies a statue of a
+person holding a sword, and locates a residential building.
+We adopt segment 0 as initial memory M0. The server
+can collect only one of segments 1–4. We use the proposed
+GAE model to measure the memory qualities of segments 1–4.
+Fig. 18(a) shows high GAE QA accuracy for segment 1. This
+agrees with the Start, A, and B views in Fig. 17, which show
+similar scenes in segments 1 and 0. In contrast, the GAE score
+of segment 4 is the highest as shown in Fig. 18(b). This result
+demonstrates that GAE identifies fresh memory in real-world
+
+
+16
+data. Based on the GAE scores, the LAQA system fetches
+segment 4 for memory aggregation.
+After aggregating the memories, we use natural-language
+prompts to guide the robotic dog. As shown in Fig. 19, the
+user wishes to play sports and asks the robot whether there is
+a basketball court. Upon receiving confirmation from the dog,
+the user can further prompt: “Could you take me to
+the basketball court?” The robot feeds this prompt,
+together with the drone’s memory, into the Qwen3-8B model
+for agentic inference, to retrieve position information from
+the recorded views. If a position is retrieved, it is transformed
+from the drone coordinate system to the dog coordinate system
+and passed to the path planner and locomotion controller
+to generate actions. The task succeeds when the robot is
+within a predefined distance of the target venue. Here, the
+final output of agentic inference is given by: “ I can take
+you to the basketball court. It is located
+at [70.48, 1.205, -40.394]”. Using the goal posi-
+tion generated by the LLM, the dog follows the path shown
+in Fig. 19 and successfully arrives at the basketball court. The
+complete dog trajectory is shown as a red line in Fig. 16(c).
+This result suggests that LAQA enhances ground embodied
+navigation performance in complex scenarios.
+VII. CONCLUSION
+This paper introduced a task-driven interface between dis-
+tributed UAV memory and wireless resource allocation. GAE
+estimates the marginal value of a candidate through the de-
+ployed captioning, retrieval, and reasoning pipeline. MemCen
+combines that value with heterogeneous payload and channel
+constraints. Its QoM-aware capped water-filling law shows
+analytically how task value changes physical-layer priority
+and saturation. PSO and L2M provide practical optimization
+and low-latency inference. Town04, dynamic Town05, and
+real PMAS results support the utility, robustness, and real-
+data feasibility of MemCen. Future work will extend the
+method to larger aerial networks and broader platform and
+task distributions.
+REFERENCES
+[1] C. Li, S. Wang, K. Ye, W. Yuan, B. Zhou, Y.-C. Wu, C. Xu, and
+H. Arslan, “Memory centric power allocation for multi-agent embodied
+question answering,” in Proc. GLOBECOM, 2026.
+[2] Y. Jiang, X. Li, G. Zhu, H. Li, J. Deng, K. Han, C. Shen, Q. Shi,
+and R. Zhang, “Integrated sensing and communication for low altitude
+economy: Opportunities and challenges,” IEEE Commun. Mag., vol. 63,
+no. 12, pp. 72–78, 2025.
+[3] A. Anwar, J. Welsh, J. Biswas, S. Pouya, and Y. Chang, “ReMEmbR:
+Building and reasoning over long-horizon spatio-temporal memory for
+robot navigation,” in Proc. ICRA, 2025, pp. 2838–2845.
+[4] J. Wang, Y. Tian, J. Li, H. Sun, H. Tian, and P. Zhang, “LLM-empowered
+semantic communication for multi-task 3D scene understanding in low-
+altitude economy networks,” IEEE Trans. Cog. Commun. Netw., vol. 12,
+pp. 4896–4910, 2025.
+[5] S. Liu, N. Li, Y. Deng, and T. Q. Quek, “Goal-oriented semantic
+communication for wireless visual question answering,” IEEE J. Sel.
+Areas Commun., vol. 43, no. 12, pp. 4247–4261, 2025.
+[6] M. Zhang, F. Chen, and B. Li, “Multistep question-driven visual question
+answering for remote sensing,” IEEE Trans. Geosci. Remote Sens.,
+vol. 61, pp. 1–12, 2023.
+[7] P. Sermanet, T. Ding, J. Zhao, F. Xia, D. Dwibedi, K. Gopalakrishnan,
+C. Chan, G. Dulac-Arnold, S. Maddineni, N. J. Joshi et al., “RoboVQA:
+Multimodal long-horizon reasoning for robotics,” in Proc. ICRA, 2024,
+pp. 645–652.
+[8] Z. Xu, H.-T. L. Chiang, Z. Fu, M. G. Jacob, T. Zhang, T.-W. E.
+Lee, W. Yu, C. Schenck, D. Rendleman, D. Shah et al., “Mobility
+VLA: Multimodal instruction navigation with long-context VLMs and
+topological graphs,” in Proc. CoRL, 2024.
+[9] A. Das, S. Datta, G. Gkioxari, S. Lee, D. Parikh, and D. Batra,
+“Embodied question answering,” in Proc. CVPR, 2018, pp. 1–10.
+[10] X. Liu, Y. Wang, H. Gao, E. C. Ngai, B. Zhang, C. Wang, and W. Wang,
+“A coverage-aware task allocation method for UAV-assisted mobile
+crowd sensing,” IEEE Trans. Veh. Technol., vol. 73, no. 7, pp. 10 642–
+10 654, 2024.
+[11] B. Cheng, M. He, Z. Zhu, B. He, and J. Chen, “Development and
+application of coverage control algorithms: A concise review,” IEEE
+Trans. Autom. Sci. Eng., vol. 22, pp. 14 906–14 927, 2025.
+[12] X. Ye, Y. Mao, X. Yu, S. Sun, L. Fu, and J. Xu, “Integrated sensing
+and communications for low-altitude economy: A deep reinforcement
+learning approach,” IEEE Trans. Wireless Commun., vol. 25, pp. 351–
+367, 2026.
+[13] H. Jin, J. Wu, W. Yuan, F. Liu, and Y. Cui, “Co-design of sensing,
+communications, and control for low-altitude wireless networks,” IEEE
+Trans. Mob. Comput., vol. 24, no. 11, pp. 12 035–12 048, 2025.
+[14] B. Wang, H. Kang, J. Li, G. Sun, Z. Sun, J. Wang, D. Niyato, and
+S. Mao, “Low-altitude satellite-AAV collaborative joint mobile edge
+computing and data collection via diffusion-based deep reinforcement
+learning,” IEEE Trans. Mob. Comput., 2026.
+[15] S. Liu, H. Yang, W. Xie, and M. Zheng, “Intelligent semantic commu-
+nication scheme integrating ISAC for low-altitude intelligent networks,”
+IEEE Trans. Commun., vol. 74, pp. 3018–3033, 2026.
+[16] L. Yan, Z. Qin, R. Zhang, Y. Li, and G. Y. Li, “Resource allocation for
+text semantic communications,” IEEE Wireless Commun. Lett., vol. 11,
+no. 7, pp. 1394–1398, 2022.
+[17] S. Wang, Y.-C. Wu, M. Xia, R. Wang, and H. V. Poor, “Machine
+intelligence at the edge with learning centric power allocation,” IEEE
+Trans. Wireless Commun., vol. 19, no. 11, pp. 7293–7308, 2020.
+[18] S. Wang, Y. Hong, R. Wang, Q. Hao, Y.-C. Wu, and D. W. K. Ng,
+“Edge federated learning via unit-modulus over-the-air computation,”
+IEEE Trans. Commun., vol. 70, no. 5, pp. 3141–3156, 2022.
+[19] Y. Shi, Y. Zhou, D. Wen, Y. Wu, C. Jiang, and K. B. Letaief, “Task-
+oriented communications for 6G: Vision, principles, and technologies,”
+IEEE Wireless Commun., vol. 30, no. 3, pp. 78–85, 2023.
+[20] D. Wen, P. Liu, G. Zhu, Y. Shi, J. Xu, Y. C. Eldar, and S. Cui, “Task-
+oriented sensing, computation, and communication integration for multi-
+device edge AI,” IEEE Trans. Wireless Commun., vol. 23, no. 3, pp.
+2486–2502, 2024.
+[21] S. Wang, M. Wen, M. Xia, R. Wang, Q. Hao, and Y.-C. Wu, “Angle
+aware user cooperation for secure massive MIMO in Rician fading
+channel,” IEEE J. Sel. Areas Commun., vol. 38, no. 9, pp. 2182–2196,
+2020.
+[22] A. Tusha and H. Arslan, “Interference burden in wireless communi-
+cations: A comprehensive survey from PHY layer perspective,” IEEE
+Commun. Surv. Tutor., vol. 27, no. 4, pp. 2204–2246, 2025.
+[23] F. Rinaldi, “New results on the equivalence between zero-one program-
+ming and continuous concave programming,” Optim. Lett., vol. 3, pp.
+377–386, 2009.
+[24] S. Lucidi and F. Rinaldi, “Exact penalty functions for nonlinear integer
+programming problems,” J. Optim. Theory Appl., vol. 145, pp. 479–488,
+2010.
+[25] Y. Sun, P. Babu, and D. P. Palomar, “Majorization-minimization algo-
+rithms in signal processing, communications, and machine learning,”
+IEEE Trans. Signal Process., vol. 65, no. 3, pp. 794–816, 2017.
+[26] N. Shlezinger, J. Whang, Y. C. Eldar, and A. G. Dimakis, “Model-based
+deep learning,” Proc. IEEE, vol. 111, no. 5, pp. 465–499, 2023.
+[27] Y.-F. Liu, T.-H. Chang, M. Hong, Z. Wu, A. M.-C. So, E. A. Jorswieck,
+and W. Yu, “A survey of recent advances in optimization methods for
+wireless communications,” IEEE J. Sel. Areas Commun., vol. 42, no. 11,
+pp. 2992–3031, 2024.
+[28] A. Dosovitskiy, G. Ros, F. Codevilla, A. Lopez, and V. Koltun,
+“CARLA: An open urban driving simulator,” in CoRL, 2017, pp. 1–
+16.
+[29] L. Zheng, Y.-W. P. Hong, C. W. Tan, C.-L. Hsieh, and C.-H. Lee,
+“Wireless max–min utility fairness with general monotonic constraints
+by Perron–Frobenius theory,” IEEE Trans. Inf. Theory, vol. 62, no. 12,
+pp. 7283–7298, 2016.
+[30] D. Li, Z. Wang, Y. Chen, R. Jiang, W. Ding, and M. Okumura, “A
+survey on deep active learning: Recent advances and new frontiers,”
+IEEE Trans. Neural Netw. Learn. Syst., vol. 36, no. 4, pp. 5879–5899,
+2025.
