@@ -523,6 +523,7 @@
 
   // 使用 GitHub Token 推断目标仓库 owner/repo（与订阅面板保持一致的推断规则）
   async function detectGithubRepoFromToken(token) {
+    window.DPRGithubAccess.assertToken(token);
     const userRes = await fetch('https://api.github.com/user', {
       headers: {
         Authorization: `token ${token}`,
@@ -596,7 +597,7 @@
       throw new Error('无法推断目标仓库，请检查当前访问域名或配置。');
     }
 
-    return { owner: repoOwner, repo: repoName };
+    return window.DPRGithubAccess.assertRepo(repoOwner, repoName);
   }
 
   // 将总结模型 / workflow 所需的大模型配置写入 GitHub Secrets
@@ -1165,7 +1166,7 @@
             <div class="secret-setup-step2-block">
               <div class="secret-setup-step2-title">GitHub Token（必填）</div>
               <p class="secret-setup-step2-note">
-                需要使用 <code>Classic PAT</code>，并同时具备 <code>repo</code>、<code>workflow</code> 和 <code>gist</code> 权限。
+                ${window.DPRGithubAccess.hint}
               </p>
               <div class="secret-setup-input-row">
                 <input
@@ -1180,7 +1181,7 @@
                 </button>
               </div>
               <div id="secret-setup-github-status" style="min-height:18px; font-size:12px; color:#999;">
-                需要使用 <code>Classic PAT</code>，并同时具备 <code>repo</code>、<code>workflow</code> 和 <code>gist</code> 权限。
+                ${window.DPRGithubAccess.hint}
               </div>
             </div>
 
@@ -1379,7 +1380,7 @@
       rerankerApiKeyInput.value = currentReranker.apiKey || '';
       rerankerBaseUrlInput.value = currentReranker.baseUrl || '';
 
-      let githubOk = !!initialGithubToken;
+      let githubOk = false;
       let deepseekOk = !!initialApiKey;
 
       const setErrorText = (text, color) => {
@@ -1438,7 +1439,7 @@
 
       const resetGithubStatus = () => {
         githubOk = false;
-        githubStatusEl.innerHTML = '需要使用 <code>Classic PAT</code>，并同时具备 <code>repo</code>、<code>workflow</code> 和 <code>gist</code> 权限。';
+        githubStatusEl.textContent = window.DPRGithubAccess.hint;
         githubStatusEl.style.color = '#999';
       };
 
@@ -1542,7 +1543,7 @@
       };
 
       if (initialGithubToken) {
-        githubStatusEl.textContent = '已载入当前加密配置；如更换 GitHub Token，保存前请重新验证。';
+        githubStatusEl.textContent = '已载入当前加密配置；保存前请重新验证单仓库 Fine-grained PAT。';
         githubStatusEl.style.color = '#666';
       }
       if (initialApiKey) {
@@ -1655,40 +1656,10 @@
         githubStatusEl.textContent = '正在验证 GitHub Token...';
         githubStatusEl.style.color = '#666';
         try {
-          const res = await fetch('https://api.github.com/user', {
-            headers: {
-              Authorization: `token ${token}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          });
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-          }
-          const scopesHeader = res.headers.get('X-OAuth-Scopes') || '';
-          const scopeList = scopesHeader
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const requiredScopes = ['repo', 'workflow', 'gist'];
-          const missing = requiredScopes.filter((scope) => !scopeList.includes(scope));
-          if (missing.length) {
-            throw new Error(
-              `Token 权限不足，缺少：${missing.join(', ')}。请在 GitHub 中重新生成 PAT。`,
-            );
-          }
-          const userData = await res.json().catch(() => ({}));
-          const login = userData.login || '';
-          let repoInfo = '';
-          const repoMeta = await readRepoOwnerJson();
-          if (repoMeta) {
-            if (login && repoMeta.owner && login.toLowerCase() !== repoMeta.owner.toLowerCase()) {
-              throw new Error(
-                `Token 用户 ${login} 与站点所有者 ${repoMeta.owner} 不一致，请使用站点所有者的 Token。`,
-              );
-            }
-            repoInfo = `<br>仓库：${repoMeta.owner}/${repoMeta.repo}`;
-          }
-          githubStatusEl.innerHTML = `✅ 验证成功：用户 ${login}，权限：${scopeList.join(', ')}${repoInfo}<br>Gist 分享：已开启。`;
+          const verified = await window.DPRGithubAccess.verify(token);
+          const target = await detectGithubRepoFromToken(token);
+          window.DPRGithubAccess.assertRepo(target.owner, target.repo);
+          githubStatusEl.textContent = `✅ 已验证 ${verified.login} 对 ${verified.repo} 的读取访问。请确认 Token 在 GitHub 中仅选择此仓库，并授予 Contents、Actions、Secrets 读写权限；写入权限将在保存时验证。Gist 分享已关闭。`;
           githubStatusEl.style.color = '#28a745';
           githubOk = true;
         } catch (e) {
@@ -1829,7 +1800,7 @@
             );
             if (!secretsOk) {
               setErrorText(
-                '❌ 写入 GitHub Secrets 失败，请检查网络、Token 权限（需 Classic PAT + repo/workflow/gist）或稍后重试。',
+                '❌ 写入 GitHub Secrets 失败，请检查网络及 Fine-grained PAT 对 daily-paper-reader 的 Secrets 读写权限。',
                 '#c00',
               );
               return;
@@ -1838,8 +1809,6 @@
 
           setErrorText(localOnly ? '正在保存到浏览器本地...' : 'GitHub Secrets 上传完成，正在生成加密配置 secret.private...', '#666');
           const payload = await createEncryptedSecret(password, plainConfig);
-          window.decoded_secret_private = plainConfig;
-          setMode('full');
 
           if (localOnly) {
             try {
@@ -1868,12 +1837,15 @@
             const commitOk = await saveSecretPrivateToGithubRepo(githubToken, payload);
             if (!commitOk) {
               setErrorText(
-                '⚠️ 已生成本地 secret.private，但自动推送到 GitHub 仓库失败，请稍后手动提交或检查 Token/网络。',
+                '⚠️ 已下载加密备份，但尚未保存到 GitHub。请检查单仓库 Token 的 Contents 读写权限及网络后重试。',
                 '#c00',
               );
+              return;
             }
           }
 
+          window.decoded_secret_private = plainConfig;
+          setMode('full');
           hide();
 
           try {
@@ -1916,6 +1888,7 @@
       setStep2Modal(false);
       modal.innerHTML = `
         <h2 style="margin-top:0;">🛡️ 新配置指引 · 第一步</h2>
+        <p style="font-size:13px; line-height:1.6;">本 Fork 仅接受 Fine-grained PAT，操作目标固定为 <strong>sekire4/daily-paper-reader</strong>。下一步配置 Token 时，请在 GitHub 仅选择这一个仓库，授予 Contents、Actions、Secrets 读写权限。Gist 分享已关闭。</p>
         <p style="font-size:13px; color:#555; margin-bottom:8px;">
           检测到当前仓库尚未创建 <code>secret.private</code> 文件。
           请先设置一个用于加密本地配置的密码，该密码将用于解锁大模型密钥等敏感信息。

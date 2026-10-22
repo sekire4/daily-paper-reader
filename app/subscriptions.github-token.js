@@ -174,127 +174,18 @@ window.SubscriptionsGithubToken = (function () {
 
   // 验证 GitHub Token 并检查权限
   const verifyGithubToken = async (token, options = {}) => {
-    const { requireWorkflow = true } = options;
     try {
-      // 1. 获取用户信息
-      const userRes = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
-
-      if (!userRes.ok) {
-        throw new Error('Token 无效或已过期');
+      const result = await window.DPRGithubAccess.verify(token);
+      // Never infer a different repository from config.yaml or another URL.
+      const url = new URL(window.location.href);
+      const meta = await readRepoOwnerJson();
+      if (meta) window.DPRGithubAccess.assertRepo(meta.owner, meta.repo);
+      if (url.hostname.endsWith('.github.io')) {
+        window.DPRGithubAccess.assertRepo(url.hostname.split('.')[0], url.pathname.split('/')[1]);
       }
-
-      const userData = await userRes.json();
-
-      // 2. 检查权限 - 通过响应头的 X-OAuth-Scopes
-      const scopes = userRes.headers.get('X-OAuth-Scopes');
-      const scopeList = scopes ? scopes.split(',').map((s) => s.trim()) : [];
-
-      const requiredScopes = requireWorkflow ? ['repo', 'workflow', 'gist'] : ['repo', 'gist'];
-      const missingScopes = requiredScopes.filter(
-        (scope) => !scopeList.includes(scope),
-      );
-
-      if (missingScopes.length > 0) {
-        // 权限不足时直接返回失败结果，并带上现有权限列表，供 UI 做更友好的展示
-        return {
-          valid: false,
-          error: `Token 权限不足：缺少 ${missingScopes.join(
-            ', ',
-          )}。请使用 Classic Personal Access Token，并补充所示权限。`,
-          scopes: scopeList,
-          login: userData.login,
-        };
-      }
-
-      // 3. 获取当前页面的仓库信息
-      // 优先级：.repo-owner.json > *.github.io URL 正则 > config.yaml > userData.login 兜底
-      const currentUrl = window.location.href;
-      const urlObj = new URL(currentUrl);
-      const host = urlObj.hostname || '';
-
-      let repoOwner = '';
-      let repoName = '';
-
-      if (host === 'localhost' || host === '127.0.0.1') {
-        repoOwner = userData.login || '';
-        repoName = 'daily-paper-reader';
-      } else {
-        const repoMeta = await readRepoOwnerJson();
-        if (repoMeta) {
-          repoOwner = repoMeta.owner;
-          repoName = repoMeta.repo;
-          if (userData.login && repoMeta.owner && userData.login.toLowerCase() !== repoMeta.owner.toLowerCase()) {
-            throw new Error(
-              `Token 用户 ${userData.login} 与站点所有者 ${repoMeta.owner} 不一致`,
-            );
-          }
-        } else {
-          const githubPagesMatch = currentUrl.match(
-            /https?:\/\/([^.]+)\.github\.io\/([^\/]+)/,
-          );
-          if (githubPagesMatch) {
-            repoOwner = githubPagesMatch[1];
-            repoName = githubPagesMatch[2];
-          } else {
-            const parsedRepo = await readConfigYamlForRepo();
-            if (parsedRepo) {
-              repoOwner = parsedRepo.owner || repoOwner;
-              repoName = parsedRepo.repo || repoName;
-            }
-            if (!repoOwner) {
-              repoOwner = userData.login || '';
-            }
-          }
-        }
-      }
-
-      // 4. 如果有仓库信息，验证 Token 是否有权限访问该仓库
-      if (repoOwner && repoName) {
-        const repoRes = await fetch(
-          `https://api.github.com/repos/${repoOwner}/${repoName}`,
-          {
-            headers: {
-              Authorization: `token ${token}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          },
-        );
-
-        if (!repoRes.ok) {
-          throw new Error(
-            `无法访问仓库 ${repoOwner}/${repoName}，请确认 Token 权限`,
-          );
-        }
-
-        const repoData = await repoRes.json();
-
-        if (!repoData.permissions || !repoData.permissions.push) {
-          throw new Error(
-            `没有仓库 ${repoOwner}/${repoName} 的写入权限`,
-          );
-        }
-      }
-
-      return {
-        valid: true,
-        login: userData.login,
-        name: userData.name,
-        repo:
-          repoOwner && repoName
-            ? `${repoOwner}/${repoName}`
-            : '未检测到仓库',
-        scopes: scopeList,
-      };
+      return { valid: true, ...result };
     } catch (error) {
-      return {
-        valid: false,
-        error: error.message,
-      };
+      return { valid: false, error: error.message || String(error) };
     }
   };
 
@@ -546,7 +437,8 @@ window.SubscriptionsGithubToken = (function () {
           用户: ${data.login || ''}<br>
           仓库: ${data.repo || ''}<br>
           权限: ${scopes.join(', ')}<br>
-          Gist 分享: 已开启
+          读取访问已验证；写入权限在保存时验证。<br>
+          请在 GitHub 中仅选择 sekire4/daily-paper-reader。Gist 分享: 已关闭
         </div>
       `;
     };
@@ -664,7 +556,7 @@ window.SubscriptionsGithubToken = (function () {
             result.scopes && result.scopes.length
               ? `现有权限: ${result.scopes.join(', ')}<br>`
               : '现有权限: （无）<br>';
-          const gistHint = '当前配置要求使用 Classic PAT，并同时具备 repo、workflow、gist 权限。<br>';
+          const gistHint = window.DPRGithubAccess.hint + '<br>';
           githubTokenMessage.innerHTML = `
             <div style="font-size:12px; line-height:1.6;">
               ${userText}${scopesText}${gistHint}

@@ -225,7 +225,8 @@
       body: validation.body,
     });
 
-    if (!token) {
+    // A repository-scoped token must not be sent to the upstream issue API.
+    if (!token || token.startsWith('github_pat_')) {
       const opened = options.openDraft === false ? false : openDraftIssuePage(safeRoot, draftUrl);
       return {
         ok: true,
@@ -234,7 +235,9 @@
         draftUrl,
         validation,
         message: opened
-          ? '未检测到可用 GitHub Token，已为你打开预填好的公开 Issue 页面。'
+          ? (token.startsWith('github_pat_')
+            ? '单仓库 Token 不用于上游反馈，已打开 GitHub 草稿页面，请自行确认提交。'
+            : '未检测到可用 GitHub Token，已为你打开预填好的公开 Issue 页面。')
           : '浏览器未能打开 GitHub，请再次点击提交按钮继续。',
       };
     }

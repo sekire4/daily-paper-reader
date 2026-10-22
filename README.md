@@ -152,11 +152,18 @@
 
 ### 2) 🪪 准备 GitHub PAT
 
-打开 [GitHub 新建 PAT 页面](https://github.com/settings/tokens/new?type=beta&scopes=repo,workflow,gist)，勾选以下权限（默认已勾选）：
+本 Fork 使用单仓库 Fine-grained PAT，不接受 Classic PAT。
 
-- ✅ `repo`
-- ✅ `workflow`
-- ✅ `gist`
+打开 [GitHub 新建 Fine-grained PAT 页面](https://github.com/settings/personal-access-tokens/new)：
+
+- Resource owner：`sekire4`，设置合适的有效期。
+- Repository access：**Only select repositories**，仅选择 `daily-paper-reader`，不要选择 All repositories。
+- Repository permissions：**Contents / Actions / Secrets → Read and write**；Metadata 的只读权限自动包含，其他权限不添加。
+- Account permissions：不添加；不需要 Workflows 或 Administration 权限。
+
+将 Token 填入自己的站点初始化页。初始化仅做读取探测，实际写入权限在保存配置时验证；网页不能代替 GitHub 核实 Token 是否只选择了一个仓库。访问范围由 GitHub 的 Token 设置强制执行，其他未授权私有仓库不可读取，其他未授权仓库不可写入，公开仓库仍可匿名浏览。
+
+此 Fork 的操作目标固定为 `sekire4/daily-paper-reader`。Gist 分享关闭；反馈改为打开 GitHub 草稿页面，由用户自行提交，不向上游仓库发送此 Token。
 
 ### 3) 🍴 Fork 本仓库
 - Fork 到自己的 GitHub 账号下 <a href="https://github.com/ziwenhahaha/daily-paper-reader/fork"><img src="https://img.shields.io/badge/Fork%20on-GitHub-24292f?style=flat&logo=github" alt="Fork on GitHub" height="20" align="absmiddle" /></a>

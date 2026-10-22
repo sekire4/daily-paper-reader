@@ -1472,60 +1472,11 @@ window.$docsify = {
       };
 
       const createGist = async (token, filename, content) => {
-        const res = await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            description: '论文分享（Daily Paper Reader）',
-            public: false,
-            files: {
-              [filename]: { content },
-            },
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const msg = data && data.message ? String(data.message) : '';
-          // GitHub 对不支持/无权限的 token（尤其是 fine-grained PAT 不支持 Gist）经常返回 404 Not Found
-          if (res.status === 404) {
-            throw new Error(
-              'Not Found（常见原因：你用的是 Fine-grained PAT，GitHub Gist API 不支持；请改用 Classic PAT 并勾选 gist 权限）',
-            );
-          }
-          if (res.status === 401) {
-            throw new Error('未授权（Token 无效或已过期）');
-          }
-          if (res.status === 403) {
-            throw new Error(
-              `权限不足（需要 Classic PAT 勾选 gist 权限）。${msg ? `详情：${msg}` : ''}`.trim(),
-            );
-          }
-          throw new Error(msg || `HTTP ${res.status}`);
-        }
-        return data;
+        throw new Error('此站点使用单仓库授权，Gist 分享已关闭。');
       };
 
       const sharePaperToGist = async (paperId) => {
-        const token = loadGithubTokenForGist();
-        if (!token) {
-          showShareModal('', '未检测到 GitHub Token，请先在首页配置 GitHub Token。');
-          return;
-        }
-        const pageMd = await fetchPaperMarkdownById(paperId);
-        const chat = await loadChatHistoryForPaper(paperId);
-        const content = buildShareMarkdown(paperId, pageMd, chat);
-
-        // 文件名：paperId 最后一段 + .md
-        const slug = String(paperId || 'paper').split('/').slice(-1)[0] || 'paper';
-        const filename = `${slug}.md`;
-        const data = await createGist(token, filename, content);
-        const url = data && data.html_url ? String(data.html_url) : '';
-        const preview = data && data.id ? `https://gist.io/${data.id}` : '';
-        showShareModal(url, preview ? `精美预览：${preview}` : '');
+        showShareModal('', '此站点仅授权 daily-paper-reader 仓库，Gist 分享已关闭。');
       };
 
       // --- Sidebar 未读 badge 更新 ---
