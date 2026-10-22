@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-23 ~ 2026-10-22</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-22</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 78 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 23 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>66</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>11</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-22 14:15:54 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-22 22:22:02 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,9 +69,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>本期（2026-09-23至10-22）共筛读78篇文献，其中精读66篇、速读12篇，重点聚焦长时程智能体的记忆机制。</p>
-<p>最值得看的是两篇满分工作：EnSIMem用实体结构化索引组织长期记忆，ActiveMem用动态潜在记忆树支撑长程任务；速读中“记忆控制信号先于动作出现”的发现也值得留意。</p>
-<p>普通读者可先读这两篇满分论文的记忆索引与树结构设计，再结合TWIST的记忆干预质量评测思路，判断这些方法在真实对话场景中的可用性。</p>
+<p>今天筛选 23 篇论文，精读 11 篇、速读 12 篇，重点锁定自演化智能体与迭代检索增强生成两条主线。</p>
+<p>最值得看的是两篇 9.0 分工作：STRATA 用自维护结构化经验图支撑语言智能体自演化，RCER 通过重建跨证据关系改进迭代 RAG。</p>
+<p>建议先精读这两篇 9.0 分论文，再结合 TRACE 系列速读内容，理解记忆有效性与参数/上下文取舍。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -80,12 +80,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">66 篇</strong>
+    <strong class="dpr-home-dashboard-count">11 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="EnSIMem: Entity-Structured Indexing for Long-Term Agent Memory">EnSIMem: Entity-Structured Indexing for Long-Term Agent Memory</span></li><li><span class="dpr-home-dashboard-paper-title" title="ActiveMem: Dynamic Latent Memory Trees for Long-Horizon Agents">ActiveMem: Dynamic Latent Memory Trees for Long-Horizon Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemCodex: Self-Programming Hierarchical Memory for Language Agents">MemCodex: Self-Programming Hierarchical Memory for Language Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="STRATA: Self-Maintaining Structured Experience Graphs for Self-Evolving Language Agents">STRATA: Self-Maintaining Structured Experience Graphs for Self-Evolving Language Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="RCER: Reconstructing Cross-Evidence Relations for Iterative Retrieval-Augmented Generation">RCER: Reconstructing Cross-Evidence Relations for Iterative Retrieval-Augmented Generation</span></li><li><span class="dpr-home-dashboard-paper-title" title="TEM: Temporal State Tracking Memory for Large Language Model Agents">TEM: Temporal State Tracking Memory for Large Language Model Agents</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>61</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>5</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>9</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>2</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -96,7 +96,7 @@
     <strong class="dpr-home-dashboard-count">12 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Memory Control Signals Emerge Before Action in Long Horizon Agents">Memory Control Signals Emerge Before Action in Long Horizon Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Learning from Failures: Heterogeneous Graph Memory for Small Language Model Tool-Using Agents">Learning from Failures: Heterogeneous Graph Memory for Small Language Model Tool-Using Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="TWIST: A Proposed Benchmark for Intervention Quality in Conversational Memory, with a Human-Validated Draft-Alignment">TWIST: A Proposed Benchmark for Intervention Quality in Conversational Memory, with a Human-Validated Draft-Alignment</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Parameters vs. Context: TRACE Fine-Tuning for Robust Retrieval-Augmented Generation">Parameters vs. Context: TRACE Fine-Tuning for Robust Retrieval-Augmented Generation</span></li><li><span class="dpr-home-dashboard-paper-title" title="TRACE: Governing Memory Validity in Evolving Multi-Agent Systems">TRACE: Governing Memory Validity in Evolving Multi-Agent Systems</span></li><li><span class="dpr-home-dashboard-paper-title" title="Page-Aware Retrieval-Augmented Generation for EvalLLM 2026: A Five-Variant Study on French PDFs">Page-Aware Retrieval-Augmented Generation for EvalLLM 2026: A Five-Variant Study on French PDFs</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>6</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>6</strong></span></div>
 </section>

@@ -1,0 +1,955 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-10-22T22:15:36.333615+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 2,
+    "deep_divecandidates": 47,
+    "deep_cap": 7,
+    "deep_selected": 11,
+    "quick_candidates": 70,
+    "quick_skim_target": 12,
+    "quick_selected": 12
+  },
+  "deep_dive": [
+    {
+      "id": "2610.19386v1",
+      "source": "arxiv",
+      "title": "STRATA: Self-Maintaining Structured Experience Graphs for Self-Evolving Language Agents",
+      "abstract": "Large language model (LLM) agents can self-evolve at test time by accumulating experience: retrieving relevant memories before acting and writing new lessons back afterwards. Yet most are single-level: trajectories, distilled workflows and reasoning items all land in one undifferentiated pool indexed by embedding similarity, with no typed abstraction hierarchy. They never forget or deduplicate, and are prone to negative transfer, where a superficially similar but directionally opposite experience is recalled and its concrete steps are copied verbatim, actively harming the agent. We introduce STRATA, a structured, outcome-grounded, self-maintaining memory that organizes experience into a three-layer graph of atomic skills and code snippets, task workflows and generalized meta-frameworks, connected by typed edges. STRATA maintains itself through five mechanisms sharing one similarity geometry: a multi-dimensional similarity that scores retrieval by operation and target; a typed reflector crystallizing procedures from successes and pitfalls from failures; community detection that induces meta-frameworks; pressure-triggered garbage collection with articulation-point protection; and contrast edges that flag confusable, direction-opposite experiences. Across four interactive benchmarks (AppWorld, WebArena, ALFWorld, ScienceWorld), two frozen backbones and seven baselines, STRATA attains the best average score while simultaneously using the lowest latency and fewest environment steps of any memory-augmented method, and 44% fewer lines of injected memory than the most context-hungry baseline. We isolate two failure modes of prior memories: single-level memory degrades sharply as the task set grows, and single-level concrete memories suffer catastrophic negative transfer, which contrast edges repair, lifting ScienceWorld from 78.7 to 96.7 within the same system.",
+      "authors": [
+        "Guanhua Zhu",
+        "Hanwen Li",
+        "Zhi Wei",
+        "Mengnan Du",
+        "Chenxi Yuan"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-14T01:31:59+00:00",
+      "link": "https://arxiv.org/pdf/2610.19386v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "self-maintaining structured memory with retrieval and deduplication",
+      "llm_evidence_cn": "具备检索、去重与维护的结构化记忆",
+      "llm_evidence": "具备检索、去重与维护的结构化记忆",
+      "canonical_evidence": "具备检索、去重与维护的结构化记忆",
+      "llm_tldr_en": "STRATA is a self-maintaining, outcome-grounded memory that organizes agent experience into a three-layer graph of skills and code snippets, avoiding the negative transfer and lack of forgetting seen in flat embedding-indexed memory pools.",
+      "llm_tldr_cn": "大模型智能体可在测试时通过积累经验自我进化，但多数记忆是单层的，轨迹、工作流与推理项混在同一嵌入索引池中，既不遗忘也不去重，容易因表面相似而方向相反的经验被召回导致负迁移。作者提出STRATA，一种结构化、以结果为锚、可自我维护的记忆，将经验组织为原子技能与代码片段构成的三层图。该方法缓解负迁移并支持去重与遗忘。该工作为自进化智能体的记忆组织与检索提供了结构化方案。",
+      "llm_tldr": "大模型智能体可在测试时通过积累经验自我进化，但多数记忆是单层的，轨迹、工作流与推理项混在同一嵌入索引池中，既不遗忘也不去重，容易因表面相似而方向相反的经验被召回导致负迁移。作者提出STRATA，一种结构化、以结果为锚、可自我维护的记忆，将经验组织为原子技能与代码片段构成的三层图。该方法缓解负迁移并支持去重与遗忘。该工作为自进化智能体的记忆组织与检索提供了结构化方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "methods for memory consolidation and retrieval in agent systems",
+      "matched_requirement_id": "req-10",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.19398v1",
+      "source": "arxiv",
+      "title": "RCER: Reconstructing Cross-Evidence Relations for Iterative Retrieval-Augmented Generation",
+      "abstract": "Iterative retrieval-augmented generation (RAG) accumulates knowledge from retrieved evidence to answer complex questions, but existing methods struggle to reconstruct entity correspondences and inferential dependencies across retrieved passages as new information emerges. We propose RCER, an iterative RAG method that reconstructs these cross-evidence relations directly from accumulated source passages. Inter-round relational evidence acquisition identifies entity correspondences and relational dependencies to drive dynamic problem decomposition and iterative retrieval. Reasoning context reconstruction independently constructs a coherent reasoning context through joint selection of complementary passages and derivation of cross-evidence inferences. Cross-evidence compositional reasoning leverages these inferences to establish entity correspondences and compose relations across selected passages for answer derivation. Experiments show that RCER outperforms the best baselines by 2.83 EM and 3.06 F1 points on average across three multi-hop QA benchmarks and achieves superior performance on narrative and implicit reasoning tasks.",
+      "authors": [
+        "Linyao Zheng",
+        "Xuhang Shi",
+        "Zhifang Mao",
+        "Xiuquan Hou",
+        "Sai Zhou"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-14T01:47:17+00:00",
+      "link": "https://arxiv.org/pdf/2610.19398v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "iterative RAG reconstructing cross-evidence relations from retrieved passages",
+      "llm_evidence_cn": "迭代检索增强生成，从检索段落重构跨证据关系",
+      "llm_evidence": "迭代检索增强生成，从检索段落重构跨证据关系",
+      "canonical_evidence": "迭代检索增强生成，从检索段落重构跨证据关系",
+      "llm_tldr_en": "RCER is an iterative RAG method that reconstructs entity correspondences and inferential dependencies across accumulated evidence to drive dynamic decomposition and better complex-question answering.",
+      "llm_tldr_cn": "现有迭代检索增强生成在新增证据时难以重建跨段落实体对应与推理依赖。本文提出RCER，直接从累积源段落中重构跨证据关系，通过轮间关系证据获取驱动动态问题分解与迭代检索，并联合选择互补段落构建连贯推理上下文。方法提升了复杂多跳问题的证据整合能力，为迭代RAG提供了关系感知的检索与推理框架。",
+      "llm_tldr": "现有迭代检索增强生成在新增证据时难以重建跨段落实体对应与推理依赖。本文提出RCER，直接从累积源段落中重构跨证据关系，通过轮间关系证据获取驱动动态问题分解与迭代检索，并联合选择互补段落构建连贯推理上下文。方法提升了复杂多跳问题的证据整合能力，为迭代RAG提供了关系感知的检索与推理框架。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.21900v1",
+      "source": "arxiv",
+      "title": "TEM: Temporal State Tracking Memory for Large Language Model Agents",
+      "abstract": "An agent's memory must remain useful as information changes across conversations. A new fact may replace an earlier value without making that value irrelevant to a later question. We present Temporal State Tracking Memory (TEM), a training-free framework for tracking these changes. TEM stores facts as versioned records linked to their sources. It retrieves relevant versions, places them in source order and labels historical records before passing the evidence to the answer model. Event memory and original dialogue turns provide details missing from structured facts. We evaluated TEM on 420 questions drawn from 600 sessions involving 60 personas. Across four open-weight models, key-entity hit rates reached 75.71-97.62% overall and 96.67-100.00% on the historical-residence subset. Adding historical labels to otherwise identical, source-ordered facts increased overall hit rates by 17.14-55.95 percentage points. The evidence was compact: 94-118 tokens per answer, or 48.75-56.73% less than session-aware retrieval-augmented generation (RAG). A further evaluation on 1,540 LoCoMo questions tested hybrid memory under a fixed evidence budget. TEM exceeded session-aware RAG with both backbones; conservative score differences were 7.92 and 10.58 percentage points. The results support preserving fact versions and exposing their temporal status to the generator when answering questions about repeatedly updated information.",
+      "authors": [
+        "Pengfeng Song",
+        "Yunkai Zhuang",
+        "Liye Shi"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-15T13:54:31+00:00",
+      "link": "https://arxiv.org/pdf/2610.21900v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "versioned fact memory with retrieval for LLM agents",
+      "llm_evidence_cn": "面向智能体的版本化事实记忆与检索",
+      "llm_evidence": "面向智能体的版本化事实记忆与检索",
+      "canonical_evidence": "面向智能体的版本化事实记忆与检索",
+      "llm_tldr_en": "TEM is a training-free memory framework that stores agent facts as versioned records linked to sources and retrieves them in source order, reaching 75.71-97.62% key-entity hit rates across four open-weight models.",
+      "llm_tldr_cn": "现有智能体记忆难以应对跨对话的信息变化，新事实替换旧值后历史值仍可能对后续提问有用。作者提出无需训练的时序状态追踪记忆TEM，将事实存为带来源的版本化记录，检索时按来源顺序排列并标注历史版本，同时用事件记忆和原始对话补充细节。在600个会话、60个人设的420个问题上，四个开源模型的关键实体命中率达75.71%至97.62%，历史类问题接近满分。该工作为智能体长期记忆的更新与检索提供了可复用的轻量方案。",
+      "llm_tldr": "现有智能体记忆难以应对跨对话的信息变化，新事实替换旧值后历史值仍可能对后续提问有用。作者提出无需训练的时序状态追踪记忆TEM，将事实存为带来源的版本化记录，检索时按来源顺序排列并标注历史版本，同时用事件记忆和原始对话补充细节。在600个会话、60个人设的420个问题上，四个开源模型的关键实体命中率达75.71%至97.62%，历史类问题接近满分。该工作为智能体长期记忆的更新与检索提供了可复用的轻量方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.22686v1",
+      "source": "arxiv",
+      "title": "Multimodal Filesystem Memory For Long-Horizon Embodied Agents",
+      "abstract": "Agents operating over long horizons need an effective memory that allows them to reuse their experience throughout long interactions. If the entire history of an interaction is retained, it becomes difficult to find the relevant experience, while compressing it into summaries may result in the loss of visual and spatial details that are required later on. We present \\textbf{MFM}, a multimodal filesystem memory architecture that keeps complementary types of agent memory. \\textbf{Episodic memory} stores the observations, actions, and outcomes, and \\textbf{spatial memory} associates experiences with locations. \\textbf{Semantic and procedural memory} build up general knowledge and reusable methods of acting, and \\textbf{working memory} holds the current plans. MFM makes use of searchable textual records to connect these different representations to the underlying multimodal episodes. The agents are able to find previous experiences by means of contextual cues and to examine the original observations in order to recover details that are missing from their textual descriptions. Through consolidation, the agents convert experience into higher-level knowledge and procedures while still keeping references to the original episodes. In the case of long-horizon Minecraft and computer-use tasks, MFM leads to improved performance with three base models. With GPT-6-Astra, MFM completes \\emph{Mine Diamond from Scratch} and reaches 16 out of 24 milestones on the \\emph{Ender Dragon} task, as against 12.7 for the best baseline. On CUABench-KiCad it attains a mean reward of 0.440, as compared to 0.400 for the best baseline and 0.267 in the case of no persistent memory.",
+      "authors": [
+        "Chloe Su",
+        "Jiahan Li",
+        "Zhenting Qi",
+        "Chaoran Cheng",
+        "Haoyu Chen",
+        "Sejoon Jun",
+        "Weirui Ye",
+        "Yilun Du"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-15T21:56:00+00:00",
+      "link": "https://arxiv.org/pdf/2610.22686v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "multimodal filesystem memory architecture with episodic, spatial, semantic and working memory",
+      "llm_evidence_cn": "含情景、空间、语义与工作记忆的多模态文件系统记忆架构",
+      "llm_evidence": "含情景、空间、语义与工作记忆的多模态文件系统记忆架构",
+      "canonical_evidence": "含情景、空间、语义与工作记忆的多模态文件系统记忆架构",
+      "llm_tldr_en": "Long-horizon embodied agents must reuse experience, yet full history is unsearchable and summaries lose visual-spatial detail; MFM keeps episodic, spatial, semantic, procedural and working memory in a multimodal filesystem architecture.",
+      "llm_tldr_cn": "长程交互的具身智能体需要复用经验，但保留全部历史难以检索，压缩为摘要又会丢失后续所需的视觉与空间细节。作者提出MFM多模态文件系统记忆架构，分别维护存储观察动作与结果的情景记忆、关联位置的空间记忆、积累通用知识与可复用方法的语义与程序记忆，以及保存当前计划的工作记忆。该分层设计支持长程具身任务中的经验复用与空间定位，为智能体记忆架构提供了可借鉴的组织范式。",
+      "llm_tldr": "长程交互的具身智能体需要复用经验，但保留全部历史难以检索，压缩为摘要又会丢失后续所需的视觉与空间细节。作者提出MFM多模态文件系统记忆架构，分别维护存储观察动作与结果的情景记忆、关联位置的空间记忆、积累通用知识与可复用方法的语义与程序记忆，以及保存当前计划的工作记忆。该分层设计支持长程具身任务中的经验复用与空间定位，为智能体记忆架构提供了可借鉴的组织范式。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.25561v1",
+      "source": "arxiv",
+      "title": "Let Them Sleep: Recursive Self-Pruning Memory for Long-Horizon LLM Agents",
+      "abstract": "Agents that run for a long time have a memory problem, and it is not the one most systems optimize for. Storing every trace and retrieving the nearest neighbors works early and quietly stops working later: the store fills up with failures the agent then repeats, and with facts that were true fifty turns ago. RSPM (Recursive Self-Pruning Memory) borrows the fix biology already found. At intervals the agent sleeps. It clusters its recent failures, distills each cluster into a short rule, and deletes the raw episodes it just learned from. Rules decay unless something reinforces them, and rules that recur across many contexts get promoted into general ones. We tested this on three settings with little in common: a difficulty-calibrated SWE-bench simulation, temporal consistency across 12 conversational benchmarks, and long-horizon QA on LoCoMo-10. All three improve, by 9.1, 11.9, and 7.6 points respectively. More interestingly, the two studies that instrument the store itself converge on nearly the same operating point without being tuned toward it: roughly 93% fewer retry loops and roughly 30% fewer stored entries. That hints that knowing what to forget is a general property of agent memory rather than a benchmark-specific trick.",
+      "authors": [
+        "Kargi Chauhan",
+        "Sadiba Nusrat Nur",
+        "Pratibha Revankar",
+        "Kyle Montgomery",
+        "Chenguang Wang"
+      ],
+      "primary_category": "cs.NE",
+      "categories": [
+        "cs.NE"
+      ],
+      "published": "2026-10-18T21:56:18+00:00",
+      "link": "https://arxiv.org/pdf/2610.25561v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "memory consolidation via sleep, rule distillation and pruning of episodes",
+      "llm_evidence_cn": "通过睡眠、规则蒸馏与片段剪枝实现记忆巩固",
+      "llm_evidence": "通过睡眠、规则蒸馏与片段剪枝实现记忆巩固",
+      "canonical_evidence": "通过睡眠、规则蒸馏与片段剪枝实现记忆巩固",
+      "llm_tldr_en": "Long-horizon LLM agents degrade when storing every trace and retrieving nearest neighbors; RSPM lets agents periodically sleep, cluster failures into short rules, delete raw episodes, and decay or promote rules, tested across three diverse settings.",
+      "llm_tldr_cn": "长程LLM智能体若存储全部轨迹并用最近邻检索，会积累过时事实与重复失败，性能随时间下降。作者提出RSPM递归自剪枝记忆：定期让智能体睡眠，将近期失败聚类蒸馏为简短规则并删除原始片段，规则无强化则衰减、跨情境复现则升为通用规则。在SWE-bench模拟等三个差异较大的场景中验证有效，为长程智能体提供了类生物的记忆巩固方案。",
+      "llm_tldr": "长程LLM智能体若存储全部轨迹并用最近邻检索，会积累过时事实与重复失败，性能随时间下降。作者提出RSPM递归自剪枝记忆：定期让智能体睡眠，将近期失败聚类蒸馏为简短规则并删除原始片段，规则无强化则衰减、跨情境复现则升为通用规则。在SWE-bench模拟等三个差异较大的场景中验证有效，为长程智能体提供了类生物的记忆巩固方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "methods for memory consolidation and retrieval in agent systems",
+      "matched_requirement_id": "req-10",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.26554v1",
+      "source": "arxiv",
+      "title": "BetaMem: Learning to Remember a Changing World for Embodied Agents",
+      "abstract": "Long-horizon embodied agents face temporal confusion and incomplete or distorted records, recurring errors from fixed memory rules, and growing storage and retrieval costs. We present BetaMem, a framework for building and evolving traceable long-term memory through six linked layers: working, spatial, entity, episodic, experiential, and procedural memory. A dual-level write contract constrains operation executability and source support for content: supervised fine-tuning learns compliant memory operations, while reinforcement learning combines repeated sampling with teacher verification of the original observations to reward complete, accurate records and penalize omissions, distortion, and unsupported content. We formulate failure-driven policy recursive self-improvement through diagnosis along the causal sequence of memory operations and local rule repairs gated by independent replay. Atomic tools frame storage, updates, retrieval, and forgetting as cost-utility allocation under storage and read budgets. Using the open-source Qwen3.5-9B model for memory generation, BetaMem achieves overall scores of 48.08% on M3-Bench-robot, 92.08% on LoCoMo, 72.6% on OpenEQA EM-EQA, and 62.4% on EgoLifeQA, the highest among the listed memory methods under their respective evaluation protocols. Training the model for memory generation raises the contract pass rate from 50.9% to 86.2% while reducing output tokens per stored action by 47.3%. A separate Qwen3-VL-8B-Instruct evaluation on EMem-Bench achieves an average success rate of 38.4% and an average error recurrence rate of 24.9%. We perform best among evaluated methods using comparably sized open-source models. Category results show that we have advantages in integrating information across observations, recalling events over long histories, and inferring personal habits.",
+      "authors": [
+        "Mai Liu",
+        "He Sun",
+        "Siru Zhong",
+        "Kerun Chen",
+        "Hao Yan",
+        "Xiaohui Lv",
+        "Shuai Tao",
+        "Wulong Liu"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-19T15:13:56+00:00",
+      "link": "https://arxiv.org/pdf/2610.26554v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "six-layer long-term memory framework for embodied agents",
+      "llm_evidence_cn": "面向具身智能体的六层长期记忆框架",
+      "llm_evidence": "面向具身智能体的六层长期记忆框架",
+      "canonical_evidence": "面向具身智能体的六层长期记忆框架",
+      "llm_tldr_en": "BetaMem builds and evolves traceable long-term memory for embodied agents across six layers, using a dual-level write contract with supervised and reinforcement learning to keep records accurate.",
+      "llm_tldr_cn": "长时程具身智能体面临时序混乱、记录失真与存储检索成本增长等问题。本文提出BetaMem，通过工作、空间、实体、情节、经验与程序六层构建可追溯的长期记忆，并用双层写入契约约束操作可行性与来源支持，结合监督微调与强化学习奖励完整准确记录、惩罚遗漏失真。该框架有效提升了记忆的完整性与可追溯性，为自主智能体长期记忆系统提供了系统化方案。",
+      "llm_tldr": "长时程具身智能体面临时序混乱、记录失真与存储检索成本增长等问题。本文提出BetaMem，通过工作、空间、实体、情节、经验与程序六层构建可追溯的长期记忆，并用双层写入契约约束操作可行性与来源支持，结合监督微调与强化学习奖励完整准确记录、惩罚遗漏失真。该框架有效提升了记忆的完整性与可追溯性，为自主智能体长期记忆系统提供了系统化方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.26951v1",
+      "source": "arxiv",
+      "title": "The Bottleneck Is Retrieval, Not Reading: Diagnosing Evidence-Based Generation with RAG for Long Context Question Answering",
+      "abstract": "Retrieval-augmented generation (RAG) is the dominant paradigm for grounding large language models in external corpora, but its similarity-driven, chunked pipeline has structural blind spots: it cannot anticipate which passages a question requires and discards document-level context that resolves cross-passage references. We introduce evidence-based generation (EBG), requiring models to return an answer with line-level citations, and a joint Ans+Evid metric that scores correctness and grounding simultaneously. We reformulate two corpora into evidence-grounded multi-document QA benchmarks- MultiHop-RAG and QASPER-MP, a multi-paper adaptation of QASPER with realistic short paper cues, and pair them with a controlled synthetic two-hop haystack and an evidence-augmented NoLiMa spanning 10K-1M characters. Across ten proprietary frontier and three open-weight LLMs, EBG isolates two RAG limitations that long-context models avoid: similarity retrieval surfaces any relevant chunk far more reliably than all required chunks for multi-fact queries, and chunking destroys document meta-information needed to resolve identity-bearing queries. EBG also exposes grounding failures invisible to answer-only evaluation, including incomplete citations in two-needle settings and a widening gap between Ans and Ans+Evid when context contradicts parametric knowledge. Data and code are available at https://github.com/debobanerjee/LC-EBG.",
+      "authors": [
+        "Debopriyo Banerjee",
+        "Owais Aijaz",
+        "Ahmer Tabassum",
+        "Zhuohan Xie",
+        "Preslav Nakov",
+        "Veselin Stoyanov"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.IR"
+      ],
+      "published": "2026-10-18T09:10:42+00:00",
+      "link": "https://arxiv.org/pdf/2610.26951v1",
+      "tags": [
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "diagnoses RAG retrieval bottleneck and evidence grounding in long-context QA with citations",
+      "llm_evidence_cn": "诊断RAG检索瓶颈并以行级引用评估长上下文问答的证据落地",
+      "llm_evidence": "诊断RAG检索瓶颈并以行级引用评估长上下文问答的证据落地",
+      "canonical_evidence": "诊断RAG检索瓶颈并以行级引用评估长上下文问答的证据落地",
+      "llm_tldr_en": "Shows that RAG's similarity-driven chunked pipeline has structural blind spots for long-context QA, and proposes evidence-based generation with line-level citations plus a joint correctness-grounding metric and evidence-grounded benchmarks.",
+      "llm_tldr_cn": "针对RAG在长上下文问答中相似度分块管线无法预判所需段落、丢弃文档级上下文的结构性缺陷，论文提出证据式生成范式，要求模型给出答案并附行级引用，同时设计同时衡量正确性与落地性的联合指标。作者将两个语料重构为带证据的多文档问答基准（MultiHop-RAG与QASPER-MP），用以诊断检索而非阅读才是瓶颈。该工作为RAG系统的证据可追溯性提供了可评估的诊断框架。",
+      "llm_tldr": "针对RAG在长上下文问答中相似度分块管线无法预判所需段落、丢弃文档级上下文的结构性缺陷，论文提出证据式生成范式，要求模型给出答案并附行级引用，同时设计同时衡量正确性与落地性的联合指标。作者将两个语料重构为带证据的多文档问答基准（MultiHop-RAG与QASPER-MP），用以诊断检索而非阅读才是瓶颈。该工作为RAG系统的证据可追溯性提供了可评估的诊断框架。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Search for papers on retrieval methods and evidence grounding in language model question answering.",
+      "matched_requirement_id": "req-16",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.29249v1",
+      "source": "arxiv",
+      "title": "MOSAIC: An Omni-Modal Benchmark for Long-Term Memory and Cross-Modal Reasoning in Conversational Agents",
+      "abstract": "Omni-modal assistants must remember not only what users say, but also what they show and convey. Existing long-term memory benchmarks are mostly text-and-image or report a single end-to-end score, so they cannot locate whether evidence is lost when it is represented, retrieved, delivered, or read. We introduce MOSAIC, a benchmark of 923 questions over persona-grounded histories of 11-24 sessions spanning text, image, video, and audio. MOSAIC constructs targeted spatial, temporal, and prosodic signals rather than decorative media, with the strongest causal validation for spatial information and selector-level validation for annotated prosody, and pairs them with a matched diagnostic protocol that freezes the question, reader, prompt, and budget while intervening on representation, retrieval, and delivery. Matched decomposition shows that representation loss is modality-dependent, residual reading dominates even under gold evidence, and abstention remains weak on these controls: strong answerable scores coexist with failures to refuse. MOSAIC thus turns omni-modal memory evaluation from a leaderboard into a diagnosis of write, retrieve, deliver, and read failures.",
+      "authors": [
+        "Hong Ting Tsang",
+        "Boyi Zhang",
+        "Haoyu Huang",
+        "Jiaxin Bai",
+        "Yufei Li",
+        "Yisen Gao",
+        "Zhongwei Xie",
+        "Hongyu Luo",
+        "Jeff Z. Pan",
+        "Yangqiu Song"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-21T05:55:20+00:00",
+      "link": "https://arxiv.org/pdf/2610.29249v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "omni-modal long-term memory benchmark for conversational agents",
+      "llm_evidence_cn": "面向对话智能体的全模态长期记忆基准",
+      "llm_evidence": "面向对话智能体的全模态长期记忆基准",
+      "canonical_evidence": "面向对话智能体的全模态长期记忆基准",
+      "llm_tldr_en": "MOSAIC is a 923-question omni-modal benchmark over 11-24 session persona histories that diagnoses where long-term memory fails in conversational agents across text, image, video and audio.",
+      "llm_tldr_cn": "现有长期记忆基准多为文本加图像或只给单一端到端分数，无法定位证据在表示、检索、交付或阅读环节的丢失。作者提出MOSAIC，覆盖文本、图像、视频与音频的923道问题，基于11至24轮的人设历史构建空间、时间与韵律信号，并配套冻结问题的匹配诊断协议。实验显示空间信息具有最强因果效度，韵律标注在检索器层面得到验证。该基准为全模态对话智能体的记忆系统提供了可定位的诊断工具。",
+      "llm_tldr": "现有长期记忆基准多为文本加图像或只给单一端到端分数，无法定位证据在表示、检索、交付或阅读环节的丢失。作者提出MOSAIC，覆盖文本、图像、视频与音频的923道问题，基于11至24轮的人设历史构建空间、时间与韵律信号，并配套冻结问题的匹配诊断协议。实验显示空间信息具有最强因果效度，韵律标注在检索器层面得到验证。该基准为全模态对话智能体的记忆系统提供了可定位的诊断工具。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "conversational memory for dialogue agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.29467v1",
+      "source": "arxiv",
+      "title": "PreCoMem: Predictive Cognitive Memory for Self-Evolving Long-Term Dialogue Agents",
+      "abstract": "Long-horizon dialogue agents need to keep user memories stable enough for personalization while adapting when the user genuinely changes. Existing memory systems often append every observation or overwrite old entries by heuristic rules, which makes transient noise hard to distinguish from real belief drift. We introduce PreCoMem, a memory consolidation framework inspired by predictive coding that represents memory as confidence-weighted beliefs about the user's state. Its core signal, Effective Surprisal, combines semantic deviation and contradiction evidence, then downweights this signal when retrieval is diffuse and unreliable. According to effective surprisal, a two-threshold gate maps each turn to one of three deterministic updates: MAINTAIN reinforces supported beliefs, PROFILE stores ambiguous cues as low-confidence hypotheses, and CORRECT softly decays reliably contradicted facts. The PROFILE stage acts as an explicit waiting room, preventing premature commitment to noisy evidence. Experiments on LoCoMo, LongMemEval-S, and PersonaMem-v2 show consistent state-of-the-art accuracy; our new DiMoBench confirms that PreCoMem adapts to non-stationary belief drift without over-reacting to noise. The code is available at https://github.com/ZhongWishing/PreCoMem.",
+      "authors": [
+        "Jian Zhong",
+        "Zeyu Liu",
+        "Pingchuan Cao",
+        "Rongduo Han",
+        "Shunye Tang",
+        "Guohuan Xie",
+        "Mingyuan Qin",
+        "Ran Ji",
+        "Xiao Liang",
+        "Wei Wang",
+        "Haining Zhang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-21T09:21:33+00:00",
+      "link": "https://arxiv.org/pdf/2610.29467v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "memory consolidation framework for long-term dialogue agents with predictive coding",
+      "llm_evidence_cn": "面向长期对话智能体、受预测编码启发的记忆巩固框架",
+      "llm_evidence": "面向长期对话智能体、受预测编码启发的记忆巩固框架",
+      "canonical_evidence": "面向长期对话智能体、受预测编码启发的记忆巩固框架",
+      "llm_tldr_en": "Long-horizon dialogue agents must keep user memory stable yet adaptable; PreCoMem models memory as confidence-weighted beliefs and uses Effective Surprisal with a two-threshold gate to decide when to update.",
+      "llm_tldr_cn": "长程对话智能体既需保持用户记忆稳定以支持个性化，又要在用户真实变化时及时调整，而现有系统要么全量追加、要么用启发式规则覆盖，难以区分瞬时噪声与真实信念漂移。论文提出受预测编码启发的PreCoMem记忆巩固框架，将记忆表示为带置信度的用户状态信念，其有效惊奇度信号融合语义偏离与矛盾证据，并在检索弥散时降权，再经双阈值门控将每轮映射为三类确定性更新。",
+      "llm_tldr": "长程对话智能体既需保持用户记忆稳定以支持个性化，又要在用户真实变化时及时调整，而现有系统要么全量追加、要么用启发式规则覆盖，难以区分瞬时噪声与真实信念漂移。论文提出受预测编码启发的PreCoMem记忆巩固框架，将记忆表示为带置信度的用户状态信念，其有效惊奇度信号融合语义偏离与矛盾证据，并在检索弥散时降权，再经双阈值门控将每轮映射为三类确定性更新。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "methods for memory consolidation and retrieval in agent systems",
+      "matched_requirement_id": "req-10",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.29671v1",
+      "source": "arxiv",
+      "title": "Uni-Mem: Learning a Long-Horizon Agentic Memory Manager with Unified Online Policy Optimization",
+      "abstract": "Long-term agent memory is shifting from predefined workflows toward learnable policies for memory construction and retrieval. Existing learning-based methods either optimize construction alone or combine retrieval-side online reinforcement learning (RL) with offline construction supervision, limiting co-adaptation between the two stages. In this paper, we explore end-to-end online RL for a unified memory manager (Uni-Mem) that learns both capabilities under a shared policy. However, joint optimization with existing RL algorithms such as GRPO faces confounded group comparisons and sparse feedback over long memory-management trajectories. To this end, we propose Stage-Decoupled GRPO, which alternates construction and retrieval optimization while controlling variation from the other stage within each rollout group, yielding stage-specific learning signals. We further introduce Event-Wise Credit Assignment (ECA), which localizes feedback to responsible events and propagates event-level advantages to their constituent operations. Experiments on LoCoMo and LongMemEval show that Uni-Mem outperforms the strongest RL-based memory, demonstrating the effectiveness of jointly learning memory construction and retrieval via Stage-Decoupled GRPO and ECA.",
+      "authors": [
+        "Zhiqian Xia",
+        "Jielong Tang",
+        "Ling-An Zeng",
+        "Shixiong Kai",
+        "Rong Yao",
+        "Hao Kong",
+        "Xiao Dong",
+        "Wei Wang",
+        "Mingxuan Yuan",
+        "Siyu Xia",
+        "Haifeng Xia"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-21T12:48:10+00:00",
+      "link": "https://arxiv.org/pdf/2610.29671v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "learnable long-term agent memory manager jointly optimizing construction and retrieval",
+      "llm_evidence_cn": "联合优化记忆构建与检索的可学习长期记忆管理器",
+      "llm_evidence": "联合优化记忆构建与检索的可学习长期记忆管理器",
+      "canonical_evidence": "联合优化记忆构建与检索的可学习长期记忆管理器",
+      "llm_tldr_en": "Introduces Uni-Mem, an end-to-end online RL memory manager that jointly learns long-term memory construction and retrieval under a shared policy, using Stage-Decoupled GRPO to handle sparse feedback.",
+      "llm_tldr_cn": "针对现有学习式智能体记忆方法仅优化构建或分离构建与检索导致协同不足的问题，本文提出统一记忆管理器Uni-Mem。该方法以端到端在线强化学习在共享策略下同时学习长期记忆的构建与检索，并提出阶段解耦GRPO以缓解组比较混淆与长轨迹反馈稀疏问题。实验表明该统一优化提升了记忆管理的整体表现，为可学习的智能体长期记忆系统提供了新范式。",
+      "llm_tldr": "针对现有学习式智能体记忆方法仅优化构建或分离构建与检索导致协同不足的问题，本文提出统一记忆管理器Uni-Mem。该方法以端到端在线强化学习在共享策略下同时学习长期记忆的构建与检索，并提出阶段解耦GRPO以缓解组比较混淆与长轨迹反馈稀疏问题。实验表明该统一优化提升了记忆管理的整体表现，为可学习的智能体长期记忆系统提供了新范式。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory storage and retrieval in agent systems",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.29823v1",
+      "source": "arxiv",
+      "title": "MemoryTax: The Bitter Lesson of Agent Memory",
+      "abstract": "Agent memory systems such as Mem0 and Zep decide what to keep before any question arrives; coding agents keep the raw history and let the model search it with its own tools. We ask whether designed memory still helps once the model is strong enough to search for itself. On one LoCoMo conversation (419 turns, 152 questions), we run four memory methods (full context, BM25, Mem0, Zep) and three coding agents (Pi, Codex, Claude Code), each with GPT-4o-mini, GPT-6 Luna and Claude Opus 5.5, and record what every rollout costs. This is a short empirical study, with one conversation and one run per cell. Agent memory is a costly patch for a weak model: Mem0 beats full context only with GPT-4o-mini, and its build alone costs more than a whole full-context rollout. Agent memory also has a ceiling, set by the model that writes it: a stronger reader does not recover what a weaker writer left out. With Claude Opus 5.5, Pi tops the cost-accuracy frontier, scoring 99% for less than half the cost of full context; its one miss is a wrong answer key. Part of that lead comes from photo captions that only the agents could read: on the 88 questions whose evidence has no photo, Pi and full context differ by one answer.",
+      "authors": [
+        "Zedong Peng"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-21T14:46:27+00:00",
+      "link": "https://arxiv.org/pdf/2610.29823v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "empirical comparison of agent memory systems for storing and retrieving long conversation history",
+      "llm_evidence_cn": "对智能体记忆系统存取长对话历史的实证比较",
+      "llm_evidence": "对智能体记忆系统存取长对话历史的实证比较",
+      "canonical_evidence": "对智能体记忆系统存取长对话历史的实证比较",
+      "llm_tldr_en": "An empirical study on LoCoMo compares full context, BM25, Mem0 and Zep across three coding agents and models, finding designed memory only helps weak models and costs more than full-context rollouts.",
+      "llm_tldr_cn": "现有智能体记忆系统在问题到来前就决定保留什么，而强模型可直接搜索原始历史，因此需检验设计记忆是否仍有价值。作者在LoCoMo的一段419轮对话上对比全上下文、BM25、Mem0与Zep四种记忆方法，并搭配三种编码智能体与多种模型，记录每次运行成本。结果显示Mem0仅在GPT-4o-mini上优于全上下文，其构建成本已超过一次完整全上下文运行，记忆对弱模型只是昂贵补丁。研究提示随模型搜索能力增强，精心设计的记忆系统收益有限，需重新审视其价值。",
+      "llm_tldr": "现有智能体记忆系统在问题到来前就决定保留什么，而强模型可直接搜索原始历史，因此需检验设计记忆是否仍有价值。作者在LoCoMo的一段419轮对话上对比全上下文、BM25、Mem0与Zep四种记忆方法，并搭配三种编码智能体与多种模型，记录每次运行成本。结果显示Mem0仅在GPT-4o-mini上优于全上下文，其构建成本已超过一次完整全上下文运行，记忆对弱模型只是昂贵补丁。研究提示随模型搜索能力增强，精心设计的记忆系统收益有限，需重新审视其价值。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2609.30337v1",
+      "source": "arxiv",
+      "title": "Parameters vs. Context: TRACE Fine-Tuning for Robust Retrieval-Augmented Generation",
+      "abstract": "Retrieval-Augmented Generation (RAG) mitigates knowledge obsolescence and factual hallucination in large language models by introducing external context. However, when retrieved knowledge conflicts with the model's internal parametric knowledge, the model may either blindly follow misleading context or incorrectly rely on parametric knowledge, leading to unreliable responses. To address this issue, this paper proposes TRACE (Debate-TRace and Answer-Completeness rEgularized fine-tuning), a robust fine-tuning framework for RAG under knowledge conflicts. First, we propose a fine-tuning method that leverages multi-agent debate traces to extract correct candidates, incorrect candidates, and answer-shift patterns, providing fine-grained supervision for reliable knowledge-source selection. In addition, we design an answer completeness regularization mechanism to alleviate empty, overly short, and prematurely terminated responses via answer-tail token reinforcement and premature termination suppression. The fine-tuning objective combines correct-answer supervision, incorrect-candidate suppression, answer-tail token reinforcement, and premature termination suppression, enabling the model to use reliable external context, resist misleading or irrelevant retrieved content, and fall back to parametric knowledge when retrieved evidence is unreliable. Experiments across multiple knowledge-conflict scenarios and datasets show that TRACE improves robustness against misleading retrieved knowledge and reduces incomplete answers. These results demonstrate that multi-agent debate traces and answer completeness regularization jointly enhance knowledge-source selection, conflict robustness, and answer quality in RAG models. Our code is available at https://github.com/PHD-lanyu/TRACE.",
+      "authors": [
+        "Zhengchen Huang",
+        "Yundong Sun",
+        "Minrui Song",
+        "Shuanglong Yao",
+        "Ye Liu",
+        "Ji Chen",
+        "Xing Wang"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-09-24T09:53:39+00:00",
+      "link": "https://arxiv.org/pdf/2609.30337v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Robust RAG fine-tuning against knowledge conflicts and hallucination",
+      "llm_evidence_cn": "面向知识冲突与幻觉的鲁棒RAG微调框架",
+      "llm_evidence": "面向知识冲突与幻觉的鲁棒RAG微调框架",
+      "canonical_evidence": "面向知识冲突与幻觉的鲁棒RAG微调框架",
+      "llm_tldr_en": "TRACE is a robust fine-tuning framework for retrieval-augmented generation that uses multi-agent debate traces to handle conflicts between retrieved context and parametric knowledge.",
+      "llm_tldr_cn": "检索增强生成引入外部上下文以缓解知识过时与幻觉，但当检索知识与模型参数知识冲突时，模型可能盲从错误上下文或错误依赖参数记忆。本文提出TRACE微调框架，利用多智能体辩论轨迹抽取正确候选、错误候选与答案偏移模式，提供细粒度监督。该方法提升了RAG在知识冲突下的可靠性。",
+      "llm_tldr": "检索增强生成引入外部上下文以缓解知识过时与幻觉，但当检索知识与模型参数知识冲突时，模型可能盲从错误上下文或错误依赖参数记忆。本文提出TRACE微调框架，利用多智能体辩论轨迹抽取正确候选、错误候选与答案偏移模式，提供细粒度监督。该方法提升了RAG在知识冲突下的可靠性。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.30337v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.19528v1",
+      "source": "arxiv",
+      "title": "Retrieve What Helps, Only When It Helps: Agentic Reinforcement Learning for Selective Retrieval-Augmented Machine Translation",
+      "abstract": "Retrieving external knowledge can improve large language model (LLM) translation by providing supplementary information such as idiom interpretations and terminology. However, existing retrieval-augmented machine translation systems typically apply predefined retrieval strategies uniformly across all inputs. We argue that translation operates in a partial-evidence regime: LLM's parametric knowledge suffices for many inputs, while external evidence benefits a subset and usually supports rather than directly provides the desired translation. This creates two challenges: deciding when to retrieve and what evidence to acquire. We introduce Selective Retrieval-Augmented Translation (SRAT), an agentic reinforcement learning framework that learns when to translate directly or retrieve, what to retrieve, and how to integrate these decisions by optimizing final translation quality. To align evidence retrieval with downstream translation quality rather than simple semantic similarity, we further develop joint Plackett--Luce optimization and translation-quality contrastive training for retriever-training. Experiments on idiom, knowledge-intensive, and document-level translation with offline or online retrieval show that SRAT consistently outperforms never- and always-retrieve baselines, and quality-aligned retriever training provides further gains when similarity-based retrieval is insufficient. The results demonstrate the benefit of treating retrieval as a learnable translation action rather than fixed preprocessing.",
+      "authors": [
+        "Shijun Li",
+        "Yang Liu",
+        "Najmeh Sadoughi",
+        "Dongmei Wang",
+        "Xinjie Li",
+        "Zhu Liu",
+        "Rohith Mysore Vijaya Kumar",
+        "Yuzong Liu"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.IR"
+      ],
+      "published": "2026-10-14T03:45:40+00:00",
+      "link": "https://arxiv.org/pdf/2610.19528v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "selective retrieval augmentation strategy for LLM pipelines",
+      "llm_evidence_cn": "面向大模型流程的选择性检索增强策略",
+      "llm_evidence": "面向大模型流程的选择性检索增强策略",
+      "canonical_evidence": "面向大模型流程的选择性检索增强策略",
+      "llm_tldr_en": "SRAT is an agentic reinforcement learning approach that decides when to retrieve and what evidence to acquire for machine translation, treating translation as a partial-evidence regime where external knowledge only helps a subset of inputs.",
+      "llm_tldr_cn": "检索增强机器翻译通常对所有输入统一施加预设检索策略，但多数输入其实可由模型参数知识解决，外部证据只对部分输入有益。作者提出选择性检索增强翻译SRAT，用智能体式强化学习决定何时检索以及获取何种证据，将翻译视为部分证据场景。实验表明按需检索可避免无效检索开销并提升翻译质量。该工作为检索增强生成流程中的自适应检索触发提供了可迁移方法。",
+      "llm_tldr": "检索增强机器翻译通常对所有输入统一施加预设检索策略，但多数输入其实可由模型参数知识解决，外部证据只对部分输入有益。作者提出选择性检索增强翻译SRAT，用智能体式强化学习决定何时检索以及获取何种证据，将翻译视为部分证据场景。实验表明按需检索可避免无效检索开销并提升翻译质量。该工作为检索增强生成流程中的自适应检索触发提供了可迁移方法。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.19581v1",
+      "source": "arxiv",
+      "title": "XferAgent: Cross-Agent Experience Transfer for Self-Improving LLM Agents",
+      "abstract": "Large language model (LLM) agents can reuse experience from prior task executions to improve performance on subsequent tasks. Although existing methods enable cross-agent experience sharing, differences in agents' execution histories and task requirements make shared experiences difficult to reuse effectively. We propose XferAgent, a framework for cross-agent experience transfer that organizes reusable experience in local and shared experience graphs. XferAgent reconciles compatible contributions from heterogeneous agents while avoiding unreliable merges. For each new task, it selects shared experiences and integrates them with the target agent's local experience to support task execution. Experiments across diverse task domains show improvements over representative memory-based methods and effective experience transfer between heterogeneous agent frameworks. Cumulative task success also increases over successive task passes as agents update and reuse their experiences.",
+      "authors": [
+        "Weihao Li",
+        "Jun Bai",
+        "Shijie Chen",
+        "Qincheng Lu",
+        "Xinyu Wang",
+        "Ziyang Song"
+      ],
+      "primary_category": "cs.MA",
+      "categories": [
+        "cs.MA",
+        "cs.AI"
+      ],
+      "published": "2026-10-14T04:51:53+00:00",
+      "link": "https://arxiv.org/pdf/2610.19581v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "cross-agent experience transfer via shared and local experience graphs",
+      "llm_evidence_cn": "基于本地与共享经验图的跨智能体经验迁移",
+      "llm_evidence": "基于本地与共享经验图的跨智能体经验迁移",
+      "canonical_evidence": "基于本地与共享经验图的跨智能体经验迁移",
+      "llm_tldr_en": "XferAgent organizes reusable experience into local and shared graphs, reconciling compatible contributions from heterogeneous agents and integrating them for new tasks, improving performance across domains.",
+      "llm_tldr_cn": "针对不同智能体执行历史与任务需求差异导致共享经验难以有效复用的问题，本文提出XferAgent跨智能体经验迁移框架，将可复用经验组织为本地与共享经验图。该方法调和异构智能体的兼容贡献并避免不可靠的合并，再为新任务选择共享经验并与目标智能体本地经验整合。多任务领域实验显示相较基线取得提升，说明结构化经验图能有效支撑智能体的经验积累与迁移。",
+      "llm_tldr": "针对不同智能体执行历史与任务需求差异导致共享经验难以有效复用的问题，本文提出XferAgent跨智能体经验迁移框架，将可复用经验组织为本地与共享经验图。该方法调和异构智能体的兼容贡献并避免不可靠的合并，再为新任务选择共享经验并与目标智能体本地经验整合。多任务领域实验显示相较基线取得提升，说明结构化经验图能有效支撑智能体的经验积累与迁移。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agents augmented with external and persistent memory",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2609.33517v1",
+      "source": "arxiv",
+      "title": "TRACE: Governing Memory Validity in Evolving Multi-Agent Systems",
+      "abstract": "Persistent memory lets language-model agents carry information across long-running collaborations, but leaves a lifecycle question open: what may a returning agent still act on once the shared state has changed? A memory can be correctly retrieved, relevant to the current task, and faithful to its source, and nonetheless be inadmissible for action: an itinerary saved before a pause still names the hotel the team has since replaced. We formalize this as temporal memory admission and present TRACE, a training-free layer that treats re-entry as an eligibility decision rather than a storage or retrieval operation, reconciling a departure checkpoint against absence-period updates, resolving explicit and implicit invalidation, and releasing a bounded Return View only when it covers the returning role's open obligations. We evaluate TRACE under three actor models on Memora, STALE Type II, and a derived ManBench-Return setting, each recast as return episodes: one agent departs, four teammates change the shared state, and the agent rejoins. What separates methods is not overall accuracy but whether one can retain valid memory and reject stale memory at once, and no single-policy baseline can: Restore (reinstate the departure checkpoint in full) admits stale state, Reset (start the return from an empty memory) discards valid state, each bottoming out at 0% on one of the two. TRACE is the only method high on both, reaching 92.6-98.3% valid-information availability with 98.4-99.5% invalid-information rejection on ManBench-Return, within 3.8 points of the best baseline's overall accuracy. On STALE Type II it improves Overall over the strongest comparison policy by 22.3 (Qwen), 18.5 (Gemini), and 27.5 (DeepSeek) points at roughly 2.3 times their tokens, while a write-time consolidation pipeline is more accurate still at 3.99 times TRACE's.",
+      "authors": [
+        "Wenjun Xiong",
+        "Shengtao Zhang",
+        "Shangding Gu",
+        "Bo Tang",
+        "Zhiyu Li",
+        "Feiyu Xiong",
+        "Ying Wen",
+        "Muning Wen"
+      ],
+      "primary_category": "cs.MA",
+      "categories": [
+        "cs.MA"
+      ],
+      "published": "2026-09-27T12:39:42+00:00",
+      "link": "https://arxiv.org/pdf/2609.33517v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "TRACE governs whether retrieved persistent memory is still admissible for action after shared state changes",
+      "llm_evidence_cn": "TRACE治理共享状态变化后已检索的持久记忆是否仍可用于行动",
+      "llm_evidence": "TRACE治理共享状态变化后已检索的持久记忆是否仍可用于行动",
+      "canonical_evidence": "TRACE治理共享状态变化后已检索的持久记忆是否仍可用于行动",
+      "llm_tldr_en": "TRACE frames re-entry in evolving multi-agent systems as temporal memory admission, a training-free layer reconciling departure checkpoints with absence-period updates to release a bounded Return View.",
+      "llm_tldr_cn": "持久记忆让语言模型智能体能在长期协作中携带信息，但当共享状态发生变化后，返回的智能体仍能否依据旧记忆行动成为悬而未决的问题：记忆可能被正确检索且相关，却已不适用于行动。论文将这一问题形式化为时间记忆准入，提出免训练的TRACE层，把重入视为资格判定而非存储或检索操作，核对离开检查点与缺席期更新并处理显式与隐式失效。实验表明其能给出有界的返回视图，为多智能体记忆生命周期治理提供了方案。",
+      "llm_tldr": "持久记忆让语言模型智能体能在长期协作中携带信息，但当共享状态发生变化后，返回的智能体仍能否依据旧记忆行动成为悬而未决的问题：记忆可能被正确检索且相关，却已不适用于行动。论文将这一问题形式化为时间记忆准入，提出免训练的TRACE层，把重入视为资格判定而非存储或检索操作，核对离开检查点与缺席期更新并处理显式与隐式失效。实验表明其能给出有界的返回视图，为多智能体记忆生命周期治理提供了方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.33517v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.21165v1",
+      "source": "arxiv",
+      "title": "From Long Context to Selective Memory:A Survey of Memory-Centric Compression for Large Language Models",
+      "abstract": "Long-context capability has become essential for large language models (LLMs) to handle complex tasks, yet continuously expanding the context window does not remove the computational, storage, and information-selection pressures incurred at inference time. Existing work on prompt compression, KV-cache management, efficient serving, retrieval augmentation, and agent memory is usually discussed in isolation, leaving the flow of information between storage and computation insufficiently understood. This survey reframes long-context compression as a memory-management problem for allocating inference-time resources. We distinguish compute-active memory, which directly participates in model computation, from compute-inactive memory, which lies outside the computation path but can be stored, retrieved, updated, or forgotten, and we characterize offloaded KV caches, persistent prefix caches, and precomputed KV states as intermediate states on the activation path. On this basis, we formulate writing, offloading, recall, retrieval-and-injection, materialization, eviction, consolidation, and forgetting as state transitions within an information lifecycle, and introduce a budgeted cost model that places these operations in a single cost account. The resulting framework unifies short-term context compression, long-term memory management, and the transitions between them, and shows that the central challenge is not merely reducing information volume but deciding which information should participate in costly inference, when, and in what form. We further summarize evaluation dimensions, benchmark gaps, and open challenges, and argue that future research should move from static, pointwise compression toward dynamic, governable, lifecycle-aware memory management.",
+      "authors": [
+        "Chaogui Gou"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-15T03:24:36+00:00",
+      "link": "https://arxiv.org/pdf/2610.21165v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "survey reframing long-context compression as memory management including agent memory",
+      "llm_evidence_cn": "综述将长上下文压缩重构为含智能体记忆的记忆管理问题",
+      "llm_evidence": "综述将长上下文压缩重构为含智能体记忆的记忆管理问题",
+      "canonical_evidence": "综述将长上下文压缩重构为含智能体记忆的记忆管理问题",
+      "llm_tldr_en": "This survey reframes long-context compression as an inference-time memory-management problem, unifying prompt compression, KV-cache, retrieval augmentation and agent memory.",
+      "llm_tldr_cn": "长上下文能力对LLM处理复杂任务至关重要，但单纯扩大上下文窗口无法消除推理时的计算、存储与信息选择压力。本文综述将长上下文压缩重构为推理时资源分配的记忆管理问题，区分参与模型计算的计算活跃记忆与非活跃记忆，并统一梳理提示压缩、KV缓存管理、检索增强与智能体记忆等分散工作。该框架揭示了存储与计算之间的信息流动，为设计智能体记忆与压缩系统提供统一视角。",
+      "llm_tldr": "长上下文能力对LLM处理复杂任务至关重要，但单纯扩大上下文窗口无法消除推理时的计算、存储与信息选择压力。本文综述将长上下文压缩重构为推理时资源分配的记忆管理问题，区分参与模型计算的计算活跃记忆与非活跃记忆，并统一梳理提示压缩、KV缓存管理、检索增强与智能体记忆等分散工作。该框架揭示了存储与计算之间的信息流动，为设计智能体记忆与压缩系统提供统一视角。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.20122v1",
+      "source": "arxiv",
+      "title": "XViewRank: Overlap-Conditioned Score Fusion for LLM-Augmented Sparse Retrieval",
+      "abstract": "Large language models can reduce vocabulary mismatch in sparse retrieval by generating alternative views of a query. Once these views are searched independently, however, their ranked lists may be complementary, redundant, or affected by query drift, making fixed fusion suboptimal. We present XViewRank, a lightweight retrieval-side method for conditionally fusing BM25 results from an original query, a hypothesis view, and a step-back view. For each pooled candidate, XViewRank retains three normalized BM25 scores and three query-level overlaps between the retrieved result sets. A small nonlinear scorer uses the overlaps as context that changes how the view-specific scores are interpreted, without jointly encoding query and passage text. Under a matched-input protocol, XViewRank improves nDCG@10 and MAP numerically over reciprocal rank fusion on both TREC DL 2019 and 2020, with a statistically significant MAP gain on DL19. Additional analyses show that the clearest benefit occurs when the view rankings have low agreement, while the evidence on DL20 is weaker. The results support overlap-conditioned score fusion as a compact retrieval-side alternative to fixed fusion, while also delimiting where its advantage is empirically established.",
+      "authors": [
+        "Xinxuan Lv",
+        "Minghan Li",
+        "Guodong Zhou"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-14T12:44:51+00:00",
+      "link": "https://arxiv.org/pdf/2610.20122v1",
+      "tags": [
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "retrieval-side score fusion for LLM-augmented query views in retrieval pipelines",
+      "llm_evidence_cn": "面向大模型增强查询视图的检索端分数融合方法",
+      "llm_evidence": "面向大模型增强查询视图的检索端分数融合方法",
+      "canonical_evidence": "面向大模型增强查询视图的检索端分数融合方法",
+      "llm_tldr_en": "Proposes XViewRank, a lightweight retrieval-side method that conditionally fuses BM25 results from original, hypothesis, and step-back query views using overlap-conditioned scoring to reduce redundancy and query drift.",
+      "llm_tldr_cn": "针对大模型生成多视图查询后独立检索导致结果互补、冗余或查询漂移的问题，本文提出XViewRank这一轻量检索端方法。该方法对原始查询、假设视图与回退视图的BM25结果进行条件化融合，并利用查询级重叠度作为上下文调节各视图分数的解释方式。实验表明该融合策略优于固定融合，为大模型增强的稀疏检索流水线提供了更稳健的排序方案。",
+      "llm_tldr": "针对大模型生成多视图查询后独立检索导致结果互补、冗余或查询漂移的问题，本文提出XViewRank这一轻量检索端方法。该方法对原始查询、假设视图与回退视图的BM25结果进行条件化融合，并利用查询级重叠度作为上下文调节各视图分数的解释方式。实验表明该融合策略优于固定融合，为大模型增强的稀疏检索流水线提供了更稳健的排序方案。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2609.34776v1",
+      "source": "arxiv",
+      "title": "Page-Aware Retrieval-Augmented Generation for EvalLLM 2026: A Five-Variant Study on French PDFs",
+      "abstract": "We study retrieval-augmented generation (RAG) for questions about French PDF documents when both the answer and its supporting document pages are evaluated. Five system variants add dense retrieval, rank fusion, reranking, and query decomposition to a BM25 baseline. On 595 challenge questions, the complete system scores 0.4450 MRR@10 and 0.4013 Recall@10, compared with 0.3430 and 0.2994 for BM25. Dense retrieval alone and a simple lexical--dense fusion both underperform BM25. Reranking improves the hybrid system, whereas adding query decomposition produces the largest further gain, with higher latency and more detected output artifacts. The complete system slightly exceeds the reported anonymous overall mean on two answer metrics but falls below it on most page-retrieval metrics. These results identify accurate page selection, rather than semantic retrieval in isolation, as the main opportunity for improvement in this setting.",
+      "authors": [
+        "Abdelhak kelious"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-09-28T09:51:52+00:00",
+      "link": "https://arxiv.org/pdf/2609.34776v1",
+      "tags": [
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "evaluates five RAG variants on French PDFs with page-level answer and evidence scoring",
+      "llm_evidence_cn": "在法语PDF上评测五种RAG变体并评估页面级证据",
+      "llm_evidence": "在法语PDF上评测五种RAG变体并评估页面级证据",
+      "canonical_evidence": "在法语PDF上评测五种RAG变体并评估页面级证据",
+      "llm_tldr_en": "A five-variant RAG study on French PDFs adds dense retrieval, rank fusion, reranking and query decomposition to BM25, reaching 0.445 MRR@10 versus 0.343 for BM25 alone.",
+      "llm_tldr_cn": "针对法语PDF问答中答案与支撑页面均需评估的场景，作者构建五种RAG系统变体，在BM25基线上依次加入稠密检索、排名融合、重排序与查询分解。在595个挑战问题上，完整系统取得0.4450的MRR@10和0.4013的Recall@10，明显优于BM25的0.3430与0.2994。结果表明查询分解带来最大增益，为页面级证据评测提供了可复现的系统对比。",
+      "llm_tldr": "针对法语PDF问答中答案与支撑页面均需评估的场景，作者构建五种RAG系统变体，在BM25基线上依次加入稠密检索、排名融合、重排序与查询分解。在595个挑战问题上，完整系统取得0.4450的MRR@10和0.4013的Recall@10，明显优于BM25的0.3430与0.2994。结果表明查询分解带来最大增益，为页面级证据评测提供了可复现的系统对比。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Locate academic papers that evaluate retrieval augmented generation systems.",
+      "matched_requirement_id": "req-17",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.34776v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.21211v1",
+      "source": "arxiv",
+      "title": "An Agentic Framework for Proactive Robots with Procedural Assistance Memory",
+      "abstract": "Proactive robots should anticipate user needs and provide assistance before being explicitly asked. A straightforward approach is to infer human intentions from commonsense knowledge, but the same observed behavior can imply different needs across users, potentially leading to unwanted assistance. We observe that everyday routines in the real world exhibit recurring patterns, so learning these patterns can reduce ambiguity in proactive decisions. Based on this, we propose a memory-based agentic framework in which a VLM task predictor reads a Procedural Assistance Memory (PAM) alongside the current observation to decide when to assist and what task to perform, and a VLA executor performs the predicted task. PAM is structured as a finite-state machine over activity phases, per-state assistance rules, and event-driven transitions; a reflection VLM revises PAM from each day's interaction trace without weight updates or retraining. In our 5-day desk-assistance evaluation, memory-free baselines remain conservative, with limited recall on proactive tasks. Our system improves consistently with accumulated experience, achieving the highest precision, recall, and F1 and reducing first-fire delay from approximately 5 seconds on Day 1 to 1 second by Day 5. Our approach also adapts to changes in the user's routine through continued memory reflection, recovering from memory--routine misalignment after a single memory update. The project page is available at https://davian-robotics.github.io/PAM/",
+      "authors": [
+        "Dohyun Lee",
+        "Minho Park",
+        "Jeonghoon Park",
+        "Dongyoon Hwang",
+        "Junha Hyung",
+        "Sungwon Hwang",
+        "Byungkun Lee",
+        "Jaegul Choo"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-10-15T04:04:49+00:00",
+      "link": "https://arxiv.org/pdf/2610.21211v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "memory-based agentic framework with procedural assistance memory for robots",
+      "llm_evidence_cn": "面向机器人的程序化辅助记忆智能体框架",
+      "llm_evidence": "面向机器人的程序化辅助记忆智能体框架",
+      "canonical_evidence": "面向机器人的程序化辅助记忆智能体框架",
+      "llm_tldr_en": "Proposes a memory-based agentic framework where a VLM task predictor reads a Procedural Assistance Memory alongside observations to decide when and what to assist, with a VLA executor performing tasks.",
+      "llm_tldr_cn": "针对主动式机器人需在用户明示前预判需求、而相同行为在不同用户下含义不同的问题，本文提出一种基于记忆的智能体框架。该框架将日常惯例结构化为有限状态机形式的程序化辅助记忆PAM，由视觉语言模型任务预测器结合当前观测读取记忆来决定是否协助及执行何种任务，再由VLA执行器完成动作。该设计利用记忆降低主动决策的歧义，为服务机器人长期记忆建模提供思路。",
+      "llm_tldr": "针对主动式机器人需在用户明示前预判需求、而相同行为在不同用户下含义不同的问题，本文提出一种基于记忆的智能体框架。该框架将日常惯例结构化为有限状态机形式的程序化辅助记忆PAM，由视觉语言模型任务预测器结合当前观测读取记忆来决定是否协助及执行何种任务，再由VLA执行器完成动作。该设计利用记忆降低主动决策的歧义，为服务机器人长期记忆建模提供思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.21030v1",
+      "source": "arxiv",
+      "title": "Learning When to Think: Utility-Guided Adaptive Reasoning for Efficient Text Retrieval",
+      "abstract": "Reasoning-conditioned embeddings can improve retrieval by progressively refining semantic constraints. However, additional reasoning may introduce over-generalized or semantically noisy abstractions that weaken retrieval specificity. Existing methods largely supervise reasoning through final retrieval outcomes, providing limited guidance over the refinement process itself. We propose AURA, a framework that directly supervises intermediate reasoning states according to how well they separate relevant documents from hard distractors. AURA further trains a lightweight utility estimator over prefix-conditioned embeddings to adapt reasoning depth at inference time. On the reasoning-intensive BRIGHT benchmark, AURA-4B achieves 34.7 average nDCG@10 while using 2.8 reasoning steps and 96 generated tokens per query. Under matched deployment conditions, adaptive stopping reduces latency from 4.6 to 0.76 seconds relative to full-trajectory reasoning. Results on MS MARCO further suggest that this specialization need not substantially degrade conventional in-domain retrieval.",
+      "authors": [
+        "Yingtao Luo",
+        "Kangyi Zhao",
+        "Shiyi Du",
+        "Yubo Li"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR",
+        "cs.CL"
+      ],
+      "published": "2026-10-15T00:04:21+00:00",
+      "link": "https://arxiv.org/pdf/2610.21030v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "adaptive reasoning depth for efficient text retrieval",
+      "llm_evidence_cn": "面向高效文本检索的自适应推理深度",
+      "llm_evidence": "面向高效文本检索的自适应推理深度",
+      "canonical_evidence": "面向高效文本检索的自适应推理深度",
+      "llm_tldr_en": "AURA supervises intermediate reasoning states by how well they separate relevant documents from hard distractors, and adaptively adjusts reasoning depth at inference time.",
+      "llm_tldr_cn": "推理条件嵌入可通过逐步细化语义约束提升检索效果，但过度推理会引入泛化过度或语义噪声的抽象，反而削弱检索针对性。本文提出AURA，直接依据中间推理状态区分相关文档与困难干扰项的能力对其进行监督，并训练轻量效用估计器在推理时自适应调整推理深度。在推理密集型BRIGHT基准上AURA-4B取得34.7平均nDCG，表明适度推理更有效。该工作为检索增强管线中的推理式检索提供高效策略。",
+      "llm_tldr": "推理条件嵌入可通过逐步细化语义约束提升检索效果，但过度推理会引入泛化过度或语义噪声的抽象，反而削弱检索针对性。本文提出AURA，直接依据中间推理状态区分相关文档与困难干扰项的能力对其进行监督，并训练轻量效用估计器在推理时自适应调整推理深度。在推理密集型BRIGHT基准上AURA-4B取得34.7平均nDCG，表明适度推理更有效。该工作为检索增强管线中的推理式检索提供高效策略。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2609.35551v1",
+      "source": "arxiv",
+      "title": "BaRe-Mem: Bayesian Reliability Memory for Robust and Adaptive Agent Consultation",
+      "abstract": "In multi-agent systems, reliable consultation is challenging because advisor capabilities vary across tasks, and misleading information can make consultation worse than autonomous reasoning. We introduce BaRe-Mem, an online Bayesian reliability memory for multi-agent consultation. It estimates advisor reliability based on the central model's internal belief representations and updates these estimates from historical interactions. These estimates modulate the influence of advisor responses and guide the choice between consultation and autonomous reasoning. Across nine benchmarks and six central models, BaRe-Mem is more robust to misleading advisor information than debate and majority voting. On the more challenging tasks, it remains above autonomous reasoning across all tested misleading levels. Moreover, we extend the BaRe-Mem mechanism to worker allocation in agent teams. On the MuSiQue benchmark, BaRe-Mem improves task completion over routing by historical success counts and identifies capable workers earlier.",
+      "authors": [
+        "Peilin Feng",
+        "Zhengyang Huang",
+        "Soujanya Poria"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-09-28T16:25:16+00:00",
+      "link": "https://arxiv.org/pdf/2609.35551v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "online Bayesian reliability memory for multi-agent consultation systems",
+      "llm_evidence_cn": "面向多智能体咨询系统的在线贝叶斯可靠性记忆",
+      "llm_evidence": "面向多智能体咨询系统的在线贝叶斯可靠性记忆",
+      "canonical_evidence": "面向多智能体咨询系统的在线贝叶斯可靠性记忆",
+      "llm_tldr_en": "In multi-agent consultation, unreliable advisors can hurt more than help. BaRe-Mem maintains an online Bayesian memory of advisor reliability from historical interactions, modulating advisor influence and guiding consultation versus autonomous reasoning.",
+      "llm_tldr_cn": "多智能体咨询中顾问能力参差不齐，误导性信息可能让协作还不如独立推理。作者提出BaRe-Mem，一种在线贝叶斯可靠性记忆，基于中心模型的内部信念表示估计顾问可靠性，并随历史交互持续更新，用以调节顾问意见权重并决定是否咨询。在九个基准与六个中心模型上，该方法对误导信息比辩论和多数投票更鲁棒，为多智能体记忆设计提供了新思路。",
+      "llm_tldr": "多智能体咨询中顾问能力参差不齐，误导性信息可能让协作还不如独立推理。作者提出BaRe-Mem，一种在线贝叶斯可靠性记忆，基于中心模型的内部信念表示估计顾问可靠性，并随历史交互持续更新，用以调节顾问意见权重并决定是否咨询。在九个基准与六个中心模型上，该方法对误导信息比辩论和多数投票更鲁棒，为多智能体记忆设计提供了新思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architectures for conversational agents and multi agent systems",
+      "matched_requirement_id": "req-9",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.35551v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.21571v1",
+      "source": "arxiv",
+      "title": "Rethinking the Role of Tool Graph Memory in Multi-Turn Tool Use",
+      "abstract": "Large language model (LLM) agents solve complex tasks by calling external tools over multiple turns. Recent work has proposed tool graph memory, which stores past experience as tool transitions to guide subsequent selection. However, it remains unclear whether this component consistently improves agents' tool use or undermines it. We evaluate tool graph memory on nine models and two benchmarks, finding that it seldom improves significantly over baselines, and that its gains, where present, cost over twice the LLM calls. The memory's guidance is often incorrect, and random or no guidance retains most of the gain, implying that the benefit stems from extra computation rather than the memory itself. Moreover, even with the correct next tool suggested, many failures remain, such as giving up without a tool call. Storing the same experience instead as textual insights outperforms tool graph memory with almost no extra LLM calls. This suggests that memory serves better as a soft prior than as a prescription of the next tool, leading to a more effective and generalizable solution.",
+      "authors": [
+        "Uiji Hwang",
+        "Richeng Xuan",
+        "Taeuk Kim"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-15T09:24:30+00:00",
+      "link": "https://arxiv.org/pdf/2610.21571v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "empirical re-examination of tool graph memory for multi-turn agent tool use",
+      "llm_evidence_cn": "对多轮智能体工具调用中工具图记忆的实证再检验",
+      "llm_evidence": "对多轮智能体工具调用中工具图记忆的实证再检验",
+      "canonical_evidence": "对多轮智能体工具调用中工具图记忆的实证再检验",
+      "llm_tldr_en": "Evaluating tool graph memory across nine models and two benchmarks, the authors find its gains are marginal and costly, largely attributable to extra computation rather than memory.",
+      "llm_tldr_cn": "工具图记忆被用于把历史工具转移存为经验以指导后续选择，但其是否真正提升智能体工具使用尚不明确。作者在九个模型与两个基准上系统评测该记忆组件，并与随机指导、无指导等条件对照。结果显示工具图记忆很少带来显著提升，且收益往往以两倍以上的模型调用为代价，随机或无指导仍保留大部分增益，说明收益主要来自额外计算而非记忆本身。该研究提醒重新设计真正有效的经验记忆机制。",
+      "llm_tldr": "工具图记忆被用于把历史工具转移存为经验以指导后续选择，但其是否真正提升智能体工具使用尚不明确。作者在九个模型与两个基准上系统评测该记忆组件，并与随机指导、无指导等条件对照。结果显示工具图记忆很少带来显著提升，且收益往往以两倍以上的模型调用为代价，随机或无指导仍保留大部分增益，说明收益主要来自额外计算而非记忆本身。该研究提醒重新设计真正有效的经验记忆机制。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.21464v1",
+      "source": "arxiv",
+      "title": "Poisoning the Neighborhood: A Topology-Aware Topic-Level Attack on Large-Scale HNSW-based RAG Systems",
+      "abstract": "Retrieval-augmented generation (RAG) mitigates hallucinations and knowledge staleness in large language models using external knowledge. However, ingestion from public and third-party sources exposes RAG systems to poisoning attacks. Existing attacks are designed and evaluated under exact retrieval, where poisoned documents participate in global ranking. Deployment-scale systems instead rely on approximate nearest-neighbor (ANN) indexes such as hierarchical navigable small world (HNSW), where limited search budgets, graph-search reachability, and local benign-document competition invalidate this assumption and degrade existing attacks. We present a topology-aware topic-level poisoning attack against large-scale HNSW-RAG that generalizes to unseen topic queries. We organize poisoned documents into a Hub-Satellite structure: Satellites provide competitive entry points across semantic regions, while Hubs strengthen local cohesion and facilitate cascading retrieval. For generation, we propose an entity-claim promotion attack combining evidence anchoring and entity-claim coupling to promote the target entity via a target claim across different query regions. On 2M-document Wikipedia, our attack maintains over 72% retrieval success and reaches 31.29% attack success, substantially outperforming baselines; domain-specific experiments further support its effectiveness. Structural analyses show that the Hub-Satellite topology forms in HNSW, indicating that graph structure contributes to improved poisoned-document retrieval. Existing poisoning defenses cannot mitigate the attack, exposing graph-structural risks in HNSW-RAG systems.",
+      "authors": [
+        "Yufei Chen",
+        "Yao Wang",
+        "Haibin Zhang"
+      ],
+      "primary_category": "cs.CR",
+      "categories": [
+        "cs.CR"
+      ],
+      "published": "2026-10-15T08:06:48+00:00",
+      "link": "https://arxiv.org/pdf/2610.21464v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "topology-aware poisoning attack on large-scale HNSW-based RAG",
+      "llm_evidence_cn": "针对大规模HNSW检索增强生成系统的拓扑感知投毒攻击",
+      "llm_evidence": "针对大规模HNSW检索增强生成系统的拓扑感知投毒攻击",
+      "canonical_evidence": "针对大规模HNSW检索增强生成系统的拓扑感知投毒攻击",
+      "llm_tldr_en": "Presents a topology-aware topic-level poisoning attack against large-scale HNSW-based RAG, showing that existing attacks degrade under approximate nearest-neighbor retrieval while the new attack remains effective.",
+      "llm_tldr_cn": "针对检索增强生成系统从公开与第三方来源摄入知识而面临投毒风险、且现有攻击均在精确检索假设下设计的问题，本文提出一种面向大规模HNSW近似最近邻索引的拓扑感知主题级投毒攻击。该方法利用有限搜索预算、图搜索可达性与局部良性文档竞争等特性构造攻击。实验表明既有攻击在ANN索引下显著失效，而新攻击在部署规模系统中更有效，揭示了大规模ANN-RAG的安全脆弱性。",
+      "llm_tldr": "针对检索增强生成系统从公开与第三方来源摄入知识而面临投毒风险、且现有攻击均在精确检索假设下设计的问题，本文提出一种面向大规模HNSW近似最近邻索引的拓扑感知主题级投毒攻击。该方法利用有限搜索预算、图搜索可达性与局部良性文档竞争等特性构造攻击。实验表明既有攻击在ANN索引下显著失效，而新攻击在部署规模系统中更有效，揭示了大规模ANN-RAG的安全脆弱性。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}
