@@ -1,0 +1,950 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-10-23T21:52:21.262423+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 2,
+    "deep_divecandidates": 51,
+    "deep_cap": 7,
+    "deep_selected": 10,
+    "quick_candidates": 67,
+    "quick_skim_target": 12,
+    "quick_selected": 12
+  },
+  "deep_dive": [
+    {
+      "id": "2610.21405v1",
+      "source": "arxiv",
+      "title": "MemCut: Every Secret Leaves a Trail in the Long-Term Memory of LLM Agents",
+      "abstract": "Long-term memory has become a crucial component of large language model (LLM) agents, with most research focusing on retrieving relevant information accurately and efficiently. However, a dependable memory system must also forget sensitive user data upon request. To evaluate this capability, we introduce MemCut, a systematic benchmark for user-requested forgetting. Its 456 hand-designed secrets in long-horizon conversations have fully annotated evidence trails to test recovery after deletion, including from messages that never state the secrets directly. We propose two recovery metrics. Native recovery measures reader success through the system's retrieval, whereas residual recovery measures the same reader's success when directly given surviving objects traced to annotated disclosures or evidence. We establish three reference deletion baselines to test how far existing retrievers and write models support forgetting across five memory designs and four LLMs. Disclosure removal reduces native recovery far more than residual recovery. LLM-guided deletion of ten additional turns from twenty retrieval candidates leaves 39-76% residual recovery. Subset sweeps (144 facts, three systems, two models) show that widening the pool at a fixed budget reduces residual recovery more than deleting all original candidates. These sweeps identify candidate coverage as a bottleneck in the reference baselines.",
+      "authors": [
+        "Cheng Zhang",
+        "Xuanning Cao",
+        "Zhicheng Zheng",
+        "Hui Xiong"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-15T07:23:03+00:00",
+      "link": "https://arxiv.org/pdf/2610.21405v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "user-requested forgetting in LLM agent long-term memory",
+      "llm_evidence_cn": "LLM智能体长期记忆中的用户请求遗忘",
+      "llm_evidence": "LLM智能体长期记忆中的用户请求遗忘",
+      "canonical_evidence": "LLM智能体长期记忆中的用户请求遗忘",
+      "llm_tldr_en": "MemCut benchmarks user-requested forgetting in LLM agent long-term memory, with 456 annotated secrets in long conversations and native/residual recovery metrics for post-deletion leakage.",
+      "llm_tldr_cn": "长时记忆已成为LLM智能体的关键组件，但研究大多聚焦于如何准确高效地检索，忽略了系统应当按用户请求遗忘敏感数据。论文提出MemCut基准，在长程对话中构造456个手工设计的秘密并完整标注证据链，用以检验删除后信息能否从间接表述中被恢复，并提出原生恢复与残留恢复两项指标。该工作把遗忘能力纳入长期记忆系统的评测范围，为可信智能体记忆治理提供了基准。",
+      "llm_tldr": "长时记忆已成为LLM智能体的关键组件，但研究大多聚焦于如何准确高效地检索，忽略了系统应当按用户请求遗忘敏感数据。论文提出MemCut基准，在长程对话中构造456个手工设计的秘密并完整标注证据链，用以检验删除后信息能否从间接表述中被恢复，并提出原生恢复与残留恢复两项指标。该工作把遗忘能力纳入长期记忆系统的评测范围，为可信智能体记忆治理提供了基准。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory storage and retrieval in agent systems",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.22209v1",
+      "source": "arxiv",
+      "title": "Beyond Downstream QA: Rethinking How We Evaluate Agent Memory",
+      "abstract": "Agent memory benchmarks evaluate whether an agent's responses reflect correct knowledge, measuring downstream question-answering accuracy as a proxy for memory quality. We show this evaluation paradigm is incomplete: it conflates memory correctness with retrieval and generation quality, producing both false positives where correct responses mask broken memory and false negatives where incorrect responses blame correct memory for retrieval failures. We introduce FEB-30, a benchmark of 30 fact-evolution trajectories spanning 6 diagnostic categories and 3 difficulty levels, constructed via paradigm inversion: documents are generated from known fact trajectories, yielding deterministic ground truth without human annotation. Each trajectory defines how a fact should evolve across multi-author artifacts (documents, emails, conversations), enabling direct inspection of the memory store after each ingestion step. Applying FEB-30 to a representative memory system, we demonstrate that intrinsic and extrinsic evaluation diverge by an average of 16 percentage points, with 44% of trajectories exceeding meaningful divergence thresholds. Diagnostic decomposition reveals that the system correctly classifies memory operations (create, update, reinforce, supersede) only 20% of the time, a failure entirely invisible to extrinsic evaluation, and that failure modes differ systematically by category and difficulty. We release the benchmark, document generation pipeline, and scoring framework to support reproducible evaluation of agent memory systems.",
+      "authors": [
+        "Sebastian-Antonio Toma",
+        "Jean de Kernier",
+        "Mike Ply",
+        "Oliviu Matei"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-10-15T16:58:12+00:00",
+      "link": "https://arxiv.org/pdf/2610.22209v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "benchmark rethinking evaluation of agent memory",
+      "llm_evidence_cn": "重新审视智能体记忆评估的基准",
+      "llm_evidence": "重新审视智能体记忆评估的基准",
+      "canonical_evidence": "重新审视智能体记忆评估的基准",
+      "llm_tldr_en": "This paper shows downstream QA accuracy is an incomplete proxy for agent memory, introducing FEB-30, a fact-evolution benchmark with deterministic ground truth to diagnose memory versus retrieval failures.",
+      "llm_tldr_cn": "针对以问答准确率代理智能体记忆质量会混淆记忆正确性与检索生成质量、导致误报与漏报的问题，本文提出新的评估视角。方法构建FEB-30基准，包含30条事实演化轨迹、6类诊断类别与3个难度等级，通过范式反转由已知事实轨迹生成文档以获得确定性真值。该基准能区分记忆损坏与检索失败。其贡献在于为智能体记忆架构的评估提供更细粒度的诊断工具。",
+      "llm_tldr": "针对以问答准确率代理智能体记忆质量会混淆记忆正确性与检索生成质量、导致误报与漏报的问题，本文提出新的评估视角。方法构建FEB-30基准，包含30条事实演化轨迹、6类诊断类别与3个难度等级，通过范式反转由已知事实轨迹生成文档以获得确定性真值。该基准能区分记忆损坏与检索失败。其贡献在于为智能体记忆架构的评估提供更细粒度的诊断工具。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.23812v1",
+      "source": "arxiv",
+      "title": "Learning Personalized Memory Gating from Delayed One-Sided Feedback",
+      "abstract": "Long-term memory enables language-model agents to personalize future interactions, but a finite memory bank cannot preserve every extracted fact. Existing memory gating policies are typically shared across users and therefore fail to account for user-specific patterns of future reuse. In this paper, we study memory gating at the fact level. We first propose a retrieval-based labeling strategy that labels each fact by whether it is later retrieved and incorporated into responses. We then formulate online memory gating as contextual apple tasting with delayed one-sided feedback, and propose Warm-Start UCB, which combines offline learning from existing data with online adaptation to the current user. Our theoretical analysis establishes a high-probability regret upper bound of $\\tilde{O}(Tε\\wedge d\\sqrt{T})$ when the delay window is at most $O(\\sqrt{T})$, where $T$ is the total number of rounds, $ε$ is the initialization error, $d$ is the dimension of the feature map, and $\\tilde{O}(\\cdot)$ hides constant and poly-logarithmic factors. The results of our experiment demonstrate that our method outperforms all baselines under different memory budgets and history lengths, establishing it as a promising personalized memory gating policy.",
+      "authors": [
+        "Kaixuan Ji",
+        "Zixiang Chen",
+        "Wenting Zhao",
+        "Cheng Qian",
+        "Heng Wang",
+        "Weizhi Zhang",
+        "Jielin Qiu",
+        "Liangwei Yang",
+        "Quanquan Gu",
+        "Silvio Savarese",
+        "Shelby Heinecke",
+        "Huan Wang"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-10-16T17:34:45+00:00",
+      "link": "https://arxiv.org/pdf/2610.23812v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "fact-level memory gating for storing and retrieving long-term memory in LLM agents",
+      "llm_evidence_cn": "面向LLM智能体长期记忆存取的事实级记忆门控",
+      "llm_evidence": "面向LLM智能体长期记忆存取的事实级记忆门控",
+      "canonical_evidence": "面向LLM智能体长期记忆存取的事实级记忆门控",
+      "llm_tldr_en": "Long-term memory lets LLM agents personalize interactions, but finite memory banks cannot keep every fact. The paper learns user-specific fact-level memory gating from delayed one-sided feedback via Warm-Start UCB.",
+      "llm_tldr_cn": "长期记忆使语言模型智能体能够个性化未来交互，但有限记忆库无法保存所有抽取事实，而现有记忆门控策略跨用户共享，忽略个体复用差异。作者在事实级研究记忆门控，提出基于检索的标注策略，并将在线门控建模为带延迟单边反馈的情境苹果品尝问题，提出Warm-Start UCB结合离线学习与在线适应。理论分析给出高概率遗憾界，为长期记忆的存储与更新提供个性化方案。",
+      "llm_tldr": "长期记忆使语言模型智能体能够个性化未来交互，但有限记忆库无法保存所有抽取事实，而现有记忆门控策略跨用户共享，忽略个体复用差异。作者在事实级研究记忆门控，提出基于检索的标注策略，并将在线门控建模为带延迟单边反馈的情境苹果品尝问题，提出Warm-Start UCB结合离线学习与在线适应。理论分析给出高概率遗憾界，为长期记忆的存储与更新提供个性化方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.25373v1",
+      "source": "arxiv",
+      "title": "MemDerive: A Diagnostic Benchmark for Agent Memory over Evolving Data",
+      "abstract": "Long-running agents rely on memory of their past interactions for task state, such as what has been completed and which conditions still hold. Such state is usually a derived state. No record states it, and it must be computed by rules from multiple records of an evolving history. Existing memory benchmarks score only the final answer, with no reference for the intermediate states behind it. A wrong answer therefore cannot be traced to the state that was missed, and a state that silently became outdated goes undetected. We present MemDerive, a diagnostic benchmark for agent memory over evolving data. It specifies each scenario symbolically, derives exact gold answers with Datalog, records the gold derivation DAG and the supporting events of every query, and renders the history in natural language with fictional entities and distractors. Its 10 scenarios contain 4,692 events and 1,503 queries whose difficulty varies along access, evolution, and composition. On this ground truth, MemDerive evaluates answer reliability, diagnoses failures by probing the nodes of the gold derivation DAG, and tracks whether answers stay correct as events arrive. Our evaluation of four memory systems reveals failures that final-answer benchmarks hide. On derived state, every memory system falls behind simple BM25 retrieval, although the same answer model reaches 96.01% when given the supporting events. Most failures are ungathered, as a system holds the missing intermediate state but does not retrieve it for the question that needs it. Memory systems also rarely propagate implicit changes, which no new record states. These results suggest three principles for memory design. Gather inputs along the derivation, store rules with their versions, and maintain derived states through recorded dependencies.",
+      "authors": [
+        "Sen Gao",
+        "Yongan Li",
+        "Han Chen",
+        "Bingsheng He",
+        "Ming Wu",
+        "Jason Zeng",
+        "Michael Heinrich",
+        "Shixuan Sun"
+      ],
+      "primary_category": "cs.DB",
+      "categories": [
+        "cs.DB",
+        "cs.AI",
+        "cs.CL",
+        "cs.IR"
+      ],
+      "published": "2026-10-18T16:24:33+00:00",
+      "link": "https://arxiv.org/pdf/2610.25373v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "diagnostic benchmark for agent memory over evolving data",
+      "llm_evidence_cn": "面向演化数据的智能体记忆诊断基准",
+      "llm_evidence": "面向演化数据的智能体记忆诊断基准",
+      "canonical_evidence": "面向演化数据的智能体记忆诊断基准",
+      "llm_tldr_en": "MemDerive is a diagnostic benchmark that symbolically specifies agent memory scenarios over evolving data, deriving gold answers with Datalog and recording derivation DAGs to trace intermediate states.",
+      "llm_tldr_cn": "长期运行的智能体需要记住过往交互来维护任务状态，而这些状态往往不是直接记录的，必须由多条演化中的记录按规则推导得出。现有记忆基准只评最终答案，错误无法追溯到遗漏的中间状态，悄然过时的状态也检测不到。论文提出MemDerive诊断基准，用符号化方式描述场景、以Datalog推导精确金标准答案，并记录推导DAG与每个查询的支持事件。该基准为智能体记忆提供了可追溯、可诊断的细粒度评测。",
+      "llm_tldr": "长期运行的智能体需要记住过往交互来维护任务状态，而这些状态往往不是直接记录的，必须由多条演化中的记录按规则推导得出。现有记忆基准只评最终答案，错误无法追溯到遗漏的中间状态，悄然过时的状态也检测不到。论文提出MemDerive诊断基准，用符号化方式描述场景、以Datalog推导精确金标准答案，并记录推导DAG与每个查询的支持事件。该基准为智能体记忆提供了可追溯、可诊断的细粒度评测。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.25996v1",
+      "source": "arxiv",
+      "title": "Procedural Memory for Language Agents: A Neurosymbolic Perspective on Explicit Goal Structure",
+      "abstract": "Large language models remain unreliable on long-horizon tasks requiring procedural reasoning. We argue that a key cause is the absence of explicit procedural memory: accessible, modifiable knowledge of how tasks are accomplished, distinct from semantic and episodic memory. Goal-Oriented Graphs offer such a representation, encoding goals and prerequisite dependencies as inspectable symbolic structure. We examine their construction, the challenges they pose, and principles for integrating them with neural reasoning.",
+      "authors": [
+        "Jonathan Leung",
+        "Zhiqi Shen",
+        "Deheng Ye"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-19T08:19:23+00:00",
+      "link": "https://arxiv.org/pdf/2610.25996v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "explicit procedural memory architecture for language agents",
+      "llm_evidence_cn": "面向语言智能体的显式程序性记忆架构",
+      "llm_evidence": "面向语言智能体的显式程序性记忆架构",
+      "canonical_evidence": "面向语言智能体的显式程序性记忆架构",
+      "llm_tldr_en": "This paper argues LLM agents fail on long-horizon procedural tasks due to missing explicit procedural memory, proposing Goal-Oriented Graphs as inspectable symbolic memory integrated with neural reasoning.",
+      "llm_tldr_cn": "针对LLM在需要程序性推理的长程任务上不可靠的问题，本文指出关键在于缺乏显式程序性记忆，即区别于语义与情景记忆的可访问可修改的任务完成知识。方法提出以目标导向图作为可检查的符号结构，编码目标与前置依赖，并探讨其构建挑战与和神经推理融合的原则。文章给出了记忆表示与整合的系统性分析框架。其贡献在于为语言智能体的记忆架构设计提供神经符号视角。",
+      "llm_tldr": "针对LLM在需要程序性推理的长程任务上不可靠的问题，本文指出关键在于缺乏显式程序性记忆，即区别于语义与情景记忆的可访问可修改的任务完成知识。方法提出以目标导向图作为可检查的符号结构，编码目标与前置依赖，并探讨其构建挑战与和神经推理融合的原则。文章给出了记忆表示与整合的系统性分析框架。其贡献在于为语言智能体的记忆架构设计提供神经符号视角。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.26433v1",
+      "source": "arxiv",
+      "title": "The Geometry of Agent Memory: Forecasting Retrieval-Bound Memory Failures, and Characterizing Its Limits",
+      "abstract": "We study whether geometric relationships between conversation turns, memory texts, and queries can predict answer correctness before generation. We evaluate four memory implementations with dense or hybrid retrieval and one observation-summary comparator. We embed these texts in a shared space. A logistic classifier uses 25 features describing query proximity, memory-conversation correspondence, and conversation structure. On LongMemEval-small, pooled AUROC is 0.640 over 2,367 question-system pairs, below a question-difficulty baseline of 0.655. Performance varies by question type: geometry reaches 0.841 on single-session-assistant questions, but system identity alone reaches 0.826. After controlling for difficulty and identity, geometry adds no statistically established pooled improvement (delta = +0.002, 95% CI [-0.010, 0.014]). A fixed-store context-selection experiment finds higher accuracy with proximity-ranked memories than with random subsets, consistent with ordinary retrieval relevance. On LoCoMo, nearest-turn similarity has modest predictive value for single-hop questions and near-chance estimates for several other categories. Training uses correctness labels; prediction uses pre-answer features and no additional LLM generation call. The results characterize associations between memory representations and correctness, rather than establish a reliable deployment diagnostic. In particular, embedding proximity does not verify fact coverage or distinguish memory-construction, retrieval, and generation errors.",
+      "authors": [
+        "Iliya Zhechev",
+        "Radoslav Ralev",
+        "Chris Coleman",
+        "Srijith Rajamohan",
+        "Jen Agarwal",
+        "Tyler Hutcherson",
+        "Simba Khadder"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.IR"
+      ],
+      "published": "2026-10-19T13:56:49+00:00",
+      "link": "https://arxiv.org/pdf/2610.26433v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "predicting retrieval-bound memory failures in agent memory implementations",
+      "llm_evidence_cn": "预测智能体记忆实现中检索受限的记忆失效",
+      "llm_evidence": "预测智能体记忆实现中检索受限的记忆失效",
+      "canonical_evidence": "预测智能体记忆实现中检索受限的记忆失效",
+      "llm_tldr_en": "The paper embeds conversation turns, memory texts and queries in a shared space to predict answer correctness, finding geometric signals only weakly forecast memory retrieval success.",
+      "llm_tldr_cn": "针对生成前难以预判记忆检索能否支撑正确答案的问题，论文把对话轮次、记忆文本与查询嵌入同一空间，用25个几何特征训练分类器预测答案正确性，并在LongMemEval-small上评测四种记忆实现。结果显示汇总AUROC仅0.640，低于问题难度基线0.655，单会话助手类问题虽达0.841，但系统身份单独即可达0.826。这说明几何信号对记忆检索成败的预测力有限，需结合难度与系统因素谨慎解读。",
+      "llm_tldr": "针对生成前难以预判记忆检索能否支撑正确答案的问题，论文把对话轮次、记忆文本与查询嵌入同一空间，用25个几何特征训练分类器预测答案正确性，并在LongMemEval-small上评测四种记忆实现。结果显示汇总AUROC仅0.640，低于问题难度基线0.655，单会话助手类问题虽达0.841，但系统身份单独即可达0.826。这说明几何信号对记忆检索成败的预测力有限，需结合难度与系统因素谨慎解读。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.26955v1",
+      "source": "arxiv",
+      "title": "LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Large Language Agents",
+      "abstract": "Long-horizon language agents require compact memories that retain interaction evidence while preserving competing hypotheses about unobserved states. Although effective, many belief-state methods encode memory in discrete natural language, where repeated compression can omit evidence or prematurely discard plausible alternatives. We introduce LAMB, a recurrent framework for latent multi-hypothesis beliefs. A Common--Delta factorization combines a shared Common state for interaction evidence with weighted Delta components for competing hypotheses. Relative evidence from action-outcome predictions guides recurrent hypothesis updates without generating textual memory. A context-conditioned readout exposes hypotheses separately to the policy through a fixed-token belief prefix in the default configuration. The belief modules and policy are jointly trained using action imitation and auxiliary state, outcome, and observation-discrimination objectives. Across ALFWorld, BabyAI, ScienceWorld, and Crafter, LAMB matches or outperforms PABU, improving ALFWorld SR@30 and ScienceWorld success by 6.0 and 22.0 percentage points, respectively, and Crafter achievement progress by 26.37 points. On ALFWorld, it also reduces the redundant-action rate by 17.70 percentage points. These results support latent multi-hypothesis beliefs as compact memory for effective long-horizon decision making",
+      "authors": [
+        "Peien Ding",
+        "Hui Li",
+        "Yuhan Liu",
+        "Jinsong Su"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-18T10:41:04+00:00",
+      "link": "https://arxiv.org/pdf/2610.26955v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "latent multi-hypothesis belief memory for long-horizon agents",
+      "llm_evidence_cn": "长程智能体的潜空间多假设信念记忆",
+      "llm_evidence": "长程智能体的潜空间多假设信念记忆",
+      "canonical_evidence": "长程智能体的潜空间多假设信念记忆",
+      "llm_tldr_en": "LAMB keeps long-horizon agent memory as latent multi-hypothesis beliefs, factorizing a shared Common state and weighted Delta hypotheses updated by action-outcome prediction evidence.",
+      "llm_tldr_cn": "长程语言智能体需要紧凑的记忆，既能保留交互证据，又要维持关于未观测状态的多个竞争假设。现有信念状态方法多用离散自然语言编码记忆，反复压缩容易丢失证据或过早丢弃合理备选。论文提出LAMB，一种潜空间多假设信念的循环框架，用公共-增量分解把共享的证据状态与加权的假设分量结合起来，并由动作-结果预测的相对证据驱动假设更新。该方法无需生成文本记忆，为长程智能体的信念维护提供了新方案。",
+      "llm_tldr": "长程语言智能体需要紧凑的记忆，既能保留交互证据，又要维持关于未观测状态的多个竞争假设。现有信念状态方法多用离散自然语言编码记忆，反复压缩容易丢失证据或过早丢弃合理备选。论文提出LAMB，一种潜空间多假设信念的循环框架，用公共-增量分解把共享的证据状态与加权的假设分量结合起来，并由动作-结果预测的相对证据驱动假设更新。该方法无需生成文本记忆，为长程智能体的信念维护提供了新方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.27400v1",
+      "source": "arxiv",
+      "title": "ProMemAgent: Long-Horizon Proactive Assistance with Context-Aware Prospective Memory from Sensory Perceptions",
+      "abstract": "Large language model (LLM) agents are moving beyond reactive responses toward proactive assistance that anticipates user needs without explicit requests. However, existing proactive agents primarily address immediate needs, while many everyday situations involve delayed intentions that can only be acted on hours or days later. Humans handle such intentions through prospective memory, the ability to remember to act on an intention when the right moment arises. In this paper, we introduce ProMemAgent, the first proactive agent to incorporate prospective memory over everyday sensory contexts for long-horizon proactive assistance. ProMemAgent organizes past sensory perceptions (e.g., egocentric video and audio) into context-aware memory, generating prospective cues and linking earlier events with subsequent developments for future retrieval. Given the current context, it retrieves relevant past events and performs memory-augmented proactive reasoning to determine whether assistance is needed. We further introduce CPMBench, the first benchmark for evaluating long-horizon proactive assistance over sensory contexts, comprising 1,000 instances across eight everyday categories. Extensive experiments show that ProMemAgent achieves the best memory retrieval performance and consistently outperforms all baselines on long-horizon proactive assistance.",
+      "authors": [
+        "Lilin Xu",
+        "Linyang He",
+        "Kaiyuan Hou",
+        "Yuang Fan",
+        "Minghui Zhao",
+        "Xuhai Xu",
+        "Xiaofan Jiang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-19T23:47:50+00:00",
+      "link": "https://arxiv.org/pdf/2610.27400v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "prospective memory mechanism for LLM agents over sensory context",
+      "llm_evidence_cn": "面向LLM智能体的前瞻记忆机制",
+      "llm_evidence": "面向LLM智能体的前瞻记忆机制",
+      "canonical_evidence": "面向LLM智能体的前瞻记忆机制",
+      "llm_tldr_en": "ProMemAgent introduces prospective memory over everyday sensory contexts, letting LLM agents recall delayed intentions and act at the right moment for long-horizon proactive assistance.",
+      "llm_tldr_cn": "现有主动式LLM智能体多只处理即时需求，无法应对需在数小时或数天后才执行的延迟意图。作者提出ProMemAgent，把日常自我中心视频与音频等感官感知组织为可检索的上下文，并引入类人前瞻记忆机制，在恰当时机触发意图。实验显示其能在长时程日常场景中准确触发延迟意图，实现主动辅助。该工作首次将前瞻记忆引入主动式智能体，拓展了智能体记忆系统的时间跨度与应用形态。",
+      "llm_tldr": "现有主动式LLM智能体多只处理即时需求，无法应对需在数小时或数天后才执行的延迟意图。作者提出ProMemAgent，把日常自我中心视频与音频等感官感知组织为可检索的上下文，并引入类人前瞻记忆机制，在恰当时机触发意图。实验显示其能在长时程日常场景中准确触发延迟意图，实现主动辅助。该工作首次将前瞻记忆引入主动式智能体，拓展了智能体记忆系统的时间跨度与应用形态。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.27406v1",
+      "source": "arxiv",
+      "title": "More Memory, Worse Agents: Error Reproduction and Anti-Persistence in LLM Agents",
+      "abstract": "LLM agents can improve across tasks without updating model parameters by storing experience from their own executions in external memory and reusing it to guide later decisions. A central design question is whether to retain only observed trajectories and outcomes or also the rules, summaries, and skills inferred from them. Retaining these abstractions allows agents to reuse strategies without repeatedly deriving them from raw trajectories. However, errors in stored abstractions can propagate to subsequent decisions through retrieval and reuse. They can also shape execution trajectories, which then become the basis for new abstractions that reproduce the original errors. We term this feedback mechanism error reproduction: errors are regenerated through a cycle of abstraction, execution, and re-abstraction, extending their persistence beyond direct reuse of the original faulty knowledge. We propose Anti-Persistence, a memory design that accumulates trajectories and outcomes while reconstructing task-specific guidance on demand. An adaptive selector uses prior outcomes to decide whether and how to synthesize guidance, which is discarded after execution. This prevents its direct reuse as a stored object, although indirect feedback through retained trajectories remains possible. Across different benchmarks and backbones, Anti-Persistence achieves higher overall held-out success and the lowest average LLM-call cost among the evaluated memory designs. These results support separating experience accumulation from abstraction persistence in memorybased self-improvement.",
+      "authors": [
+        "Ruhan Wang",
+        "Kishan Panaganti",
+        "Dongruo Zhou"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL"
+      ],
+      "published": "2026-10-19T23:58:46+00:00",
+      "link": "https://arxiv.org/pdf/2610.27406v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "agents store experience in external memory and reuse it via retrieval, causing error reproduction",
+      "llm_evidence_cn": "智能体将经验存入外部记忆并经检索复用，导致错误复现",
+      "llm_evidence": "智能体将经验存入外部记忆并经检索复用，导致错误复现",
+      "canonical_evidence": "智能体将经验存入外部记忆并经检索复用，导致错误复现",
+      "llm_tldr_en": "LLM agents reuse external memory of past experience, but storing inferred abstractions lets errors propagate and regenerate through retrieval, so more memory can make agents worse.",
+      "llm_tldr_cn": "针对LLM智能体把执行经验存入外部记忆并复用以提升表现的做法，论文追问应只保留轨迹结果还是也保留推断出的规则与技能。作者指出存储抽象中的错误会经检索复用传播，并塑造新的执行轨迹从而再生同类错误，提出错误复现这一反馈机制。分析表明记忆越多反而可能使智能体表现更差，为可靠的外部记忆设计敲响警钟。",
+      "llm_tldr": "针对LLM智能体把执行经验存入外部记忆并复用以提升表现的做法，论文追问应只保留轨迹结果还是也保留推断出的规则与技能。作者指出存储抽象中的错误会经检索复用传播，并塑造新的执行轨迹从而再生同类错误，提出错误复现这一反馈机制。分析表明记忆越多反而可能使智能体表现更差，为可靠的外部记忆设计敲响警钟。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.30755v1",
+      "source": "arxiv",
+      "title": "Is Complex Agentic Memory Always Needed? Naive RAG Is Stronger Than We Thought",
+      "abstract": "LLM memory is widely used in long-term conversation understanding. Agentic memory systems often use mutation, structural organization, learned retrieval strategies, or other complex operations. Is this complexity always necessary? We study Raw-RAG, a naive RAG baseline using dense retrieval and reranking over raw history to supply evidence to a reader LLM. Across LoCoMo, LongMemEval, MEME, and MemoryAgentBench, Raw-RAG ranks first among the compared memory systems in six of seven benchmark-model settings, outperforming the strongest compared agentic memory system by 0.13-5.53 points. We investigate why raw-history retrieval remains competitive. Evidence analysis shows that its higher coverage of necessary evidence can offset lower utilization. Useful evidence includes both answer values and the relations and dependency paths needed to derive them. Even complete access to transformed memory stores leaves an accuracy gap relative to raw evidence, highlighting the importance of preserving raw information. These findings challenge the necessity of complex agentic memory for the evaluated conversation tasks and establish naive RAG as an essential baseline.",
+      "authors": [
+        "Zhengye Bao",
+        "Shengtao Zhang",
+        "Haokai Zhang",
+        "Shiqi Lou",
+        "Muning Wen",
+        "Minnan Luo"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-22T05:23:16+00:00",
+      "link": "https://arxiv.org/pdf/2610.30755v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "naive RAG over raw history as agent long-term memory baseline",
+      "llm_evidence_cn": "以朴素RAG检索原始历史作为长期记忆基线",
+      "llm_evidence": "以朴素RAG检索原始历史作为长期记忆基线",
+      "canonical_evidence": "以朴素RAG检索原始历史作为长期记忆基线",
+      "llm_tldr_en": "Raw-RAG, a naive dense-retrieval-and-rerank baseline over raw history, beats complex agentic memory systems on six of seven benchmark-model settings, showing evidence coverage can outweigh elaborate memory design.",
+      "llm_tldr_cn": "智能体记忆系统常引入变异、结构化组织或学习式检索等复杂操作，但其必要性一直缺乏严格检验。作者提出Raw-RAG基线，直接在原始对话历史上做稠密检索与重排序，把证据交给阅读器大模型。在LoCoMo、LongMemEval、MEME和MemoryAgentBench上，它在七种基准-模型设置中的六种排名第一，比最强智能体记忆系统高0.13至5.53分。分析表明原始历史检索凭更高的必要证据覆盖率弥补了利用效率的不足，提醒重新审视记忆系统的复杂度。",
+      "llm_tldr": "智能体记忆系统常引入变异、结构化组织或学习式检索等复杂操作，但其必要性一直缺乏严格检验。作者提出Raw-RAG基线，直接在原始对话历史上做稠密检索与重排序，把证据交给阅读器大模型。在LoCoMo、LongMemEval、MEME和MemoryAgentBench上，它在七种基准-模型设置中的六种排名第一，比最强智能体记忆系统高0.13至5.53分。分析表明原始历史检索凭更高的必要证据覆盖率弥补了利用效率的不足，提醒重新审视记忆系统的复杂度。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory storage and retrieval in agent systems",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2609.37171v1",
+      "source": "arxiv",
+      "title": "Bridging Semantic Gaps in RAG through Generated Context Knowledge Fusion",
+      "abstract": "Retrieval-Augmented Generation has established itself as a fundamental framework in natural language processing, seamlessly integrating information retrieval with the generative capabilities of large language models. However, this process is fundamentally constrained by a critical challenge: semantic space mismatch between queries and retrieved contexts. We propose Knowledge-Aware Semantic Bridging (KASB), a novel framework that improves passage selection quality through semantic space alignment between queries and retrieved documents through intelligent knowledge fusion. Our approach leverages the complementary strengths of generative and retrieval-based knowledge through a multistage process that enhances both relevance and accuracy. We evaluate KASB on three popular open-domain Question Answering datasets to demonstrate the effectiveness of our approach.",
+      "authors": [
+        "Xinkai Du",
+        "Chao Lv",
+        "Yalin Sun",
+        "Quanjie Han",
+        "Lei Yao",
+        "Maosong Sun"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-09-29T09:57:57+00:00",
+      "link": "https://arxiv.org/pdf/2609.37171v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "RAG framework aligning query and retrieved context semantic spaces",
+      "llm_evidence_cn": "对齐查询与检索上下文语义空间的检索增强生成框架",
+      "llm_evidence": "对齐查询与检索上下文语义空间的检索增强生成框架",
+      "canonical_evidence": "对齐查询与检索上下文语义空间的检索增强生成框架",
+      "llm_tldr_en": "KASB addresses the semantic space mismatch between queries and retrieved passages in RAG by fusing generative and retrieval knowledge to align representations and improve passage selection.",
+      "llm_tldr_cn": "检索增强生成受制于查询与检索上下文之间的语义空间错配，导致检索段落质量不佳。论文提出知识感知语义桥接KASB，通过多阶段流程融合生成式知识与检索式知识，在语义空间上对齐查询与文档以改进段落选择。该框架同时提升检索相关性与答案准确性，为检索增强生成中的语义鸿沟问题提供了可复用方案。",
+      "llm_tldr": "检索增强生成受制于查询与检索上下文之间的语义空间错配，导致检索段落质量不佳。论文提出知识感知语义桥接KASB，通过多阶段流程融合生成式知识与检索式知识，在语义空间上对齐查询与文档以改进段落选择。该框架同时提升检索相关性与答案准确性，为检索增强生成中的语义鸿沟问题提供了可复用方案。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.37171v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.21512v1",
+      "source": "arxiv",
+      "title": "QREF: Improving DeepSearch Agents by Aligning Search with Reasoning via Query Refinement and Evidence Filtering",
+      "abstract": "DeepSearch agents achieve strong performance on complex information-seeking tasks through iterative search and reasoning. However, they often issue intent-misaligned, under-constrained, or redundant search queries, resulting in poor evidence coverage and accumulating retrieval noise. To mitigate these limitations, we propose QREF, a plug-and-play Query Refiner and Evidence Filter. Specifically, the Query Refiner rewrites search queries according to the current reasoning intent while ensuring complementary coverage across each search batch. The Evidence Filter retains evidence relevant to both the current search batch and the reasoning objective, reducing distracting retrieval results. We initialize the Query Refiner with supervised fine-tuning and optimize it through reinforcement learning based on interactions with a real-world web search environment, reducing ineffective queries. Comprehensive experiments demonstrate that our approach improves the performance of DeepSearch agents across four challenging benchmarks, achieving average relative Pass@1 improvements of 33.55% on WebSailor and 11.04% on TongyiDeepResearch without modifying architectures or retraining their reasoning policies. Compared with the original DeepSearch backbone without QREF, the RL-trained refiner reduces the fraction of query batches that lack discriminative retrieval anchors by 95%. Compared with the SFT-trained refiner, it also lowers the filter-based ineffective query ratio.",
+      "authors": [
+        "Yujia Chen",
+        "Yuhui Wang",
+        "Junzhe Wang",
+        "Shihan Dou",
+        "Di Liang",
+        "Yujiong Shen",
+        "Yuhao Zhou",
+        "Zhiheng Xi",
+        "Ming Zhang",
+        "Senjie Jin",
+        "Jiayi Chen",
+        "Dingwei Zhu",
+        "Yajie Yang",
+        "Yuan Hua",
+        "Chenyao Lu",
+        "Tao Gui",
+        "Qi Zhang",
+        "Xuanjing Huang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-15T08:47:44+00:00",
+      "link": "https://arxiv.org/pdf/2610.21512v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "query refinement and evidence filtering to align search with reasoning in search agents",
+      "llm_evidence_cn": "查询精炼与证据过滤使搜索与推理对齐",
+      "llm_evidence": "查询精炼与证据过滤使搜索与推理对齐",
+      "canonical_evidence": "查询精炼与证据过滤使搜索与推理对齐",
+      "llm_tldr_en": "DeepSearch agents issue misaligned or redundant queries, accumulating retrieval noise. QREF is a plug-and-play query refiner and evidence filter that rewrites queries by reasoning intent and keeps objective-relevant evidence.",
+      "llm_tldr_cn": "深度搜索智能体通过迭代搜索与推理完成信息检索，但常发出意图错位、约束不足或冗余的查询，导致证据覆盖差、检索噪声累积。作者提出即插即用的QREF，包含按当前推理意图改写查询并保证批次覆盖的查询精炼器，以及只保留与推理目标相关证据的过滤器。方法提升了证据覆盖并减少干扰结果，为检索智能体的证据对齐提供了通用组件。",
+      "llm_tldr": "深度搜索智能体通过迭代搜索与推理完成信息检索，但常发出意图错位、约束不足或冗余的查询，导致证据覆盖差、检索噪声累积。作者提出即插即用的QREF，包含按当前推理意图改写查询并保证批次覆盖的查询精炼器，以及只保留与推理目标相关证据的过滤器。方法提升了证据覆盖并减少干扰结果，为检索智能体的证据对齐提供了通用组件。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Search for papers on retrieval methods and evidence grounding in language model question answering.",
+      "matched_requirement_id": "req-16",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.21676v1",
+      "source": "arxiv",
+      "title": "ConStore: Search-Overlapped Prefetch and Co-Retrieval-Aware Content Storage for Disk-Based ANNS",
+      "abstract": "Disk-based approximate nearest-neighbor search (ANNS) supports retrieval-augmented generation (RAG), search, recommendation, and advertising over corpora that exceed memory capacity. Existing ANNS research often focuses on vector search at small top-K, whereas industrial-scale applications require larger retrieval sets. Fetching the corresponding content from storage remains comparatively underexplored. Our profiling across million- to billion-vector corpora shows that, at large K, content fetch latency can match or exceed vector-search latency and cannot be ignored in end-to-end retrieval.   We present ConStore, a content storage engine combining two complementary techniques to reduce end-to-end retrieval latency. Speculative Inline Content Prefetch (SICP) commonly abstracts graph-based and cluster-based ANNS as progressive SSD I/O that refines an in-flight candidate queue. It prefetches content for stable leading candidates under a bounded I/O budget, overlapping content reads with search without changing the final top-K results. Co-Retrieval-Pattern-Aware Grouping (RPAG) uses query logs to place frequently co-retrieved documents in contiguous segments. Workload-Adaptive Segment Reorganization (WASR) adapts this layout to workload shifts by selectively regrouping segments under a bounded rewrite budget. Group Content Fetch (GCF) exploits this layout to coalesce per-document random reads into batched, page-aware I/O requests. SICP works independently of the content layout, while RPAG and GCF reduce fetch cost even without prefetching.   Across three multi-hop QA workloads with K from 10 to 1600, ConStore reduces end-to-end retrieval latency over the best per-document-read baseline by up to 48% on DiskANN and 25% on SPANN. Separate experiments on 100M- and billion-vector indexes demonstrate SICP's applicability at larger scales.",
+      "authors": [
+        "Zhutao Zhuang",
+        "Nong Xiao",
+        "Zhiguang Chen",
+        "Yue Yu"
+      ],
+      "primary_category": "cs.DB",
+      "categories": [
+        "cs.DB"
+      ],
+      "published": "2026-10-15T11:01:16+00:00",
+      "link": "https://arxiv.org/pdf/2610.21676v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "content storage engine reducing end-to-end retrieval latency for disk-based RAG",
+      "llm_evidence_cn": "面向磁盘RAG的内容存储引擎降低端到端检索延迟",
+      "llm_evidence": "面向磁盘RAG的内容存储引擎降低端到端检索延迟",
+      "canonical_evidence": "面向磁盘RAG的内容存储引擎降低端到端检索延迟",
+      "llm_tldr_en": "At large top-K, fetching content from storage can dominate RAG retrieval latency. ConStore combines search-overlapped prefetch and co-retrieval-aware storage layout to cut end-to-end retrieval latency at billion-scale.",
+      "llm_tldr_cn": "磁盘近似最近邻检索支撑大规模RAG，但现有研究多关注小K向量搜索，忽视从存储取回内容的开销。作者剖析发现大K下内容取回延迟可与向量搜索相当，于是提出ConStore存储引擎，结合搜索重叠预取与协同检索感知的存储布局。在百万到十亿级语料上降低端到端检索延迟，为大规模RAG检索的存储侧优化提供了系统方案。",
+      "llm_tldr": "磁盘近似最近邻检索支撑大规模RAG，但现有研究多关注小K向量搜索，忽视从存储取回内容的开销。作者剖析发现大K下内容取回延迟可与向量搜索相当，于是提出ConStore存储引擎，结合搜索重叠预取与协同检索感知的存储布局。在百万到十亿级语料上降低端到端检索延迟，为大规模RAG检索的存储侧优化提供了系统方案。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2609.38275v1",
+      "source": "arxiv",
+      "title": "When Correct Memory Goes Wrong: Fuzzing Persistent Memory Use in LLM Agents",
+      "abstract": "Persistent memory helps LLM agents carry information across long interactions, but correct memory can still be used incorrectly when queries change or memory states evolve. Existing work mainly studies memory content errors or evaluates fixed test cases, leaving memory-use failures hard to discover systematically. We formulate this issue as a fuzzing problem and categorize such failures into query-related and memory-state failures. We then develop U-Fuzz, which starts from memory checkpoints as test seeds, mutates queries or memory states under explicit mutation obligations, validates each mutant, and uses observed memory behavior to guide iterative testing while keeping failure labels outside the search. We evaluate U-Fuzz across several memory systems against diverse fuzzing baselines, and further test an output-only setting with API-based LLMs where memory retrieval is hidden. Across these settings, U-Fuzz consistently uncovers more confirmed memory-use failures, showing that its search remains effective across different memory architectures and even when only final responses are observable.",
+      "authors": [
+        "Yuqiao Meng",
+        "Luoxi Tang",
+        "Yingxue Zhang",
+        "Yuchen Yang",
+        "Zhaohan Xi"
+      ],
+      "primary_category": "cs.DC",
+      "categories": [
+        "cs.DC",
+        "cs.AI"
+      ],
+      "published": "2026-09-29T15:35:58+00:00",
+      "link": "https://arxiv.org/pdf/2609.38275v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "U-Fuzz fuzzes persistent memory use in LLM agents to expose query-related and memory-state failures",
+      "llm_evidence_cn": "U-Fuzz对LLM智能体的持久记忆使用进行模糊测试，暴露查询与状态相关失败",
+      "llm_evidence": "U-Fuzz对LLM智能体的持久记忆使用进行模糊测试，暴露查询与状态相关失败",
+      "canonical_evidence": "U-Fuzz对LLM智能体的持久记忆使用进行模糊测试，暴露查询与状态相关失败",
+      "llm_tldr_en": "U-Fuzz treats misuse of persistent memory in LLM agents as a fuzzing problem, mutating queries and memory states from checkpoints to systematically discover memory-use failures.",
+      "llm_tldr_cn": "持久记忆让LLM智能体能在长交互中携带信息，但即便记忆内容正确，当查询变化或记忆状态演化时仍可能被误用，而现有工作多关注内容错误或固定测试用例。论文将此类记忆使用失败形式化为模糊测试问题，提出U-Fuzz，以记忆检查点为种子，在显式变异义务下变异查询或记忆状态，并利用观测到的记忆行为引导迭代测试。在多个记忆系统上的评估表明其能系统发现查询相关与状态相关的失败，为记忆可靠性测试提供了新方法。",
+      "llm_tldr": "持久记忆让LLM智能体能在长交互中携带信息，但即便记忆内容正确，当查询变化或记忆状态演化时仍可能被误用，而现有工作多关注内容错误或固定测试用例。论文将此类记忆使用失败形式化为模糊测试问题，提出U-Fuzz，以记忆检查点为种子，在显式变异义务下变异查询或记忆状态，并利用观测到的记忆行为引导迭代测试。在多个记忆系统上的评估表明其能系统发现查询相关与状态相关的失败，为记忆可靠性测试提供了新方法。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agents augmented with external and persistent memory",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2609.38275v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.24854v1",
+      "source": "arxiv",
+      "title": "Learning to Program Retrievals: Composing Search Primitives via Reinforcement Learning",
+      "abstract": "Retrieval-augmented language models increasingly use multi-step search to solve knowledge-intensive tasks, yet existing systems typically expose retrieval through fixed pipelines or collections of atomic tools. We introduce Retrieval Program Learning (RPL), a programmable search framework that allows a policy to compose search primitives into executable programs with local state and control flow. This enables adaptive search that can retrieve broadly, process intermediate results, and selectively construct model context without tying retrieval breadth to context consumption. However, the resulting flexibility creates a difficult exploration problem: useful programs may require several coordinated decisions, while reinforcement learning often supplies only sparse feedback. To address this challenge, we propose program mutation, a grammar-constrained and execution-verified procedure that generates local variants of suboptimal programs sampled during RL, converts them into training trajectories, and distills them back into the policy. We evaluate RPL on open-domain question answering and corpus-level reasoning tasks, comparing it with a range of retrieval and reasoning baselines. RPL consistently improves open-domain QA performance across model sizes and in- and out-of-domain benchmarks, with particularly large gains on multi-hop tasks. Notably, a 4B model trained with RPL outperforms all 8B model baselines. On corpus-level reasoning, RPL achieves the highest answer F1 and document-coverage F1 for both model sizes while substantially reducing context consumption and retrieval turns. Our results show that programmable search expands the retrieval strategies that agents can learn, while program mutation provides an effective mechanism for exploring useful program structures beyond direct on-policy sampling.",
+      "authors": [
+        "Kyuyoung Kim",
+        "Zilin Xiao",
+        "Zhiyuan Wang",
+        "Avinash Atreya",
+        "Ke Yang",
+        "Jinwoo Shin",
+        "Kecheng Hao"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.IR"
+      ],
+      "published": "2026-10-17T20:03:09+00:00",
+      "link": "https://arxiv.org/pdf/2610.24854v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "composing search primitives into programs for multi-step retrieval-augmented pipelines",
+      "llm_evidence_cn": "将搜索原语组合为程序以支持多步检索增强流程",
+      "llm_evidence": "将搜索原语组合为程序以支持多步检索增强流程",
+      "canonical_evidence": "将搜索原语组合为程序以支持多步检索增强流程",
+      "llm_tldr_en": "Existing multi-step retrieval systems use fixed pipelines or atomic tools; RPL lets a policy compose search primitives into programs with local state via reinforcement learning.",
+      "llm_tldr_cn": "针对现有多步检索系统多以固定流水线或原子工具暴露检索、难以自适应组合搜索并控制上下文消耗的问题，论文提出检索程序学习框架RPL，让策略把搜索原语组合成带局部状态与控制流的可执行程序，并用强化学习解决其中的探索难题。该框架支持广泛检索、处理中间结果并选择性构造模型上下文，使检索广度不再与上下文消耗绑定，为知识密集型任务中的自适应检索提供了新范式。",
+      "llm_tldr": "针对现有多步检索系统多以固定流水线或原子工具暴露检索、难以自适应组合搜索并控制上下文消耗的问题，论文提出检索程序学习框架RPL，让策略把搜索原语组合成带局部状态与控制流的可执行程序，并用强化学习解决其中的探索难题。该框架支持广泛检索、处理中间结果并选择性构造模型上下文，使检索广度不再与上下文消耗绑定，为知识密集型任务中的自适应检索提供了新范式。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.22297v1",
+      "source": "arxiv",
+      "title": "Private Retrieval Augmented Generation via Random Projection",
+      "abstract": "Retrieval-Augmented Generation (RAG) enhances the capabilities of large language models (LLMs) by querying external structured knowledge. However, it can also introduce privacy risks by leaking sensitive information from the retrieval datastore. We propose a simple method to preserve datastore privacy in RAG systems via random projection. By applying the same projection to both datastore embeddings and query embeddings, our method provably preserves semantic similarity between queries and retrieved items while substantially mitigating data extraction attacks. Across multiple RAG architectures and datasets, we show that this lightweight approach achieves superior retrieval and generation performance compared to prior methods which leverage formal differential privacy (DP) guarantees, while exhibiting comparable empirical privacy under strong attack models. Our results for the first time suggest that random projection can serve as a competitive and practical baseline for privacy-preserving RAG systems.",
+      "authors": [
+        "Dixi Yao",
+        "Tahseen Rabbani",
+        "Tian Li"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CR"
+      ],
+      "published": "2026-10-15T17:45:51+00:00",
+      "link": "https://arxiv.org/pdf/2610.22297v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "privacy-preserving retrieval augmentation for LLM RAG",
+      "llm_evidence_cn": "面向LLM检索增强的隐私保护检索",
+      "llm_evidence": "面向LLM检索增强的隐私保护检索",
+      "canonical_evidence": "面向LLM检索增强的隐私保护检索",
+      "llm_tldr_en": "Proposes applying the same random projection to datastore and query embeddings, provably preserving semantic similarity while mitigating data extraction attacks in RAG systems.",
+      "llm_tldr_cn": "检索增强生成通过查询外部知识提升大模型能力，但检索库可能泄露敏感信息。作者提出对数据存储与查询嵌入施加同一随机投影的轻量方法，在理论上保持查询与检索项之间的语义相似度，同时显著缓解数据抽取攻击。在多种RAG架构与数据集上，该方法在检索与生成性能上优于依赖差分隐私的先前方案。为RAG的数据存储隐私提供了简单有效的防护。",
+      "llm_tldr": "检索增强生成通过查询外部知识提升大模型能力，但检索库可能泄露敏感信息。作者提出对数据存储与查询嵌入施加同一随机投影的轻量方法，在理论上保持查询与检索项之间的语义相似度，同时显著缓解数据抽取攻击。在多种RAG架构与数据集上，该方法在检索与生成性能上优于依赖差分隐私的先前方案。为RAG的数据存储隐私提供了简单有效的防护。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2610.04195v1",
+      "source": "arxiv",
+      "title": "MemLeak: Cross-User Semantic Leakage in Multi-Tenant AI Agent Memory",
+      "abstract": "Personal AI agents in enterprise multi-tenant deployments share a common vector store for long-term memory. Shared embedding spaces create a surface for cross-user memory leakage: a user's query can retrieve semantically adjacent memories belonging to another user through ordinary cosine-similarity retrieval, without any exploit. We formalize this as cross-user admissibility failure and evaluate it across six experiments, plus follow-up ablations, under both sparse (TF-IDF) and production-faithful (MiniLM-L6-v2) retrieval. Non-adversarial, incidental leakage reaches 70--100\\% under pooled {same-team} retrieval; adversarially crafted memories achieve 90--100\\% top-$k$ placement, exceeding weaker keyword-based attacker baselines, with score lifts of $+0.416$ to $+0.511$ under production-faithful dense retrieval (Config B); and end-to-end response contamination reaches 5.00/5 under a production retrieval path and 4.67/5 with Claude Sonnet~4.5, with contaminated responses often scoring as helpful or more helpful than clean ones, a gap validated against human judgment. Among three architectural mitigations, only hard post-retrieval ownership gating consistently restores the clean baseline (1.00/5) across {two generation models, at a measured latency overhead of roughly 1.4~ms per query.",
+      "authors": [
+        "Priyanka Mudgal",
+        "Kai Zhao",
+        "Guilin Zhang",
+        "Andy Olsen",
+        "Ezekiel Miller",
+        "Xu Chu",
+        "Aletta Johanna Blanken"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-10-03T01:16:05+00:00",
+      "link": "https://arxiv.org/pdf/2610.04195v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Cross-user semantic leakage in shared long-term vector memory of AI agents",
+      "llm_evidence_cn": "多租户AI智能体长期向量记忆的跨用户语义泄露",
+      "llm_evidence": "多租户AI智能体长期向量记忆的跨用户语义泄露",
+      "canonical_evidence": "多租户AI智能体长期向量记忆的跨用户语义泄露",
+      "llm_tldr_en": "MemLeak shows that shared embedding stores in multi-tenant agent memory cause cross-user leakage, where ordinary cosine retrieval returns other users' memories, and evaluates it across six experiments.",
+      "llm_tldr_cn": "企业多租户部署的个人AI智能体常共享向量存储作为长期记忆，共享嵌入空间使得普通余弦检索即可召回其他用户的语义相近记忆。本文将此形式化为跨用户可接受性失效，在稀疏与生产级检索下开展六组实验与消融。结果显示非对抗性泄露可达70-100%，对抗性记忆可达90-100%命中，揭示了智能体记忆存储的安全隐患。",
+      "llm_tldr": "企业多租户部署的个人AI智能体常共享向量存储作为长期记忆，共享嵌入空间使得普通余弦检索即可召回其他用户的语义相近记忆。本文将此形式化为跨用户可接受性失效，在稀疏与生产级检索下开展六组实验与消融。结果显示非对抗性泄露可达70-100%，对抗性记忆可达90-100%命中，揭示了智能体记忆存储的安全隐患。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory storage and retrieval in agent systems",
+      "matched_requirement_id": "req-2",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.04195v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.25100v1",
+      "source": "arxiv",
+      "title": "Deep Fusion Memory: A Chunk-Level Parametric Memory for Large Language Models",
+      "abstract": "Large language models need effective ways to acquire and use external knowledge beyond what they retain from pretraining. Continued pretraining risks catastrophic forgetting, while retrieval at inference time can add substantial overhead. External parametric memory avoids online retrieval, but constructing its training data requires extensive offline search, and output-level interpolation provides only shallow fusion. We introduce Deep Fusion Memory (DFM), a parametric memory architecture that reduces this construction workload and incorporates learned memory into intermediate hidden states. A causal memory predictor learns to generate memory from the preceding context, using retrieved chunk embeddings from the corpus as supervision. The predicted memory is shared across tokens within each chunk and fused into their hidden states through gated cross-attention. Memory prediction and fusion are trained end to end with the backbone frozen, and inference requires no explicit retrieval. Compared with existing parametric memory approaches, which often construct token-level memory targets, DFM requires $32\\times$ fewer retrieval queries and $2048\\times$ fewer retrieved items to construct its training data. Across six QA tasks, DFM performs better over the strongest baseline by 12.71% on Mistral-7B-v0.3 and 11.19% on Qwen3-8B-Base. Beyond QA, domain adaptation yields average gains of 6.51 and 4.38 points over Qwen3-4B-Base and Qwen3-8B-Base, respectively.",
+      "authors": [
+        "Rubin Wei",
+        "Siyuan Sun",
+        "Hao Sun",
+        "Yuliang Liu",
+        "Xiang Shi",
+        "Jiarui Wang",
+        "Junming Zhang",
+        "Zhouhan Lin"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-18T08:24:53+00:00",
+      "link": "https://arxiv.org/pdf/2610.25100v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "chunk-level parametric memory architecture fusing learned memory into hidden states",
+      "llm_evidence_cn": "将学习到的记忆融入隐状态的分块级参数化记忆架构",
+      "llm_evidence": "将学习到的记忆融入隐状态的分块级参数化记忆架构",
+      "canonical_evidence": "将学习到的记忆融入隐状态的分块级参数化记忆架构",
+      "llm_tldr_en": "To avoid catastrophic forgetting and retrieval overhead, Deep Fusion Memory learns a causal predictor that injects chunk-level parametric memory into intermediate hidden states.",
+      "llm_tldr_cn": "针对持续预训练易灾难性遗忘、推理时检索开销大、而外部参数化记忆构建成本高且仅做输出级浅层融合的问题，论文提出分块级参数化记忆架构DFM，用因果记忆预测器依据前文生成记忆，并以检索到的语料块嵌入作为监督，将记忆融入模型中间隐状态。该方法降低了记忆构建的离线搜索负担，实现比输出插值更深的融合，为无需在线检索的外部知识记忆提供了更高效的方案。",
+      "llm_tldr": "针对持续预训练易灾难性遗忘、推理时检索开销大、而外部参数化记忆构建成本高且仅做输出级浅层融合的问题，论文提出分块级参数化记忆架构DFM，用因果记忆预测器依据前文生成记忆，并以检索到的语料块嵌入作为监督，将记忆融入模型中间隐状态。该方法降低了记忆构建的离线搜索负担，实现比输出插值更深的融合，为无需在线检索的外部知识记忆提供了更高效的方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.24630v1",
+      "source": "arxiv",
+      "title": "Selm: Self-Evolving Library Management for Multi-Skill Agent Optimization",
+      "abstract": "Large language model (LLM) agents increasingly use skills as a lightweight way to acquire task-specific knowledge. Recent work enables skills to evolve from task trajectories. However, these methods often lack systematic management of evolved skills, making it difficult for agents to reuse and accumulate skills across domains, thus limiting performance on subsequent tasks.To reliably accumulate, reuse, and maintain useful skills across tasks, we present SELM (Self-Evolving Library Management), a framework that formulates skill evolution as library-level management. SELM jointly manages skill retrieval, updating, and lifecycle by maintaining skill confidence and utility signals. It introduces utility-aware retrieval to select useful skills, a Map-Reduce framework to generate targeted updates from task-specific experience, and lifecycle controls to retain or remove skills based on their effectiveness. These mechanisms enable the skill library to continuously accumulate useful experience while preserving and pruning skills across tasks, improving agent performance on complex tasks across diverse domains. We evaluate SELM on four agent benchmarks covering diverse tasks and execution environments, and SELM consistently outperforms in most settings.",
+      "authors": [
+        "Mengxi Hu",
+        "Yuxuan Hu",
+        "Jinbo Su",
+        "Ke Wang",
+        "Honghao Shi",
+        "Wenli Wu",
+        "Cuiping Li",
+        "Hong Chen",
+        "Jing Zhang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-17T11:07:02+00:00",
+      "link": "https://arxiv.org/pdf/2610.24630v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "self-evolving skill library with utility-aware retrieval and updating",
+      "llm_evidence_cn": "具备效用感知检索与更新的自演化技能库",
+      "llm_evidence": "具备效用感知检索与更新的自演化技能库",
+      "canonical_evidence": "具备效用感知检索与更新的自演化技能库",
+      "llm_tldr_en": "This paper proposes SELM, a framework that formulates multi-skill agent skill evolution as library-level management, jointly handling skill retrieval, updating and lifecycle via confidence and utility signals to enable accumulation and reuse across tasks.",
+      "llm_tldr_cn": "针对LLM智能体技能演化方法缺乏系统化管理、难以跨领域复用与积累技能的问题，本文提出SELM框架。该方法将技能演化建模为库级管理，联合管理技能检索、更新与生命周期，通过维护技能置信度与效用信号并引入效用感知检索与Map-Reduce。实验表明其提升了智能体在后续任务中复用与积累技能的表现。该工作为智能体技能记忆的持续演化提供了系统化管理框架。",
+      "llm_tldr": "针对LLM智能体技能演化方法缺乏系统化管理、难以跨领域复用与积累技能的问题，本文提出SELM框架。该方法将技能演化建模为库级管理，联合管理技能检索、更新与生命周期，通过维护技能置信度与效用信号并引入效用感知检索与Map-Reduce。实验表明其提升了智能体在后续任务中复用与积累技能的表现。该工作为智能体技能记忆的持续演化提供了系统化管理框架。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "methods for memory consolidation and retrieval in agent systems",
+      "matched_requirement_id": "req-10",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2610.04868v1",
+      "source": "arxiv",
+      "title": "From Memory to Guide: Spatio-Temporal Composer for Procedural Coding Memory",
+      "abstract": "Memory-augmented agents typically integrate procedural knowledge by injecting retrieved skills directly into text prompts. This approach dangerously equates readable text with reliable execution. To bridge this gap, we introduce From Memory to Guide, a novel paradigm that transitions procedural memory from passive text delivery to active, inference-time policy adaptation. We instantiate this paradigm through the Spatio-Temporal Composer, an active policy compiler that explicitly manages exactly how and when retrieved knowledge should be applied. Rather than treating skills as plug-and-play modules, Composer dynamically aligns historical knowledge with current environmental constraints (spatial adaptation) and precisely dictates its applicable lifecycle (temporal orchestration). It actively transforms static memories into strictly bounded Runtime Guides---equipping the agent with localized objectives and behavioral guardrails without requiring a single parameter update. Extensive evaluations on 13 demanding, long-horizon software engineering tasks in EngramBench demonstrate the clear advantages of this architecture. Composer not only robustly prevents context mismatch but drives an absolute pass-rate increase of 7.2 percentage points on the most complex tasks, while simultaneously slashing the main agent's token usage by 32.2%.",
+      "authors": [
+        "Zhixuan Tan",
+        "Pengjie Gu",
+        "Zhao Li",
+        "Yihan Hu",
+        "Xu He",
+        "Dong Li",
+        "Jianye Hao"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-04T02:15:24+00:00",
+      "link": "https://arxiv.org/pdf/2610.04868v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "memory-augmented agents applying retrieved procedural memory as policy",
+      "llm_evidence_cn": "记忆增强智能体将检索到的过程记忆用作策略",
+      "llm_evidence": "记忆增强智能体将检索到的过程记忆用作策略",
+      "canonical_evidence": "记忆增强智能体将检索到的过程记忆用作策略",
+      "llm_tldr_en": "Memory-augmented agents inject retrieved skills into prompts, equating readable text with reliable execution. Composer is an active policy compiler aligning retrieved knowledge with current constraints.",
+      "llm_tldr_cn": "记忆增强智能体通常把检索到的过程性技能直接注入文本提示，错误地把可读文本等同于可靠执行。作者提出从记忆到引导的新范式，并以时空编排器作为主动策略编译器，显式管理检索知识何时以及如何应用。该方法动态对齐历史知识与当前环境约束，并规定知识的适用生命周期，使过程性记忆从被动文本传递转变为推理时的策略适配，提升了记忆增强智能体的执行可靠性。",
+      "llm_tldr": "记忆增强智能体通常把检索到的过程性技能直接注入文本提示，错误地把可读文本等同于可靠执行。作者提出从记忆到引导的新范式，并以时空编排器作为主动策略编译器，显式管理检索知识何时以及如何应用。该方法动态对齐历史知识与当前环境约束，并规定知识的适用生命周期，使过程性记忆从被动文本传递转变为推理时的策略适配，提升了记忆增强智能体的执行可靠性。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agents augmented with external and persistent memory",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.04868v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.25282v1",
+      "source": "arxiv",
+      "title": "MEMORA: A Memory-Enhanced Multimodal Committee Reranking Agent for Reasoning-Intensive Retrieval",
+      "abstract": "Reasoning-intensive retrieval is fundamentally challenged when queries demand deep semantic inference and arrive in multimodal form. Existing systems treat each query in isolation, rely on monolithic rerankers, and lack retrievers trained for cross-modal reasoning. We introduce MEMORA, a Memory-Enhanced Multimodal Orchestrated Reranking Agent built around three contributions: (1) Collaborative Factor-Committee Reranking, which decomposes queries into intent factors, extracts factor-specific evidence into a structured matrix, and synthesizes judgments via a memory-conditioned meta-verdict model; (2) an Episodic Memory Module that tracks factor outcomes across queries and dynamically adjusts priorities at inference time; and (3) a Reasoning-Aware Dense Retriever fine-tuned with chain-of-thought augmentation on 20k+ reasoning-intensive pairs. Evaluated on MM-BRIGHT across 29 domains, MEMORA achieves nDCG@10 of 41.5 (text-to-text) and 38.9 (multimodal query-to-text), outperforming the strongest agentic text-only baseline by +8.3 points and the strongest agentic multimodal baseline by +7.9 points. Code and data are available at https://github.com/HarnessLab/MEMORA.",
+      "authors": [
+        "Mohamed Mahmoud",
+        "Mostafa Farouk Senussi",
+        "Mahmoud Abdalla",
+        "Mahmoud SalahEldin Kasem",
+        "Abdelrahman Abdallah",
+        "Hyun Soo Kang"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-18T14:00:10+00:00",
+      "link": "https://arxiv.org/pdf/2610.25282v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "memory-enhanced reranking agent with episodic memory module tracking outcomes across queries",
+      "llm_evidence_cn": "带情景记忆模块的记忆增强重排序智能体",
+      "llm_evidence": "带情景记忆模块的记忆增强重排序智能体",
+      "canonical_evidence": "带情景记忆模块的记忆增强重排序智能体",
+      "llm_tldr_en": "Reasoning-intensive multimodal retrieval treats queries in isolation with monolithic rerankers. MEMORA is a memory-enhanced orchestrated reranking agent that decomposes queries into intent factors, builds a factor evidence matrix, and uses an episodic memory module to adapt priorities across queries.",
+      "llm_tldr_cn": "针对推理密集型检索中查询被孤立处理、依赖单一重排序器且缺乏跨模态推理检索器的问题，本文提出记忆增强的多模态编排重排序智能体MEMORA。该方法通过因子委员会协同重排序将查询分解为意图因子并抽取证据矩阵，再由记忆条件化的元裁决模型综合判断，并利用情景记忆模块跨查询跟踪因子结果、动态调整优先级。该设计把智能体记忆机制与检索流程结合，为多模态推理检索提供新思路。",
+      "llm_tldr": "针对推理密集型检索中查询被孤立处理、依赖单一重排序器且缺乏跨模态推理检索器的问题，本文提出记忆增强的多模态编排重排序智能体MEMORA。该方法通过因子委员会协同重排序将查询分解为意图因子并抽取证据矩阵，再由记忆条件化的元裁决模型综合判断，并利用情景记忆模块跨查询跟踪因子结果、动态调整优先级。该设计把智能体记忆机制与检索流程结合，为多模态推理检索提供新思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory mechanisms and memory systems for autonomous agents",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.27114v1",
+      "source": "arxiv",
+      "title": "Joint Constraint Aggregation for Qualifier-Sensitive Retrieval-Augmented QA",
+      "abstract": "Retrieval-augmented QA can fail even when the correct answer is in the retrieved evidence. This can happen when a competing answer satisfies some, but not all, of the question's requirements and is mentioned frequently in the retrieved documents, which can make it appear to be the best-supported answer. To test whether this retrieval skew actually affects the decision, we manipulate it directly: increasing the prevalence of passages that favor the competing answer makes the model more likely to select it. This points to a decision problem that candidate-level support alone cannot resolve. We therefore introduce Joint Constraint Aggregation (JCA), which compares candidates against the same question-derived requirements using the retrieved evidence. Across three evaluation settings and three instruction-tuned backbones, JCA improves overall accuracy, and its advantage grows when retrieval favors a competing answer. Together, these results suggest that when partial matches and retrieval prominence pull models toward a competing answer, comparing candidates against the question's full requirements can make selection more reliable.",
+      "authors": [
+        "Jennifer Hsia",
+        "Zachary C. Lipton",
+        "Aarti Singh"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.IR"
+      ],
+      "published": "2026-10-19T18:12:48+00:00",
+      "link": "https://arxiv.org/pdf/2610.27114v1",
+      "tags": [
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "evidence-grounded constraint aggregation in retrieval-augmented QA",
+      "llm_evidence_cn": "检索增强问答中基于证据的约束聚合",
+      "llm_evidence": "检索增强问答中基于证据的约束聚合",
+      "canonical_evidence": "检索增强问答中基于证据的约束聚合",
+      "llm_tldr_en": "Shows retrieval skew makes models choose answers satisfying only some question requirements, and proposes Joint Constraint Aggregation to compare candidates against question-derived constraints using retrieved evidence.",
+      "llm_tldr_cn": "检索增强问答即使检索到正确证据也可能出错：当竞争答案满足部分而非全部问题要求且出现频繁时，模型容易误选。作者通过操纵证据分布验证了这种检索偏斜确实影响决策，并提出联合约束聚合方法，用同一组问题派生约束对候选答案进行对比。实验表明该方法能缓解候选级支持度无法解决的决策问题。为检索增强问答的证据使用提供了更细粒度的判定机制。",
+      "llm_tldr": "检索增强问答即使检索到正确证据也可能出错：当竞争答案满足部分而非全部问题要求且出现频繁时，模型容易误选。作者通过操纵证据分布验证了这种检索偏斜确实影响决策，并提出联合约束聚合方法，用同一组问题派生约束对候选答案进行对比。实验表明该方法能缓解候选级支持度无法解决的决策问题。为检索增强问答的证据使用提供了更细粒度的判定机制。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Search for papers on retrieval methods and evidence grounding in language model question answering.",
+      "matched_requirement_id": "req-16",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}

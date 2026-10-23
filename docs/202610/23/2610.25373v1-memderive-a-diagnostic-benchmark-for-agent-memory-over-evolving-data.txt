@@ -1,0 +1,1200 @@
+Title: MemDerive: A Diagnostic Benchmark for Agent Memory over Evolving Data
+
+URL Source: https://arxiv.org/pdf/2610.25373v1
+
+Published Time: Tue, 20 Oct 2026 02:03:14 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# MemDerive: A Diagnostic Benchmark for Agent Memory over Evolving Data 
+
+## Sen Gao 
+
+National University of Singapore Singapore, Singapore sen@u.nus.edu 
+
+## Yongan Li 
+
+Shanghai Jiao Tong University Shanghai, China liyongan@sjtu.edu.cn 
+
+## Han Chen 
+
+National University of Singapore Singapore, Singapore chenhan@u.nus.edu 
+
+## Bingsheng He 
+
+National University of Singapore Singapore, Singapore dcsheb@nus.edu.sg 
+
+## Ming Wu 
+
+Zero Gravity Labs Singapore, Singapore ming@0g.ai 
+
+## Jason Zeng 
+
+Zero Gravity Labs Singapore, Singapore jason@0g.ai 
+
+## Michael Heinrich 
+
+Zero Gravity Labs Singapore, Singapore michael@0g.ai 
+
+## Shixuan Sun 
+
+Shanghai Jiao Tong University Shanghai, China sunshixuan@sjtu.edu.cn 
+
+## Abstract 
+
+Long-running agents rely on memory of their past interactions for task state, such as what has been completed and which conditions still hold. Such state is usually a derived state. No record states it, and it must be computed by rules from multiple records of an evolving history. Existing memory benchmarks score only the final answer, with no reference for the intermediate states behind it. A wrong answer therefore cannot be traced to the state that was missed, and a state that silently became outdated goes undetected. We present MemDerive , a diagnostic benchmark for agent memory over evolving data. It specifies each scenario symbolically, derives exact gold answers with Datalog, records the gold derivation DAG and the supporting events of every query, and renders the history in natural language with fictional entities and distractors. Its 10 scenarios contain 4,692 events and 1,503 queries whose difficulty varies along access, evolution, and composition. On this ground truth, MemDerive evaluates answer reliability, diagnoses failures by probing the nodes of the gold derivation DAG, and tracks whether answers stay correct as events arrive. Our evaluation of four memory systems reveals failures that final-answer benchmarks hide. On derived state, every memory system falls behind simple BM25 retrieval, although the same answer model reaches 96.01 % when given the supporting events. Most failures are ungathered, as a system holds the missing intermediate state but does not retrieve it for the question that needs it. Memory systems also rarely propagate implicit changes, which no new record states. These results suggest three principles for memory design. Gather inputs along the derivation, store rules with their versions, and maintain derived states through recorded dependencies. 
+
+## 1 Introduction 
+
+Long-running agents rely on memory of their past interactions to decide what to do next [42, 45]. A decision depends on what has been completed, which conditions still hold, and what remains to be done. Anthropic reports coding agents that prematurely consider a project complete and addresses this with persistent progress records and verification across sessions [51]. Generative agents [34] and Reflexion [39] likewise synthesize past observations into reflections that guide later behavior. In both cases the agent needs a task state Nate’s history    
+
+> Played Counter-Strike:
+> Global Offensive in a
+> tournament.
+> Played Street Fighter with
+> friends and entered a local
+> tournament.
+> Played Chess for fun.
+> Played Catan.
+> Playing Cyberpunk 2077 ,
+> a game with a futuristic setting.
+> Reached a Valorant
+> tournament final.
+> Currently playing
+> Xenoblade Chronicles.
+> (a)
+
+Record retrieval   
+
+> Which futuristic game did Nate report playing? Cyberpunk 2077
+> Answer stated in a record
+> (b)
+
+Task-driven state computation           
+
+> Nate
+> What could I play to relax away from competitive gaming?
+> Agent memory
+> Selection criterion: played games without recorded tournament participation
+> Intermediate states
+> Played games (P)
+> Catan
+> Chess
+> Counter-Strike
+> Cyberpunk 2077
+> Street Fighter
+> Valorant
+> Xenoblade Chronicles
+> Tournament games (T)
+> Counter-Strike
+> Street Fighter
+> Valorant
+> Set difference: P − T
+> Derived state
+> Catan Chess Cyberpunk 2077 Xenoblade Chronicles
+> Use in response
+> Agent response
+> You could play Catan, Chess, Cyberpunk 2077, or Xenoblade Chronicles.
+
+Figure 1: An original question and a state question over the same LoCoMo history. (a) One record states the answer. (b) The answer is computed from two states, each gathered from several records of the history. 
+
+that the records of its history support but rarely state. Memory systems such as Mem0 [8] and Cognee [31] extract information from the history and retrieve what matches a request. This paper asks whether they supply the state that a task needs. Figure 1 shows the difference on a LoCoMo history. The original question asks which futuristic game Nate reported playing, and one record answers it. Now Nate asks what he could play to relax away from competitive gaming. A good answer lists the games he has played without any recorded tournament. No record states this set. Memory must first build two intermediate states from several sessions, the games Nate has played and the games he played in tournaments, and then take their difference. We call a fact that no record states but that follows from several records by rules a derived state , and a question whose answer is a derived state a state question .The status of a task is a typical derived state. Like the result of a view over database tables, a derived state is computed from the history arXiv:2610.25373v1 [cs.DB] 18 Oct 2026 rather than stored in it. Here, however, the base data is natural language, and the view is defined only when a question arrives. Derived state is hard for memory systems. The records that support it rarely share words with the question and have low em-bedding similarity to it. They matter only in combination, and together they can outnumber any retrieval budget. A derived state is usually composed from intermediate states layer by layer, so one wrong intermediate state corrupts every state above it. It can also become stale without any record saying so. A later record that Nate entered a Chess tournament would remove Chess from the answer, although it never mentions the games he could play to relax. These properties affect every way of building memory, whether a system retrieves raw records for each question, extracts and stores facts as events arrive, or searches and reasons over the history when a question arrives. A paired study shows that current memory systems fail on state questions. We take histories from LoCoMo and LongMemEval, keep an original question, and add a state question over the same history and the same stored memories. Figure 2(a) shows Mem0 falling from 86.7 % to 33.3 % and Cognee from 60.0 % to 16.7 %. Given the whole history, the same answer model still reaches 86.7 %, so the questions are answerable and the loss lies in what memory supplies. Figure 2(b) splits each state question into two sub-questions, one for each intermediate state. Retrieving separately for each sub-question helps some systems, and so does answering the state question from the system’s own answers to the sub-questions, but no system exceeds 46.7 %. Given the correct answers to the sub-questions, the answer model solves every state question. The bottleneck is therefore obtaining the intermediate states, not combining them, and an evaluation that scores only final answers cannot see it. Existing benchmarks were not designed to expose this failure. LoCoMo and LongMemEval test recall, temporal and multi-session reasoning, and knowledge updates over long conversations [30, 48]. StateMemBench separates current from superseded answers [13], and MemTrace audits how evidence is reached and used [29]. These benchmarks judge the final answer. Their histories are written text without executable semantics, so they cannot supply the correct value of an intermediate state, and a wrong answer cannot be traced to the step that failed (Table 6). Their updates are explicit, since a new record revises a fact and states its new value. A derived state also changes implicitly, when a fact it depends on changes and no record mentions the state. Rankings on these benchmarks therefore do not carry over to derived state. On LongMemEval, Mem0 reaches 84.00 % and exceeds BM25 at 78.60 %, yet on derived state every memory system falls behind BM25 .
+
+Our approach. We present MemDerive , a diagnostic benchmark for agent memory over evolving data. Its design follows from four needs. Exact ground truth. Every intermediate state needs a correct value at every point of an evolving history. MemDerive therefore specifies each scenario symbolically. Each event pairs a natural-language record with symbolic actions, and a Datalog program with aggregation derives every state from the current facts and rules, so the gold is exact by construction. Derivations as evidence. For each query, MemDerive records a gold derivation DAG that links the an-swer through its intermediate states to the events, and the witnesses, the minimal sets of events that support the answer. No shortcuts. BM25 Mem0 Cognee Full-Context     
+
+> 0% 50% 100%
+> Accuracy  73 27 87 33 60 17 93 87
+> Original questions State questions
+> BM25 Mem0 Cognee
+> 0% 50% 100%
+> 27 27 20 100 33 40 47 100 17 33 30 100
+> State questions + Sub-question retrieval + Sub-answers + Correct sub-answers
+> (a) Accuracy by question type (b) Answering via sub-questions
+
+Figure 2: Accuracy on LoCoMo and LongMemEval histories. A state question asks for an answer that no single record states and that must be computed from several records. 
+
+The answer must come from the history alone. No record states a derived state, every recognizable entity is fictional so that pre-trained knowledge cannot help, and the key terms of a question often appear only in distractor records. Controlled difficulty. Gen-eration varies three workload dimensions independently, namely Access to the support, Evolution of the facts, and Composition of the derivation, so that a failure can be traced to one of them. The suite covers travel reimbursement, shopping, and degree planning in 10 scenarios with 4,692 events and 1,503 queries. Memory systems share no interface beyond answering questions, so MemDerive observes them as black boxes through three evalu-ation questions. Q1: Reliability compares answers exactly with the gold and citations with the witnesses. Q2: Diagnosis turns the nodes of each gold derivation DAG into state probes, questions about single intermediate states. Following the DAG from the an-swer toward the events, it locates the lowest states that the system gets wrong, classifies why they fail, and tests whether repairing them recovers the answer. Q3: Maintenance asks tracked queries at successive checkpoints and separates the refresh of changed answers from the preservation of unchanged ones. 
+
+Findings and implications. We evaluate four memory systems and two raw-retrieval baselines under one answer model. First, memory systems answer 30.41–48.30 % of the queries, below BM25 
+
+at 58.28 %, whereas the whole history yields 79.84 % and the sup-porting events 96.01 %. Accuracy falls along all three workload dimensions, also under matched context budgets. Second, most failures are ungathered . The system answers a missing intermediate state correctly when asked about it directly, but does not retrieve it for the question that needs it. Rebuilding the answer from these intermediate answers recovers up to 30.0 points of accuracy, so a memory system should split a request for a derived state into requests for its inputs. Some systems fail to return rules even when asked directly, so rules should be stored with their versions, like facts. Third, memory systems preserve 91.03–92.86 % of unchanged answers and refresh 82.4 % of explicit changes, which a new record states, but only 41.1 % of implicit changes, which propagate through dependencies. Stored states therefore need recorded dependencies, as in incremental view maintenance [16, 32]. Their work at inges-tion buys neither accuracy nor refresh. Our contributions are as follows. 
+
+> 2
+
+• Problem characterization. We define derived state over an evolv-ing history, identify the properties that make it hard for mem-ory systems, and derive three workload dimensions, connecting agent memory to views and provenance (Section 2). 
+
+• Benchmark construction. Executable scenarios generate histo-ries and queries with exact gold derivations, witnesses, and controlled workload dimensions (Section 3). 
+
+• Evaluation methodology. State probes in two contexts locate and classify failures, two recoveries test them, and tracked queries separate refresh from preservation (Section 4). 
+
+• Experimental study. A comprehensive evaluation of four mem-ory systems and two retrieval baselines over a broad set of metrics yields three findings and design lessons for memory systems (Sections 5 and 6). 
+
+Reproducibility. The benchmark dataset is available at https: //anonymous.4open.science/r/DeriveMem-67C6, and the evalua-tion framework that runs all experiments is available at https: //anonymous.4open.science/r/DerivEval-6799. 
+
+## 2 Derived State over Evolving Data 
+
+This section defines derived state over an evolving history and derives its workload dimensions and its implications for memory systems and their evaluation. Table 1 summarizes the notation. 
+
+## 2.1 Data Model 
+
+A memory system ingests a history of events. 
+
+Definition 1 (Event and history) . An event 𝑒 is a triple (𝑡 𝑒 , 𝑟 𝑒 , 𝐴 𝑒 ) of an observation time 𝑡 𝑒 , a natural-language record 𝑟 𝑒 , and a nonempty set 𝐴 𝑒 of actions . Each event has a unique identifier. An action as-serts a fact or declares a rule. A history 𝑂 is a set of events. A memory system reads only the records 𝑟 𝑒 and cites events by their identifiers. Gold answers depend only on the actions 𝐴 𝑒 .
+
+Versions and cutoff. A fact can be asserted more than once. Each assertion creates a version of the fact, and a revision or cancellation supersedes the previous version, which then becomes obsolete [40]. Which versions are visible depends on time. Every query fixes an observation cutoff 𝜏 , and the events known at that point are 
+
+𝑂 ≤𝜏 = {𝑒 ∈ 𝑂 : 𝑡 𝑒 ≤ 𝜏 }.
+
+Definition 2 (Resolved state) . The resolved state 𝐵 𝜏 = Resolve (𝑂 ≤𝜏 )
+
+contains, for every fact, the latest version visible at 𝜏 :
+
+cur (𝑓 , 𝑒 ) ← 𝑒 ∈ 𝑂 ≤𝜏 , 𝑓 ∈ 𝐴 𝑒 , ¬ superseded (𝑓 , 𝑒, 𝜏 ). (1) Here 𝑓 ∈ 𝐴 𝑒 means that an action of 𝑒 asserts a version of the fact 
+
+𝑓 , and superseded (𝑓 , 𝑒, 𝜏 ) holds when a later event in 𝑂 ≤𝜏 asserts a newer version of 𝑓 . Rules declared by events are versioned and resolved in the same way, so 𝐵 𝜏 also holds the current version of each rule. 
+
+Example 1 (Vera’s business trips) . The history below is abridged from the travel domain of MemDerive , and all places are fictional. Each event pairs a record, which an SUT reads, with the fact its action asserts. The obsolete 𝑒 7 is struck out, 𝑒 10 supersedes it, and the distractor 𝑒 11 asserts nothing. 
+
+Table 1: Notation and defining sections.                                                                                                                                    
+
+> Symbol Meaning Sec.
+> 𝑒 =(𝑡 𝑒 , 𝑟 𝑒 , 𝐴 𝑒 )event: observation time, record, actions 2.1
+> 𝑂 ,𝑂 ≤𝜏 history, events observed up to cutoff 𝜏 2.1
+> 𝐵 𝜏 resolved state, latest version of each fact and rule 2.1
+> 𝑃 𝜏 ,𝐶 𝜏 derivation program, closure 2.2
+> 𝑞 =(𝜃, 𝜏 )query with target 𝜃 and cutoff 𝜏 2.2
+> 𝑧 (𝑞 )=(ℓ𝑞 , 𝑦 𝑞 )gold answer, label and answer 2.2
+> G𝑞 gold derivation DAG 2.3
+> 𝑆 (𝑞 ),W ( 𝑞 )support, witnesses 2.3
+> ˆ𝐸 𝑞 events cited by the SUT 4.1
+> 𝑝 𝐸 ,𝑟 𝑊 citation precision, citation recall 4.1
+> D𝑞 diagnostic DAG of state probes 4.2
+> 𝑖 𝑠 (𝑢 |𝑣 ),𝑡 𝑠 (𝑣 )probe of 𝑢 correct in the context of 𝑣 , and when targeted 4.2
+> 𝜏 𝑗 ,𝑞 𝑗 checkpoint 𝑗 , query instance at 𝜏 𝑗 4.3
+> 𝑐 𝑠,𝑗 (𝑞 ),𝑑 𝑗 (𝑞 )correct answer at 𝜏 𝑗 , changed transition at 𝜏 𝑗 4.3 Event Record Action
+> 𝑒 1Jan Ashfell is a city in Corvia .cityIn (Ashfell ,Corvia )
+> 𝑒 2Jan Corby is a city in Corvia .cityIn (Corby ,Corvia )
+> 𝑒 3Jan Lunmar is in Meleth .cityIn (Lunmar ,Meleth )
+> 𝑒 4Jan Halewick is in Drossel .cityIn (Halewick ,Drossel )
+> 𝑒 5Jan HR record: Vera is based in Ashfell .basedIn (Vera ,Ashfell )
+> 𝑒 6Feb Lunmar Harbor Inn booked for Trip-Anser .dest (Anser ,Lunmar )
+> 𝑒 7Mar Halewick Lodge booked for Trip-Grus. dest (Grus ,Halewick )
+> 𝑒 8Apr Halewick Lodge booked for Trip-Ibex .dest (Ibex ,Halewick )
+> 𝑒 9Jun Vera’s 2026 travel record lists Trip-Anser ,
+> Trip-Grus ,Trip-Ibex , and no other trips.
+> trip (Vera ,·) for the three,
+> complete (trip )
+> 𝑒 10 Jul Halewick reservation for Trip-Grus canceled. Corby Overlook Hotel booked instead.
+> dest (Grus ,Corby )
+> 𝑒 11 Aug Chat: Vera is abroad more than at her desk. none
+
+The query asks how many of Vera’s 2026 business trips go outside her home country . At an August cutoff, the destination of Trip-Grus is Corby. 
+
+## 2.2 Derived State and Queries 
+
+Definition 3 (Derivation program, closure, derived state) . The 
+
+derivation program 𝑃 𝜏 consists of the fixed rules of the domain and the current rules in 𝐵 𝜏 . It is a Datalog program extended with stratified negation and aggregation [1, 4, 9]. The closure 𝐶 𝜏 =
+
+Derive (𝑃 𝜏 , 𝐵 𝜏 ) is the set of facts that 𝑃 𝜏 derives from 𝐵 𝜏 , and a 
+
+derived state is a fact in 𝐶 𝜏 \ 𝐵 𝜏 .The closure is obtained by applying the rules to the resolved state until a fixpoint is reached. It holds everything the history entails at 𝜏 and can be very large, so the benchmark never materializes it and computes only the states that its queries need. Because events declare rules, 𝑃 𝜏 evolves together with the data. 
+
+Example 2 (Rules for Example 1) . Three rules derive the target. Each rule derives its left side whenever its right side holds, and 
+
+dest gives the current booking city of a trip in 𝐵 𝜏 :
+
+country (𝑇 , 𝑁 ) ← dest (𝑇 , 𝐶 ), cityIn (𝐶, 𝑁 )
+
+home (𝑃, 𝑁 ) ← basedIn (𝑃, 𝐶 ), cityIn (𝐶, 𝑁 )
+
+outside (𝑃,𝑇 ) ← trip (𝑃,𝑇 ), country (𝑇 , 𝑁 ),
+
+home (𝑃, 𝑀 ), 𝑁 ≠ 𝑀. 
+
+The query counts the facts outside (Vera ,𝑇 ). In August the count is two, for Trip-Anser and Trip-Ibex. 
+
+Definition 4 (Query and gold answer) . A query 𝑞 = (𝜃, 𝜏 ) is a natural-language question that asks for a derived state 𝜃 , called its target , at cutoff 𝜏 . Its gold answer 𝑧 (𝑞 ) = (ℓ𝑞 , 𝑦 𝑞 ) consists of an 
+
+> 3
+
+answerability label ℓ𝑞 and an answer 𝑦 𝑞 , both determined by 𝐶 𝜏 .The answer can be an entity, a set, a Boolean, or a number. 
+
+Answerability. Not every query can be answered from the history. The label ℓ𝑞 is answerable when the history determines the answer, 
+
+justified -zero when it determines that the answer is zero or empty, and unknown when it does not determine the answer, in which case 
+
+𝑦 𝑞 = ⊥. For a count, total, or empty set, the history determines the answer only if some event asserts that the collection is complete [25, 36, 37]. 
+
+## 2.3 Gold Derivations and Witnesses 
+
+An answer alone cannot show which inputs a system used or where it went wrong. MemDerive therefore records, for every query, how its gold answer follows from the history. 
+
+Definition 5 (Gold derivation DAG) . The gold derivation DAG 
+
+G𝑞 of query 𝑞 is a finite directed acyclic graph whose root is the target of 𝑞 . Its inner nodes are the derived states on which the root depends, called intermediate states , together with the resolved facts and rules used to derive the root. Its leaves are the events that assert these facts and declare these rules. Each edge points from a node to an input it needs, called a child . When the answer is unknown , a leaf marks the missing fact instead of an event. A shared input can serve several parents, so the structure is a DAG rather than a tree. The height of G𝑞 is the length of its longest path from the root, and its width is the largest number of nodes at the same depth. Height measures how deep a derivation is, and width measures how many inputs it combines at one level. Because every intermediate state is a node with a known gold state, an answer can be checked step by step rather than only at the root. 
+
+Definition 6 (Support and witness) . The support 𝑆 (𝑞 ) of query 𝑞 
+
+is the set of events that contribute to some derivation of 𝑧 (𝑞 ). A 
+
+witness of 𝑞 is a minimal subset 𝑊 ⊆ 𝑆 (𝑞 ) from which 𝑧 (𝑞 ) can be derived, and W ( 𝑞 ) denotes the set of all witnesses of 𝑞 .A query can have several witnesses, because several events can assert the same fact. The definition of a witness follows minimal why-provenance [6]. An event outside 𝑆 (𝑞 ) whose record resembles relevant information is a distractor for 𝑞 .
+
+Example 3 (Gold derivation for Example 1) . Figure 3 shows G𝑞 
+
+at the August cutoff. The only witness is {𝑒 1, . . . , 𝑒 6, 𝑒 8, 𝑒 9, 𝑒 10 }. It excludes the obsolete 𝑒 7 and the distractor 𝑒 11 but still contains nine of the eleven events. Every fact in this history is asserted by a single event, so 𝑆 (𝑞 ) equals the only witness. Before 𝑒 9 arrives, no event asserts that the trip list is complete, so the label is unknown ,although three foreign trips are already visible. 
+
+## 2.4 Characteristics and Workload Dimensions 
+
+A recorded fact is stated by one record, rests on that record alone, depends on no other state, and changes only when an event asserts a new version of it. Derived state differs in all four respects. 
+
+Property 1 (Implicitness) . No record states a derived state, so it can only be computed from facts by rules. A query uses the vocab-ulary of derived predicates, whereas records use the vocabulary of recorded facts.                             
+
+> ➌ Composition ➋ Evolution ➊ Access
+> count =2
+> outside (Vera )={Anser ,Ibex }
+> country
+> (Anser)
+> country
+> (Grus)
+> country
+> (Ibex)
+> home
+> (Vera)
+> complete
+> (trip )
+> trip (Vera )=
+> {Anser, Grus, Ibex}
+> dest
+> (Grus, Corby )
+> cityIn
+> (Corby, Corvia)
+> basedIn
+> (Vera, Ashfell)
+> 𝑒 9𝑒 6𝑒 3𝑒 7𝑒 10 𝑒 2𝑒 8𝑒 4𝑒 5𝑒 1𝑒 11
+> June 3→August 2,
+> since 𝑒 10 supersedes 𝑒 7
+> derived state resolved fact event obsolete new distractor
+
+Figure 3: Gold derivation DAG of Example 3, layered by the three workload dimensions. Property 2 (Joint support) . A derived state rests on a set of events that are relevant only together. The set can be large, and the answer needs all of it. 
+
+Property 3 (Layered dependence) . A derived state is composed from intermediate states, layer by layer, and the same intermediate state is shared by many queries. If a system derives an intermediate state incorrectly, the error can propagate to every state above it. 
+
+Property 4 (Indirect change) . A derived state changes whenever one of its inputs, a fact or a rule, changes, even if no new event mentions it. One event can therefore change many derived states at once. 
+
+Example 4 (Characteristics of Example 1) . All four characteristics appear in the running example. No record states the count. The full 
+
+TripOps query behind the example asks about trips abroad , and the only records containing that word are distractors such as 𝑒 11 .The Corby booking in 𝑒 10 is relevant only together with 𝑒 5 and 𝑒 1,which place Vera in Corvia, and the full query has a witness of 44 events. The count is composed from the foreign-trip set, which is composed from the country of each trip, and Vera’s home country is shared by every query about her travel. Finally, 𝑒 10 concerns a hotel, yet it changes the count. 
+
+Workload dimensions. We call the set of queries that a benchmark asks its workload . Answering a derived-state query requires three steps, which Figure 3 draws as the three layers of the running example. The difficulty of each step can be varied independently, so each step defines one workload dimension of MemDerive . ➊
+
+Access gathers the full support of the answer (Properties 1 and 2). 
+
+➋ Evolution keeps the versions of facts that are current at the cutoff. ➌ Composition combines intermediate states layer by layer (Property 3). Each dimension is measured on the gold derivation and its witnesses. The sizes of the support and the witness, the age of the witness, and the vocabulary overlap of the witness with the query measure Access. The number of versions per fact and the number of obsolete events measure Evolution. The height and width of G𝑞 measure Composition. MemDerive samples its workload from 
+
+𝐶 𝜏 while controlling each dimension (Section 3.4). Because each dimension is controlled when queries are generated and measured on every query, a failure can be traced to a specific dimension rather than to the query as a whole. 
+
+> 4
+
+## 2.5 Implications for Memory Systems and Evaluation 
+
+A memory system can supply derived state in three ways, and the four characteristics confront each way with a different main problem. 
+
+Retrieval of records. The system retrieves the records most similar to the query, possibly through a graph or tree index, and leaves the derivation to a language model [11, 17, 38]. Because no record states the derived state (Property 1), the records that support it share few keywords with the query and are semantically distant from it. They are also relevant only together, and their number can exceed any fixed retrieval budget (Property 2). Ranking records by similarity to the query can therefore miss the support for structural reasons, not merely for lack of keywords. 
+
+Materialization at ingestion. The system derives and stores states as events arrive [19, 50, 54]. Derived state far outnumbers recorded facts, because intermediate states combine across entities, periods, and categories (Property 3). The system can therefore neither store every derived state nor know in advance which ones will be queried. An event can also invalidate stored states that it never mentions (Property 4), so the system must find those states and re-derive them [16, 32], and stored state can lag behind the history. 
+
+Derivation at query time. The system searches and reasons when a query arrives, as agentic search does [44]. For every query it must gather the full support and combine every layer of intermediate states (Properties 2 and 3), and it recomputes intermediate states that many queries share. Each search and derivation step involves calls to a language model, so answers come with high latency and high token consumption. 
+
+Implications for evaluation. Practical systems mix these strate-gies, and they place the computation in different components with different representations. An evaluation can therefore observe a memory system under test (SUT) only from the outside, through the answers it gives to queries. MemDerive adopts this black-box view and asks three evaluation questions. 
+
+Q1. Answer reliability (§4.1). Does the SUT answer correctly, with citations to its support? Missed support shows up here first. 
+
+Q2. Failure diagnosis (§4.2). Where does a wrong answer first depart from the gold derivation, and why? The strategies run into problems at different steps. 
+
+Q3. Derived-state maintenance (§4.3). Does a correct answer follow the history as it grows, and what does the SUT pay at ingestion and at query time? Stored state can lag, and the strategies place their cost at different stages. 
+
+## 3 Benchmark Construction 
+
+MemDerive builds each scenario in three steps, shown in Figure 4. A symbolic specification (Section 3.1) is evaluated into gold (Sec-tion 3.2) and then rendered into natural language (Section 3.3). Difficulty control shapes the specification (Section 3.4). 
+
+## 3.1 Scenario Specification 
+
+Gold for derived state cannot be annotated reliably by hand, because an answer can depend on many events and on information being absent. MemDerive therefore specifies each scenario symbolically, as events with actions and queries with targets and cutoffs. Nat-ural language enters only at rendering, so the specification alone determines every gold answer. 
+
+Scenarios and domains. A scenario is one evolving history together with its rules and queries, and a domain is a family of scenarios that share a workflow. The suite contains 10 scenarios in 3 domains. 
+
+TripOps covers travel booking and reimbursement, ShopOps cov-ers orders, returns, and spending rules, and EduOps covers degree audits over prerequisite chains. Each scenario adds its own rules, corrections, and cancellations to the workflow of its domain. 
+
+Query targets. Query targets are built from operators grouped into five families, and one target can combine several families. Each family exercises a different construct of the derivation program, listed in Table 2. Appendix A lists all operators. Because each con-struct demands a different computation from an SUT, success on one family says little about another. Table 2 confirms that the fami-lies stress different workload dimensions. Each query counts once there, under the family of its main operation. Witness is the mean witness size in events, Obs. the share of queries whose gold deriva-tion excludes an obsolete version, and height and width are means over the gold derivation DAGs. 
+
+## 3.2 Reference Evaluation 
+
+The reference evaluator is an executable implementation of the derivation program of Section 2.2. One computation produces the gold answer, the gold derivation DAG, and the witnesses of a query. While computing the answer, the evaluator adds a node to G𝑞 for everything it derives, reads, or checks, together with an edge to each input it uses. Witnesses are extracted from the leaves of G𝑞 
+
+and of alternative derivations, and each is checked to be minimal. Because all gold objects come from this one computation, every node of G𝑞 has a known correct state, which Q2 needs, and gold can be recomputed at any cutoff, which Q3 needs. 
+
+## 3.3 Natural-Language Rendering 
+
+Rendering produces the record 𝑟 𝑒 of each event from its actions 𝐴 𝑒 
+
+and turns each query target into a natural-language question. The specification determines what is correct, and rendering determines how far an SUT must reach from the question to the records that justify the answer. 
+
+Faithful records. A record carries every argument of its action, so its fact is recoverable from the text. No record states a derived state, so Property 1 holds by construction. 
+
+Entity virtualization. A model that recognizes an entity can an-swer from pretrained knowledge and skip the records that map the entity to a category. Rendering therefore invents every recognizable entity, including people, organizations, places, products, courses, and currencies, so that every mapping must come from the history. 
+
+Access in rendering. Questions use the vocabulary of derived predicates, and they often refer to an entity through an associated event, a date, or a place rather than its identifier. For some queries, the key terms of the question appear in distractor records, which leave the answer unchanged, but in none of the supporting records. 
+
+> 5
+
+Public view (input to the SUT) 
+
+Gold view (kept by the benchmark) 
+
+➊ Symbolic specification §3.1  
+
+> 1.1 Events
+
+𝑒 = (𝑡 𝑒 , 𝑟 𝑒 , 𝐴 𝑒 )
+
+𝑡 𝑒 1 𝑒 2 𝑒 5 𝑒 6 𝑒 9 𝑒 7 𝑒 10 𝑒 11  
+
+> actions assert facts;
+
+𝑒 10 supersedes 𝑒 7
+
+> 1.2 Rules (Datalog)
+
+country (𝑇 , 𝑁 ) ← dest (𝑇 , 𝐶 ), cityIn (𝐶, 𝑁 ) 
+
+> 1.3 Query
+
+𝑞 = (𝜃, 𝜏 ) 
+
+> target
+
+𝜃 = |outside (Vera , ·) | , cutoff Aug  
+
+> 1.4 Difficulty control §3.4 Access Evolution Composition
+
+➌ Rendering §3.3       
+
+> 3.1 Faithful record
+> dest (Grus ,Corby )
+> Halewick reservation for Trip-Grus canceled. Corby Overlook Hotel booked.
+> 3.2 Invented entities Corby, Corvia, Ashfell
+> 3.3 Gaps, distractors 𝑞 : trips abroad ?
+> 𝑒 11 : “Vera is abroad more. . . ”
+
+SUT (black box) and answer model  
+
+> memory
+> context
+> answer model
+
+ˆ𝑦 , ˆℓ
+
+ˆ𝐸 𝑞 𝑞  
+
+> ingests history answer, label, citations
+
+➋ Reference evaluation §3.2                   
+
+> cnt =2
+> out ={𝐴, 𝐼 }
+> ctry (𝐴 )ctry (𝐺 )=Corvia
+> dest (𝐺 )=Corby cityIn
+> 𝑒 3𝑒 10 𝑒 7𝑒 2
+> shaded: a witness
+> •resolve :
+
+𝑒 10 replaces 𝑒 7   
+
+> •derive : Datalog rules •witness : minimal
+
+𝑊   
+
+> •gold :
+
+𝑧 (𝑞 ) = (ans , 2)
+
+➍ Compilation §4.2, §4.3  
+
+> 4.1 State probes
+
+D𝑞    
+
+> ??????
+> Which country is Trip-Grus in? gold: Corvia
+> one probe per node
+> 4.2 Checkpoints
+
+𝜏 𝑗         
+
+> 𝑒 10
+> 𝜏 1𝜏 2𝜏 3𝜏 4
+> gold 3322
+> • same
+
+𝑞 asked on each prefix • gold recomputed at each 𝜏 𝑗 
+
+> same event and query ids history probes, checkpoint queries
+
+outputs gold 
+
+Q1 Answer reliability §4.1 
+
+> Answer check
+
+ˆ𝑦 = 2 𝑦 𝑞 = 2?
+
+=
+
+> typed, no judge model
+> Citation check
+
+ˆ𝐸 𝑞 𝑊 
+
+> cited vs. witness
+> Measures
+
+AnsAcc AnsblAcc 𝑝 𝐸 𝑟 𝑊 WitAcc 
+
+Q2 Failure diagnosis §4.2 3
+
+✓      
+
+> localize recover
+> 1probe
+> 2frontier
+> ungathered unretrievable misderived
+> 3classify
+> 4recover
+> Measures
+> targeted vs. inherited accuracy class shares recovery accuracy
+
+Q3 Derived-state maintenance §4.3 
+
+𝜏 1 𝜏 2 𝜏 3 𝜏 4         
+
+> gold SUT 33223332
+> 𝑒 10
+> unchanged: preserved implicit change: stale answer recovered: delay 1
+> Measures
+> refresh preservation stale answers recovery delay
+
+Figure 4: Construction and evaluation pipeline of MemDerive .Table 2: Operator families and the workload dimensions of their queries. 
+
+Access Evol. Composition Family Construct Queries Witness Obs. % Height Width 
+
+temporal version selection 191 1.1 51 3.0 2.3 
+
+semantic category mapping 327 5.6 35 3.5 15.1 
+
+closure recursion 208 2.2 28 3.3 7.9 
+
+rules negation 312 4.1 65 3.6 9.8 
+
+set _quant aggregation 465 5.9 49 3.8 20.7 All 1,503 4.4 47 3.5 13.1 
+
+## 3.4 Difficulty Control 
+
+When generating a scenario, the generator sets how demanding each query is in each workload dimension [12]. Queries therefore spread over a range of difficulty in every dimension, and the dimen-sion measures of Section 2.4 record where each query falls. 
+
+Access. Support is harder to gather when its events are far apart and do not resemble the question. Through dispersion , the generator spreads the events of one witness over the history, and rendering adds the lexical gaps, indirect references, and distractors of Sec-tion 3.3. 
+
+Evolution. Current versions are harder to identify when facts are revised often and obsolete records appear late. The generator builds 
+
+update chains that revise a fact several times and places obsolete records late in the history. 
+
+Composition. A query is harder to compose when it combines more kinds of reasoning. The generator varies this number, the 
+
+composition degree , from a single operation to combinations of version resolution, rule application, and checking that a collection is complete. 
+
+Quota bands. Target shares of operator families, witness sizes, and answer types keep the workload off the easiest cases. 
+
+## 3.5 Suite Statistics 
+
+Table 3 summarizes the ten scenarios. Because scenarios are gener-ated from configurations, new scenarios of the same design can be generated whenever existing ones may have entered the training data of a model. 
+
+## 4 Evaluation Methodology 
+
+The protocol follows the black-box view of Section 2.5. For every query, an SUT returns a context , the text it supplies for answering, and one answer model shared by all SUTs turns it into an answer, an answerability label, and cited events. Every measurement below is obtained by posing questions to the SUT. 
+
+## 4.1 Q1: Answer Reliability 
+
+Q1 asks whether an SUT answers correctly and cites its support. A correct answer alone is weak evidence, because Booleans and empty sets can be guessed and a total can be right by coincidence. 
+
+Answer scoring. Answers are scored deterministically. Every gold answer has a type, and each type has its own equivalence test for numbers, Booleans, collections, or accepted aliases. No language model is therefore needed to judge an answer, and scores are fully 
+
+6Table 3: Suite statistics by domain. Scen. is the number of scenarios. Labels are answerable , justified -zero , and unknown .Witness sizes are medians and maxima in events.                                          
+
+> Labels Witness Domain Scen. Events Queries Ans. Zero Unk. Med. Max
+> TripOps 41,817 561 409 77 75 369
+> ShopOps 31,462 473 344 42 87 231
+> EduOps 31,413 469 423 18 28 320 All 10 4,692 1,503 1,176 137 190 369
+
+reproducible. Answer accuracy ( AnsAcc ) requires the returned an-swer to match 𝑦 𝑞 for an answerable or justified -zero query and the unknown label otherwise. Answerability accuracy ( AnsblAcc )scores the label alone. 
+
+Citation scoring. MemDerive also scores the cited events ˆ𝐸 𝑞 
+
+against the support and witnesses of Section 2.3: 
+
+𝑝 𝐸 (𝑞 ) = | ˆ𝐸 𝑞 ∩ 𝑆 (𝑞 )| | ˆ𝐸 𝑞 | , 𝑟 𝑊 (𝑞 ) = max  
+
+> 𝑊 ∈ W ( 𝑞 )
+
+| ˆ𝐸 𝑞 ∩ 𝑊 ||𝑊 | . (2) Their harmonic mean is the citation 𝐹 1. Witnessed accuracy ( WitAcc )counts a query as correct when its answer is correct and both 𝑝 𝐸 
+
+and 𝑟 𝑊 reach 0 .5. A correct answer then counts only if most of its citations are relevant and cover a substantial part of one wit-ness, without requiring a complete citation list. The two scores encode two design decisions. Precision checks citations against the whole support 𝑆 (𝑞 ), so citing additional supporting events costs nothing. Recall takes the best match over all witnesses, so an SUT that follows a different valid derivation loses nothing. The shares of queries that cite an obsolete event or a distractor complement both scores. 
+
+## 4.2 Q2: Failure Diagnosis 
+
+Q2 asks where a wrong answer arises and why. Because SUTs are black boxes, diagnosis cannot inspect their internal state. It can only ask further questions, and G𝑞 tells it which questions to ask and what their correct answers are. 
+
+4.2.1 Failure Classes. A wrong answer arises at some state of the derivation. The SUT may be able to produce that state but fail to gather it when the derivation needs it, or it may fail to produce the state even when asked for it directly. Each case calls for a different repair, so MemDerive distinguishes three failure classes .
+
+• A state is ungathered when the SUT returns it when asked for it directly, but the request for the state that needs it does not gather it. 
+
+• A resolved fact or rule is unretrievable when the SUT cannot return it even when asked for it directly. 
+
+• A derived state is misderived when the SUT derives it wrongly even when asked for it directly, although its inputs are gathered. The classes follow the workload dimensions of Section 2.4. Ungath-ered states are failures of Access. Unretrievable facts arise at Access or Evolution, depending on whether the fact has a superseded ver-sion, and misderived states arise at Composition. 
+
+4.2.2 State Probes. Any node of G𝑞 that holds a resolved fact, a rule, or a derived state can be asked about directly. 
+
+Definition 7 (State probe) . A state probe of a node 𝑣 in G𝑞 is a natural-language question at the cutoff of 𝑞 whose gold answer is the state of 𝑣 .Probes are rendered from fixed templates, and their gold answers come from the reference evaluator, so no language model writes or grades them. The suite contains 2,818 probes for 1,029 queries. The probed nodes, connected by the dependencies of G𝑞 , form the 
+
+diagnostic DAG D𝑞 . Every SUT answers the same probes for the same queries in the same order. 
+
+Two contexts. Each probe is answered under two contexts. In the inherited context, the answer model receives the context that the SUT returned for the question of a parent node, which for the children of the root 𝑟 𝑞 is the original query. This reproduces what the derivation had available when it needed the state. For the root, the inherited answer is the original answer. In the targeted context, the probe itself is sent to the SUT as a new query, and the answer model receives the context returned for it. This tests whether the SUT can return the information when asked for it directly. Let 𝑡 𝑠 (𝑣 ) ∈ { 0, 1}
+
+indicate whether SUT 𝑠 answers the probe of 𝑣 correctly in the targeted context. Because a node can have several parents, inherited correctness belongs to an edge. For a child 𝑢 of 𝑣 , 𝑖 𝑠 (𝑢 | 𝑣 ) ∈ { 0, 1}
+
+indicates whether 𝑠 answers the probe of 𝑢 correctly in the context returned for the question of 𝑣 , and 𝑖 𝑠 (𝑟 𝑞 ) indicates whether the original answer is correct. 
+
+4.2.3 Failure Localization. A wrong probe answer does not by itself locate a failure, because an error can propagate upward, and a node computed correctly from a wrong input is wrong as well. The failure arises at a node that is wrong although all of its inputs are right. Such nodes mark where an SUT first departs from the gold derivation, and together they form its failure frontier . Localization uses the inherited context, because it shows whether each request gathered the states it needed. 
+
+Definition 8 (Failure frontier) . A probed node 𝑣 lies on the failure frontier of SUT 𝑠 when some path 𝑟 𝑞 = 𝑣 0, . . . , 𝑣 𝑘 = 𝑣 in D𝑞 has 
+
+𝑖 𝑠 (𝑟 𝑞 ) = 0 and 𝑖 𝑠 (𝑣 𝑗 | 𝑣 𝑗 −1) = 0 for every 𝑗 , and 𝑖 𝑠 (𝑢 | 𝑣 ) = 1 for every child 𝑢 of 𝑣 .A derivation can have one frontier node per failing branch. The targeted context determines the class of a frontier node 𝑣 . If 
+
+𝑡 𝑠 (𝑣 ) = 1, the SUT returns 𝑣 when asked directly, so 𝑣 is ungath-ered. Otherwise 𝑣 is unretrievable if it is a resolved fact or rule, and misderived if it is a derived state, because the inputs of 𝑣 were gathered. Algorithm 1 locates the frontier and classifies each of its nodes. It uses only probe answers, so diagnosis needs no access to the internals of the SUT. 
+
+4.2.4 Interventions. A frontier shows that a state is wrong while the answer is wrong, which is a co-occurrence rather than an expla-nation. Two recoveries test whether the departure matters for the answer. Both rebuild the answer bottom-up along D𝑞 . Each branch is followed down to a node that the SUT answers correctly in the targeted context, or to a leaf, and the answer model recomputes every node above these stopping nodes from its children. The two 
+
+> 7
+
+Algorithm 1: Failure frontier localization 
+
+Input: diagnostic DAG D𝑞 , correctness 𝑖 𝑠 and 𝑡 𝑠 of SUT 𝑠 
+
+Output: frontier nodes with their failure classes  
+
+> 1
+
+if 𝑖 𝑠 (𝑟 𝑞 ) = 1 then return ∅; 
+
+> 2
+
+𝐹 ← ∅ ; 𝑉 ← ∅ ; 𝐾 ← [ 𝑟 𝑞 ]; 
+
+> 3
+
+while 𝐾 ≠ ∅ do  
+
+> 4
+
+𝑣 ← pop 𝐾 ; if 𝑣 ∈ 𝑉 then continue ; 𝑉 ← 𝑉 ∪ { 𝑣 }; 
+
+> 5
+
+𝑈 ← { 𝑢 ∈ children (𝑣 ) : 𝑖 𝑠 (𝑢 | 𝑣 ) = 0}; 
+
+> 6
+
+if 𝑈 ≠ ∅ then // error from below  
+
+> 7
+
+push 𝑈 onto 𝐾  
+
+> 8
+
+else if 𝑡 𝑠 (𝑣 ) = 1 then  
+
+> 9
+
+𝐹 ← 𝐹 ∪ { ( 𝑣, ungathered ) }  
+
+> 10
+
+else if 𝑣 is a derived state then  
+
+> 11
+
+𝐹 ← 𝐹 ∪ { ( 𝑣, misderived ) }  
+
+> 12
+
+else 𝐹 ← 𝐹 ∪ { ( 𝑣, unretrievable ) } ; 
+
+> 13
+
+return 𝐹 ;
+
+recoveries differ only in the states at the stopping nodes. Figure 5 marks their results with ➊ and ➋.
+
+➊ Self-evidence recovery. The stopping nodes keep the SUT’s targeted answers, so every state comes from the SUT. Success shows that the SUT can return the evidence the answer needs and that the original failure lay in gathering and combining it. 
+
+➋ Gold-evidence recovery. Wrong stopping nodes, which are leaves, take their gold states instead, and everything else stays as the SUT produced it. Success where self-evidence recovery fails shows that the wrong evidence causes the failure. We call such evidence load-bearing .
+
+Discussion. The two recoveries complement the failure classes. Self-evidence recovery can repair an ungathered failure, because the SUT returns the state when asked directly. Gold-evidence recovery can also repair an unretrievable one. A failure that persists after gold-evidence recovery lies above the evidence, in how states are combined. Both recoveries measure how much of a failure can be recovered with assistance. 
+
+Example 5 (Diagnosis of Example 1) . An SUT answers three in-stead of two. In Figure 5, node colors show its probe answers in the inherited context. Vera’s home country, the set of trips, and the countries of Trip-Anser and Trip-Ibex are right, but Trip-Grus is placed in Drossel. Both inputs of that state are wrong, so both lie on the frontier. The destination of Trip-Grus is Halewick from the obsolete 𝑒 7, also in the targeted context, so this resolved fact is unretrievable, and its dimension is Evolution. The country of Corby is missing from the context of its parent, but the targeted context returns Corvia, so this fact is ungathered. The tags beside the failing nodes show what each recovery computes from the stopping nodes upward. Self-evidence recovery repairs the ungath-ered fact, but Halewick contradicts it, so the country of Trip-Grus stays unknown and the count is still wrong. Gold-evidence recov-ery replaces Halewick with Corby and yields two, so the obsolete destination is load-bearing.                                    
+
+> count =3
+> outside (Vera )={Anser ,Grus ,Ibex }
+> trip
+> (Vera)
+> country
+> (Anser)
+> country (Grus )
+> =Drossel
+> country
+> (Ibex)
+> home
+> (Vera)
+> dest (Grus )
+> =Halewick
+> cityIn (Corby )
+> =none
+> ➊undetermined ×➋2✓
+> ➊{A, ?, I }➋{A, I }
+> ➊unknown
+> ➋Corvia
+> ➊Halewick (targeted)
+> ➋Corby (gold)
+> ➊Corvia (targeted)
+> ➋Corvia (gold)
+> unretrievable ungathered
+> Top-down localization Bottom-up recovery
+> right wrong (inherited) frontier ➊self-evidence ➋gold-evidence
+
+Figure 5: Diagnosis of Example 5. 
+
+## 4.3 Q3: Derived-State Maintenance 
+
+Q3 asks whether an SUT keeps derived state correct as the history grows. By Property 4, an answer that is correct at one cutoff need not remain correct at the next, and an SUT that materializes state may lag behind the history. One snapshot cannot measure maintenance. 
+
+Fixed-query trajectories. The evaluation fixes a sequence of cut-offs 𝜏 1 < · · · < 𝜏 𝑚 , called checkpoints , spread over the history. A 
+
+tracked query fixes its target 𝜃 and is asked at every checkpoint, and 𝑞 𝑗 = (𝜃, 𝜏 𝑗 ) denotes its instance at checkpoint 𝑗 . The reference evaluator recomputes gold at each checkpoint, which yields the 
+
+trajectory 𝑧 (𝑞 1), . . . , 𝑧 (𝑞 𝑚 ). Before each checkpoint, the SUT ingests the new events into its existing memory, so it must update that memory rather than rebuild it. 
+
+Refresh and preservation. Consecutive checkpoints 𝑗 − 1 and 𝑗 
+
+form a transition . Let 𝑑 𝑗 (𝑞 ) = 1[𝑧 (𝑞 𝑗 ) ≠ 𝑧 (𝑞 𝑗 −1)] , and call the tran-sition changed when 𝑑 𝑗 (𝑞 ) = 1 and unchanged otherwise. Tracked queries are sampled so that both kinds of transition occur often. Refresh measures whether a change reaches the answer, and preser-vation measures whether an unaffected answer survives. With 
+
+𝑐 𝑠,𝑗 (𝑞 ) indicating that SUT 𝑠 answers 𝑞 𝑗 correctly, Refresh 𝑠 =
+
+Í𝑞,𝑗 𝑑 𝑗 (𝑞 ) 𝑐 𝑠,𝑗 −1 (𝑞 ) 𝑐 𝑠,𝑗 (𝑞 )
+
+Í𝑞,𝑗 𝑑 𝑗 (𝑞 ) 𝑐 𝑠,𝑗 −1 (𝑞 ) ,
+
+Preservation 𝑠 =
+
+Í𝑞,𝑗 (1 − 𝑑 𝑗 (𝑞 )) 𝑐 𝑠,𝑗 −1 (𝑞 ) 𝑐 𝑠,𝑗 (𝑞 )
+
+Í𝑞,𝑗 (1 − 𝑑 𝑗 (𝑞 )) 𝑐 𝑠,𝑗 −1 (𝑞 ) .
+
+(3) Both rates condition on a correct previous answer. The condition separates maintenance from initial difficulty, since an SUT that never answered correctly has nothing to maintain. 
+
+Definition 9 (Explicit and implicit change) . A changed transition at checkpoint 𝑗 is explicit if some event 𝑒 with 𝜏 𝑗 −1 < 𝑡 𝑒 ≤ 𝜏 𝑗 
+
+belongs to a witness of 𝑞 𝑗 and an action in 𝐴 𝑒 asserts a fact that contains the new answer. Otherwise the change is implicit .An implicit change is the case that Property 4 describes, because no arriving record mentions the state that changed. Comparing refresh across the two kinds shows whether an SUT propagates a change through dependencies or only updates what it is told. The latter is the lag that Section 2.5 attributes to materialization. In Example 1, 𝑒 10 makes an implicit change: it books a hotel, yet the count drops from three to two. 
+
+> 8
+
+Complementary measures. Four further measures complement the two rates. 
+
+• Stale-answer rate. The share of changed transitions at which the SUT still returns the previous gold answer. It distinguishes a missed update from a wrong one. 
+
+• Recovery delay. The number of checkpoints from a changed tran-sition until the SUT first answers correctly. 
+
+• Continuous correctness. The share of tracked queries answered correctly at every checkpoint up to 𝜏 𝑗 . It combines initial difficulty with maintenance. 
+
+• Ingestion and query-time cost. The cost of ingesting events and of answering queries, recorded separately. It shows where each SUT places its work among the strategies of Section 2.5. 
+
+## 5 Experiments 5.1 Experimental Setup 
+
+SUTs and reference conditions. The SUTs are four memory sys-tems and two raw-retrieval baselines. The memory systems are 
+
+Mem0 [8], Cognee [31], LightMem [14], and MemoryOS [22]. They cover extracted-fact stores, graph-oriented memory, and hierarchi-cal organizations. The baselines rank the history with BM25 or with dense embeddings ( Embed ) and return the top items. They retrieve session documents by default, and figures mark session-level and event-level variants as -S and -E where both appear. Three refer-ence conditions bound the results. Closed-Book receives no his-tory, Full-Context receives the whole visible history, and Oracle 
+
+receives the support 𝑆 (𝑞 ), all events that contribute to the answer. 
+
+Models and defaults. The answer model is GPT-5.6 Sol with rea-soning disabled and temperature zero. All SUTs share our answer and judge prompts, released with the artifact. The judge prompt is stricter than those used in the original benchmarks, so scores can differ from previously reported ones. Memory systems that extract memories at ingestion use GPT-5.6 Luna as the extraction model. Dense retrieval uses Qwen3-Embedding-0.6B [52]. Every SUT re-turns 𝑘 = 15 items per query. Mem0 and LightMem do not return event identifiers, so their citations are mapped to events through the recorded memory attribution. 
+
+Query sets. The main comparison asks all 1,503 queries of the 10 scenarios at the end of each history, over 4,692 events. The context-budget comparison caps the context at 500 to 16K tokens on 400 queries. Diagnosis probes the complete diagnostic DAGs of a subset of queries from every scenario, the diagnostic queries. Maintenance tracks 132 queries at five checkpoints, at 20%, 40%, 60%, 80%, and 100% of each history. Transition analysis uses the tracked queries whose gold is never unknown , which contain 106 changed transitions. For comparison, the SUTs are also evaluated on LoCoMo and LongMemEval [30, 48] with their official question sets. The artifact also records model settings, per-query outputs, and the inputs of every figure. 
+
+## 5.2 Q1: Answer Reliability 
+
+Memory systems trail raw retrieval. Figure 6 reports the main comparison. The four memory systems reach 30.41–48.30% an-swer accuracy, and even the strongest, Mem0 , trails BM25 at 58.28%. 
+
+Full-Context and Oracle reach 79.84% and 96.01% under the same answer model, so the gap lies in what the SUTs supply. Wit-nessed accuracy, answerability accuracy, and citation precision, recall, and 𝐹 1 show the same order. 
+
+The gap persists under matched context budgets. Figure 7 caps the context of every SUT at the same number of tokens. Mem0 
+
+plateaus at 77.25% from 8K tokens, and at 16K event-level BM25 still leads with 78.75%. A larger budget therefore does not favor memory over raw retrieval. With the whole history, medium reasoning raises accuracy from 80.00% to 93.25%, so reasoning also matters once all evidence is present. Oracle needs only 712 tokens on average. 
+
+Accuracy falls along every workload dimension. Figures 8 and 9 split the main comparison by the measures of Section 2.4. For Access, memory systems fall from 73.19–93.48% when the support holds one event to 14.77–26.85% when it holds ten or more, and 
+
+Mem0 falls from 83.42% to 25.82% from the nearest to the farthest quartile of witness age. For Evolution, 20.33% of Mem0 ’s answers in that farthest quartile cite an obsolete event. For Composition, accuracy falls with the composition degree and, even among shallow derivations, with width, for Mem0 from 83.05% to 21.97%. On high and wide derivations, Oracle still reaches 86.80%, whereas memory systems reach 15.25–25.22%, so width matters alongside height. Across operator families (Figure 10), set and quantitative queries are the hardest. 
+
+Rankings on existing benchmarks do not carry over. Figure 11 compares the same conditions on LoCoMo, LongMemEval, and 
+
+MemDerive . On LongMemEval, Mem0 reaches 84.00% and exceeds 
+
+BM25 at 78.60%. On LoCoMo, Cognee reaches 68.13%, close to BM25 
+
+at 70.64%. On MemDerive , BM25 exceeds all four memory systems. Each benchmark keeps its own question set, so the comparison holds within each panel.   
+
+> Finding 1. Memory systems answer 30.41–48.30% of derived-state queries and trail BM25 , also under matched context budgets. Accuracy falls along all three workload dimensions, and rankings on existing memory benchmarks do not predict these results.
+
+## 5.3 Q2: Failure Diagnosis 
+
+Diagnosis runs Algorithm 1 on the complete diagnostic DAGs for the raw-retrieval baselines and the four memory systems. Table 4 reports the targeted accuracy , the share of state probes that an SUT answers correctly in the targeted context, for four kinds of node. They are resolved facts, rules, completeness facts, which assert that a collection is complete, and derived states. The table also reports the failure classes and both recoveries as shares of wrong answers. A wrong answer can contain frontier nodes of several classes. 
+
+Rules and derived states are hard to return. The targeted columns of Table 4 show what each SUT can return when asked directly. Facts and completeness facts are mostly returned. Rules are not. Mem0 answers 17% of rule probes and LightMem 8%, so their derivations lose the rules they apply. Derived states are returned for only 26–61% of probes, and LightMem returns only 56% of facts. 
+
+Most failures are ungathered. Every wrong answer has at least one frontier node. For memory systems, 61–85% of wrong answers contain an ungathered state, which the SUT returns when asked for it directly but which the request for the state that needs it does not gather. LightMem differs, as 83% of its wrong answers contain an 
+
+> 9
+
+AnsAcc 
+
+> 0% 20% 40% 60% 80% 100%
+> Score (%)
+
+WitAcc AnsblAcc Citation pE   
+
+> 0% 20% 40% 60% 80% 100%
+> Score (%)
+> CB Raw Memory Ref.
+
+Citation rW   
+
+> CB Raw Memory Ref.
+
+Citation F1           
+
+> CB Raw Memory Ref.
+> Closed-Book Embed BM25 LightMem MemoryOS Cognee Mem0 Full-Context Oracle
+
+Figure 6: Answer and citation quality on all queries. 500 1K 2K 4K 8K 16K             
+
+> 0% 20% 40% 60% 80% 100% Oracle 95.75%
+> BM25-S BM25-E Embed-S Embed-E 500 1K 2K 4K 8K 16K
+> Full-Context 80.00%
+> Mem0 Cognee MemoryOS LightMem
+
+Context budget (tokens) Answer accuracy (%) 
+
+Figure 7: Answer accuracy under context budgets. 1N=138 2-3 N=425 4-9 N=493 10+ N=447 
+
+Support size jS(q)j
+
+> 0% 20% 40% 60% 80% 100%
+> Answer accuracy (%)
+> 1N=290 2N=485 3N=347 4N=381
+
+Composition degree         
+
+> Closed-Book Embed BM25 LightMem MemoryOS Cognee Mem0 Full-Context Oracle
+
+(a) Access and Composition 0-240 N=368 241-418 N=365 419-446 N=365 447+ N=364 
+
+> 0% 20% 40% 60% 80% 100%
+> Answer accuracy (%)
+> 0-240 N=368 241-418 N=365 419-446 N=365 447+ N=364
+> 0% 5% 10% 15% 20% 25%
+> Obsolete citations (%)
+
+Witness age         
+
+> Closed-Book Embed BM25 LightMem MemoryOS Cognee Mem0 Full-Context Oracle
+
+(b) Access and Evolution 
+
+Figure 8: Answer accuracy and obsolete citations along the workload dimensions. Table 4: Failure diagnosis of the six SUTs (%). 
+
+Targeted accuracy Failure class Recovery SUT Fact Rule Compl. Deriv. Ung. Unr. Mis. Self Gold 
+
+BM25 94 92 87 61 67 62 38 62 67 
+
+Embed 90 73 93 43 76 62 24 38 67 
+
+Mem0 90 17 99 46 78 56 22 33 39 
+
+Cognee 93 84 95 50 70 57 30 52 65 
+
+MemoryOS 80 76 75 27 85 65 15 35 50 
+
+LightMem 56 8 61 26 61 83 9 9 48 
+
+unretrievable fact, which it cannot return even when asked directly. Misderived states occur most often for BM25 , which gathers its evidence most completely. H-low 2-3 H-high 4-6 
+
+14% 9% 7% 38% 8% 13% 
+
+Closed-Book 12.7% 
+
+84% 61% 38% 48% 56% 34% 
+
+BM25 58.3% 
+
+80% 41% 30% 53% 49% 26% 
+
+Embed 50.6% 
+
+> H-low 2-3 H-high 4-6
+
+83% 42% 21% 54% 31% 25% 
+
+Mem0 48.3% 
+
+77% 39% 25% 47% 34% 22% 
+
+Cognee 45.4% 
+
+58% 20% 9% 49% 14% 15% 
+
+MemoryOS 30.5%  
+
+> W-low 1-3 W-med. 4-9 W-high 10+ H-low 2-3 H-high 4-6
+
+51% 28% 19% 38% 17% 16% 
+
+LightMem 30.4%  
+
+> W-low 1-3 W-med. 4-9 W-high 10+
+
+97% 88% 71% 66% 75% 61% 
+
+Full-Context 79.9%  
+
+> W-low 1-3 W-med. 4-9 W-high 10+
+
+100% 99% 94% 99% 99% 87% 
+
+Oracle 96.0% 
+
+> 0% 20% 40% 60% 80% 100%
+> Answer accuracy
+
+Derivation width Derivation height 
+
+Figure 9: Answer accuracy by the height and width of G𝑞 .Closed-Book Embed BM25 LightMem MemoryOS Cognee Mem0 Full-Context Oracle 
+
+temporal semantic closure rules set_quant 
+
+> Operator family
+
+0.0 84.3 86.9 52.9 63.4 83.2 85.3 99.5 100.0 8.9 42.5 59.6 21.7 18.3 41.0 39.1 85.6 97.2 9.6 51.4 47.1 25.0 27.9 39.9 49.5 85.6 98.6 9.3 45.5 66.7 29.8 30.1 44.6 45.2 79.2 96.2 24.3 45.6 44.9 30.1 27.1 35.9 41.1 65.6 92.3 0% 50% 100% 
+
+> Answer accuracy
+
+Figure 10: Answer accuracy by operator family. MemDerive    
+
+> 0% 20% 40% 60% 80% 100%
+> Answer accuracy (%)
+> CB Raw Memory Ref.
+
+LoCoMo    
+
+> CB Raw Memory Ref.
+
+LongMemEval            
+
+> CB Raw Memory Ref.
+> Closed-Book Embed BM25 LightMem MemoryOS Cognee Mem0 Full-Context Oracle
+
+Figure 11: Answer accuracy on three memory benchmarks. Requests for derived states miss their inputs. Figure 12(a) compares the targeted and inherited contexts on every edge of D𝑞 ,by how many levels the child lies above the deepest level of D𝑞 .The shaded distance holds a single query. The two contexts agree on the deepest level, which holds facts read from events. One level above, they separate. The targeted context answers 86–94% of these states for BM25 , Cognee , and Mem0 , whereas the inherited context answers only 54–74%. Each input can be retrieved alone, but the request for the derived state does not bring all of them together, as Property 2 predicts. 
+
+The recoveries confirm the classes. Self-evidence recovery raises accuracy by up to 30.0 points (Figure 12(b)). It repairs 33–52% of the wrong answers of Mem0 , Cognee , and MemoryOS , whose failures are mostly ungathered, but only 9% for LightMem . Gold-evidence recovery repairs 39–65% of memory-system failures and adds 39 points for LightMem , so its wrong evidence is load-bearing. The failures that remain lie in how states are combined. 
+
+An early correct state does not ensure recovery. Figure 12(c) relates how close to the root the first correct state of a failed query lies to the accuracy after self-evidence recovery. BM25 finds its first correct state 1.38 levels below the root on average and recovers to 80.00%, whereas LightMem finds it 2.52 levels below and recovers 
+
+10 to 47.50%. An SUT whose correct states lie closer to the root leaves fewer levels to rebuild. Recovery still needs correct states on every branch, so one correct state is not enough. 
+
+Finding 2. Most failures of memory systems are ungathered. The SUT can return the missing state when asked for it directly, but the request for the state that needs it does not gather it, and self-evidence recovery raises their accuracy by up to 30.0 points. LightMem instead loses evi-dence at ingestion, so only gold evidence repairs a substantial share of its failures. 
+
+## 5.4 Q3: Derived-State Maintenance 
+
+Refresh lags preservation. Figure 13(a) reports both rates of Equation 3. Memory systems preserve 91.03–92.86% of unaffected answers but refresh only 35.71–63.64% of changed ones. LightMem 
+
+refreshes least and Mem0 most. 
+
+Implicit changes are refreshed least. Of the 106 changed transi-tions, 18 are explicit and 88 are implicit. Memory systems refresh 82.4% of explicit changes but only 41.1% of implicit ones (Table 5). Raw retrieval refreshes 83.3% and 63.1%. Memory systems thus update what a new record states but rarely propagate a change through dependencies, which is the lag that Section 2.5 attributes to materialization. Raw retrieval derives at query time and loses less. Stale answers point the same way. Memory systems repeat the previous answer mostly after implicit changes, whereas raw re-trieval goes stale mostly after explicit ones, because the superseded record still matches the query. 
+
+Missed updates persist. Figure 13(b) adds the regression and stale-answer rates. Memory systems repeat the previous gold answer in 9.43–18.87% of changed transitions. Recovery delay shows that, by the last checkpoint, 66–79 of the 106 changes remain unrecovered for memory systems, against 1 for Oracle .
+
+Few answers stay correct throughout. Figure 14 reports contin-uous correctness. Memory systems fall from 28.03–65.15% at the first checkpoint to 16.67–41.67% at the last, raw retrieval ends near 43.18%, and Oracle keeps 93.18%. 
+
+Finding 3. Memory systems preserve unchanged answers well but refresh only 41.1% of implicit changes, half their rate on explicit ones, so few tracked queries stay correct at every checkpoint. 
+
+## 5.5 Ingestion and Query-Time Cost 
+
+Memory systems shift cost to ingestion. Figure 15 follows the ingestion checkpoints. Memory systems pay for model calls at ingestion, up to $2.60 for MemoryOS , whereas BM25 and Embed 
+
+make none. Their median retrieval latency reaches seconds for 
+
+Cognee and MemoryOS , against 8.1 ms for BM25 .
+
+Ingestion work does not buy reliability. Over all queries (Fig-ure 16), memory systems spend $0.31–2.57 at ingestion and $9.13– 37.67 on answering, against $73.55 for answering with BM25 , be-cause they pass the answer model less text. This saving is real, but the work done at ingestion neither closes the accuracy gap of Q1 nor refreshes implicit changes. Which placement pays off depends on how often the history changes and how often its states are reused. 0% 20% 40% 60% 80% 100% n=1               
+
+> BM25
+> n=1
+> Cognee
+> n=1
+> Embed
+> 01234
+> 0% 20% 40% 60% 80% 100% n=1
+> Mem0
+> 01234
+> n=1
+> MemoryOS
+> 01234
+> n=1
+> LightMem
+> Distance from deepest level Probe accuracy (%)
+> Targeted Inherited
+
+(a) Targeted versus inherited context 20% 40% 60% 80% 100%            
+
+> Answer accuracy (%)
+> 67.5 80.0 47.5 67.5 72.5 70.0
+> Retrieval Memory systems
+> Direct accuracy Gain from recovery
+> 1.5 2.0 2.5
+> Depth of fi rst correct state
+> 40% 50% 60% 70% 80% 90%
+> Recovery accuracy (%)
+> better
+> Embed BM25 LightMem MemoryOS Cognee Mem0
+
+(b) Self-evidence recovery (c) First correct state 
+
+Figure 12: Failure diagnosis of the six SUTs on the diagnostic queries: contexts, recovery, and the first correct state. Table 5: Refresh and stale answers by kind of change (%).                                          
+
+> Explicit Implicit SUT Refresh Stale Refresh Stale
+> BM25 75 28 61 9
+> BM25-E 78 22 37 19
+> Embed 83 681 6
+> Embed-E 100 655 19
+> Mem0 90 17 56 19
+> Cognee 80 11 44 19
+> MemoryOS 78 632 10
+> LightMem 80 026 15
+> Oracle 100 099 0
+
+## 6 Discussion 6.1 Lessons for Memory Systems 
+
+Read together, the results of Q1 to Q3 and the cost measurements yield five lessons for the design of memory systems. 
+
+L1: The bottleneck is gathering, not storage. Asked directly, 
+
+BM25 , Cognee , and Mem0 return 86–94 % of the states one level above the evidence, but only 54–74 % within the context of the request that needs them, and most failures are ungathered. A memory should therefore split a request for a derived state along its derivation into requests for its inputs. Self-evidence recovery, which does exactly this, raises accuracy by up to 30.0 points. 
+
+L2: Rules must be stored as first-class objects. Asked directly, 
+
+Mem0 returns 17 % of rules and LightMem 8 %. Fact-centric extrac-tion summarizes policies and exceptions away, although every de-rived state applies them. Rules should be stored with their versions, like facts. 
+
+L3: Once gathering works, composition becomes the bottle-neck. BM25 gathers evidence most completely, yet 38 % of its wrong    
+
+> 11 40% 60% 80% 100%
+
+Refresh (%)      
+
+> 40% 60% 80% 100%
+> Preservation (%)
+> Embed-S BM25-E Cognee BM25-S LightMem Mem0 Embed-E MemoryOS Oracle
+> 0% 20% 40% 60% 80% 100%
+
+Share of changed transitions (%) 
+
+> Embed-S BM25-S Embed-E BM25-E LightMem MemoryOS Cognee Mem0 Oracle Immediate +1 checkpoint +2 checkpoints Not recovered
+
+(a) Refresh, preservation, and recovery delay Refresh 
+
+> 0% 20% 40% 60% 80% 100%
+> Rate (%)
+> Session Event Memory Oracle
+
+Regression rate 
+
+> 0% 5% 10% 15% 20%
+> Session Event Memory Oracle
+
+Stale-answer rate         
+
+> 0% 5% 10% 15% 20% 25%
+> Session Event Memory Oracle
+> Embed-S BM25-S Embed-E BM25-E LightMem MemoryOS Cognee Mem0 Oracle
+
+(b) Session- and event-level retrieval, memory, and Oracle 
+
+Figure 13: Maintenance across consecutive checkpoints. 20% 40% 60% 80% 100%           
+
+> 0% 20% 40% 60% 80% 100%
+> BM25-S BM25-E Embed-S Embed-E
+> Oracle
+> 20% 40% 60% 80% 100%
+> Mem0 Cognee MemoryOS LightMem
+> Oracle
+
+Ingestion progress Continuous correctness (%) 
+
+Figure 14: Continuous correctness of the tracked queries. 0% 20% 40% 60% 80% 100%     
+
+> $0.0 $0.5 $1.0 $1.5 $2.0 $2.5
+> Ingestion cost (USD)
+> 20% 40% 60% 80% 100%
+> 10 100 1K 10K
+> Retrieval latency (ms)
+
+Ingestion progress        
+
+> BM25-S BM25-E Embed-S Embed-E Mem0 Cognee MemoryOS LightMem
+
+Figure 15: Ingestion cost and retrieval latency of the SUTs as the histories grow. 
+
+answers contain a misderived state, and accuracy falls with deriva-tion width and on set and aggregate queries. Better retrieval alone therefore has diminishing returns. Sets, aggregates, and complete-ness checks call for explicit operators, and completeness must be recorded so that a system can tell an empty answer from an un-known one. 
+
+L4: Materialization without dependency tracking makes state stale. Memory systems refresh 82.4 % of explicit changes but 41.1 % of implicit ones, whereas raw retrieval refreshes 83.3 % and 63.1 %. Their stale answers also arise on opposite kinds of change. A memory system must track what each stored state depends on Embed BM25 LightMem MemoryOS Cognee Mem0 
+
+Ingestion tokens  
+
+> 04812 16 20
+> Tokens (M)
+> No LLM No LLM O (8.8%) I (91.2%) 1.09M O (19.8%) I (80.2%) 6.47M O (36.3%) I (63.7%) 2.11M O (1.3%) I (98.7%) 12.94M
+> Embed BM25 LightMem MemoryOS Cognee Mem0
+
+Answering tokens  
+
+> 0510 15 20 25
+> Tokens (M)
+> O (1.1%) I (98.9%) 13.18M O (0.9%) I (99.1%) 17.74M O (8.0%) I (92.0%) 1.73M O (5.3%) I (94.7%) 2.31M O (1.7%) I (98.3%) 8.81M O (7.7%) I (92.3%) 2.47M
+> Embed BM25 LightMem MemoryOS Cognee Mem0
+
+Ingestion API cost  
+
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5
+> API cost (USD)
+> No LLM No LLM O (37.0%) I (63.0%) $0.31 O (59.7%) I (40.3%) $2.57 O (77.4%) I (22.6%) $1.19 O (31.3%) I (68.7%) $0.67
+> Embed BM25 LightMem MemoryOS Cognee Mem0
+
+Answering API cost    
+
+> 020 40 60 80 100
+> API cost (USD)
+> O (5.4%) I (94.6%) $55.12 O (4.5%) I (95.5%) $73.55 O (30.4%) I (69.6%) $9.13 O (21.8%) I (78.2%) $11.19 O (8.1%) I (91.9%) $37.67 O (29.4%) I (70.6%) $12.91
+> Input Output
+
+Figure 16: Token and API cost of ingestion and answering. 
+
+and recompute it when an input changes, as incremental view maintenance does [16, 32]. Raw retrieval instead needs version resolution to suppress superseded records. 
+
+L5: Ingestion should build structure, not summaries. Memory systems pay at ingestion and pass the answer model less text, yet they trail raw retrieval in accuracy and in refresh. Work at ingestion pays off only when it records what derivations consume, namely versions, rules, dependencies, and completeness. 
+
+## 6.2 Scope 
+
+Executable scenarios make every answer and its derivation check-able. They cover version resolution, rules, dependencies, sets, aggre-gation, and completeness, but not subjective preferences or open-ended planning. The shared answer model isolates what each SUT supplies, and the recoveries use the decomposition that the bench-mark provides. 
+
+## 7 Related Work 
+
+Agent memory systems. Memory systems differ in how they organize a history [49]. MemGPT [33] manages a hierarchy of mem-ory resources, Mem0 [8] extracts and updates salient facts, Memo-ryLLM [46] keeps memory in model parameters, MemoryOS [22] and LightMem [14] stage memory across levels, and Cognee [31], 
+
+Zep [35], and AriGraph [3] link stored information in graphs. State-MemBench [13] and STALE [7] make supersession, dependencies, and invalidation explicit. MemDerive prescribes none of these rep-resentations. It evaluates their observable effect, whether the re-quested state is correct, whether its inputs can be recovered, and whether later changes reach it. 
+
+Memory benchmarks. LoCoMo [30], LoCoMo-Plus [27], and LongMemEval [48] test recall, temporal and multi-session reason-ing, knowledge updates, and abstention over long conversations, and MemoryAgentBench [20] adds incremental evaluation of re-trieval, learning, and forgetting. MemBench [43], MEMTRACK [10], LongMemEval-V2 [47], MemoryArena [18], AMemGym [21], and AMA-Bench [53] move these tests into agentic tasks. Recent bench-marks target specific failures. StateMemBench [13] separates cur-rent from superseded answers, MemTrace [29] audits how evidence is reached and used, StreamMemBench [28] follows the reuse of feedback, InMind [26] separates missing facts from facts that are 
+
+12 Table 6: Evaluation properties of memory benchmarks, as reported in the cited papers. 
+
+Scoring Tests Benchmark Answer Evidence Version updates State maintenance Derived-state probes 
+
+LoCoMo [30] exact retrieval – – –
+
+LongMemEval [48] judge retrieval ✓ – –MemoryAgentBench [20] mixed – ✓ – –MemTrace [29] judge retrieval ✓ ✓ –Ground Truth First [41] judge facts ✓ ✓ –StateMemBench [13] judge – ✓ – –
+
+MemDerive (this paper) exact citations ✓ ✓ ✓
+
+stored but not surfaced, and Ground Truth First [41] checks memory against a script generated before the text. Table 6 compares their evaluations. Answers are scored by exact comparison, by a model judge, or by a mix of both. Evidence names what is checked besides the answer, namely retrieved sources, stored facts, or cited events against witnesses. The tests mark whether a benchmark evaluates revised versions of facts, maintenance of answers as the history grows, and probes of intermediate derived states. MemDerive adds a reference derivation for every query, which makes intermediate states testable and is recomputed at every checkpoint. 
+
+Provenance and view maintenance. Database provenance ex-plains how query results, including aggregates, depend on input records [2, 15], and why and why-not provenance explain returned and missing results [6, 24]. Incremental view maintenance updates derived results when base data changes [16, 32], including higher-order delta processing and stream computation [5, 23]. MemDerive 
+
+builds its witnesses on minimal why-provenance and recomputes gold as the history grows. It applies these ideas to memory over natural-language records, where the SUT must first recover the facts that a database would be given. 
+
+## 8 Conclusion 
+
+Agent memory must supply derived state, which no record states and which changes as the history evolves. MemDerive makes this requirement measurable. Symbolic scenarios give every query an ex-act answer, a gold derivation DAG, and its supporting events, so the benchmark can check final answers, locate the intermediate state where a derivation fails, and follow answers across updates. Our evaluation shows that current memory systems trail raw retrieval on derived state, that most of their failures are intermediate states they can return but do not retrieve for the question that needs them, and that they rarely propagate implicit changes. Reliable agent memory therefore needs dependency-aware gathering, ver-sioned rules, and incremental maintenance of derived state, much as a database maintains views over changing tables. 
+
+## References 
+
+[1] Serge Abiteboul, Richard Hull, and Victor Vianu. 1995. Foundations of Databases .Addison-Wesley. https://webdam.di.ens.fr/Alice/ [2] Yael Amsterdamer, Daniel Deutch, and Val Tannen. 2011. Provenance for Aggre-gate Queries. In Proceedings of the 30th ACM SIGMOD-SIGACT-SIGART Sympo-sium on Principles of Database Systems . 153–164. doi:10.1145/1989284.1989302 [3] Petr Anokhin, Nikita Semenov, Artyom Sorokin, Dmitry Evseev, Andrey Kravchenko, Mikhail Burtsev, and Evgeny Burnaev. 2025. AriGraph: Learn-ing Knowledge Graph World Models with Episodic Memory for LLM Agents. In Proceedings of the Thirty-Fourth International Joint Conference on Artificial Intelligence . 12–20. doi:10.24963/ijcai.2025/2 [4] Krzysztof R. Apt, Howard A. Blair, and Adrian Walker. 1988. Towards a Theory of Declarative Knowledge. In Foundations of Deductive Databases and Logic Pro-gramming . Morgan Kaufmann, 89–148. doi:10.1016/b978-0-934613-40-8.50006-3 [5] Mihai Budiu, Tej Chajed, Frank McSherry, Leonid Ryzhyk, and Val Tannen. 2023. DBSP: Automatic Incremental View Maintenance for Rich Query Languages. 
+
+Proceedings of the VLDB Endowment 16, 7 (2023), 1601–1614. doi:10.14778/3587136. 3587137 [6] Peter Buneman, Sanjeev Khanna, and Wang-Chiew Tan. 2001. Why and Where: A Characterization of Data Provenance. In Proceedings of the 8th International Con-ference on Database Theory (ICDT) (Lecture Notes in Computer Science, Vol. 1973) .316–330. doi:10.1007/3-540-44503-x_20 [7] Hanxiang Chao, Yihan Bai, Rui Sheng, Tianle Li, and Yushi Sun. 2026. STALE: Can LLM Agents Know When Their Memories Are No Longer Valid? arXiv preprint arXiv:2605.06527 (2026). [8] Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. 2025. Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory. arXiv preprint arXiv:2504.19413 (2025). [9] Mariano P. Consens and Alberto O. Mendelzon. 1993. Low-Complexity Aggre-gation in GraphLog and Datalog. Theoretical Computer Science 116, 1 (1993), 95–116. doi:10.1016/0304-3975(93)90221-e [10] Darshan Deshpande, Varun Gangal, Hersh Mehta, Anand Kannappan, Rebecca Qian, and Peng Wang. 2025. MEMTRACK: Evaluating Long-Term Memory and State Tracking in Multi-Platform Dynamic Agent Environments. arXiv preprint arXiv:2510.01353 (2025). NeurIPS 2025 SEA Workshop. [11] Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, Dasha Metropolitansky, Robert Osazuwa Ness, and Jonathan Larson. 2024. From Local to Global: A Graph RAG Approach to Query-Focused Summarization. arXiv preprint arXiv:2404.16130 (2024). [12] Orri Erling, Alex Averbuch, Josep-Lluis Larriba-Pey, Hassan Chafi, Andrey Gubichev, Arnau Prat-Pérez, Minh-Duc Pham, and Peter Boncz. 2015. The LDBC Social Network Benchmark: Interactive Workload. In Proceedings of the 2015 ACM SIGMOD International Conference on Management of Data . 619–630. doi:10.1145/2723372.2742786 [13] Xinyi Fan, Miri Liu, Ruozhen Yang, Siru Ouyang, and Jiawei Han. 2026. Can Agent Memory Systems Track Evolving State? arXiv preprint arXiv:2608.19652 
+
+(2026). [14] Jizhan Fang, Xinle Deng, Haoming Xu, Ziyan Jiang, Yuqi Tang, Ziwen Xu, Shumin Deng, Yunzhi Yao, Mengru Wang, Shuofei Qiao, Huajun Chen, and Ningyu Zhang. 2026. LightMem: Lightweight and Efficient Memory-Augmented Generation. In The Fourteenth International Conference on Learning Representations . https: //openreview.net/forum?id=dyJ0GWpjJB [15] Todd J. Green, Grigoris Karvounarakis, and Val Tannen. 2007. Provenance Semirings. In Proceedings of the 26th ACM SIGMOD-SIGACT-SIGART Symposium on Principles of Database Systems (PODS) . 31–40. doi:10.1145/1265530.1265535 [16] Ashish Gupta, Inderpal Singh Mumick, and V. S. Subrahmanian. 1993. Maintain-ing Views Incrementally. In Proceedings of the 1993 ACM SIGMOD International Conference on Management of Data . 157–166. doi:10.1145/170035.170066 [17] Bernal Jiménez Gutiérrez, Yiheng Shu, Yu Gu, Michihiro Yasunaga, and Yu Su. 2024. HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models. In Advances in Neural Information Processing Systems , Vol. 37. doi:10.52202/079017-1902 [18] Zexue He, Yu Wang, Churan Zhi, Yuanzhe Hu, Tzu-Ping Chen, Lang Yin, Ze Chen, Tong Arthur Wu, Siru Ouyang, Zihan Wang, Jiaxin Pei, Julian McAuley, Yejin Choi, and Alex Pentland. 2026. Benchmarking Agent Memory in Interdependent Multi-Session Agentic Tasks. In Proceedings of the 43rd International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 306) . PMLR, 41975–42005. [19] Chenxu Hu, Jie Fu, Chenzhuang Du, Simian Luo, Junbo Zhao, and Hang Zhao. 2023. ChatDB: Augmenting LLMs with Databases as Their Symbolic Memory. 
+
+arXiv preprint arXiv:2306.03901 (2023). [20] Yuanzhe Hu, Yu Wang, and Julian McAuley. 2026. Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions. In International Conference on Learning Representations (ICLR) .[21] Cheng Jiayang, Dongyu Ru, Lin Qiu, Yiyang Li, Xuezhi Cao, Yangqiu Song, and Xunliang Cai. 2026. AMemGym: Interactive Memory Benchmarking for Assis-tants in Long-Horizon Conversations. In International Conference on Learning Representations (ICLR) .[22] Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. 2025. Memory OS of AI Agent. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing . 25961–25970. doi:10.18653/v1/2025.emnlp-main.1318 [23] Christoph Koch, Yanif Ahmad, Oliver Kennedy, Milos Nikolic, Andres Nötzli, Daniel Lupei, and Amir Shaikhha. 2014. DBToaster: Higher-Order Delta Pro-cessing for Dynamic, Frequently Fresh Views. The VLDB Journal 23, 2 (2014), 253–278. doi:10.1007/s00778-013-0348-4 [24] Seokki Lee, Bertram Ludäscher, and Boris Glavic. 2019. PUG: A Framework and Practical Implementation for Why and Why-Not Provenance. The VLDB Journal 
+
+> 13
+
+28, 1 (2019), 47–71. doi:10.1007/s00778-018-0518-5 [25] Alon Y. Levy. 1996. Obtaining Complete Answers from Incomplete Databases. In 
+
+Proceedings of the 22nd International Conference on Very Large Data Bases (VLDB) .402–412. [26] Ruizhe Li, Mingxuan Du, Benfeng Xu, and Zhendong Mao. 2026. Keep It InMind: Benchmarking the Implicit-Association Blind Spot in Agent Memory. arXiv preprint arXiv:2607.24368 (2026). [27] Yifei Li, Weidong Guo, Lingling Zhang, Rongman Xu, Muye Huang, Hui Liu, Lijiao Xu, Yu Xu, and Jun Liu. 2026. Locomo-Plus: Beyond-Factual Cognitive Memory Evaluation Framework for LLM Agents. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (ACL) . 25085– 25100. doi:10.18653/v1/2026.acl-long.1150 [28] Guanming Liu, Yuqi Ren, Hansu Gu, Peng Zhang, Weihang Wang, Jiahao Liu, Ning Gu, and Tun Lu. 2026. StreamMemBench: Streaming Evaluation of Agent Memory for Future-Oriented Assistance. arXiv preprint arXiv:2606.14571 (2026). [29] Xianxuan Long, Zhikai Chen, Shenglai Zeng, Shouren Wang, Kai Guo, and Jiliang Tang. 2026. MemTrace: Probing What Final Accuracy Misses in Long-Term Memory. arXiv preprint arXiv:2606.17328 (2026). [30] Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Bar-bieri, and Yuwei Fang. 2024. Evaluating Very Long-Term Conversational Memory of LLM Agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (ACL) . 13851–13870. doi:10.18653/v1/2024.acl-long.747 [31] Vasilije Markovic, Lazar Obradovic, Laszlo Hajdu, and Jovan Pavlovic. 2025. Optimizing the Interface Between Knowledge Graphs and LLMs for Complex Reasoning. arXiv preprint arXiv:2505.24478 (2025). [32] Boris Motik, Yavor Nenov, Robert Piro, and Ian Horrocks. 2015. Incremen-tal Update of Datalog Materialisation: The Backward/Forward Algorithm. In 
+
+Proceedings of the 29th AAAI Conference on Artificial Intelligence . 1560–1568. doi:10.1609/aaai.v29i1.9409 [33] Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2023. MemGPT: Towards LLMs as Operating Systems. arXiv preprint arXiv:2310.08560 (2023). [34] Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein. 2023. Generative Agents: Interactive Simulacra of Human Behavior. In Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology . 1–22. doi:10.1145/3586183.3606763 [35] Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. 2025. Zep: A Temporal Knowledge Graph Architecture for Agent Memory. 
+
+arXiv preprint arXiv:2501.13956 (2025). [36] Simon Razniewski and Werner Nutt. 2011. Completeness of Queries over In-complete Databases. Proceedings of the VLDB Endowment 4, 11 (2011), 749–760. doi:10.14778/3402707.3402715 [37] Raymond Reiter. 1978. On Closed World Data Bases. In Logic and Data Bases .Springer, 55–76. doi:10.1007/978-1-4684-3384-5_3 [38] Parth Sarthi, Salman Abdullah, Aditi Tuli, Shubh Khanna, Anna Goldie, and Christopher D. Manning. 2024. RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval. In International Conference on Learning Representa-tions .[39] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. 2023. Reflexion: Language Agents with Verbal Reinforcement Learning. In Advances in Neural Information Processing Systems , Vol. 36. [40] Richard Snodgrass and Ilsoo Ahn. 1985. A Taxonomy of Time in Databases. In 
+
+Proceedings of the 1985 ACM SIGMOD International Conference on Management of Data . 236–246. doi:10.1145/318898.318921 [41] Quentin Spencer. 2026. Ground Truth First: A Longitudinal Evaluation Instru-ment for Agent Memory, and the Tenure Crossover in Memory-Architecture Rankings. arXiv preprint arXiv:2607.21962 (2026). [42] Theodore R. Sumers, Shunyu Yao, Karthik Narasimhan, and Thomas L. Griffiths. 2024. Cognitive Architectures for Language Agents. Transactions on Machine Learning Research (2024). https://openreview.net/forum?id=1i6ZCyf1QJ [43] Haoran Tan, Zeyu Zhang, Chen Ma, Xu Chen, Quanyu Dai, and Zhenhua Dong. 2025. MemBench: Towards More Comprehensive Evaluation on the Memory of LLM-based Agents. In Findings of the Association for Computational Linguistics: ACL 2025 . 19336–19352. [44] Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2023. Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . 10014–10037. doi:10.18653/v1/2023.acl-long.557 [45] Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and Anima Anandkumar. 2024. Voyager: An Open-Ended Embodied Agent with Large Language Models. Transactions on Machine Learning Research 
+
+(2024). https://openreview.net/forum?id=ehfRiF0R3a [46] Yu Wang, Yifan Gao, Xiusi Chen, Haoming Jiang, Shiyang Li, Jingfeng Yang, Qingyu Yin, Zheng Li, Xian Li, Bing Yin, Jingbo Shang, and Julian McAuley. 2024. MEMORYLLM: Towards Self-Updatable Large Language Models. In Proceedings of the 41st International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 235) . 50453–50466. https://proceedings.mlr.press/v235/ wang24s.html [47] Di Wu, Zixiang Ji, Asmi Kawatkar, Bryan Kwan, Jia-Chen Gu, Nanyun Peng, and Kai-Wei Chang. 2026. LongMemEval-V2: Evaluating Long-Term Agent Memory Toward Experienced Colleagues. arXiv preprint arXiv:2605.12493 (2026). [48] Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. 2025. LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory. In International Conference on Learning Representations (ICLR) .[49] Yanchen Wu, Tenghui Lin, Yingli Zhou, Fangyuan Zhang, Qintian Guo, Xun Zhou, Sibo Wang, Xilin Liu, Yuchi Ma, and Yixiang Fang. 2026. Memory in the LLM Era: Modular Architectures and Strategies in a Unified Framework. arXiv preprint arXiv:2604.01707 (2026). [50] Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. 2025. A-Mem: Agentic Memory for LLM Agents. In Advances in Neural Informa-tion Processing Systems , Vol. 38. doi:10.52202/085713-0593 [51] Justin Young. 2025. Effective Harnesses for Long-Running Agents. Anthropic Engineering. https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents [52] Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, Fei Huang, and Jingren Zhou. 2025. Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models. arXiv preprint arXiv:2506.05176 (2025). [53] Yujie Zhao, Boqin Yuan, Junbo Huang, Haocheng Yuan, Zhongming Yu, Haozhou Xu, Lanxiang Hu, Abhilash Shankarampeta, Zimeng Huang, Wentao Ni, Yuan-dong Tian, and Jishen Zhao. 2026. AMA-Bench: Evaluating Long-Horizon Mem-ory for Agentic Applications. In Proceedings of the 43rd International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 306) . PMLR, 162781–162809. [54] Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. 2024. Mem-oryBank: Enhancing Large Language Models with Long-Term Memory. In Pro-ceedings of the AAAI Conference on Artificial Intelligence , Vol. 38. 19724–19731. doi:10.1609/aaai.v38i17.29946 
+
+## A Operators 
+
+Table 7 lists every operator of the released queries. A query can use several operators, so the counts sum to more than 1,503. Each operator appears under the family that uses it most. The shared operators, which mark completeness and plain lookups, occur in every family. 
+
+Table 7: Operators by family, with the number of queries that use each. 
+
+Family Operators (queries) 
+
+temporal update (71), refund (23), correction (19), rebooking (12), 
+
+expiration (8) 
+
+semantic upward _abstraction (160), cancellation (61), scope (37), 
+
+containment (32), personal _exclusion (28), custom _category (20), 
+
+derived _category (8), type _rule _propagation (8), role _chain (6) 
+
+closure prerequisite _chain (112), dependency _chain (23), 
+
+role _inheritance (11), renewal (9) 
+
+rules rule _update (153), exception (138), custom _taxonomy (86), 
+
+threshold (78), rule _selection (56), conversion (8), rule _override 
+
+(7) 
+
+set _quant aggregation (374), set _construction (169), exclusions (162), 
+
+comparison (42), stale _exclusion (33), set _difference (32), gating 
+
+(14), conjunction (4) shared closed _world (186), lookup (160), incomplete (141), negative (79)

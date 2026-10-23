@@ -1,0 +1,863 @@
+Title: LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Large Language Agents
+
+URL Source: https://arxiv.org/pdf/2610.26955v1
+
+Published Time: Wed, 21 Oct 2026 00:03:56 GMT
+
+Number of Pages: 28
+
+Markdown Content:
+# LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Large Language Agents 
+
+Peien Ding 1‗ , Hui Li 1‗ , Yuhan Liu 2† , Jinsong Su 1† 
+
+> 1
+
+School of Informatics, Xiamen University 2MBZUAI pnding@stu.xmu.edu.cn yuhan.liu@mbzuai.ac.ae jssu@xmu.edu.cn 
+
+Abstract 
+
+Long-horizon language agents require compact memories that retain interaction evidence while preserving competing hypotheses about unobserved states. Although effective, many belief-state methods encode memory in discrete natural language, where repeated compression can omit evidence or prematurely discard plausible alternatives. We introduce LAMB, a recurrent framework for latent multi-hypothesis beliefs. A Common–Delta factorization combines a shared Common state for interaction evidence with weighted Delta components for competing hypotheses. Relative evidence from action-outcome predictions guides recurrent hypothesis updates without generating textual memory. A context-conditioned readout exposes hypotheses separately to the policy through a fixed-token belief prefix in the default configuration. The belief modules and policy are jointly trained using action imitation and auxiliary state, outcome, and observation-discrimination objectives. Across ALFWorld, BabyAI, ScienceWorld, and Crafter, LAMB matches or outperforms PABU, improving ALFWorld SR@30 and ScienceWorld success by 6.0 and 22.0 percentage points, respectively, and Crafter achievement progress by 26.37 points. On ALFWorld, it also reduces the redundant-action rate by 17.70 percentage points. These results support latent multi-hypothesis beliefs as compact memory for effective long-horizon decision making. 
+
+Keywords: LLM agents, belief state, latent memory, long-horizon decision making 
+
+# 1 Introduction 
+
+Large language model (LLM) agents solve multi-step tasks through sequences of actions and observations (Yao et al., 2023), which has wide applications in many fields (Liu et al., 2024b, 2025a,b). Under partial observability, effective decisions require retaining earlier evidence while reasoning about aspects of the environment that remain unobserved. Conditioning on the full interaction history provides access to past information, but its growing length increases the context processed at each decision. Long-horizon agents therefore need memory that preserves decision-relevant information without repeatedly processing the complete trajectory. Context-management methods reduce this burden by pruning, masking, or compressing past interactions (Lindenbauer et al., 2025; Xiao et al., 2026). Belief-state methods instead 
+
+> ‗
+
+Equal contribution. 
+
+> †
+
+Corresponding authors. 
+
+Preprint. 1arXiv:2610.26955v1 [cs.CL] 18 Oct 2026 LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 2Success · 5 steps 
+
+> use desklamp 5
+
+4  
+
+> take laptop 3
+> go to bed 1 2
+> Action/ rollout
+> go to dresser 1
+> shelf drawe r
+> bed
+> 1
+> dresser 1
+> Delta candidates (Uncertainty)
+> laptop ∉dresser 1
+> desklamp 1 @ dresser 1
+> Common (Retention)
+> Belief at step 2
+
+LAMB (ours) latent tokens 
+
+Failure · 50 steps 
+
+> progress unchanged
+> Nothing happens
+> ×47 repeats
+> Not in available actions
+> take laptop 1
+> from dresser 1
+> Action/ rollout
+> find the laptop and desklamp
+
+Previous Methods   
+
+> Lamp location not
+> saved
+> saved_observation:
+> take the laptop
+> Subgoal
+> advanced
+> too early
+> progress:
+> Belief at step 2
+> no laptop
+> desklamp 1 keychain 2, pencil 2 creditcard 1,
+> Observed: alarmclock 2, alarmclock 1, book 1, cd 2,
+> Step 1: go to dresser 1
+
+Goal: look at laptop under the desklamp 
+
+> Same goal and
+> observation
+
+VS 
+
+Figure 1. Existing text-based beliefs (left) prematurely drop or misjudge environmental observations, trapping the agent in invalid action loops. LAMB (right) factorizes beliefs into confirmed state facts and candidate spatial distributions, maintaining calibrated uncertainty to resolve the task efficiently in 5 steps. 
+
+recursively update a compact state for subsequent decisions. Although simple and effective, many LLM belief-state methods still represent beliefs in discrete natural language (Jiang et al., 2026; Lidayan et al., 2026; Singh et al., 2026). Even when augmented with confidence labels, these states must express retained evidence and alternatives within a limited text budget. Repeated selection and rewriting can omit earlier findings or prematurely discard plausible interpretations. For example, Figure 1 shows an agent ruling out the dresser while considering the bed, drawer, and shelf as possible laptop locations. Its memory should preserve the inspection result shared by both alternatives and revise the candidates as new evidence arrives. Updating textual beliefs through generation also incurs decoding overhead beyond action selection. These considerations motivate our central question: how can a fixed-size recurrent memory retain shared evidence while preserving and revising competing hypotheses without repeatedly verbalizing its state? 
+
+To address this question, we propose LAMB, a latent belief framework that tracks episode information directly in continuous latent space. Through a Common–Delta factorization, a shared Common component is trained to retain interaction evidence, while weighted Delta components encode hypothesis-specific information. Rather than pooling the particles into a single representation, a context-conditioned readout exposes each Delta to the policy separately, alongside the Common readout. The default configuration produces a fixed-token belief prefix, keeping the historical contribution to policy input constant throughout the episode. To make hypothesis revision responsive to new evidence, LAMB compares each particle’s action-outcome prediction with the feedback received from the environment. The resulting relative LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 3
+
+evidence guides recurrent Delta updates, after which mixture weights are recomputed from the updated Common and Delta states. We jointly train the belief modules and policy on offline interaction trajectories using action imitation, joint state-semantic prediction, outcome-semantic prediction, and observation discrimination for the Common component. Simulator-derived state labels are used only during training; online belief updates rely on observed actions and feedback. We evaluate LAMB on ALFWorld, BabyAI, ScienceWorld, and Crafter. Results show that LAMB matches or outperforms the strong baselines across these benchmarks while reducing token consumption on ALFWorld. Ablations and diagnostic analyses further assess the proposed design and characterize evidence retention, particle readouts, and agent behavior. Our main contributions are as follows: • We propose LAMB, a fixed-capacity latent belief framework that supports long-horizon decisions with a constant-size policy prefix, without generating textual memory updates. • We develop a Common–Delta representation with action-outcome prediction, evidence-guided recurrent updates, and an unpooled readout of weighted hypotheses. • We demonstrate task-performance gain across four benchmarks and inference cost on ALFWorld, complemented by ablations, redundant-action analysis, and diagnostics of evidence retention and particle readouts. 
+
+# 2 Related Work 
+
+2.1 Stream-based Agent Memory 
+
+Many agent-memory systems organize past interactions as records that are retrieved, revised, or compressed for subsequent use. Generative Agents (Park et al., 2023) and MemGPT (Packer et al., 2024) keep the full record in external storage and page relevant entries into context, A-MEM (Xu et al., 2025) links and updates memory entries. Compression methods, including LLMLingua-2 (Pan et al., 2024), LongLLMLingua (Jiang et al., 2024), and ACON (Kang et al., 2026) reduce the context passed to the policy. Experience-reuse methods, including Reflexion (Shinn et al., 2023), ExpeL (Zhao et al., 2024), AWM (Wang et al., 2025), and ACE (Zhang et al., 2026c), distill cross-episode knowledge into insights, workflows, or playbooks. These approaches differ in their retention and access mechanisms; the accessibility of retained evidence can also depend on its placement within the context (Liu et al., 2024a). Our LAMB focuses on maintaining a fixed-size state of the current episode through recursive updates, which offers a different interface for carrying interaction evidence into each decision. 
+
+2.2 Textual Belief State 
+
+Belief-state approaches maintain a compact representation for decision making under partial observability (Kaelbling et al., 1998). MEM1 (Zhou et al., 2026) and ABBEL (Lidayan et al., 2026) learn textual states that consolidate information across interactions, while PABU (Jiang et al., 2026) tracks task progress together with selectively retained actions and observations. Agent-BRACE (Singh et al., 2026) and BeliefMem (Liao et al., 2026) further encode uncertainty through confidence labels or candidate records. Textual beliefs, however, represent uncertainty by enumeration : evidence shared across hypotheses is restated for each candidate, so a bounded state must trade evidence retention LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 4
+
+against hypothesis coverage. In practice this trade-off surfaces either as forgotten findings or as premature commitment to a single hypothesis (Krishnamurthy et al., 2024). LAMB keeps hypotheses in latent form on top of a shared common state, so each additional hypothesis costs one prefix token rather than another restatement of the evidence. 
+
+2.3 Latent Memory and Filtering 
+
+Latent-memory methods encode context as learned continuous representations, avoiding explicit text generation for the memory itself. Recurrent Memory Transformer (Bulatov et al., 2022), AutoCompressors (Chevalier et al., 2023), Gist tokens (Mu et al., 2023), Laser (Wang et al., 2026) and ICAE (Ge et al., 2024) condense context into a small set of learned vectors. In agent settings, Mem-W (Zhang et al., 2026b) and MemGen (Zhang et al., 2026a) bring such representations to agents as within-episode and generative memory. However, particle-based belief models, such as Particle Filter Networks (Karkus et al., 2018), DVRL (Igl et al., 2018), and PF-RNN (Ma et al., 2020), make hypotheses explicit, but each particle replicates the full state, reintroducing the duplication of shared evidence. In contrast, LAMB factorizes a recurrent latent belief into a common component that stores shared evidence once and hypothesis-specific deltas that encode only how alternatives differ. 
+
+# 3 Method 
+
+3.1 Factorizing the Latent Belief 
+
+We consider goal 𝑔 -directed interaction under partial observability. At step 𝑡 , the agent receives an observation 𝑜 𝑡 and selects an action 𝑎 𝑡 from the admissible set 𝒜 𝑡 . A history-conditioned policy acts on: 
+
+ℎ𝑡 = (𝑔, 𝑜 1 , 𝑎 1 , . . . , 𝑎 𝑡 −1 , 𝑜 𝑡 ), 𝑎 𝑡 ∼ 𝜋 𝜃 (· | ℎ𝑡 ), (1) whose input length grows linearly with 𝑡 . Our method LAMB replaces the history before the current step with a fixed-size belief 𝐵 𝑡 , updated from the latest action and observation: 
+
+𝐵 0 = Init (𝑔 ), 𝐵 𝑡 = 𝑈  𝐵 𝑡 −1 , 𝑎 𝑡 −1 , 𝑜 𝑡 
+
+. (2) The policy conditions on the updated belief and the current context 𝑥 𝑡 = (𝑔, 𝑜 𝑡 , 𝒜 𝑡 , 𝑎 𝑡 −1):
+
+𝑎 𝑡 ∼ 𝜋 𝜃 
+
+ · | 𝑅 (𝐵 𝑡 , 𝑥 𝑡 ), 𝑥 𝑡 
+
+ , (3) where 𝑅 maps the belief to a fixed number of continuous prefix tokens. The historical contribution to policy input therefore remains constant, while the current observation and candidate actions may vary in length. Partial observations can leave several world configurations plausible. To share information across these alternatives while allowing particle-specific representations, we factorize the belief into a common state 𝑐 𝑡 , 𝐾 delta states {𝛿 𝑖 𝑡 }𝐾 𝑖 =1, and normalized mixture weights 𝑤 𝑡 ∈ Δ𝐾 −1:
+
+𝐵 𝑡 =  𝑐 𝑡 , {𝛿 𝑖 𝑡 }𝐾 𝑖 =1 , 𝑤 𝑡 
+
+ , 𝑐 𝑡 , 𝛿 𝑖 𝑡 ∈ R𝑑 . (4) The common state is intended to retain information useful across hypotheses, while the deltas provide separate representations that can capture unresolved alternatives. Each pair (𝑐 𝑡 , 𝛿 𝑖 𝑡 )LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 5Goal: Put a mug in the coffee machine  Deltas  {𝜹 𝒊 }𝒊=𝟏 
+
+> 𝟖 Common C 0
+
+Initial Belief  𝐵 0
+
+Environment 
+
+Observation  𝑂 𝑡        
+
+> A bowl; no mug
+> Next interaction
+> Cabinet 1 is closed.
+> Observation 𝑂 𝑡+1
+> open cabinet 1
+> Next action
+> Readout/policy
+> Updated Belief 𝐵 𝑡+1
+> Common 𝐶 𝑡+1
+> Deltas {𝜹 𝒊 }𝒊=𝟏
+> 𝟖
+> Weights 𝑤 𝑡+1
+> 𝒂 𝒕 , 𝑶 𝒕+𝟏
+> 𝜀 𝑡+1 𝑖 = 0
+> simulator labels y
+
+ℒstate 
+
+> go to cabinet 1
+
+ℒact 
+
+Action 
+
+LoRA LLM 
+
+# 3
+
+𝑝  𝑦 1:𝑄 ∣ 𝐵 𝑡 
+
+training only 
+
+ℬₜ 
+
+Belief-conditioned action 2 x
+
+ₜ
+
+> Hypothesis-preserving readout
+
+𝑐 𝑡 , 𝑥 𝑡 
+
+> Common readout
+> + log 𝑤 𝑡
+
+𝛿 𝑡 , 𝑥 𝑡 
+
+> Delta readout
+
+fixed tokens 
+
+1 Common-delta update    
+
+> Outcome prediction
+> cabinet countertop
+> Weights 𝑤 𝑡
+> Updated belief ℬₜ
+> no mug on countertop 1
+> ℒcom Common
+
+c
+
+ₜ 
+
+> Previous belief ℬₜ ₋₁
+
+𝑓 𝑐 
+
+𝑓 𝛿 
+
+Action  𝒂 𝒕−𝟏      
+
+> Go to countertop 1 Common 𝐶 𝑡−1
+> Deltas {𝜹 𝒊 }𝒊=𝟏 𝟖
+> ℒout
+> observed
+> Weights 𝑤 𝑡−1
+> predicted
+> Deltas {𝜹 𝒊 }𝒊=𝟏
+> 𝟖
+
+Figure 2. Overview of LAMB. The recurrent updater incorporates the latest action and observation into a shared Common state and weighted Delta hypotheses. A context-conditioned readout produces a fixed 12-token prefix for action generation. Simulator facts supervise joint prediction during training only; subsequent interaction feedback enters the next belief update. 
+
+constitutes a learned latent particle. This factorization encourages information sharing and component-specific variation without imposing a uniquely identifiable semantic decomposition. During training, the belief predicts a set of simulator-derived fact values 𝑦 1: 𝑄 through a mixture of conditionally independent distributions: 
+
+𝑝  𝑦 1: 𝑄 | 𝐵 𝑡 
+
+ =
+
+𝐾 Õ
+
+𝑖 =1
+
+𝑤 𝑖 𝑡 𝑄 Ö
+
+𝑞 =1
+
+𝑝 𝜙 
+
+ 𝑦 𝑞 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 
+
+. (5) Each component factorizes the fact predictions, while the shared mixture index couples them in the joint distribution. This construction can capture dependencies such as mutually exclusive object locations. The resulting consistency depends on the learned component predictions; the mixture form alone does not exclude invalid configurations (Appendix E). Figure 2 summarizes the interaction loop. The updater evaluates the observed action outcome under the previous particles, updates the common and delta states, and recomputes the mixture weights (Section 3.2). A context-conditioned readout then converts the updated belief into a fixed-length prefix for action generation (Section 3.3). The policy and belief modules are trained jointly (Section 3.4). 
+
+3.2 Common-Delta Belief Update 
+
+Updating beliefs under partial observability requires resolving a fundamental problem: 
+
+committing to verified consensus across the episode while preserving distinct, competing hypotheses where ambiguity remains. To balance shared facts against hypothesis diversity, our update LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 6
+
+decouples belief evolution into an objective common state 𝑐 𝑡 and specialized particle deltas 
+
+𝛿 𝑖 𝑡 . At each step, the belief update incorporates the latest transition (𝑎 𝑡 −1 , 𝑜 𝑡 ) to evaluate competing hypotheses and evolve the state representations. We first encode the transition into 
+
+𝑢 𝑡 = Embed (𝑎 𝑡 −1 , 𝑜 𝑡 ). Before modifying the state vectors, LAMB evaluates how accurately each hypothesis anticipated the transition outcome 𝑟 𝑡 :
+
+𝜖 𝑖 𝑡 = ℓ 𝑖 𝑡 − 1
+
+𝐾 
+
+> 𝐾
+
+Õ
+
+> 𝑗 =1
+
+ℓ 𝑗 𝑡 ,ℓ 𝑖 𝑡 = log 𝑝 𝜓 
+
+ 𝑟 𝑡 | 𝑐 𝑡 −1 , 𝛿 𝑖 𝑡 −1 , 𝑎 𝑡 −1
+
+.
+
+(6) Here, 𝜖 𝑖 𝑡 serves as a relative evidence signal: hypotheses whose predictions better match the observed transition receive positive feedback, while conflicting ones are penalized. Next, both components evolve via gated residual updates: 
+
+𝑐 𝑡 = Gate 𝑐 
+
+ 𝑐 𝑡 −1 , [𝑐 𝑡 −1; 𝑢 𝑡 ] , (7) 
+
+𝛿 𝑖 𝑡 = Gate 𝛿 
+
+ 𝛿 𝑖 𝑡 −1 , [𝑐 𝑡 −1; 𝛿 𝑖 𝑡 −1; 𝑢 𝑡 ; 𝜖 𝑖 𝑡 ] , (8) where Gate (𝑠, 𝑧 ) = (1 − 𝜎 (𝑊 𝑧 𝑧 )) ⊙ 𝑠 + 𝜎 (𝑊 𝑧 𝑧 ) ⊙ MLP (𝑧 ). Crucially, the information flow is asymmetric: the common state 𝑐 𝑡 aggregates objective transition history without consulting individual hypotheses, while each delta 𝛿 𝑖 𝑡 conditions on both 𝑐 𝑡 −1 and its specific evidence 𝜖 𝑖 𝑡 .We parameterize Gate 𝛿 with a per-hypothesis LoRA (Hu et al., 2022) to encourage specialization across particles. Finally, a shared scoring head 𝑔 re-estimates the belief weights directly from the updated states: 
+
+𝑤 𝑖 𝑡 = exp  𝑔 (𝑐 𝑡 , 𝛿 𝑖 𝑡 )Í𝐾 𝑗 =1 exp  𝑔 (𝑐 𝑡 , 𝛿 𝑗 𝑡 ) . (9) 
+
+3.3 Unpooled Policy Readout 
+
+Directly pooling particle beliefs into a single vector collapses multimodal uncertainty, blending mutually exclusive hypotheses into ambiguous mean states. To preserve discrete alternatives while anchoring the decision in established facts, we design an asymmetric readout that translates the belief into a structured prefix sequence. Specifically, the common state 𝑐 𝑡 is integrated with the current input representation Embed (𝑥 𝑡 ) via cross-attention into 𝑀 context tokens, capturing verified environmental con-straints. In parallel, each particle 𝛿 𝑖 𝑡 is projected into an individual hypothesis token 𝑒 𝑖 𝑡 ,modulated by its log-weight: ˜𝑒 𝑖 𝑡 = 𝑒 𝑖 𝑡 + 𝑣 log 𝑤 𝑖 𝑡 , where 𝑣 is a learned direction vector. Maintain-ing 𝐾 separate hypothesis tokens enables the policy’s self-attention mechanism to explicitly contrast candidate states, isolating dominant hypotheses from marginal ones without infor-mation loss. Finally, the resulting 𝑀 + 𝐾 belief tokens are prepended as a belief-conditioned continuous prefix (Li and Liang, 2021) to the embedded input 𝑥 𝑡 , and the policy 𝜋 𝜃 (fine-tuned via LoRA) generates the action 𝑎 𝑡 .
+
+3.4 Grounded Belief Training 
+
+End-to-end action imitation risks representation collapse, reducing hypotheses to ungrounded task heuristics. To enforce faithful state tracking, our method decouples physical world LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 7
+
+modeling from policy optimization, minimizing a joint objective: 
+
+ℒ = ℒact + 𝜆 sem (ℒ state + ℒ out ) + 𝜆 com ℒcom , (10) where ℒact is the standard imitation loss on expert actions 𝑎 ∗ 
+
+> 𝑡
+
+.The auxiliary terms ground the belief in physical dynamics: ℒstate evaluates Eq. (5) against ground-truth latent facts to ensure hypotheses span valid world configurations; ℒout trains the belief to anticipate impending transition feedback 𝑝 (𝑟 𝑡 +1 | 𝐵 𝑡 , ˜𝑎 𝑡 ), directly supervising the evidence scoring head in Eq. (6); and ℒcom uses contrastive learning over factually corrupted negatives to enforce semantic invariance in 𝑐 𝑡 .Finally, stop-gradients on the evidence signal and readout log-weights log 𝑤 𝑡 insulate the belief weights from downstream policy gradients, preserving 𝑤 𝑡 strictly as an environmental likelihood. At inference time, all privileged state supervision is discarded, and LAMB operates solely on online observations and transition feedback. 
+
+# 4 Experiments 
+
+4.1 Experimental Setup 
+
+Environments. We evaluate LAMB on four interactive benchmarks, reporting SR@30 on ALF-World (Xi et al., 2025), task success rate on ScienceWorld (Wang et al., 2022), AgentBoard subgoal progress on BabyAI (Ma et al., 2024), and BALROG achievement progress on Crafter (Paglieri et al., 2025). Environment interfaces and evaluation protocols are detailed in Appendix F. 
+
+Baselines. We group baselines into three categories: (1) Open-weight API models : Qwen3-8B, Qwen3-32B (Yang et al., 2025), and GPT-OSS-120B (Agarwal et al., 2025), using full interaction histories without task-specific training; (2) Proprietary API models : GPT-5.6-luna (OpenAI, 2026), Claude-Haiku-5.5 (Anthropic, 2026), and Gemini-3-Flash (Google DeepMind, 2025), also using full interaction histories; (3) Benchmark-tuned models : fine-tuned Qwen3-8B-FH, BeliefMem (Liao et al., 2026), AgentEvol (Xi et al., 2025), PABU (Jiang et al., 2026), and Agent-BRACE (Singh et al., 2026). 
+
+Training and inference. We jointly train the belief modules and LoRA adapters with a frozen Qwen3-8B backbone; inference updates only the latent belief. Training details and hyperparameters are provided in Appendix D. 
+
+4.2 Main Results 
+
+RQ1: How well does LAMB perform? 
+
+Table 1 shows that LAMB achieves the strongest performance across all four environments among Benchmark-tuned Models, with the largest gains on complex, long-horizon tasks: +22.0 points over PABU on ScienceWorld and +19.55 over AgentEvol on Crafter. Crucially, our 8B agent decisively outperforms full-history prompting on models up to 15 × larger (Qwen3-32B, GPT-OSS-120B) as well as frontier proprietary APIs, demonstrating that expanding raw context cannot compensate for a structured belief. Furthermore, the clear advantage over PABU confirms that our method retains decision-critical details that single natural-language summaries tend to lose. See Appendix H for a qualitative case study. 
+
+RQ2: Does LAMB reduce inference cost? LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 8
+
+Model ALFWorld SR ↑
+
+ScienceWorld SR ↑
+
+BabyAI Progress ↑
+
+Crafter Progress ↑
+
+Open-weight API Models zero-shot 
+
+Qwen3-8B-FH (Yang et al., 2025) 24.0 1.5 62.16 0.00 Qwen3-32B-FH (Yang et al., 2025) 57.5 17.0 66.73 12.73 GPT-OSS-120B-FH (Agarwal et al., 2025) 39.5 16.5 64.33 18.64 
+
+Proprietary API Models 
+
+GPT-5.6-luna (OpenAI, 2026) 65.50 60.00 73.39 20.00 Claude-Haiku-5.5 (Anthropic, 2026) 78.50 57.00 81.37 46.82 Gemini-3-Flash (Google DeepMind, 2025) 97.50 72.50 86.32 50.91 
+
+Benchmark-tuned Models 
+
+Qwen3-8B-FH (Yang et al., 2025) 62.50 40.50 81.79 6.82 BeliefMem (Liao et al., 2026) 6.0 1.5 57.46 7.27 AgentEvol (Xi et al., 2025) 88.0 39.5 89.20 39.09 PABU (Jiang et al., 2026) 86.5 61.5 89.57 32.27 Agent-BRACE (Singh et al., 2026) 30.5 28 71.73 6.98 
+
+LAMB (Ours) 92.5 (↑4.5) 83.5 (↑22.0) 89.60 (↑0.03) 58.64 (↑19.55)  
+
+> Table 1. Overall performance across interactive environments. ALFWorld reports SR@30 (success within 30 actions). The three blocks contain open-model full-history (FH) baselines, proprietary API full-history baselines, and fine-tuned baselines. Best results within the benchmark-tuned block are in
+> bold . Red annotations report percentage-point gains over the strongest benchmark-tuned baseline in each interactive environment.
+
+Table 2 reports mean inference cost over all 200 ALFWorld tasks under a 50-step limit, including both successful and failed episodes. Relative to zero-shot Qwen3-8B-FH, LAMB reduces cumulative input tokens per task by 98.65% and mean episode length by 66.27%. Compared with PABU, it reduces output tokens per task by 57.72%, while measured task time is 55.90% lower. This efficiency directly reflects our architectural design: previous methods must autoregressively decode an explicit textual belief at every decision step, whereas LAMB updates its hypotheses entirely in latent space, decoding only the final action. 
+
+RQ3: How does policy context scale over time? 
+
+Total token volume conflates episode length with per-step input size. To isolate how memory representations scale over time, Figure 3 tracks the policy context length across successive decision steps on the 45 ALFWorld tasks successfully solved by all four displayed methods. Input context encompasses all tokens fed to the policy before generating an action, including task instructions, current observations, admissible actions, and history or belief representations. As interactions accumulate, full-history models require increasingly long policy inputs, whereas LAMB maintains an approximately stable context. At decision step 10, LAMB reduces mean policy input length by approximately 89% relative to Qwen3-8B-FH and 88% relative to DeepSeek-V4-Flash-FH. By step 20, the reduction reaches approximately 94% for both baselines, illustrating the growing savings over longer interactions. These dynamics demonstrate that recursive latent belief tracking eliminates cumulative context overhead while preserving decision-critical state over extended episodes. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 9
+
+Model Avg. Steps ↓
+
+Input Tokens ↓
+
+Output Tokens ↓ Task Time (s/Task) ↓
+
+API-based Models 
+
+Llama-3.2-3B-FH (Meta, 2024) 48.03 332,553 741 49.10 Qwen3-8B-FH (Yang et al., 2025) 41.24 297,154 657 60.20 Qwen3-32B-FH (Yang et al., 2025) 31.12 202,094 479 27.01 GPT-OSS-120B-FH (Agarwal et al., 2025) 37.25 244,216 3,927 198.52 DeepSeek-V4-Flash-FH (DeepSeek-AI et al., 2026) 18.64 81,475 13,439 132.64 
+
+Benchmark-tuned Models 
+
+BeliefMem (Liao et al., 2026) 47.78 81,854 829 23.36 AgentEvol (Xi et al., 2025) 15.15 19,185 351 12.34 
+
+PABU (Jiang et al., 2026) 13.21 5,037 499 42.02 
+
+LAMB (Ours) 13.91 4015 211 18.53 
+
+Table 2. Inference cost on ALFWorld-200 with a 50-step limit. FH denotes full history. The two blocks contain API-based models and benchmark-tuned models; the shaded row highlights LAMB. Steps, token counts, and task times are averaged over all tasks, including failures. Best results are in bold. 02,000 4,000 6,000 8,000 10,000     
+
+> Mean input context (tokens)
+> 115 30 45 0250 500 PABU / Ours: linear-scale detail
+> Qwen3-8B · Full history DeepSeek-V4-Flash · Full history PABU Ours
+
+1 5 10 15 20 25 30 35 40 45 
+
+Environment step (1-based) 
+
+015 30 45 
+
+> Tasks with a call, N(t)
+
+Figure 3. Input context length on the 45 ALFWorld tasks successfully completed by four methods under a 50-step budget. Shaded bands denote ±1 SEM across active tasks at each step; the lower panel reports active task counts. The inset provides detailed scaling for PABU and LAMB. 
+
+# 5 Ablation Studies and Analysis 
+
+5.1 Component Ablations 
+
+Table 3 compares six retrained variants. Replacing the structured Common–Delta latent (4 Common + 8 Delta tokens) with 12 unstructured latent tokens, while retaining the same policy LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 10 
+
+Variant SR@30 (%) ↑
+
+SR@50 (%) ↑ Δ50 
+
+Avg. Steps ↓
+
+Full Model 92.5 95.5 0.0 13.91 
+
+Unstructured Latent 46.5 51.5 −44 .0 31.40 w/o Delta 86.0 90.5 −5.0 17.04 w/o Common 91.5 93.5 −2.0 15.38 w/o Belief Input 80.0 82.0 −13 .5 19.13 w/o ℒstate 86.5 92.0 −3.5 16.71 w/o ℒout 88.5 94.0 −1.5 16.17 
+
+Table 3. Component ablations on 200 ALFWorld tasks under identical training and evaluation protocols. SR@30 and SR@50 measure success within 30 and 50 actions, respectively. Δ50 denotes the percentage-point change in SR@50 relative to the full model; average steps include successful and failed tasks under the 50-step limit. ALFWorld ScienceWorld Crafter 
+
+> 010 20 30 40 50 60
+> Redundant action rate (%)  49.58
+> (4,089)
+> 35.55
+> (2,114)
+> 54.01
+> (970)
+> 34.10
+> (901)
+> 4.66
+> (118)
+> 16.98
+> (367)
+> 16.40
+> (456)
+> 9.45
+> (246)
+> 0.94
+> (21)
+
+Qwen3-8B zero-shot PABU Ours 
+
+Figure 4. Redundant action rates across three environments (%, lower is better), with absolute counts in parentheses, evaluated over all executed actions across successful and failed tasks. 
+
+prefix length and auxiliary losses, reduces SR@30 from 92.5% to 46.5% and SR@50 from 95.5% to 51.5%, with average steps increasing to 31.40. This gap supports the effectiveness of the proposed representation and update structure over the evaluated unstructured alternative. Removing belief tokens from the policy input ( w/o Belief Input ) reduces SR@50 to 82.0%. Within the architecture, removing Delta or Common reduces SR@50 by 5.0 or 2.0 points, respectively, supporting their complementary roles. What’s more, auxiliary supervision also contributes: removing state supervision reduces SR@50 to 92.0% and increases average steps from 13.9 to 16.7. Removing observation prediction reduces SR@30 from 92.5% to 88.5%, indicating its contribution to early task completion. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 11 
+
+5.2 Redundant Action Analysis 
+
+Evidence degradation manifests in behavioral artifacts before it lowers task success: an agent re-inspects visited locations, searches for objects it has already found, or retries actions that recently failed. We utilize redundant actions as an empirical probe to evaluate what the belief retains, defining redundancy by contextual task relevance instead of literal command repetition. Specifically, an action is deemed redundant if, given past observations and environment rules, it contributes neither to advancing pending subgoals nor to resolving necessary task uncertainties. We evaluate Qwen3-8B zero-shot, PABU, and LAMB across ALFWorld, ScienceWorld, and Crafter (Figure 4). On ALFWorld and Crafter, LAMB achieves the lowest redundancy rates across all methods (16.40% and 0.94%), outperforming PABU by 17.70 and 16.04 percentage points, and improving over zero-shot prompting by more than 33 points. In addition, on ScienceWorld, LAMB cuts zero-shot redundancy from 35.55% to 9.45%. While PABU records a lower numerical redundancy rate (4.66%), this metric must be contextualized with task completion: PABU succeeds on only 61.5% of ScienceWorld tasks, terminating prematurely on complex trajectories where redundant behaviors typically accumulate. In contrast, LAMB achieves 83.5% task success (+22.0 points over PABU) while maintaining single-digit redundancy. These results demonstrate that structured latent particles systematically curtail aimless interactions across complex long-horizon environments. 
+
+Fine-grained error breakdown. To identify which memory failures our latent belief resolves, we categorize ALFWorld redundant actions into five mutually exclusive failure modes: re-observation , unnecessary search , unnecessary manipulation , failed retries , and repeated operations 
+
+(formal definitions in Appendix C). And Figure 5 visualizes the distribution of these failure modes across executed actions. While zero-shot Qwen3-8B exhibits high redundancy across all modes, PABU curbs re-observations but suffers severely from failed retries, which account for 20.06% of its total actions. This reveals an inherent limitation of natural-language summaries: textual memory typically logs that an action was executed, but struggles to retain whether it failed or why. In contrast, LAMB completely eliminates failed retries, unnecessary manipulations, and repeated operations (0% across all three categories). Although our re-observation rate is slightly higher, eradicating the 20-point retry failure mode reduces overall redundancy by 17.70 points. This decisive gain confirms that our observation-conditioned particle update effectively propagates failure feedback through negative evidence signals. Meanwhile, re-inspecting known information remains the primary residual source of redundancy. 
+
+5.3 Observation Retention Analysis 
+
+A textual belief selects observation details for its summary, whereas Common maintains a fixed-capacity latent state through recursive updates. We evaluate whether previously observed information remains recoverable after these updates through a diagnostic observation-recall task. To isolate memory retention from policy divergence, all methods replay identical ALFWorld action–observation sequences where an agent visits a location and subsequently executes up to eight actions that never mention that location again. At lags of 0, 1, 2, 4, and 8 steps, we train a separate linear probe for each method and lag to identify the original observation among four candidates (25% chance baseline). Lag 0 is measured immediately after the target LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 12 Re-observation Unnecessary search Unnecessary manipulation Failed retry Repeated operation      
+
+> 26 19.5 13 6.5 5.2 3.9 2.6 1.3 15.6 11.7 7.8 3.9 26 19.5 13 6.5 2.08 1.56 1.04 0.52
+> Qwen3-8B zero-shot PABU-Agent-8B Ours
+> 13.09 3.31 0.00 0.00 0.00
+
+Figure 5. ALFWorld redundant-action breakdown across five mutually exclusive categories (percentage of all executed actions, lower is better). Blue annotations mark LAMB’s rates. 
+
+observation has been incorporated into memory. For this vector-based diagnostic, textual baselines (AgentEvol’s raw history and PABU’s summary) are encoded using frozen Qwen3-8B embeddings and mean-pooled into vectors of identical dimensionality before probing, while our method is probed directly from the Common state vectors. 
+
+Method 0 steps 1 step 2 steps 4 steps 8 steps 
+
+AgentEvol 78.13 66.67 62.50 52.60 42.19 PABU 25.00 25.00 25.52 25.00 25.00 
+
+Ours 99.48 99.48 98.96 98.96 98.44 Table 4. Observation identification (%, higher is better) across subsequent interaction lags on 48 ALFWorld trajectories, evaluated using vector-based 4-way classification probes. 
+
+Table 4 shows that Common maintains high observation-identification accuracy, decreasing only from 99.48% to 98.44% across the tested lags. PABU remains near chance, while AgentEvol declines from 78.13% to 42.19%. These results measure recovery through the vector probes; we further examine the textual memories using a direct text reader in Appendix G. And appendices A and B further analyze the diversity of Delta particles and the effect of particle count and token budget. 
+
+# 6 Conclusion 
+
+We introduced LAMB, a recurrent latent belief framework that factorizes memory into a shared state and weighted hypotheses, updated using action-outcome evidence. With a fixed token belief prefix, LAMB achieves competitive performance across four interactive benchmarks and reduces token consumption on ALFWorld. These results support structured latent beliefs as a compact and effective memory representation for long-horizon language agents. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 13 
+
+We hope this work encourages future memory architectures trained to actively predict the environment instead of passively transcribing the past. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 14 
+
+# References 
+
+OpenAI: Sandhini Agarwal, Lama Ahmad, Jason Ai, Sam Altman, Andy Applebaum, Edwin Arbus, Rahul K. Arora, Yu Bai, Bowen Baker, Haiming Bao, Boaz Barak, Ally Bennett, Tyler Bertao, Nivedita Brett, Eugene Brevdo, Greg Brockman, Sebastien Bubeck, Che Chang, Kai Chen, Mark Chen, Enoch Cheung, Aidan Clark, Dan Cook, Marat Dukhan, Casey Dvorak, Kevin Fives, Vlad Fomenko, Timur Garipov, Kristian Georgiev, Mia Glaese, Tarun Gogineni, Adam Goucher, Lukas Gross, Katia Gil Guzman, John Hallman, Jackie Hehir, Johannes Heidecke, Alec Helyar, Haitang Hu, Romain Huet, Jacob Huh, Saachi Jain, Zach Johnson, Chris Koch, Irina Kofman, Dominik Kundel, Jason Kwon, Volodymyr Kyrylov, Elaine Ya Le, Guillaume Leclerc, James Park Lennon, Scott Lessans, Mario Lezcano-Casado, Yuanzhi Li, Zhuohan Li, Ji Lin, Jordan Liss, Lily, Liu, Jiancheng Liu, Kevin Lu, Chris Lu, Zoran Martinovic, Lindsay McCallum, Josh McGrath, Scott McKinney, Aidan McLaughlin, Song Mei, Steve Mostovoy, Tong Mu, Gideon Myles, Alexander Neitz, Alex Nichol, Jakub Pachocki, Alex Paino, Dana Palmie, Ashley Pantuliano, Giambattista Parascandolo, Jongsoo Park, Leher Pathak, Carolina Paz, Ludovic Peran, Dmitry Pimenov, Michelle Pokrass, Elizabeth Proehl, Huida Qiu, Gaby Raila, Filippo Raso, Hongyu Ren, Kimmy Richardson, David Robinson, Bob Rotsted, Hadi Salman, Suvansh Sanjeev, Max Schwarzer, D. Sculley, Harshit Sikchi, Kendal Simon, Karan Singhal, Yang Song, Dane Stuckey, Zhiqing Sun, Philippe Tillet, Sam Toizer, Foivos Tsimpourlas, Nikhil Vyas, Eric Wallace, Xin Wang, Miles Wang, Olivia Watkins, Kevin Weil, Amy Wendling, Kevin Whinnery, Cedric Whitney, Hannah Wong, Lin Yang, Yu Yang, Michihiro Yasunaga, Kristen Ying, Wojciech Zaremba, Wenting Zhan, Cyril Zhang, Brian Zhang, Eddie Zhang, and Shengjia Zhao. gpt-oss-120b & gpt-oss-20b Model Card, 2025. URL https://arxiv.org/abs/2508.10925 .Anthropic. Claude Haiku 5.5 System Card. Official system card, 2026. URL https://www-cdn.anthropic .com/e1080d6bf5ae2018ea3c2f414064be03232f5be5/Claude%20Haiku%205.5%20System%20Card.pdf .Aydar Bulatov, Yury Kuratov, and Mikhail Burtsev. Recurrent Memory Transformer. In Advances in Neural Information Processing Systems , volume 35, pages 11079–11091. Curran Associates, Inc., 2022. doi: 10.52202/068431-0805. URL https://proceedings.neurips.cc/paper_files/paper/2022/file /47e288629a6996a17ce50b90a056a0e1-Paper-Conference.pdf .Alexis Chevalier, Alexander Wettig, Anirudh Ajith, and Danqi Chen. Adapting Language Models to Compress Contexts. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pages 3829–3846. Association for Computational Linguistics, 2023. doi: 10.18653/v1/2023 .emnlp-main.232. URL https://aclanthology.org/2023.emnlp-main.232/ .DeepSeek-AI, Anyi Xu, Bangcai Lin, Bing Xue, Bingxuan Wang, Bingzheng Xu, Bochao Wu, Bowei Zhang, Chaofan Lin, Chen Dong, Chenchen Ling, Chengda Lu, Chenggang Zhao, Chengqi Deng, Chengyu Hou, Chenhao Xu, Chenze Shao, Chong Ruan, Conner Sun, Damai Dai, Daya Guo, Dejian Yang, Deli Chen, Donghao Li, Dongjie Ji, Erhang Li, Fang Wei, Fangyun Lin, Fangzhou Yuan, Feiyu Xia, Fucong Dai, Guangbo Hao, Guanting Chen, Guoai Cao, Guolai Meng, Guowei Li, Han Yu, Han Zhang, Hanwei Xu, Hao Li, Haofen Liang, Haoling Zhang, Haoming Luo, Haoran Wei, Haotian Yuan, Haowei Zhang, Haowen Luo, Haoyu Chen, Haozhe Ji, Hengqing Zhang, Honghui Ding, Hongxuan Tang, Huanqi Cao, Huazuo Gao, Hui Qu, Hui Zeng, J Yang, JQ Zhu, Jia Luo, Jia Song, Jia Yu, Jialiang Huang, Jialu Cai, Jian Liang, Jiangting Zhou, Jiasheng Ye, Jiashi Li, Jiaxin Xu, Jiewen Hu, Jieyu Yang, Jin Chen, Jin Yan, Jingchang Chen, Jingli Zhou, Jingting Xiang, Jingyang Yuan, Jingyuan Cheng, Jingzi Zhou, Jinhua Zhu, Jiping Yu, Joseph Sun, Jun Ran, Junguang Jiang, Junjie Qiu, Junlong Li, Junmin Zheng, Junxiao Song, Kai Dong, Kaige Gao, Kang Guan, Kexing Zhou, Kezhao Huang, Kuai Yu, Lean Wang, Lecong Zhang, Lei Wang, Leyi Xia, Li Zhang, Liang Zhao, Lihua Guo, Lingxiao Luo, Linwang Ma, Linyan Zhu, Litong Wang, Liyu Cai, Liyue Zhang, Longhao Chen, MS Di, MY Xu, Max Mei, Miaojun Wang, Mingchuan Zhang, Minghua Zhang, Minghui Tang, Mingming Li, Mingxu Zhou, Minmin Han, Ning Wang, Panpan Huang, Panpan Wang, Peixin Cong, Peiyi Wang, Peng Zhang, Qiancheng Wang, Qihao Zhu, Qingyang Li, Qinyu Chen, Qiushi Du, Qiwei Jiang, Rui Tian, Ruifan Xu, Ruĳie Lu, Ruiling Xu, Ruiqi Ge, Ruisong Zhang, Ruizhe Pan, Runji Wang, Runqian Chen, LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 15 Runqiu Yin, Runxin Xu, Ruomeng Shen, Ruoyu Zhang, Ruyi Chen, SH Liu, Shanghao Lu, Shangmian Sun, Shangyan Zhou, Shanhuang Chen, Shaofei Cai, Shaoheng Nie, Shaoqing Wu, Shaoyuan Chen, Shengding Hu, Shengyu Liu, Shiqiang Hu, Shirong Ma, Shiyu Wang, Shuiping Yu, Shunfeng Zhou, Shuting Pan, Shuying Yu, Songyang Zhou, Tao Ni, Tao Yun, Tian Jin, Tian Pei, Tian Ye, Tianle Lin, Tianran Ji, Tianyi Cui, Tianyuan Yue, Tingting Yu, Tun Wang, W Zhang, WL Xiao, Wangding Zeng, Wei An, Weilin Zhao, Wen Liu, Wenfeng Liang, Wenjie Pang, Wenjing Luo, Wenjing Yao, Wenjun Gao, Wenkai Yang, Wenlve Huang, Wenqing Hou, Wentao Zhang, Wenting Ma, Xi Gao, Xiang He, Xiangwen Wang, Xianzu Wang, Xiao Bi, Xiaodong Liu, Xiaohan Wang, Xiaokang Chen, Xiaokang Zhang, Xiaotao Nie, Xiaowen Sun, Xiaoxiang Wang, Xin Cheng, Xin Liu, Xin Xie, Xingchao Liu, Xingchen Liu, Xingkai Yu, Xingyou Li, Xinyu Yang, Xinyu Zhang, Xu Chen, Xuanyu Wang, Xuecheng Su, Xueyin Chen, Xuheng Lin, Xuwei Fu, YC Yan, YQ Wang, YW Ma, Yanfeng Luo, Yang Zhang, Yanhong Xu, Yanru Ma, Yanwen Huang, Yao Li, Yao Li, Yao Xu, Yao Zhao, Yaofeng Sun, Yaohui Wang, Yi Qian, Yi Shao, Yi Yu, Yichao Zhang, Yifan Ding, Yifan Shi, Yĳia Wu, Yiliang Xiong, Yiling Ma, Ying He, Ying Tang, Ying Zhou, Yingjia Luo, Yinmin Zhong, Yishi Piao, Yisong Wang, Yixiang Zhang, Yixiao Chen, Yixuan Tan, Yixuan Wei, Yiyang Ma, Yiyuan Liu, Yonglun Yang, Yongqiang Guo, Yongtong Wu, Yu Wu, YuKun Li, Yuan Cheng, Yuan Ou, Yuanfan Xu, Yuanhao Li, Yuduan Wang, Yuehan Yang, Yuer Xu, Yuhan Wu, Yuhao Meng, Yuheng Zou, Yukun Zha, Yunfan Xiong, Yupeng Chen, Yuping Lin, Yuqian Cao, Yuqian Wang, Yushun Zhang, Yuting Yan, Yutong Lin, Yuxian Gu, Yuxiang Luo, Yuxiang You, Yuxuan Liu, Yuxuan Zhou, Yuyang Zhou, Yuzhen Huang, ZF Wu, Zehao Wang, Zehua Zhao, Zehui Ren, Zekai Zhang, Zhangli Sha, Zhe Fu, Zhe Ju, Zhean Xu, Zhenda Xie, Zhengyan Zhang, Zheren Gao, Zhewen Hao, Zhibin Gou, Zhicheng Ma, Zhigang Yan, Zhihong Shao, Zhixian Huang, Zhixuan Chen, Zhiyu Wu, Zhizhou Ren, Zhongyu Wu, Zhuoshu Li, Zhuping Zhang, Zian Xu, Zihao Wang, Zihua Qu, Zihui Gu, Zĳia Zhu, Zilin Li, Zipeng Zhang, Ziwei Xie, Ziyi Gao, Ziyi Wan, Zizheng Pan, and Zongqing Yao. DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence. arXiv preprint arXiv:2606.19348 , 2026. doi: 10.48550/arXiv.2606.19348. URL 
+
+https://arxiv.org/abs/2606.19348 .Tao Ge, Jing Hu, Lei Wang, Xun Wang, Si-Qing Chen, and Furu Wei. In-context Autoencoder for Context Compression in a Large Language Model. In International Conference on Learning Representations , pages 2591–2607, 2024. URL https://proceedings.iclr.cc/paper_files/paper/2024/file/0b276510ec2d 3f6613a8b60c41ff0438-Paper-Conference.pdf .Google DeepMind. Gemini 3 Flash Model Card. Official model card, 2025. URL https://storage.goog leapis.com/deepmind-media/Model-Cards/Gemini-3-Flash-Model-Card.pdf .Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. LoRA: Low-Rank Adaptation of Large Language Models. In International Conference on Learning Representations , 2022. URL https://openreview.net/forum?id=nZeVKeeFYf9 .Maximilian Igl, Luisa Zintgraf, Tuan Anh Le, Frank Wood, and Shimon Whiteson. Deep Variational Reinforcement Learning for POMDPs. In Proceedings of the 35th International Conference on Machine Learning , volume 80, pages 2117–2126. PMLR, 2018. URL https://proceedings.mlr.press/v80/igl1 8a.html .Haitao Jiang, Lin Ge, Hengrui Cai, and Rui Song. PABU: Progress-Aware Belief Update for Efficient LLM Agents. arXiv preprint arXiv:2602.09138 , 2026. doi: 10.48550/arXiv.2602.09138. URL 
+
+https://arxiv.org/abs/2602.09138 .Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dongsheng Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1658–1677. Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.acl-long.91. URL https://aclanthology.org/2024.acl-long.91/ .Leslie Pack Kaelbling, Michael L. Littman, and Anthony R. Cassandra. Planning and acting in partially observable stochastic domains. Artificial Intelligence , 101(1):99–134, 1998. doi: 10.1016/S0004-3702(98 LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 16 )00023-x. URL https://doi.org/10.1016/S0004-3702(98)00023-x .Minki Kang, Wei-Ning Chen, Dongge Han, Huseyin A Inan, Lukas Wutschitz, Yanzhi Chen, Robert Sim, and Saravan Rajmohan. ACON: Optimizing Context Compression for Long-horizon LLM Agents. In 
+
+Proceedings of the 43rd International Conference on Machine Learning , volume 306, pages 55321–55375. PMLR, 2026. URL https://proceedings.mlr.press/v306/kang26b.html .Peter Karkus, David Hsu, and Wee Sun Lee. Particle Filter Networks with Application to Visual Localization. In Proceedings of The 2nd Conference on Robot Learning , volume 87, pages 169–178. PMLR, 2018. URL https://proceedings.mlr.press/v87/karkus18a.html .Akshay Krishnamurthy, Keegan Harris, Dylan Foster, Cyril Zhang, and Aleksandrs Slivkins. Can large language models explore in-context? In Advances in Neural Information Processing Systems ,volume 37, pages 120124–120158. Curran Associates, Inc., 2024. doi: 10.52202/079017-3818. URL 
+
+https://proceedings.neurips.cc/paper_files/paper/2024/file/d951f73c521d069fefbb73396df 01424-Paper-Conference.pdf .Xiang Lisa Li and Percy Liang. Prefix-Tuning: Optimizing Continuous Prompts for Generation. In Chengqing Zong, Fei Xia, Wenjie Li, and Roberto Navigli, editors, Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , pages 4582–4597, Online, August 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.acl-long.353. URL https: //aclanthology.org/2021.acl-long.353/ .Junfeng Liao, Qizhou Wang, Jianing Zhu, Bo Du, Rui Yan, and Xiuying Chen. Belief Memory: Agent Memory Under Partial Observability. arXiv preprint arXiv:2605.05583 , 2026. doi: 10.48550/arXiv.2605. 05583. URL https://arxiv.org/abs/2605.05583 .Aly Lidayan, Jakob Bjorner, Satvik Golechha, Kartik Goyal, and Alane Suhr. ABBEL: Learning Natural-Language Belief States for Memory-Efficient Interaction. arXiv preprint arXiv:2512.20111 , 2026. doi: 10.48550/arXiv.2512.20111. URL https://arxiv.org/abs/2512.20111 .Tobias Lindenbauer, Igor Slinko, Ludwig Felder, Egor Bogomolov, and Yaroslav Zharov. The Com-plexity Trap: Simple Observation Masking Is as Efficient as LLM Summarization for Agent Context Management. In NeurIPS 2025 Fourth Workshop on Deep Learning for Code , 2025. URL 
+
+https://openreview.net/forum?id=OHVzruJl5k .Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. Lost in the Middle: How Language Models Use Long Contexts. Transactions of the Association for Computational Linguistics , 12:157–173, 2024a. doi: 10.1162/tacl_a_00638. URL 
+
+https://aclanthology.org/2024.tacl-1.9/ .Yuhan Liu, Xiuying Chen, Xiaoqing Zhang, Xing Gao, Ji Zhang, and Rui Yan. From skepticism to acceptance: Simulating the attitude dynamics toward fake news. arXiv preprint arXiv:2403.09498 ,2024b. Yuhan Liu, Yuxuan Liu, Xiaoqing Zhang, Xiuying Chen, and Rui Yan. The truth becomes clearer through debate! multi-agent systems with large language models unmask fake news. In Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval , pages 504–514, 2025a. Yuhan Liu, Zirui Song, Juntian Zhang, Xiaoqing Zhang, Xiuying Chen, and Rui Yan. The stepwise deception: Simulating the evolution from true news to fake news with llm agents. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 26187–26203, 2025b. Chang Ma, Junlei Zhang, Zhihao Zhu, Cheng Yang, Yujiu Yang, Yaohui Jin, Zhenzhong Lan, Lingpeng Kong, and Junxian He. AgentBoard: An Analytical Evaluation Board of Multi-turn LLM Agents. In 
+
+Advances in Neural Information Processing Systems , volume 37, pages 74325–74362. Curran Associates, LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 17 Inc., 2024. doi: 10.52202/079017-2365. URL https://proceedings.neurips.cc/paper_files/paper /2024/file/877b40688e330a0e2a3fc24084208dfa-Paper-Datasets_and_Benchmarks_Track.pdf .Xiao Ma, Peter Karkus, David Hsu, and Wee Sun Lee. Particle Filter Recurrent Neural Networks. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , volume 34, pages 5101–5108, 2020. doi: 10.1609/aaai.v34i04.5952. URL https://doi.org/10.1609/aaai.v34i04.5952 .Meta. Llama 3.2 Model Card. Official model card, 2024. URL https://github.com/meta-llama/llama -models/blob/main/models/llama3_2/MODEL_CARD.md .Jesse Mu, Xiang Li, and Noah Goodman. Learning to Compress Prompts with Gist Tokens. In Advances in Neural Information Processing Systems , volume 36, pages 19327–19352. Curran Associates, Inc., 2023. doi: 10.52202/075280-0848. URL https://proceedings.neurips.cc/paper_files/paper/2023/file /3d77c6dcc7f143aa2154e7f4d5e22d68-Paper-Conference.pdf .nostalgebraist. interpreting GPT: the logit lens. LessWrong, 2020. URL https://www.lesswrong.com/po sts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens .OpenAI. GPT-5.6: Frontier Intelligence that Scales with Your Ambition. Official model announcement, 2026. URL https://openai.com/index/gpt-5-6/ .Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. MemGPT: Towards LLMs as Operating Systems. arXiv preprint arXiv:2310.08560 , 2024. doi: 10.48550/arXiv.2310.08560. URL https://arxiv.org/abs/2310.08560 .Davide Paglieri, Bartłomiej Cupiał, Samuel Coward, Ulyana Piterbarg, Maciej Wołczyk, Akbir Khan, Eduardo Pignatelli, Łukasz Kuciński, Lerrel Pinto, Rob Fergus, Jakob Nicolaus Foerster, Jack Parker-Holder, and Tim Rocktaeschel. BALROG: Benchmarking Agentic LLM and VLM Reasoning On Games. In International Conference on Learning Representations , pages 96666–96702, 2025. URL 
+
+https://proceedings.iclr.cc/paper_files/paper/2025/file/f0b1515be276f6ba82b4f2b25e50be f0-Paper-Conference.pdf .Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Menglin Xia, Xufang Luo, Jue Zhang, Qingwei Lin, Victor Rühle, Yuqing Yang, Chin-Yew Lin, H. Vicky Zhao, Lili Qiu, and Dongmei Zhang. LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression. In Findings of the Association for Computational Linguistics: ACL 2024 , pages 963–981. Association for Computational Linguistics, 2024. doi: 10.18653/v1/2024.findings-acl.57. URL https://aclanthology.org/2024.findings-acl.57/ .Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein. Generative Agents: Interactive Simulacra of Human Behavior. In Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology , pages 1–22, 2023. doi: 10.1145/3586183.3606763. URL https://doi.org/10.1145/3586183.3606763 .Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. Reflexion: language agents with verbal reinforcement learning. In Advances in Neural Information Processing Systems , volume 36, pages 8634–8652. Curran Associates, Inc., 2023. doi: 10.52202/075280-0377. URL 
+
+https://proceedings.neurips.cc/paper_files/paper/2023/file/1b44b878bb782e6954cd8886285 10e90-Paper-Conference.pdf .Joykirat Singh, Zaid Khan, Archiki Prasad, Justin Chih-Yao Chen, Akshay Nambi, Hyunji Lee, Elias Stengel-Eskin, and Mohit Bansal. Agent-BRACE: Decoupling Beliefs from Actions in Long-Horizon Tasks via Verbalized State Uncertainty. arXiv preprint arXiv:2605.11436 , 2026. doi: 10.48550/arXiv.260 5.11436. URL https://arxiv.org/abs/2605.11436 .Ruoyao Wang, Peter Jansen, Marc-Alexandre Côté, and Prithviraj Ammanabrolu. ScienceWorld: Is your Agent Smarter than a 5th Grader? In Yoav Goldberg, Zornitsa Kozareva, and Yue Zhang, editors, 
+
+Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing , pages 11279–11298, Abu Dhabi, United Arab Emirates, December 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.emnlp-main.775. URL https://aclanthology.org/2022.emnlp-main.775/ .LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 18 Yubo Wang, Juntian Zhang, Yichen Wu, Yankai Lin, Nils Lukas, and Yuhan Liu. Forest before trees: Latent superposition for efficient visual reasoning. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 11272–11288, 2026. Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Graham Neubig. Agent Workflow Memory. In 
+
+Proceedings of the 42nd International Conference on Machine Learning , volume 267, pages 63897–63911. PMLR, 2025. URL https://proceedings.mlr.press/v267/wang25bx.html .Zhiheng Xi, Yiwen Ding, Wenxiang Chen, Boyang Hong, Honglin Guo, Junzhe Wang, Xin Guo, Dingwen Yang, Chenyang Liao, Wei He, Songyang Gao, Lu Chen, Rui Zheng, Yicheng Zou, Tao Gui, Qi Zhang, Xipeng Qiu, Xuanjing Huang, Zuxuan Wu, and Yu-Gang Jiang. AgentGym: Evaluating and Training Large Language Model-based Agents across Diverse Environments. In Wanxiang Che, Joyce Nabende, Ekaterina Shutova, and Mohammad Taher Pilehvar, editors, Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 27914–27961, Vienna, Austria, July 2025. Association for Computational Linguistics. ISBN 979-8-89176-251-0. doi: 10.18653/v1/2025.acl-long.1355. URL https://aclanthology.org/2025.acl-long.1355/ .Yuan-An Xiao, Pengfei Gao, Chao Peng, and Yingfei Xiong. Reducing Cost of LLM Agents with Trajectory Reduction. Proceedings of the ACM on Software Engineering , 3(FSE):1241–1263, 2026. doi: 10.1145/3797084. URL https://doi.org/10.1145/3797084 .Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-Mem: Agentic Memory for LLM Agents. In Advances in Neural Information Processing Systems , volume 38. Curran Associates, Inc., 2025. doi: 10.52202/085713-0593. URL https://proceedings.neurips.cc/paper_f iles/paper/2025/file/19909c36f51abc4856b4560aff3d36d6-Paper-Conference.pdf .An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, Chujie Zheng, Dayiheng Liu, Fan Zhou, Fei Huang, Feng Hu, Hao Ge, Haoran Wei, Huan Lin, Jialong Tang, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jing Zhou, Jingren Zhou, Junyang Lin, Kai Dang, Keqin Bao, Kexin Yang, Le Yu, Lianghao Deng, Mei Li, Mingfeng Xue, Mingze Li, Pei Zhang, Peng Wang, Qin Zhu, Rui Men, Ruize Gao, Shixuan Liu, Shuang Luo, Tianhao Li, Tianyi Tang, Wenbiao Yin, Xingzhang Ren, Xinyu Wang, Xinyu Zhang, Xuancheng Ren, Yang Fan, Yang Su, Yichang Zhang, Yinger Zhang, Yu Wan, Yuqiong Liu, Zekun Wang, Zeyu Cui, Zhenru Zhang, Zhipeng Zhou, and Zihan Qiu. Qwen3 technical report. arXiv preprint arXiv:2505.09388 , 2025. doi: 10.48550/arXiv.2505.09388. URL https://arxiv.org/abs/2505.09388 .Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik R Narasimhan, and Yuan Cao. ReAct: Synergizing Reasoning and Acting in Language Models. In The Eleventh International Conference on Learning Representations , 2023. URL https://openreview.net/forum?id=WE_vluYUL-X .Guibin Zhang, Muxin Fu, and Shuicheng Yan. MemGen: Weaving Generative Latent Memory for Self-Evolving Agents. In International Conference on Learning Representations , 2026a. URL https: //proceedings.iclr.cc/paper_files/paper/2026/file/26407588dfb08e48c459c074ab6adb7d-Pap er-Conference.pdf .Guibin Zhang, Yaohui Ling, Fanci Meng, Kun Wang, and Shuicheng Yan. Mem-W: Latent Memory-Native GUI Agents. arXiv preprint arXiv:2605.09317 , 2026b. doi: 10.48550/arXiv.2605.09317. URL 
+
+https://arxiv.org/abs/2605.09317 .Qizheng Zhang, Changran Hu, Shubhangi Upasani, Boyuan Ma, Fenglu Hong, Vamsidhar Kamanuru, Jay Rainton, Chen Wu, Mengmeng Ji, Hanchen Li, Urmish Thakker, James Zou, and Kunle Olukotun. Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models. In International Conference on Learning Representations , pages 86069–86100, 2026c. URL https://proceedings.iclr.c c/paper_files/paper/2026/file/8a94ff6f922d995d7d3f4ebf4143e442-Paper-Conference.pdf .Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. ExpeL: LLM Agents Are Experiential Learners. In Proceedings of the AAAI Conference on Artificial Intelligence ,LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 19 volume 38, pages 19632–19642, 2024. doi: 10.1609/aaai.v38i17.29936. URL https://doi.org/10.160 9/aaai.v38i17.29936 .Zĳian Zhou, Ao Qu, Zhaoxuan Wu, Sunghwan Kim, Alok Prakash, Daniela Rus, Bryan Kian Hsiang Low, and Paul Pu Liang. MEM1: Learning to Synergize Memory and Reasoning for Efficient Long-Horizon Agents. In International Conference on Learning Representations , pages 58413–58438, 2026. URL https://proceedings.iclr.cc/paper_files/paper/2026/file/5fc8b3bdfbb9167b5144df5d3f ae4616-Paper-Conference.pdf .LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 20 
+
+# Appendix 
+
+# A Effect of Delta Particles 
+
+To verify that multi-hypothesis particles avoid representational collapse, this appendix in-vestigates whether individual Delta tokens yield distinct vocabulary-space projections when processed by the frozen language model in isolation. 
+
+Setup. For each evaluated state, we feed each delta token to the backbone individually at the same input position. We omit task instructions, the Common prefix, and other Delta tokens, ensuring that output differences stem only from the particle embeddings themselves. Following the logit lens paradigm (nostalgebraist, 2020), we decode hidden states at every layer through the frozen final normalization and unembedding matrix, recording the ten most probable vocabulary tokens. Letting 𝑆 (𝑙 ) 
+
+> 𝑖
+
+denote this top-10 set for particle 𝑖 at layer 𝑙 , we compute the mean pairwise overlap across all  𝐾 
+
+> 2
+
+ particle pairs: 
+
+𝑂 (𝑙 ) = 1
+
+ 𝐾 
+
+> 2
+
+Õ
+
+> 𝑖 <𝑗
+
+|𝑆 (𝑙 ) 
+
+> 𝑖
+
+∩ 𝑆 (𝑙 ) 
+
+> 𝑗
+
+|
+
+10 . (11) Here, 𝑂 (𝑙 ) = 1 indicates identical top-10 vocabulary selections across particles, while 𝑂 (𝑙 ) = 0denotes completely disjoint sets. Overlap values are averaged over all  82
+
+ = 28 pairs within each state, across 12 representative diagnostic states. 
+
+Results. Figure 6 illustrates that token overlap declines from 74.17% at layer 1 to 30.68% at the final layer. While intermediate layers exhibit non-monotonic fluctuations, particles progressively diverge across the transformer depth. At the output layer, two particles share only about three of their ten most probable tokens on average, indicating that the Delta particles retain distinct vocabulary-space projections and successfully mitigate representational collapse. 
+
+# B Particle Count and Token Budget 
+
+We investigate how agent performance scales when the number of Common readout tokens and Delta particles are varied jointly. We compare three configurations: 2 +4, 4 +8, and 8 +16, corresponding to total prefix budgets of 6, 12, and 24 tokens, with 4 +8 serving as the default setting. Each variant is trained on the raw 7,200/800 train/dev source split without multi-view trajectory augmentations. Models are trained independently from the Qwen3-8B backbone and evaluated on the same 200 ALFWorld test tasks. Table 5 indicates that policy performance saturates quickly with respect to the belief budget. Among the three evaluated configurations, the default 4 +8 budget achieves the highest SR@30 (89.0%) and SR@50 (94.0%) while requiring the fewest average steps (15.78). Constraining capacity to 2 +4 lowers SR@50 by 2.0 points, demonstrating that an undersized particle set lacks sufficient expressive capacity to maintain competing hypotheses. Conversely, expanding the budget to 8 +16 yields no performance benefit (93.5% SR@50) despite doubling the prefix footprint. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 21 1 6 12 18 24 30 36 
+
+Layer 
+
+025 50 75 100 
+
+> Top-10 overlap (%)
+
+30.68%                      
+
+> Figure 6. Layer-wise top-10 token overlap across Delta particles, averaged over 28 particle pairs across 12 diagnostic states. Final-layer overlap drops to 30.68%.
+> Common Tokens Delta Particles Total Prefix SR@30 (%) ↑
+> SR@50 (%) ↑
+> Avg. Steps ↓
+> 24687.5 92.0 16.39 4812 89.0 94.0 15.78
+> 816 24 88.0 93.5 16.09
+> Table 5. ALFWorld performance under varying Common and Delta token budgets. All variants are trained on the unaugmented 7,200/800 source split. The green-shaded row denotes our default configuration. Bold marks the best result per column.
+
+# C Redundant Action Categories 
+
+An action is redundant if it (i) reveals no new information, (ii) causes no task-relevant state change, and (iii) satisfies no precondition for a later step. Redundancy is judged only from information available before execution: exploring unverified states is not considered redundant merely because a more direct trajectory existed in retrospect. Under this definition, redundancy encompasses both literal string repetitions and non-repetitive detours made avoidable by available context. We classify redundant actions into five mutually exclusive categories. Re-observation gathers facts the agent has already observed. Unnecessary search continues exploring after the target location is established. Unnecessary manipulation performs state-changing actions that are irrelevant or destructive to the task. Failed retry re-attempts an unachieved objective without addressing the cause of its failure. Repeated operation re-applies an effect that has already been achieved and still holds.Figure 5 visualizes their rates on ALFWorld. 
+
+Category boundaries. Three rules resolve actions that could fit two categories: (1) Re-observation vs. unnecessary search depends on whether the target location is known. Searching a previously eliminated container while the target is still unknown is a re-observation; searching other LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 22 
+
+containers after the target has been found is an unnecessary search. (2) Failed retry vs. repeated operation depends on whether the intended effect has already been achieved. Re-opening a locked door without acquiring the key is a failed retry; opening a door that is already open is a repeated operation. (3) Unnecessary manipulation vs. repeated operation depends on whether the action disrupts progress. Removing an item already placed in its correct receptacle is an unnecessary manipulation; reheating an object that is already heated is a repeated operation. 
+
+Non-redundant repetition. Repetition at the string level does not inherently indicate redun-dancy. Multi-object tasks legitimately require consecutive pick actions; combat, mining, or waiting sequences frequently demand successive identical operations; and re-inspecting an environment following a state-altering action is often necessary. Furthermore, an initial failure followed by a retry after resolving the prerequisite condition is strictly classified as valid task execution. 
+
+# D Hyperparameter Details 
+
+Table 6 summarizes the hyperparameter configuration for the main experiments. 
+
+# E Joint Prediction of Latent Facts 
+
+In Section 3.1, we formulate the prediction of 𝑄 latent facts as a mixture of factorized distributions (Eq. 5): 
+
+𝑝 (𝑦 1: 𝑄 | 𝐵 𝑡 ) =
+
+> 𝐾
+
+Õ
+
+> 𝑖 =1
+
+𝑤 𝑖 𝑡 𝑄 Ö
+
+> 𝑞 =1
+
+𝑝 𝜙 (𝑦 𝑞 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 ). (12) We further explain why placing the product inside the mixture couples the latent facts and how this motivates the Common–Delta split. 
+
+E.1 Coupled Joint Prediction vs. Independent Factorization 
+
+Predicting each fact independently instead moves the product outside the mixture: 
+
+𝑝 indep (𝑦 1: 𝑄 | 𝐵 𝑡 ) =
+
+> 𝑄
+
+Ö
+
+> 𝑞 =1
+
+" 𝐾 Õ
+
+> 𝑖 =1
+
+𝑤 𝑖 𝑡 𝑝 𝜙 (𝑦 𝑞 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 )
+
+#
+
+. (13) A marginal of 0 .5 can arise from hypotheses that are each uncertain, or from hypotheses that are each certain but disagree (Figure 7(a,b)). Eq. (13) assigns both cases the same joint distribution and thus ignores mutual exclusivity between facts. 
+
+E.2 Numerical Walkthrough of the Toy Example 
+
+Consider a mug that is in either the cabinet ( 𝑦 cab ) or the sink ( 𝑦 sink ), with two equally weighted hypotheses ( 𝑤 1 = 𝑤 2 = 0.5). We write joint states as pairs (𝑦 cab , 𝑦 sink ).
+
+Case (a): Uncertain hypotheses. Both hypotheses predict 𝑝 (𝑦 cab =1) = 𝑝 (𝑦 sink =1) = 0.5, so Eq. (12) gives 
+
+𝑝 (1, 1) = 𝑝 (0, 0) = 0.5(0.52) + 0.5(0.52) = 0.25 , (14) assigning 25% to the mug being in both places and 25% to it being in neither. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 23 
+
+Hyperparameter Value 
+
+Backbone & Adaptation 
+
+Policy model Qwen3-8B (frozen) LoRA rank 𝑟 / 𝛼 / dropout 32 / 64 / 0.05 Max sequence length 2,048 (+12 prefix) Backbone precision BF16 
+
+Belief Representation 
+
+Common / Delta state dim 𝑑 4,096 Delta particle count 𝐾 8Common / Delta prefix tokens 4 / 8 (12 total) Initialization noise scale 𝜎 0.01 Particle adapter bottleneck 64 (scale 1.0) Mixture-gate hidden dim 512 Belief module precision FP32 
+
+Optimization 
+
+Optimizer AdamW AdamW 𝛽 1 / 𝛽 2 0.9 / 0.999 AdamW 𝛽 1 / 𝛽 2 0.9 / 0.999 AdamW 𝜖 / weight decay 10 −8 / 0.01 Learning rate / schedule 2 × 10 −5 / linear Warmup ratio / epochs 0.03 / 3 Effective batch size 16 episodes Gradient clipping norm 1.0 BPTT truncation window 1 env. step 
+
+Auxiliary Objectives 
+
+State loss weight 𝜆 sem 0.2 Contrastive loss weight 𝜆 com 0.1 Max state queries per step 6Contrastive samples 1 pos. / 31 neg. Contrastive temperature 1.0 
+
+Table 6. Hyperparameter settings for the main experiments. 
+
+Case (b): Competing hypotheses (LAMB). Each particle commits to one configuration: ℎ1
+
+places the mug in the cabinet (1, 0) and ℎ2 in the sink (0, 1). Eq. (12) then gives 
+
+𝑝 (1, 1) = 𝑝 (0, 0) = 0.5(1·0) + 0.5(0·1) = 0.00 , (15) 
+
+𝑝 (1, 0) = 𝑝 (0, 1) = 0.5(1·1) + 0.5(0·0) = 0.50 , (16) ruling out both impossible states. Eq. (13) would instead average the marginals to 0 .5 and again assign 0 .25 to each impossible state. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 24 counter empty mug in cabinet mug in sink 
+
+h1
+
+h2
+
+1.0 0.5 0.5 1.0 0.5 0.5  
+
+> agreed contested
+
+(a) Uncertain hypotheses 
+
+no yes mug in sink no yes mug in cabinet 0.25 0.25 0.25 0.25 
+
+× p(counter empty) = 1  
+
+> 0.5 0.5 0.5 0.5
+> counter empty mug in cabinet mug in sink
+
+1.0 1.0 0.0 1.0 0.0 1.0  
+
+> agreed contested
+
+(b) Competing hypotheses 
+
+no yes mug in sink 0.00 0.50 0.50 0.00 
+
+× p(counter empty) = 1  
+
+> 0.5 0.5 0.5 0.5
+
+# =
+
+> per-fact
+> joint
+
+Figure 7. Joint vs. per-fact prediction (Eq. 5). With countertop 1 known to be empty, the mug is in either cabinet 1 or sink 1. Top: per-hypothesis predictions 𝑝 𝜙 (𝑦 𝑞 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 ) for (a) uncertain and (b) competing hypotheses. Bottom: the resulting joint distributions. Both cases share the same per-fact marginals (0.5), but only (b) assigns zero probability to the mug being in both or neither location. The agreed fact (gray) factors out as a shared multiplier. 
+
+E.3 Algebraic Separation of Agreed and Contested Facts 
+
+Suppose the facts split into agreed facts 𝒜 , on which all hypotheses agree, 𝑝 𝜙 (𝑦 𝑎 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 ) =
+
+𝑝 𝜙 (𝑦 𝑎 | 𝑐 𝑡 ), and contested facts 𝒞 . The agreed terms then factor out of the mixture: 
+
+𝑝 (𝑦 1: 𝑄 | 𝐵 𝑡 ) =
+
+"Ö
+
+> 𝑎 ∈𝒜
+
+𝑝 𝜙 (𝑦 𝑎 | 𝑐 𝑡 )
+
+#
+
+×
+
+> 𝐾
+
+Õ
+
+> 𝑖 =1
+
+𝑤 𝑖 𝑡 
+
+Ö
+
+> 𝑐 ∈𝒞
+
+𝑝 𝜙 (𝑦 𝑐 | 𝑐 𝑡 , 𝛿 𝑖 𝑡 ).
+
+(17) The consensus becomes a shared multiplier (gray in Figure 7), and uncertainty is confined to the mixture over contested facts (orange). This motivates storing confirmed evidence in the common state 𝑐 𝑡 and reserving the deltas 𝛿 𝑖 𝑡 for alternatives that still diverge. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 25 
+
+# F Benchmark Details 
+
+ALFWorld (Xi et al., 2025) is a text-based household environment in which agents locate and manipulate objects across rooms, often through multi-stage operations such as cleaning, heating, and cooling. The AgentGym evaluation setting includes 200 test tasks with a 50-action limit. Performance is measured by SR@30 and SR@50, the success rates within the first 30 and 50 actions, respectively. 
+
+BabyAI (Ma et al., 2024) tests grounded instruction following in partially observable grid worlds, requiring agents to track spatial layout, inventory, and prerequisites such as finding a key before opening a locked door. The AgentBoard evaluation setting includes 112 test instances across 28 levels, with a 30-action limit. Performance is measured by mean subgoal progress. 
+
+Crafter (Paglieri et al., 2025) is a procedurally generated open-world survival game with 22 achievements covering resource gathering, crafting, and combat, requiring agents to track vital stats, inventory, and prerequisite chains. Evaluation uses the BALROG text interface and evaluator on ten held-out seeds, with up to 2,000 steps per episode. Performance is measured by achievement progress, the fraction of achievements unlocked averaged over seeds. 
+
+ScienceWorld (Wang et al., 2022) is a text environment for multi-step scientific experiments, such as measuring melting points, building circuits, and classifying organisms. Because standard subsets are dominated by short-horizon tasks, we evaluate on 200 longer-horizon variations from 19 task categories of the official unseen test split, with a 30-decision limit. We use the official easy setting, which removes navigation and door- or container-opening steps but leaves the experimental procedure unchanged, so agents must still retain observations across multiple steps to complete each task. A task succeeds only if it reaches the maximum score of 100. 
+
+# G Memory Recovery with Direct Text Reading 
+
+While vector probes may not fully reflect the recoverability of textual memories, we use a frozen Qwen3-8B text reader for Full history and PABU. All methods receive the same four complete observation candidates on 24 paired branches that differ in target-object presence and share identical subsequent updates. Observation identification and target-object presence derived from the selected observation are scored separately.              
+
+> Method Obs., lag 0 Obs., lag 8 Fact, lag 8
+> Full history 100.00 100.00 100.00
+> PABU 41.67 33.33 50.00
+> Ours 100.00 100.00 100.00 Table 7. Candidate-assisted recovery (%) on 24 paired observation branches from 12 base trajectories. Obs.: identification among four complete observations. Fact: target-object presence derived from the selected observation. The shaded row highlights LAMB; best results (including ties) are in bold.
+
+Table 7 shows that Full history and Common achieve 100% observation identification and fact accuracy after eight updates, whereas PABU achieves 33.33% and 50.00%, respectively. At lag 8, the text reader selects the same candidate for both members of every PABU observation pair, failing to distinguish whether the target object was previously seen. These results LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 26 
+
+show that target facts remain recoverable from Common after eight recursive updates under candidate-assisted reading, matching Full history and outperforming PABU. 
+
+# H Case Study 
+
+Figures 8 and 9 present the complete 15-step ALFWorld episode of LAMB, with detailed Common–Delta state descriptions at three key decisions. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 27 
+
+Recursive Latent Belief Update: A Case Study (1/2) 
+
+Task: examine the bowl with the desklamp. 
+
+Environment: ALFWorld Backbone: Qwen3-8B Method: LAMB 
+
+Initial observation: You are in the middle of a room. 
+
+Step 1 Action: go to shelf 1 
+
+Observation: On the shelf 1, you see a cd 1, a cellphone 1, a creditcard 1, a keychain 1, a mug 1, and a pen 1. 
+
+Step 2 Action: go to garbagecan 1 
+
+Observation: On the garbagecan 1, you see nothing. 
+
+Step 3 Action: go to dresser 1 
+
+Observation: On the dresser 1, you see a desklamp 1, a pen 3, a pen 2, and a pencil 3. 
+
+Step 4: Search under partial observation Action: go to drawer 1 
+
+Observation: The drawer 1 is closed. 
+
+Common component 
+
+• The lamp is on dresser 1. • Drawer 1 is closed. 
+
+Delta components 
+
+𝛿 1 bowl may be in drawer 1 
+
+𝛿 2 bowl may be in drawer 2 
+
+𝛿 3 bowl may be on desk 1 
+
+Next action: open drawer 1 
+
+Step 5 Action: open drawer 1 
+
+Observation: You open the drawer 1. The drawer 1 is open. In it, you see nothing. 
+
+Step 6 Action: go to drawer 2 
+
+Observation: The drawer 2 is closed. 
+
+Step 7: Revise candidates after negative evidence Action: open drawer 2 
+
+Observation: You open the drawer 2. The drawer 2 is open. In it, you see nothing. 
+
+Common component 
+
+• The lamp is on dresser 1. • Drawer 1 is empty. • Drawer 2 is empty. 
+
+Delta components 
+
+𝛿 1 bowl may be in drawer 3 
+
+𝛿 2 bowl may be in drawer 5 
+
+𝛿 3 bowl may be on desk 1 
+
+Next action: go to drawer 3 
+
+Figure 8. In this ALFWorld case-study, the Common component retains the lamp location on dresser 1, while Delta hypotheses shift away from drawers confirmed empty toward uninspected locations. Once the bowl is found on desk 1, the agent returns to the lamp and uses it to examine the bowl, ultimately completing the task successfully. Cross-hatched boxes denote latent belief components. LAMB: Latent Multi-Hypothesis Beliefs for Long-Horizon Language Agents 28 
+
+Recursive Latent Belief Update: A Case Study (2/2) 
+
+Steps 8–15: continued search and task completion. 
+
+Step 8 Action: go to drawer 3 
+
+Observation: The drawer 3 is closed. 
+
+Step 9 Action: open drawer 3 
+
+Observation: You open the drawer 3. The drawer 3 is open. In it, you see a creditcard 2. 
+
+Step 10 Action: go to drawer 4 
+
+Observation: On the drawer 4, you see nothing. 
+
+Step 11 Action: look 
+
+Observation: You are facing the drawer 5, and drawer 4. Next to it, you see nothing. 
+
+Step 12: Locate the bowl and reuse the lamp evidence Action: go to desk 1 
+
+Observation: On the desk 1, you see a alarmclock 1, a book 1, a bowl 3, a bowl 2, a bowl 1, a keychain 3, a keychain 2, a pencil 2, and a pencil 1. 
+
+Common component 
+
+• The lamp is on dresser 1. • Drawers 1 and 2 are empty. • Bowls are on desk 1. 
+
+Delta components 
+
+𝛿 1 bowl is on desk 1 
+
+𝛿 2 bowl is on desk 1 
+
+𝛿 3 bowl is on desk 1 
+
+Next action: take bowl 3 from desk 1 
+
+Step 13 Action: take bowl 3 from desk 1 
+
+Observation: You pick up the bowl 3 from the desk 1. 
+
+Step 14 Action: go to dresser 1 
+
+Observation: On the dresser 1, you see a desklamp 1, a pen 3, a pen 2, and a pencil 3. 
+
+Step 15 Action: use desklamp 1 
+
+Observation: You turn on the desklamp 1. 
+
+Final outcome: Success in 15 actions. 
+
+Figure 9. Continuation of Figure 8.
