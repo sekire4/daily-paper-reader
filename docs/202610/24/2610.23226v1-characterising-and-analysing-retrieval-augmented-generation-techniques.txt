@@ -1,0 +1,548 @@
+Title: 2610.23226v1.pdf
+
+URL Source: https://arxiv.org/pdf/2610.23226v1
+
+Published Time: Mon, 19 Oct 2026 01:01:35 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Characterising and Analysing Retrieval-Augmented Generation Techniques 
+
+Emmanuel Igbekele 1, 2 and Olawande Daramola 1  
+
+> 1Department of Informatics, University of Pretoria, Pretoria 0083, South Africa
+> emmanuel.igbekele@up.ac.za, wande.daramola@up.ac.za
+> 2Department of Computer Science, Landmark University, Kwara State, Nigeria
+> igbekele.emmanuel@lmu.edu.ng
+> Abstract. The advent of Large Language Models (LLMs) across many application domains has increased the need for Retrieval-Augmented Generation (RAG) to reduce hallucinations and improve LLM performance. Thus far, several RAG techniques with impressive features and capabilities have been proposed in the literature, making it a herculean task to select the most appropriate RAG techniques for specific problem scenarios. Thus, we propose a conceptual framework comprising main dimensions and sub-dimensions for characterising (defining "what it is") and analysing (defining "how well it does") existing RAG techniques. The conceptual framework was developed through a qualitative analysis of the attributes of RAG techniques reported in the literature. It can serve as a pre-empirical filtering mechanism for researchers and practitioners in selecting the highest-fit RAG candidates that meet specific user and task requirements before empirical benchmarking of RAG techniques, which can be computationally and financially expensive.
+> Keywords: Artificial Intelligence (AI), Retrieval-Augmented Generation (RAG), Large Language Models (LLMs), Generative AI (GenAI), User requirements.
+
+1 Introduction 
+
+Recently, new AI models, such as Generative Artificial Intelligence (GenAI), have been increasingly deployed to assist with data-driven learning and probabilistic modelling, produce new explainable content such as text, images, or audio, and make decisions or solve recurring problems. GenAI architectures are usually based on large language models (LLMs). A large language model (LLM) possesses natural language processing (NLP) capabilities for text generation and language comprehension. However, problems with factual accuracy, currentness of information, and hallucinations still exist [1]. So far, Retrieval-Augmented Generation (RAG) has proven to be one of the most effective mechanisms for addressing the limitations of traditional LLMs. RAG enables the real-time integration of knowledge retrieved from external sources to aid LLMs' language generation capabilities [2]. Knowledge presentation for RAG takes various forms, each with its own benefits. Organisations increasingly adopt RAG to build AI Software-as-a-Service (SaaS) products and features. Different classes and types of RAG techniques exist, with various proposals highlighting their strength and weaknesses. Existing comparative studies of RAG techniques tend to focus on limited aspects/parameters without a holistic appraisal of essential aspects [3,4,5]. Also, exhaustive empirical comparative analysis of RAG techniques using standard RAG benchmarks with different metrics is computationally and financially expensive [6]. Thus, selecting the most appropriate RAG technique that fits a specific task can be challenging for researchers and practitioners [7]. In this paper, we propose a conceptual framework that enables the characterisation (defining what it is) and analysis (assessing how well it performs) of RAG techniques to aid decision-making in selecting the most appropriate RAG technique for a specific task. The conceptual framework was derived from a qualitative review of the literature, with a particular focus on previously published review, survey, and comparative review papers. We analysed the features of RAG techniques as profiled in the literature to identify the main dimensions and sub-dimensions of the proposed framework. As a contribution, this study presents a conceptual framework for characterising RAG techniques in terms of their design attributes and for analysing their functional and operational capabilities, providing a robust basis for decision-making when selecting RAG techniques that fit specific task/user requirements. It offers a more comprehensive framework consisting of 11 dimensions and subdimensions that surpasses the scope covered by previous efforts, and provides a pre-empirical filtering mechanism for selecting the most high-fit RAG techniques that meet specific user and task requirements before empirical validation. The rest of this paper is organised as follows. Section 2 presents the theoretical background and a review of related work. In Section 3, we describe the methodology adopted to develop the framework. The proposed framework is described in Section 4, and the paper concludes in Section 5 with a brief note and an overview of future research prospects. 22 Background and Related Work 
+
+This section presents an overview of RAG and a review of related work. 2.1 Retrieval Augmented Generation (RAG) 
+
+RAG is an advanced AI architecture designed to enhance LLM performance [8]. RAG is made possible by establishing a dynamic connection between the chosen model(s) and external, authoritative knowledge bases during text generation [1]. With RAG, users can directly interact with data repositories, thereby opening up new kinds of experiences, implying that the applications of RAG are weighted much more heavily than the number of available datasets [2, 9, 10]. A major motivation for RAG has been a rise in demand for context-relevant and accurately updated generated content [11]. By integrating real-time external data sources into an AI response-generation process, RAG addresses the limitations of traditional LLMs, such as outdated information and plausible yet incorrect responses, commonly referred to as "hallucinations" [12]. RAG functions essentially by combining two major components – "Retriever" and "Generator" in producing accurate and contextually appropriate responses. This "Augmentation" process allows LLMs to access up-to-date knowledge without necessarily retraining the models, thereby improving efficiency and reliability. 2.2 Related Work 
+
+Several authors have compared RAG techniques using different assessment parameters. A comprehensive study of RAG was presented in [3,11] covering the evolution of RAG techniques, the core foundational concepts, and the current state of the art. The authors explored the basic architectures of a few distinct RAG techniques, extracted from 63 papers, with a special focus on retrieval and generation modalities and on how their incorporation is handled to ensure that knowledge-intensive tasks are addressed delicately. The review provided a taxonomy of RAG, highlighting key approaches in Retrieval Augmented Language Models (REALM), as well as other uses in question-response domains, summarisation, and knowledge-oriented tasks. The study focused on the basics of RAG and examined current challenges related to bias, scalability, ethics, and privacy concerns in deployment. A RAG task categorisation method was proposed in [4] that takes user queries as input and classifies them into 4 levels based on the task's primary focus and the type of external data expected. The four levels include explicit fact queries, implicit fact queries, interpretable rationale queries, and hidden rationale queries. The study, which sought to enable LLMs to use external data more productively, split the queries into different levels, provided relevant datasets where necessary, and summarised the major challenges and the most effective techniques for addressing them. The study aimed to provide application development solutions and serve as a systematic guide to emerging challenges. In [5], a survey of variants of Agentic RAG was presented, providing a comprehensive overview of the evolutionary principles underlying the development of RAG paradigms. The study identified seven approaches from about 100 research papers, providing a detailed taxonomy of Agentic RAG architectures, highlighting their applications in domains such as healthcare, finance, and education, and examining practical implementation strategies. Additionally, the work addressed the challenge of system scalability, ensured decision-making aligned with ethical principles, optimised performance for real-world applications, and provided detailed insights into frameworks and tools for implementing Agentic RAG. A comprehensive survey on RAG evaluation methodologies and frameworks was provided in [13]. The authors focused on evaluation approaches that help enhance system performance, computational efficiency, safety, accuracy, and factuality. Furthermore, the authors compiled and categorised datasets used in RAG, as well as frameworks for evaluating RAG. The comparative review in [14] examined how combining retrieval mechanisms with advanced reasoning can empower LLMs to tackle increasingly complex problems. A comprehensive taxonomy was developed from 77 RAG implementations, including collaborative objectives, representative paradigms, and technical implementations, and analysing bidirectional synergy methods across multi-dimensional paradigms. Our review of the literature reveals that, to date, no classification of RAG techniques by architectural design and operational attributes has been proposed, limiting understanding of their intrinsic composition, features, and capabilities. Thus, a more comprehensive framework that embraces multiple critical dimensions to enable rigorous characterisation and analysis of the features and capabilities of RAG techniques is needed to facilitate better decision-making when selecting RAG techniques for specific tasks. 33 Methodology 
+
+The methodology adopted to develop our conceptual framework is presented in Figure 1. We started with a systematic review protocol that involved formulating the research question: "How can a framework for characterising and analysing RAG techniques be developed?" A literature search and a paper selection process followed this. In all, we applied a seven-step process, which includes: i) literature search; ii) paper selection; iii) determining key themes; iv) identifying dimensions; v) identifying sub-dimensions; vi) identifying concepts and metrics of dimensions/sub-dimensions; and vii) quality assurance. The description of each step is presented next.  
+
+> Fig. 1. An overview of the framework development process
+
+i) Literature Search : This step involves searching for published papers in some academic databases. By using the regular Boolean operators “AND” and “OR”, the following combinations of search terms were applied: “RAG Techniques ” OR “ RAG Survey ” OR “ RAG classifications ” OR “ RAG review ” OR “ RAG models ” OR “ RAG literature review ” OR “ RAG surveys ” OR “ recent works on RAG architectures ” OR “ Application of RAG techniques in GenAI ” OR “ Retrieval Augmented Generation in GenAI ” OR “ RAG dimensions ” AND “ GenAI ”OR “ Artificial Intelligence ”. We retrieved 364 papers after applying the search string on the academic databases: Elsevier, Web of Science, Google Scholar, ScienceDirect, PubMed, IEEE Xplore, and SpringerLink (n = 364). ii) Paper Selection : After initial screening, 254 papers were removed, including duplicate papers (102) and papers that are not relevant to the study (152). The remaining 110 papers were further screened to identify core RAG papers, leading to the removal of 35 papers. Thereafter, we applied the inclusion and exclusion criteria to remove 35 additional papers, resulting in the final 40 papers selected for this study (see Figure 2). 
+
+Inclusion criteria : Articles on RAG design/implementation, written in the English language; published between 2020 and 2025; published in journals, peer-reviewed conferences and workshops. 
+
+Exclusion criteria : Non-peer-reviewed publications and articles not written in the English language. These 40 selected articles were further reviewed to identify those that provide detailed and comparative information on RAG techniques, which is pivotal to the main objective of our study. We considered surveys, systematic reviews and comparative review papers. Consequently, we identified seven (7) studies [3, 4, 5, 13, 14, 15, 16] that met this criterion. Thus, we used this as a basis to conduct a tertiary study to identify the dimensions and sub-dimensions of our conceptual framework. The other 32 papers in the pool were used as additional sources of evidence to support the identification of dimensions, sub-dimensions, and the concepts and metrics for dimensions or sub-dimensions. 4
+
+Fig. 2. An Overview of the Paper Selection Process 
+
+iii) Determining Key Themes : Using the seven selected comparative review papers for our tertiary study, we conducted a thematic analysis, which helped to identify the patterns and common themes that the authors used in conducting their comparative reviews and surveys. At the end, we identified thirty-three (33) different common themes/classes that describe the characteristics/attributes of RAG techniques (see Table 1). iv) Identifying Dimensions : After reviewing the identified 33 classes, we found some classes that refer to the same concept, albeit from different perspectives. For example, the authors in [3, 4, 14] all emphasised the data retrieval mechanism but from different perspectives. Hence, the commonalities amongst the classes were streamlined into eleven (11) baseline dimensions (see Figure 3). Further appraisal of the dimensions revealed that they could be broadly categorised into characterisation and analysis dimensions. A characterisation dimension relates to the design architecture of a RAG technique, while an analysis dimension focuses on the functional and operational attributes of a RAG technique. 
+
+Table 1. Characterising classes of RAG techniques identified from the review 
+
+Class Ref. Class Ref. Class Ref.                    
+
+> Retrieval Quality [3,17,42, 43] Chunking Optimisation [18,19,20,21] Fairness [22] Trustworthiness [13] Interpretability [23] Transparenc y[23] Ethics [3,22,23, 24,25]
+> Domain Application [3,23,24] Correction [25,26] Generative Quality [3,26,27] Ranking [27] Performance [2,11,26,27, 28] Scalability [26,28,29 ]Efficiency [28,29,30] Optimisation [3,23,29,30] Data Processing Enhancement [29,31] Multimodal Integration [29,30,31] Emerging Technologie s[3,11,30,31, 32]
+
+5             
+
+> Operational Overhead [13,33,34 ,35,36] Developmental Cost [33,34,35,36] Personalisati on [3,11,37] Adaptation [3,11,38] Robustness [13,39,40,41] Safety [13,28,39,4 1] Retrieval Relevance [26,27,42 ]Generation Enhancement [26,44] Task Application [3,45] Agentic Embeddings [5,46,47, 48,49,50, 51,52,53] Privacy [3,22,54,55,56] Coherence [57] Bias [13,22,28 ,57] Cross-lingual [58] Low Resource [23,58]
+
+Fig. 3. A Conceptual framework for characterising and analysing RAG techniques. 
+
+v) Identifying Sub-dimensions: Furthermore, we discovered that some of the baseline dimensions have attributes that need to be explored in more detail. Hence, we created another level of abstraction called sub-dimensions. vi) Identifying Other Concepts and Metrics: We observed that some of the sub-dimensions, namely, Domain Application , Task Application , Money Cost , and Economic Efficiency, have additional informational aspects which transcend the sub-dimension abstraction. Hence, we created yet a lower level of abstraction, which we called concepts/metrics, to realise a more robust and inclusive conceptual framework (see Figure 1). 
+
+vii) Quality Assurance: We made quality assurance an integral aspect of the framework development process through multiple rounds of rigorous review to ensure correct classification of concepts as dimensions, subdimensions and metrics of the framework. Typically, each concept proposed by one author was verified by the other, and consensus was reached before deciding whether it was classified as a dimension, subdimension, or metric. 64 Justification of the Composition of the Framework 
+
+This section presents the justification of the components of the framework. 4.1 Characterisation Dimensions 
+
+A characterisation dimension focuses on the architectural design attributes of a RAG technique. The justifications for the characterisation dimensions are presented as follows. 
+
+i. Retrieval Mechanism : Virtually all the reviewed papers presented their unique views on the basic functional components of RAG, which are retrieval and generative mechanisms. Most discussions begin with the differences between the two mechanisms and the foundational principles of LLMs. Most authors focused on Data Retrieval Enhancement modalities (such as indexing to establish mappings from search terms to text segments), which are classified as Sparse , Dense and Other kinds of retrievals [3, 4, 5, 13, 14, 15, 16]. 
+
+ii. Generative Mechanism: The generative mechanism focuses on how a RAG technique combines retrieval with generation. The generative mechanism, as presented by [3, 4], ensures the generated text is fluent, accurate, and aligned with the original query by synthesising the retrieved information into coherent, contextually appropriate responses [3, 16, 17, 42, 43]. Common generative mechanisms include Retrieve-then-Generate (Retrieve docs, feed to generator), Retrieve-and-Edit (retrieve similar examples, edit them), Generate-then-Retrieve (generate query embeddings, retrieve docs), and End-to-End RAG [17]. 
+
+iii. Agentic Intelligence : Agentic intelligence is an integral foundation of Agentic Retrieval-Augmented Generation (RAG) systems, enabling them to go beyond the default, static and reactive nature of traditional RAG. In [5], the five characteristics of agentic RAG systems are Prompt Chaining , Routing , Parallelisation ,
+
+Orchestrator-Workers and Evaluation-Optimiser .
+
+iv. Application : RAG systems can also be characterised by their application [3, 23]. RAG applications can be classified into domain and task categorisation. The domain subclassification can be conceptualised as a multi-domain system or a single-domain system [59]. According to [45], task classification focuses on the core functionality of the LLM within the system, including text summarisation, language generation, and context-aware question answering. 
+
+v. Multimodal Integration : This dimension focuses on the capacity of the RAG systems to handle different types of data. The authors in [29, 30] synthesised the integration of data in various forms, such as video, figures, tables, text, and audio, as a recurring attribute that can alter the processing of user prompts and therefore pose a challenge in output generation. The major approaches being used to handle multimodal data are Embedding Techniques and 
+
+Context-to-Textual [31]. 
+
+vi. Personalisation and Adaptation : This dimension is focused on the ability of RAG systems to enable personalised and adaptable functionalities. Currently, RAG components are usually assessed using end-to-end RAG ontology metrics, without in-depth functional decomposition, adaptation, or theoretical analysis [37]. [38] observed that LLMs can be improved through the integration of knowledge from multiple sources and also adaptive domain systems. The use of sentiment expression and fine-tuning models has been identified as a way to achieve this. 4.2 Analysis Dimensions 
+
+The analysis dimensions are described as follows: 
+
+i. Performance : According to authors in [3, 11, 23, 26, 27, 28] the performance attributes of RAG techniques are: 
+
+scalability (the measure of capacity to handle growth in data and number of users); efficiency (the measure of the response time, and resource usage during retrieval); and retrieval quality (the measure of relevance and correctness of retrieved results). Thus, these make up the subdimensions of the performance dimension. 
+
+ii. Ethics : The authors in [22] identified fairness and bias as critical aspects of the ethics of RAG techniques. The need for traceability to foster understanding of the reasoning process of RAG systems was termed "transparency "in [23]. Accountability is a composite attribute encompassing traceability, error tracking, verifiability, and transparency. It provides a basis for assessing trust and ethical compliance, and for improving RAG systems [24, 25]. Thus, Bias and Fairness , Transparency and Accountability were selected as subdimensions of ethics. 
+
+iii. Trustworthiness : Trustworthiness defines the extent to which the RAG system can be relied on. According to [13], the critical aspects of trustworthiness are correctness (how accurate is the generated answer?), 
+
+Comprehensiveness (how well does the answer cover the query aspects?) , Faithfulness (how well does the answer 7stick to the content of retrieved sources) , and relevance (how well does the answer satisfy the user query?) . Thus, all these aspects form the subdimensions of trustworthiness. 
+
+iv. Safety : Presented in [13] as external evaluation, safety is the measure of how well a RAG technique can avoid causing harm or risks. According to [32, 39, 40, 41], the core factors of safety of RAG include robustness (How well does it handle unexpected inputs, edge cases, or adversarial attacks?), factuality (how accurately does generated results reflects facts from actual sources?), privacy (how well does it protect sensitive information?) and transparency (how clear is its reasoning process, and sources of information, and limitations?). These factors make up the subdimensions of safety. 
+
+v. Implementation Cost : According to authors in [13, 33], irrespective of the choice that is made, cost is associated with the development of RAG techniques. According to [33], the cost perspective can be explored in terms of monetary cost and economic efficiency . The factors closely related to monetary cost, as highlighted by [33], are infrastructure cost ( computing local resources for embedding generation), developmental cost (initial implementation, integration, and customisation expenses), and operational cost ( human oversight, system maintenance, and up-to-date knowledge storage). According to [25, 34, 35], the factors that determine economic efficiency are the cost-effectiveness ratio and retrieval precision ROI , the cost-accuracy, the cost-accuracy trade-off , and comparative cost analysis . These factors make up the subdimensions and metrics of implementation cost in our conceptual framework. 
+
+# 5. Applying the Conceptual Framework 
+
+The proposed conceptual framework can be applied to comparatively assess the suitability of different RAG techniques against specific user/task requirements. Industry practitioners can use it as a filtering tool to determine the high-fit RAG candidates that should be further explored through empirical RAG benchmarking before final selection [6]. The description of how the conceptual framework can be applied is presented next. i. Characterisation Dimensions: By leveraging the existing information in the RAG literature, we can rate the dimension/subdimension of each RAG technique by using a 3-category qualitative criteria checklist: √ (Yes), † (Partial), and X (No), depending on whether a dimension/subdimension is supported, partially supported or not supported by a RAG technique. If rating scores of 1 (Yes), 0.5 (Partial), and 0 (No) are applied, it will be possible to compute an overall score for different RAG techniques when measured against a specific set of tasks and user requirements (See Table 2). The qualitative ratings that were assigned to the dimensions/subdimensions were inferred from the information provided in the reviewed papers. ii. Analysis Dimensions: Similarly, based on available information in the literature, we can assign a rating score to each analysis dimension/subdimension/metrics of a RAG technique based on a 5 point Likert scale: vH (Very High) = 5, H (High) = 4, M (Medium) = 3, L (Low) = 2, vL (Very Low) = 1, and Insufficient Information (-) = 0. Midpoint values were assigned to intermediate ranges, such as L-M (Low to Medium) = 2.5 and M-H (Medium to High) = 3.5, in the checklist (Table 3). Unlike the other dimensions, we did not find sufficient information from the literature to rate the subdimensions/metrics of the Ethics dimension. 
+
+5.1 Inter-Rater Agreement 
+
+The ratings assigned to the characterisation and analysis dimensions were a product of inter-rater agreement and consensus by the authors. Individual authors assigned ratings to the dimensions and sub-dimensions of the different RAG techniques. The agreement of ratings between the two authors was 70%. Thereafter, we discussed the differences in ratings in a meeting to arrive at the consensus ratings that we eventually assigned for each dimension and sub-dimension. 8
+
+Table 2. Checklist of the Characterisation Dimensions for RAG techniques 
+
+Table 3. Checklist of the Analysis Dimensions for RAG techniques 
+
+"N" = Naïve RAG; "C" = Corrective RAG; "G" = Graph RAG, “A” = Agentic RAG; "M" = Multimodal RAG; “S” = Self-RAG; “V” = Vision RAG; “F” = Fusion RAG; “R” = Radio RAG; “H” = HyPA RAG. 
+
+Rating : "vH " = Very High; "H" = High; "M" = Medium; “L” = Low; "vL" = Very Low; “L-M” = Low to Medium “M-H” = Medium to High; “-” = Insufficient information Dimension/ Sub-dimensions/ Metrics N C G A M S V F R H
+
+Performance Efficiency vH M L-M vL L-M L L-M L L-M M
+
+Scalability L H vH vH H H M M H H
+
+Retrieval Quality 
+
+L H vH vH H vH H M M-H vH 
+
+Ethics Transparency vH - vH - - - - - - -
+
+Fairness & Bias 
+
+- - - - - - - - - -
+
+Accountability - - - - - vH - - - -
+
+Trustworthiness Correctness M H H vH M H H M H H
+
+Comprehensive ness 
+
+L M vH vH H M M H M H
+
+Faithfulness M vH H H M vH H M H H
+
+Relevance M H H vH M H H H H H
+
+"N" = Naïve RAG; "C" = Corrective RAG; "G" = Graph RAG; “A” = Agentic RAG; "M" = Multimodal RAG; “S” = Self-RAG; “V” = Vision RAG; “F” = Fusion RAG; “R” = Radio RAG; “H” = HyPA RAG. 
+
+Rating : √ (Yes), X (No), † (partial) Dimension /Subdimensions/ Metrics N C G A M S V F R H
+
+Retrieval Mechanism Sparse Retrieval 
+
+√ √ √ √ √ √ √ √ √ √
+
+Dense Retrieval 
+
+√ √ √ √ √ √ √ √ √ √
+
+Hybrid Retrieval √
+
+√ √ √ √ √ √ √ √ √
+
+Generative Mechanism √ √ √ √ √ √ √ √ √ √
+
+Agentic Intelligence X √ † √ † √ † X X √
+
+Applic ation Dom ain Single √ √ √ √ √ √ √ √ √ √ √√√ 
+
+Multiple X √ √ √ √ √ √ √ X √
+
+Task Text Summarisa tion 
+
+† √ √ √ √ √ † √ √ √
+
+Language Generation √ √ √ √ √ √ √ √ √ √
+
+Question Answering √ √ √ √ √ √ √ √ √ √
+
+Multimodal Integration Embedding Techniques 
+
+† √ √ √ √ X √ √ X √
+
+Context-to-Textual X √ √ √ √ √ † √ √ √
+
+Personalization &Adaptation Personalis ation X √ √ √ † X † X X X
+
+Adaptation X √ √ √ √ √ √ √ √ √
+
+Sources of information: [5,11,12,14,17,28,29,30,31,32,48,51,55,60,61,62,63,64,65,66,67,68,69] 9  
+
+> Safety Factuality
+
+L H vH H M H M H M M-H  
+
+> Robustness
+
+L M H M-H L-M H L-M H M M-H  
+
+> Privacy
+
+L M M L-M L M L-M L-M M M-H 
+
+> Impl emen tatio nCost Money Cost Infrastru-cture
+
+vL M-H vH H vH M vH M M H 
+
+> Developmental
+
+vL M-H H vH vH H H M M H 
+
+> Operational
+
+vL M-H M vH H H H M-H M H
+
+> Econo mic Efficie ncy Cost Effectiveness Ration
+
+vH M L vL vL M-H L M M H
+
+> Retrieval Precision ROI
+
+L H vH vH M-H H M H M-H H
+
+> Cost Accuracy Trade-off
+
+vL M H vH L-M H L M H H
+
+> Comparative Cost Analysis
+
+- - - - - - - - - -
+
+> Sources of information: [5,13,14,17,28,29,30,32,48,51,60,64,65,67,68]
+
+5.2 A Scenario Example 
+
+Consider the example of a set of tasks and user requirements for the RAG-LLM architecture of an Enterprise Financial and Legal Advisor (RAG-EFLA), as shown in Table 4. The checklists for the characterisation and analysis dimensions (Tables 2 and 3) can be used to comparatively assess which RAG techniques are the high-fit candidates that can meet the task and user requirements of the RAG-EFLA. The emphasis on multimodal integration (R3) and Agentic Intelligence (R5) makes Naïve RAG unsuitable. The likely candidates, based on Table 2 (characterisation checklist), are Agentic RAG, multimodal RAG, or Vision RAG. Also, regarding the RAG-EFLA requirements related to the analysis dimensions (Table 3), the emphasis on trustworthiness (R7), safety (R8 and R9), and efficiency (R11) will favour Graph RAG or Corrective RAG, which have high ratings in these categories. However, the implementation cost (R12), comprising monetary cost and economic efficiency, will favour RAG techniques with high ratings in these aspects. All of these considerations will determine the optimal RAG techniques for addressing the requirements of RAG-EFLA. In all cases, a weighted aggregate score can be computed for each RAG technique. Given that a characterisation dimension rating could be:√ (Yes) = 1; † (partial) = 0.5; X (No) = 0; and An analysis dimension rating could be: vH (Very High) = 5, H (High) = 4, M (Medium) = 3, L (Low) = 2, vL (Very Low) = 1, and Insufficient Information (-) = 0; L-M (Low to Medium) = 2.5 and M-H (Medium to High) = 3.5 The aggregate weighted score G can be computed as: 
+
+𝐺 = $ 𝑊1 !𝐶 !"!#$ 
+
++ $ 𝑊2 %𝐴 %&'#$ 
+
+(1) 
+
+Where :
+
+● G is the total aggregate score for the evaluated RAG technique. ● M is the total number of characterisation dimensions (e.g., M = 6). ● N is the total number of analysis dimensions (e.g., N = 5). ● W1 i is the user-assigned weight for the i-th characterisation dimension, where 1 ≤ i ≤ M.● W2 k is the user-assigned weight for the k-th analysis dimension, where 1 ≤ k ≤ N.● Ci is the aggregated rating score of the i-th characterisation dimension (calculated as the sum of its subdimensions and metrics). 10 ● Ak is the aggregated rating score of the k-th analysis dimension (calculated as the sum of its subdimensions and metrics). ● Ci and Ak are normalised average scores ranging from 0 to 1, since the characterisation and analysis dimensions have varying numbers of sub-dimensions or metrics. 
+
+𝐶 ! = 1𝐽 !
+
+$ 𝑓/𝑟 !( 1 (2) 
+
+> )!
+> (#$
+
+Where: 
+
+• Ji is the total number of metrics/sub-dimensions evaluated under characterisation dimension i.
+
+• rij is the qualitative symbol rating assigned to the j-th metric of the i-th dimension. 
+
+𝐴 % = 15. 𝑃 %
+
+$ 𝑔(𝑟 %* ) (3) 
+
+> +"
+> *#$
+
+Where :
+
+• Pk is the total number of metrics evaluated under analysis dimension k.
+
+• rkp is the linguistic rating assigned to the p-th metric of the k-th dimension. 
+
+• The constant 5 in the denominator scales the maximum possible Likert score (vH = 5) down to 1. 
+
+If the user-assigned weights are constrained to sum to 1 (∑ 𝑊1 ! + ∑ 𝑊2 %), the aggregate weighted score ( G) will always be between 0 and 1, or 0% and 100%, providing a basis for comparing different RAG techniques to assess their potential fitness to meet a set of tasks and user requirements. 
+
+Table 4 . Requirements of RAG-LLM Enterprise Financial and Legal Advisor (RAG-EFLA) 
+
+id Requirements Category 
+
+These requirements define what the system must do and how it should behave structurally. They relate directly to the characterisation dimensions. R1 The system must perform both complex question answering and broad text summarisation (e.g., summarising a 200-page loan agreement and highlighting compliance risks into a user-prescribed maximum number of words). Application Task & Language Generation R2 The assistant must navigate multiple domains simultaneously, seamlessly blending specialised financial accounting data with legal regulatory frameworks. Domain Scope R3 Users must be able to upload PDF documents containing text, embedded financial tables, and performance charts. The system must extract and reason across both text and visual elements. Multimodal Integration R4 To handle highly specific legal jargon alongside numeric financial metrics, the system must utilise a hybrid retrieval mechanism (combining sparse keyword matching for exact legal clauses with dense vector retrieval for semantic meaning). Retrieval & Embedding Strategy R5 The assistant must execute multi-step reasoning, such as cross-referencing an uploaded contract against a live database of regulatory updates, identifying discrepancies, and formulating acorrected summary. Agentic Intelligence R6 The system must adapt its output formatting and technical complexity based on user roles (e.g., providing high-level summaries for executive stakeholders vs detailed, granular citations for legal compliance officers). Personalization & Adaptation 11 
+
+These requirements define the performance boundaries, guardrails, and economic constraints of the system. They relate directly to the analysis dimensions. R7 The system must maintain near-zero tolerance for hallucinations. Every generated assertion must be strictly grounded in the retrieved context with explicit citations. Trustworthiness (Faithfulness and Factuality) R8 The system must gracefully handle ambiguous user prompts or conflicting information within documents without generating misleading advice or bypassing established safety guardrails. Robustness and Safety R9 The system must strictly adhere to data privacy boundaries, ensuring that financial data from one department is not leaked or made visible to unauthorised users during retrieval. Safety: Privacy and Compliance R10 The system must achieve very high retrieval precision to avoid cluttering the context window with irrelevant legal clauses. The architecture must scale efficiently across millions of enterprise documents without suffering a drop in retrieval accuracy or speed. Retrieval Quality and Performance R11 Response times for standard question answering must remain under 3 seconds (High Efficiency), even when executing agentic reflection loops. Efficiency R12 The development and operational infrastructure costs must balance accuracy with financial viability. While High correctness is required, it must avoid runaway token costs from brute-force agent loops. Economic Cost and Implementation 
+
+Based on the RAG-EFLA requirements (R1-R12), ratings can be assigned to different RAG techniques according to the characterisation and analysis dimensions checklists (See Tables 2 and 3). The ratings after applying the characterisation dimensions and analysis dimensions are shown in Tables 5 and 6. 
+
+Table 5 : Application of Characterisation Dimension                                                                                                              
+
+> “N” = Naïve RAG; “C” = Corrective RAG; “G” = Graph RAG; “A” = Agentic RAG; “M” = Multimodal RAG; “S” = Self-RAG; “V” = Vision RAG; “F” = Fusion RAG; “R” = Radio RAG; “H” = HyPA RAG. √ (Yes) = 1; † (partial) = 0.5; X (No) = 0; Number of dimensions/subdimensions = 12 ReqID Dimension /Subdimensions/ Metrics NCGAMSVFRHR4
+> Retrieval Mechanism Sparse Retrieval
+> √√√√√√√√√√
+> Dense Retrieval
+> √√√√√√√√√√
+> Hybrid Retrieval
+> √√√√√√√√√√
+> R5 Agentic Intelligence X√†√†√†XX√
+> R2
+> Applic ation Domain Single √√√√√√√√√√
+> Multiple X√√√√√√√X√
+> R1
+> Task Text Summarisation
+> †√√√√√†√√√
+> Language Generation √√√√√√√√√√
+> R4 Multimodal Integration Embedding Techniques
+> †√√√√X√√X√
+> R3 Context-to-Textual X√√√√√†√√√
+
+12 
+
+Table 6 : Application of Analysis Dimension 
+
+Based on the normalised rating scores, the Aggregate Score (G) for specific RAG techniques (e.g. NaiveRAG (N), AgenticRAG (R), etc.) can be computed using the formula in equation (1) as follows: 
+
+Case 1: all the dimensions (characterisation and analysis) have equal weights that sum up to 1 
+
+$ 𝑊1 !$, !#$ 
+
++ $ 𝑊2 % = 1 (4) 
+
+> -'#$
+
+21*W = 1, the W=1/21 = 0.0476. Total weight for characterisation dimensions (W1) = 12/21 = 4/7 = 0.57 Total weight for analysis dimension (W2) = 9/21 = 3/7 = 0.43 The formula for computing G then becomes: 
+
+𝐺 = (0.57 × 𝐶 !) + (0.43 × 𝐴 %)
+
+Naïve RAG: 𝐺(𝑁) = (0.57 × 0.66) + (0.43 × 0.55) = 0.6127 ⇒ 61.27% 
+
+Corrective RAG: 𝐺(𝐶) = (0.57 × 1) + (0.43 × 0.71) = 0.8753 ⇒ 𝟖𝟕. 𝟓𝟑% 
+
+Graph RAG: 𝐺(𝐺) = (0.57 × 0.95) + (0.43 × 0.71) = 0.8468 ⇒ 𝟖𝟒. 𝟔𝟖% 
+
+Agentic RAG: 𝐺(𝐴) = (0.57 × 1) + (0.43 × 0.74) = 0.8882 ⇒ 𝟖𝟖. 𝟖𝟐% 
+
+Multimodal RAG: 𝐺(𝑀) = (0.57 × 0.91) + (0.43 × 0.68) = 0.8111 ⇒ 81.11% 
+
+Self RAG: 𝐺(𝑆) = (0.57 × 0.83) + (0.43 × 0.6) = 0.7311 ⇒ 73.11% 
+
+Vision RAG: 𝐺(𝑉) = (0.57 × 0.83) + (0.43 × 0.77) = 0.8042 ⇒ 80.42% 
+
+Fusion RAG: 𝐺(𝐹) = (0.57 × 0.83) + (0.43 × 0.66) = 0.7569 ⇒ 75.69% 
+
+Radio RAG: 𝐺(𝑅) = (0.57 × 0.66) + (0.43 × 0.62) = 0.6428 ⇒ 64.28%                      
+
+> R6 Personalization & Adaptation Personalisation X√√√†X†XXX
+> Adaptation X√√√√√√√√√
+
+Sum of ratings (CD) 8 12 11.5 12 11 10 10 10 8 11 Normalised scores (C i = CD/12) 0.66 1 0.95 1 0.91 0.83 0.83 0.83 0.66 0.91 “N” = Naïve RAG; “C” = Corrective RAG; “G” = Graph RAG, “A” = Agentic RAG; “M” = Multimodal RAG; “S” = Self-RAG; “V” = Vision RAG; “F” = Fusion RAG; “R” = Radio RAG; “H” = HyPA RAG. “-” = Insufficient information             
+
+> Ratings : vH=5; H=4; M-H=3.5; M=3; L-M=2.5; L= 2; vL=1. Number of dimensions/subdimensions = 9
+> REQID Dimension/ Sub-dimensions/ Metrics NCGAMSVFRHR11
+> Performance Efficiency
+
+vH M L-M vL L-M L L-M L L-M M 
+
+> R10 Retrieval Quality
+
+L H vH vH H vH H M M-H vH    
+
+> R7 Trustworthiness Faithfulness
+
+M vH H H M vH H M H H 
+
+> R7
+> Safety Factuality
+
+L H vH H M H M H M M-H R8 Robustness L M H M-H L-M H L-M H M M-H R9 Privacy L M M L-M L M L-M L-M M M-H R12 
+
+> Implemen tation
+> Econo mic Efficie ncy Cost Effectiveness Ratio
+
+vH M L vL vL M-H L M M H 
+
+> R12 Development al Cost
+
+vL M-H H vH vH H H M M H 
+
+> R12 Operational Cost
+
+vL M-H M vH H H H M-H M HSum of ratings (AD) 25 32 33.5 31 27 34.5 28.5 28 28 34.5 
+
+Normalised scores (A k = AD/(5*9)) 0.55 0.71 0.74 0.68 0.6 0.77 0.63 0.62 0.62 0.76 13 HyPA RAG: 𝐺(𝐻) = (0.57 × 0.91) + (0.43 × 0.76) = 0.8455 ⇒ 𝟖𝟒. 𝟓𝟓% 
+
+Based on the aggregate scores, the best high-fit RAG candidates for the RAG-EFLA requirements are Agentic RAG, Corrective RAG, Graph RAG, and HyPA RAG. The best RAG technique can subsequently be determined empirically using RAG benchmarking. However, the pool of 10 RAG techniques is pruned to 4 high-fit candidates using checklists derived from the proposed conceptual framework. 
+
+Case 2: Experts assign different custom weights to dimensions, but all weights sum up to 1 .Practically, experts will likely assign a macro-weight to each category, for example, 60% to characterisation dimensions (W1), and 40% to analysis dimensions (W2). The set of sub-weights (w1 i and w2 k) will then be distributed within each group. 
+
+𝐺 = 𝑊1 $ 𝑤 $% 𝐶 ! + 𝑊2 $ 𝑤 ,% 𝐴 % (5) 
+
+> &$"!#$
+
+Where W1 + W 2 = 1 (e.g. W 1 = 0.6 for Characterisation, W 2 = 0.4 for Analysis) 
+
+∑ 𝑤 $!  
+
+> "!#$
+
+= 1 (the internal sub-weights of Characterisation dimensions that sum to 1) 
+
+∑ 𝑤 ,!  
+
+> &%#$
+
+= 1 (the internal sub-weights of Analysis dimensions that sum to 1) Since M = 12 and N = 9 If the experts assign macro weights 0.6 (characterisation) and 0.4 (Analysis), and also assign subweights to individual dimensions within each group, the formula in (5) to compute the total aggregate score then becomes: 
+
+= 0.6 $ 𝑤 $% 𝐶 ! + 0.4 $ 𝑤 ,% 𝐴 % (6) 
+
+> -$$, !#$
+
+By applying the formula in (6), the aggregate score (G) for different RAG techniques can be computed to determine the high-fit RAG candidates. 
+
+# 6. Conclusion 
+
+In this study, we proposed a conceptual framework comprising dimensions, subdimensions, and concepts/metrics for comparatively assessing how well different RAG techniques satisfy specific task and user requirements. The conceptual framework can be used as a checklist and filtering mechanism to identify high-fit RAG candidates that meet a set of tasks and user requirements before empirical validation. Thus, the conceptual framework is a pre-empirical assessment tool for RAG techniques that could be used to alleviate the huge cost associated with empirical benchmarking of RAG techniques, which can be a computationally and financially expensive procedure. To achieve this, we employed an iterative seven-step process that involves selecting relevant papers from the literature: paper selection; determining the key themes; iv) identifying dimensions; v) identifying sub-dimensions; vi) identifying characteristics and metrics of dimensions/sub-dimensions; and quality assurance. So far, no classification of RAG techniques by architectural and operational attributes has been proposed in the literature, which limits understanding of their intrinsic composition, features, and capabilities. Thus, as a contribution, this paper proposes a comprehensive conceptual framework that encompasses multiple critical dimensions to enable rigorous characterisation and analysis of the features and capabilities of RAG techniques, providing a robust basis for decision-making when selecting RAG techniques that fit specific tasks and user requirements before conducting empirical benchmarking. A major limitation of this study is that the framework is only applied to a set of selected (the more popular) RAG techniques, and not to all the available RAG techniques reported in the literature. The plausibility of our conceptual framework is that it can be applied to new RAG techniques once additional data has been collected from the literature. Another limitation is that the assigned ratings were not based on empirical validation; rather, they were a product of inferences from the information reported in the literature. Since there is no guarantee of 14 the absolute correctness of the facts reported on specific RAG techniques, our study inherits the reliability, errors, and inaccuracies that may pertain to the papers used as sources of information for our analysis. In future work, we will apply the conceptual framework to conduct a comparative evaluation of the features and capabilities of different RAG techniques across use cases, further validating its plausibility. We will also conduct empirical RAG benchmarking to validate the rating assigned to specific dimensions and sub-dimensions of the conceptual framework. Specific attention will also be given to the ethical attributes of RAG implementations, for which the literature currently provides insufficient information. 
+
+References 
+
+1. Joshua, C., Banerjee, A., Kaplan, M. A., Willie, A., Kalluri, R., Agnew, W., Chouhan, V.: Building Retrieval-Augmented Generation (RAG) for Internal Knowledge Bases. https://www.researchgate.net/publication/394431745 (2025). 
+
+2. Reddy, P., Chand, K., Sharma, K., Sharma, B., Sharma, S.: Evolution of Generative Artificial Intelligence: A Review of the Developed and Developing. Engineered Science. https://doi.org/10.30919/es1529 (2025). 
+
+3. Gupta, S., Ranjan, R., Singh, S. N.: Comprehensive Study on Sentiment Analysis: From Rule-based to modern LLM-based system. DOI:10.48550/arXiv.2409.09989 (2024). 
+
+4. Siyun Zhao, Yuqing Yang, Zilong Wang, Zhiyuan He, Luna Qiu, Lili Qiu: Retrieval Augmented Generation (RAG) and Beyond: A Comprehensive Survey on How to Make your LLMs use External Data More Wisely. CoRR abs/2409.14924 (2024). 
+
+5. Singh, A., Ehtesham, A., Kumar, S., Khoei, T. T.: Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG. http://arxiv.org/abs/2501.09136 (2025). 
+
+6. Yang, X., Sun, K., Xin, H., Sun, Y., Bhalla, N., Chen, X., ... & Dong, X. L. Crag-comprehensive rag benchmark. Advances in Neural Information Processing Systems, 37, 10470-10490 (2024). 7. Loukili, S., Elaachak, L., Ghadi, A., Fennan, A.: Artificial intelligence-driven integrated system for comprehensive email marketing automation. International Journal of Electrical and Computer Engineering (IJECE) 15(5), 4875 (2025). 
+
+8. Oniani, D., Hilsman, J., Peng, Y., Poropatich, R. K., Pamplin, J. C., Legault, G. L., Wang, Y.: Adopting and expanding ethical principles for generative artificial intelligence from military to healthcare. Npj Digital Medicine 6(1) (2023). 
+
+9. Feuerriegel, S., Hartmann, J., Janiesch, C., Zschech, P.: Generative AI. Business and Information Systems Engineering 66(1), 111–126 (2024). 
+
+10. Frank, B., Herbas-Torrico, B., Schvaneveldt, S. J.: The AI-extended consumer: Technology, consumer, country differences in the formation of demand for AI-empowered consumer products. Technological Forecasting and Social Change 172 (2021). 
+
+11. Gupta, S., Ranjan, R.: A Comprehensive Survey of Retrieval-Augmented Generation (RAG): Evolution, Current Landscape and Future Directions (2024). 
+
+12. Wang, H., Cui, J., Lee, S. M. Y., Lin, Z., Zeng, P., Li, X., Liu, H., Liu, Y., Xu, Y., Wang, Y., Alves, J. L. C. D. C., Hou, G., Fang, J., Yu, X., Chong, K. K. L., Pan, Y.: Applied machine learning in intelligent systems: knowledge graph-enhanced ophthalmic contrastive learning with “clinical profile” prompts. Frontiers in Artificial Intelligence 8 (2025). 
+
+13. Gan, A., Yu, H., Zhang, K., Liu, Q., Yan, W., Huang, Z., Tong, S., Hu, G.: Retrieval Augmented Generation Evaluation in the Era of Large Language Models: A Comprehensive Survey. Front. Comput. Sci., 2025, 0(0): 1–18 https://doi.org/10.1007/abs/2504.14891 (2025). 
+
+14. Gao, Y., Xiong, Y., Zhong, Y., Bi, Y., Xue, M., Wang, H.: Synergising RAG and Reasoning: A Systematic Review. http://arxiv.org/abs/2504.15909 (2025). 
+
+15. Arslan, M., Ghanem, H., Munawar, S., Cruz, C.: A Survey on RAG with LLMs. Procedia Computer Science 246, 3781– 3790 (2024). 
+
+16. Oche, A. J., Folashade, A. G., Ghosal, T., Biswas, A.: A Systematic Review of Key Retrieval-Augmented Generation (RAG) Systems: Progress, Gaps, and Future Directions. ArXiv abs/2507.18910 (2025). 
+
+17. Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., ... & Riedel, S.: Retrieval-augmented generation for knowledge-intensive NLP tasks. In: Larochelle, H., Ranzato, M., Hadsell, R., Balcan, M.F., Lin, H. (eds.) NeurIPS 2020, vol. 33, pp. 9459–9474. Curran Associates, Inc. (2020). 
+
+18. Yang, C.: Knowledge Graph vs. Vector RAG: Benchmarking, Optimisation Levers, and a Financial Analysis Example. Neo4j – Data Science, https://neo4j.com/blog/developer/knowledge-graph-vs-vector-rag/ (2024). 
+
+19. Boxin Wang, Wei Ping, Lawrence McAfee, Peng Xu, Bo Li, Mohammad Shoeybi, and Bryan Catanzaro. 2024. InstructRetro: instruction tuning post retrieval-augmented pretraining. In Proceedings of the 41st International Conference on Machine Learning (ICML'24), Vol. 235. JMLR.org, Article 2102, 51255–51272. (2023). 
+
+20. Yoran, O., Wolfson, T., Ram, O., Berant, J.: Making retrieval-augmented language models robust to irrelevant context. Findings of the Association for Computational Linguistics: ACL 2025, pages 3652–3668 July 27 - August 1, 2025 (2025). 
+
+21. Feiteng Fang, Yuelin Bai, Shiwen Ni, Min Yang, Xiaojun Chen, and Ruifeng Xu. 2024. Enhancing Noise Robustness of Retrieval-Augmented Language Models with Adaptive Adversarial Training. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 10028–10039, Bangkok, Thailand. Association for Computational Linguistics (2024). 15 
+
+22. Shrestha, Robik and Zou, Yang and Chen, Qiuyu and Li, Zhiheng and Xie, Yusheng and Deng, Siqi. FairRAG: Fair Human Generation via Fair Retrieval Augmentation, Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), June 2024, 11996-12005 (2024). 
+
+23. Stephen Roller, Emily Dinan, Naman Goyal, Da Ju, Mary Williamson, Yinhan Liu, Jing Xu, Myle Ott, Eric Michael Smith, Y-Lan Boureau, and Jason Weston. 2021. Recipes for Building an Open-Domain Chatbot. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume, pages 300–325, Online. Association for Computational Linguistics. (2020). 
+
+24. Yujia Zhou, Zheng Liu, Jiajie Jin, Jian-Yun Nie, and Zhicheng Dou. 2024. Metacognitive Retrieval-Augmented Large Language Models. In Proceedings of the ACM Web Conference 2024 (WWW '24). Association for Computing Machinery, New York, NY, USA, 1453–1463. https://doi.org/10.1145/3589334.3645481 (2024). 
+
+25. Sudhi, V., Bhat, S. R., Rudat, M., Teucher, R.: Rag-ex: A generic framework for explaining retrieval augmented generation. In: SIGIR, pp. 2776–2780 (2024). 
+
+26. Weijia Shi, Sewon Min, Michihiro Yasunaga, Minjoon Seo, Richard James, Mike Lewis, Luke Zettlemoyer, and Wen-tau Yih. 2024. REPLUG: Retrieval-Augmented Black-Box Language Models. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers), pages 8371–8384, Mexico City, Mexico. Association for Computational Linguistics (2024). 
+
+27. Alex Mallen, Akari Asai, Victor Zhong, Rajarshi Das, Daniel Khashabi, and Hannaneh Hajishirzi. 2023. When Not to Trust Language Models: Investigating Effectiveness of Parametric and Non-Parametric Memories. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 9802–9822, Toronto, Canada. Association for Computational Linguistics. (2022). 
+
+28. Asai, A., Wu, Z., Wang, Y., Sil, A., Hajishirzi, H.: Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection. International Conference on Learning Representations (ICLR) https://proceedings.iclr.cc/paper_files/paper/2024/file/25f7be9694d7b32d5cc670927b8091e1-Paper-Conference.pdf (2023). 
+
+29. Zhu, Y.: A knowledge graph and BiLSTM-CRF-enabled intelligent adaptive learning model and its potential application. Alexandria Engineering Journal 91, 305–320 (2024). 
+
+30. Chen, W., Hu, H., Chen, X., Verga, P., Cohen, W. W.: MuRAG: Multimodal Retrieval-Augmented Generator for Open Question Answering over Images and Text. 05 Oct 2022 Vol. abs/2210.02928 (2022). 
+
+31. Michihiro Yasunaga, Armen Aghajanyan, Weijia Shi, Rich James, Jure Leskovec, Percy Liang, Mike Lewis, Luke Zettlemoyer, and Wen-tau Yih. 2023. Retrieval-augmented multimodal language modeling. In Proceedings of the 40th International Conference on Machine Learning (ICML'23), Vol. 202. JMLR.org, Article 1659, 39755–39769 (2022). 
+
+32. Yu, H., Gan, A., Zhang, K., Tong, S., Liu, Q., Liu, Z.: Evaluation of retrieval-augmented generation: A survey. In: CCF Conference on Big Data, pp. 102–120 (2024). 
+
+33. Selvaraj, T.: Calculate the total cost of a retrieval augmented generation (rag) solution https://arxiv.org/html/2504.14891v1 (2024). 
+
+34. J. Zhang, G. Li and J. Su, "SAGE: A Framework of Precise Retrieval for RAG," 2025 IEEE 41st International Conference on Data Engineering (ICDE), Hong Kong, Hong Kong, 2025, pp. 1388-1401, doi: 10.1109/ICDE65448.2025.00108. (2025). 
+
+35. Su, J., Healey, J., Nakov, P., Cardie, C.: Fast or better? balancing accuracy and cost in retrieval-augmented generation with flexible user control. CoRR (2025). 
+
+36. Sakar, T., Emekci, H.: Maximising rag efficiency: A comparative analysis of rag methods. Natural Language Processing 31(1), 1–25 (2025). 
+
+37. Fan, W., Ding, Y., Ning, L., Wang, S., Li, H., Yin, D., Chua, T. S., Li, Q.: A survey on rag meeting llms: Towards retrieval-augmented large language models. In: Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining, pp. 6491–6501 (2024). 
+
+38. Bernal Jiménez Gutiérrez, Yiheng Shu, Yu Gu, Michihiro Yasunaga, and Yu Su. 2024. HippoRAG: neurobiologically inspired long-term memory for large language models. In Proceedings of the 38th International Conference on Neural Information Processing Systems (NIPS '24), Vol. 37. Curran Associates Inc., Red Hook, NY, USA, Article 1902, 59532– 59569. (2024). 
+
+39. Liu, Y., Huang, L., Li, S., Chen, S., Zhou, H., Meng, F., Zhou, J., Sun, X.: Re-call: A benchmark for llms robustness against external counterfactual knowledge. arXiv preprint arXiv:2311.08147 (2023). 
+
+40. Wu, S., Xie, J., Chen, J., Zhu, T., Zhang, K., Xiao, Y.: How easily do irrelevant inputs skew the responses of large language models, CORR, https://dblp.org/rec/journals/corr/abs-2404-03302.bib (2024). 
+
+41. Xin Cheng, Xun Wang, Xingxing Zhang, Tao Ge, Si-Qing Chen, Furu Wei, Huishuai Zhang, and Dongyan Zhao. 2024. XRAG: extreme context compression for retrieval-augmented generation with one token. In Proceedings of the 38th International Conference on Neural Information Processing Systems (NIPS '24), Vol. 37. Curran Associates Inc., Red Hook, NY, USA, Article 3476, 109487–109516. (2024). 
+
+42. Robertson, S. G., Zaragoza, H.: The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval 3(4), 333–389 (2009). 
+
+43. Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-augmented generation for 16 
+
+knowledge-intensive NLP tasks. In Proceedings of the 34th International Conference on Neural Information Processing Systems (NIPS '20). Curran Associates Inc., Red Hook, NY, USA, Article 793, 9459–9474. (2020). 
+
+44. Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., Liu, P. J.: Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer. Journal of Machine Learning Research, 1-67 Submitted 1/20; Revised 6/20; Published 6/20 (2020). 
+
+45. Revar, A., Bhesaniya, B., Wandra, K.: RAG-Enhanced Spam Detection Framework: A Synergy of Cloud Scalability and Adaptive AI Models. SN Computer Science 6(5) (2025). 
+
+46. Ravuru, C., Sakhinana, S. S., Runkana, V.: Agentic retrieval-augmented generation for time series analysis (2024). 
+
+47. Weaviate Blog: What is agentic rag? https://weaviate.io/blog/what-is-agentic-rag#:~:text=is%20Agentic%20RAG%3F-,%E2%80%8B,of%20the%20non%2Dagentic%20pipeline, last accessed 2025/11/11. 
+
+48. Yan, S.-Q., Gu, J.-C., Zhu, Y., Ling, Z.-H.: Corrective retrieval augmented generation (2024). 
+
+49. LangGraph CRAG Tutorial: Langgraph crag: Contextualised retrieval-augmented generation tutorial. https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_crag/, last accessed 2025/11/11. 
+
+50. Jeong, S., Baek, J., Cho, S., Hwang, S. J., Park, J. C.: Adaptive-rag: Learning to adapt retrieval-augmented large language models through question complexity. Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers), pages 7036–7050 June 16-21 (2024). 
+
+51. Lee, M.-C., Zhu, Q., Mavromatis, C., Han, Z., Adeshina, S., Ioannidis, V. N., Rangwala, H., Faloutsos, C.: Agent-g: An agentic framework for graph retrieval augmented generation (2024). 
+
+52. LlamaIndex: Introducing agentic document workflows. https://www.llamaindex.ai/blog/introducing-agentic-document-workflows, last accessed 2025/11/11 (2025). 
+
+53. Wei Zou, Runpeng Geng, Binghui Wang, and Jinyuan Jia. 2025. PoisonedRAG: knowledge corruption attacks to retrieval-augmented generation of large language models. In Proceedings of the 34th USENIX Conference on Security Symposium (SEC '25). USENIX Association, USA, Article 197, 3827–3844 (2024). 
+
+54. Zhang, Y., Li, Q., Du, T., Zhang, X., Zhao, X., Feng, Z., Yin, J.: Hijackrag: Hijacking attacks against retrieval-augmented large language models. arXiv preprint arXiv:2410.22832 (2024). 
+
+55. Zeng, S., Zhang, J., He, P., Liu, Y., Xing, Y., Xu, H., Ren, J., Chang, Y., Wang, S., Yin, D., others: The good and the bad: Exploring privacy issues in retrieval-augmented generation (rag). In: Findings of the Association for Computational Linguistics ACL 2024, pp. 4505–4524 (2024). 
+
+56. Harsh Chaudhari, Giorgio Severi, John Abascal, Anshuman Suri, Matthew Jagielski, Christopher A. Choquette-Choo, Milad Nasr, Cristina Nita-Rotaru, and Alina Oprea. 2026. Phantom: General Backdoor Attacks on Retrieval Augmented Language Generation. ACM Trans. AI Secur. Priv. Just Accepted (March 2026). https://doi.org/10.1145/3796729 (2024). 
+
+57. Ji, Z., Lee, N., Frieske, R., Yu, T., Su, D., Xu, Y., Ishii, E., Bang, Y., Chen, D., Dai, W., Chan, H. S., Madotto, A., Fung, P.: Survey of Hallucination in Natural Language Generation. ArXiv. https://doi.org/10.1145/3571730 (2022). 
+
+58. Nadezhda Chirkova, David Rau, Hervé Déjean, Thibault Formal, Stéphane Clinchant, and Vassilina Nikoulina. 2024. Retrieval-augmented generation in multilingual settings. In Proceedings of the 1st Workshop on Towards Knowledgeable Language Models (KnowLLM 2024), pages 177–188, Bangkok, Thailand. Association for Computational Linguistics (2024). 
+
+59. Salve, A., Attar, S., Deshmukh, M., Shivpuje, S., Utsab, A. M.: A Collaborative Multi-Agent Approach to Retrieval-Augmented Generation Across Diverse Data. http://arxiv.org/abs/2412.05838 (2024). 
+
+60. Zhucun Xue. 2025. Multi-Modal Retrieval Augmented Visual Understanding and Generation. In Proceedings of the 33rd ACM International Conference on Multimedia (MM '25). Association for Computing Machinery, New York, NY, USA, 13571–13575. https://doi.org/10.1145/3746027.3756866 (2025). 
+
+61. Yan, S.-Q., Gu, J.-C., Zhu, Y., Ling, Z.-H.: Corrective Retrieval Augmented Generation. http://arxiv.org/abs/2401.15884 (2024). 
+
+62. Edge, D., Trinh, H., Cheng, N., Bradley, J., Chao, A., Mody, A., Truitt, S., Metropolitansky, D., Ness, R. O., Larson, J.: From Local to Global: A Graph RAG Approach to Query-Focused Summarisation. http://arxiv.org/abs/2404.16130 (2025). 
+
+63. Yazan, M., Verberne, S., Situmeang, F.: Improving RAG for Personalisation with Author Features and Contrastive Examples Lecture Notes in Computer Science, 408-416, Vol. 15574, Published - 4 Apr 2025, Springer, (2025). 
+
+64. Jikarada, B.: Exploring the Different Types of RAG in AI. Medium – Retrieval Augmented Generation Systems, https://bhavikjikadara.medium.com/exploring-the-different-types-of-rag-in-ai-c118edf6d73c (2025). 
+
+65. Kalra, R., Wu, Z., Gulley, A., Hilliard, A., Guan, X., Koshiyama, A., Treleaven, P.: HyPA-RAG: A Hybrid Parameter Adaptive Retrieval-Augmented Generation System for AI Legal and Policy Applications (2025). 
+
+66. Momii, Y., Takiguchi, T., Ariki, Y.: RAG-Fusion Based Information Retrieval for Fact-Checking. https://competitions.codalab.org/ (2024). 
+
+67. Rackauckas, Z.: RAG-Fusion: a New Take on Retrieval-Augmented Generation. https://doi.org/10.5121/ijnlc.2024.13103 (2024). 
+
+68. Tayebi Arasteh, S., Lotfinia, M., Bressem, K., Siepmann, R., Adams, L., Ferber, D., Kuhl, C., Kather, J. N., Nebelung, S., Truhn, D.: RadioRAG: Online Retrieval-Augmented Generation for Radiology Question Answering. Radiol Artif Intell (2025). 17 
+
+69. LangGraph CRAG Tutorial: Langgraph crag: Contextualised retrieval-augmented generation tutorial. https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_crag/, last accessed 2025/11/11. 
+
+70. Pregasen, M.: Vector Databases vs. Knowledge Graphs for RAG. Paragon – Developer Relations, https://www.useparagon.com/blog/vector-database-vs-knowledge-graphs-for-rag (2025).

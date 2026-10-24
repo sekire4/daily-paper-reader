@@ -1,0 +1,601 @@
+Title: Pre-Query Retention with Bounded Bit and Word Retrieval
+
+URL Source: https://arxiv.org/pdf/2610.25098v1
+
+Published Time: Tue, 20 Oct 2026 01:24:19 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+# Pre-Query Retention with Bounded Bit and Word Retrieval 
+
+## PRANAV SINGH ∗, Indian Institute of Technology Ropar, India 
+
+## PRASHANT SINGH ∗, Indian Institute of Technology Ropar, India 
+
+An agent can retain information before receiving a future question and later retrieve evidence from an archive. Evaluating this arrangement requires accounting for both retained information and the width of each retrieval response. Decision-tree capacity bounds describe individual sets of distinguishable records, but a memory writer must encode every possible record before the query is known. We study fixed-length retention beside an immutable binary archive, with a worst-case limit on raw bit or word reads. We characterize feasible one-bit-read memory cells and construct encoders that partition the complete record space. Supporting pairwise exclusive disjunction and conjunction with one bit read is equivalent to supporting every Boolean query. For multiple reads, we combine explicit encoders with decision-tree counting and an entropy converse. The word-read bounds differ by at most two retained bits when the read budget is at most half the archive length. Under an explicit condition on word width and archive length, raw-word caching attains the exact optimum among all writers. A related condition preserves this optimum under positive average error. Exhaustive checks validate the implementations. In a matched dialogue-agent study, a categorical sufficient statistic preserves source decisions with less storage and lower decoding latency than the universal encoder. A catalogue-specific index reduces private state further and requires additional shared storage. The results characterize how response width and future query structure determine retention requirements. 
+
+1 Introduction 
+
+An agent may receive evidence before knowing which future decision will use it. A memory writer can compress that evidence into retained state, while a later reader retrieves selected parts of the original archive. The retained state and retrieval responses jointly determine which decisions remain possible. Decision-oriented compression and selective information acquisition already address this relationship [Bilgic and Getoor 2011; Permuter and Weissman 2011; Zou et al. 2026]. A useful comparison must specify the archive interface. A bit read returns one original binary coordinate. A word read returns a fixed block of original coordinates. Both interfaces differ from querying a rewritten index or a semantic retrieval service. Systematic data structures formalize storage beside original data [Gál and Miltersen 2003; Natarajan Ramamoorthy and Rashtchian 2020]. Input-dependent information available without charged probes also appears as published bits [Pătraşcu and Viola 2010]. Help-bit models study information provided before bounded decision-tree computation [Nisan et al. 1999]. Our focus is a single writer shared by all subsequent Boolean queries, where a Boolean query returns a binary decision about the record. Decision-tree capacity provides a local restriction on such a writer. A retained state identifies a set of possible records, called its memory cell. The reader must answer each query on that cell using bounded raw retrieval. Established shattering results characterize sets on which decision trees can realize every binary labeling [Leboeuf et al. 2022; Yıldız 2012, 2015]. A retention guarantee also requires a fixed-length encoding that partitions the complete record space into suitable cells. Response width must be included when interpreting the resulting savings. We study this global encoding problem with unrestricted computation and an explicit worst-case read budget. Figure 1 shows the writer and reader interfaces. The writer records offsets relative to public anchor features. After receiving a query, the reader evaluates it on the candidate records allowed by those offsets. A selected raw         
+
+> ∗Both authors contributed equally to this work. Authors’ Contact Information: Pranav Singh, 2023mcb1308@iitrpr.ac.in, Department of Mathematics, Indian Institute of Technology Ropar, Rupnagar, Punjab, India; Prashant Singh, 2023mcb1309@iitrpr.ac.in, Department of Mathematics, Indian Institute of Technology Ropar, Rupnagar, Punjab, India. Preprint, 18 October 2026 arXiv:2610.25098v1 [cs.IT] 18 Oct 2026 2•Pranav Singh and Prashant Singh Full record Batch writer Retained state Reader Answer Unchanged raw archive Later query
+> Charged reads
+> Before the query After the query
+> Fig. 1. Pre-query writing and bounded raw retrieval.
+
+coordinate then determines the answer. For word retrieval, the reader compares this construction with retaining all words except those it will read directly. A retained payload alone does not specify archive requirements or query coverage. The matched application compares these resources under fixed source observations and includes shared codebooks in its storage accounting. Our contributions are as follows: 
+
+• We characterize one-bit-read memory cells and prove that supporting pairwise exclusive disjunction and conjunction implies support for every Boolean query. Explicit full-domain encoders attain the resulting fixed-bit retention bounds. 
+
+• We derive word-read retention bounds with a uniform gap of at most two bits for budgets up to half the archive length. We identify a regime in which raw-word caching is exactly optimal among all writers. 
+
+• We extend the counting converse to randomized schemes with average error and obtain an exact caching regime with positive error allowance. 
+
+• We provide instrumented implementations, exhaustive checks, and a matched text-to-decision evaluation. The study separates preservation of source decisions from source accuracy and compares payload, archive, and shared storage across query workloads. The capacity bounds and selector constructions originate in prior decision-tree work [Yıldız 2012, 2015]. Our results concern writer partitions, workload equivalence, and their retained-state consequences under specified retrieval interfaces. 
+
+2 Related work 
+
+Systematic storage and bit probes. Gál and Miltersen [2003] study original data with an auxiliary index for prefix sums and substring search. Their accounting charges probes into the stored structure. Our reader sees the entire retained tier directly. Viola [2012] proves redundancy lower bounds for encoded ternary arrays and set membership under adaptive bit probes. Pătraşcu and Viola [2010] establish word-probe bounds for rank and select. Their analysis uses input-dependent published bits that the reader examines without charge. Our retained tier has this established role. We study the stated pair and universal workloads while restricting charged access to the unchanged record. 
+
+Help bits and linear structures. Nisan et al. [1999] study help bits followed by decision trees that evaluate copies of a fixed function on disjoint inputs. Our writer supports future queries that may overlap on the same record.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •3
+
+Natarajan Ramamoorthy and Rashtchian [2020] relate systematic linear structures for inner products to matrix rigidity. We allow nonlinear writers and analyze universal Boolean queries, including a comparison with affine writers. 
+
+Decision-tree capacity. Yıldız [2012] establish the capacity of binary and multiway stumps. They also provide a selector construction. A stump is a decision tree with one internal test. The journal treatment extends these results [Yıldız 2015]. Leboeuf et al. [2022] analyze partitioning and generalization for real-valued and categorical features. We use the binary-stump and selector ingredients to construct global writer partitions. Multiway tree counting yields our word-width bounds. We attribute these capacity tools to their predecessors. 
+
+Information acquisition and decision compression. Side-information vending jointly designs a compressed description and later information-acquisition actions [Permuter and Weissman 2011]. Locally decodable source coding limits access to a coded description [Makhdoumi et al. 2013]. Our reader accesses original archive coordinates. Value-of-information methods select features using probabilistic structure [Bilgic and Getoor 2011]. Approximate information states preserve information required for planning [Subramanian et al. 2022]. Our universal-query objective provides a worst-case comparison for retention beside a raw archive. 
+
+Agent memory. Finite recurrent-state retrieval limits [Wen et al. 2024] and rate–distortion formulations for agent memory [Zou et al. 2026] motivate explicit state accounting. Nous studies belief maintenance and certification [Singh 2026a,b]. We reuse the pretrained models and the released updater [Singh 2026c] in a matched text-to-decision evaluation. The observation stage is held fixed within each source group while the retained representation changes. 
+
+2.1 Retained-state contribution 
+
+A capacity bound concerns the labelings realizable on one set of records. Our writer must partition the complete input space before the query is known. Table 1 distinguishes the imported ingredients from the retained-state statements established in this work. The universal one-read converse is a fixed-length consequence of the known stump capacity. Its attaining encoder requires a compatible global partition. The multiple-read construction lifts the established selector construction through public anchors and stored offsets. The entropy and word results extend counting to the stated retention and error conventions. Global preprocessing is standard in data structures [Gál and Miltersen 2003; Viola 2012]. Our contribution is the stated workload characterization and retained-state bounds within that framework. 
+
+3 Model and resource conventions 
+
+A record 𝑥 ∈ { 0, 1}𝑛 is available in full during batch writing. A public writer 𝑊 emits a fixed state 𝑚 = 𝑊 (𝑥 ) ∈ {0, 1}𝐵 before the actual query is supplied. The archive remains the original indexed array (𝑥 1, . . . , 𝑥 𝑛 ). The reader sees the state and query, and requests at most 𝑅 original coordinates. Each response contains one bit. Later addresses may depend on earlier responses. Section 7 extends the interface to aligned words. We consider three query families: exclusive disjunction (XOR) of every distinct coordinate pair, every Boolean gate on each pair, and every Boolean function of the complete record. Conjunction is denoted AND, and disjunction is denoted OR. A query is a pure evaluable function of a hypothetical record. A truth table is an allowed finite description. The writer may know the query family and record length, but does not know the eventual query. Exact guarantees hold for every record and query. Public code and schema are independent of the record. All persistent record-dependent indexes, parameters, seeds, and metadata belong in the retained state. Each query starts from that state without a reusable transcript of earlier queries. Random tapes are independent of the record and query. The read limit holds on every execution. The raw archive and retained tier together occupy 𝑛 + 𝐵 logical bits. The tier is fully visible, while only archive            
+
+> Preprint, 18 October 2026 4•Pranav Singh and Prashant Singh
+> Result Established ingredient Retained-state conclusion Theorem 1 Coordinate stumps and binary shattering ca-pacity [Yıldız 2012, 2015] Affine-hull characterization and equivalence of pairwise XOR-plus-AND support with universal one-read support. Theorem 2 Binary-stump capacity and simplex-code fea-tures Full-domain offset partitions attaining fixed-bit optima, with an affine-writer comparison. Theorem 3 Selector shattering [Yıldız 2012] and decision-tree counting [Leboeuf et al. 2022] Compatible global encoders and converse bounds, with an exact affine-writer optimum. Theorem 4 Counting finite tree descriptions and the bi-nary entropy inequality A converse for randomized writers fixed before the query and uniform-source average error. Theorem 5 Multiway capacity [Yıldız 2012, 2015] and mul-tiway tree counting Word-width bounds, a uniform two-bit gap, and an exact raw-caching regime. Proposition 6 The entropy converse and the word-tree count A finite-error condition under which integer reten-tion still makes raw caching optimal.
+> Table 1. Established ingredients and retained-state conclusions. XOR denotes exclusive disjunction and AND denotes conjunction.
+
+probes count toward 𝑅 . Charging every retained-bit access would allow simulation with 𝐵 + 𝑅 bit probes by reading the entire tier first. An affine writer has the form 𝑊 (𝑥 ) = 𝐴𝑥 + 𝑏 over the binary field, with a fixed matrix 𝐴 and vector 𝑏 . The theory allows unrestricted computation and transient workspace. Writing is a batch operation with access to the complete record. The bit implementation stores each binary fact in one byte and packs the retained state into ⌈𝐵 /8⌉ bytes with zero padding. The word implementation returns the complete declared word value. Archive storage, transient allocations, shared code, and extraction models are accounted for separately from retained bits. 
+
+4 One-read cells and exact retention 
+
+The key object is the set of histories that the retained state fails to distinguish. For a state 𝑚 , let 𝑆 𝑚 = 𝑊 −1 (𝑚 ),omitting empty cells. On a cell 𝑆 , write 𝑐 𝑖 (𝑥 ) = 𝑥 𝑖 and define 
+
+D ( 𝑆 ) = {0, 1, 𝑐 1, 1 + 𝑐 1, . . . , 𝑐 𝑛 , 1 + 𝑐 𝑛 }. (1) All arithmetic in this section is over F2. A reader that knows 𝑚 can select an address separately for each query. Once that address is selected, a function of the returned bit is constant, identity, or complement. Consequently, a query is exactly one-read answerable on 𝑆 if and only if its restriction belongs to D ( 𝑆 ). Different queries may select different addresses from the retained state. Theorem 1 (Structure of one-read cells). Fix a nonempty 𝑆 ⊆ { 0, 1}𝑛 , a reference 𝑥 0 ∈ 𝑆 , and 𝑉 =
+
+span {𝑥 + 𝑥 0 : 𝑥 ∈ 𝑆 }. Let 𝑑 = dim 𝑉 , and let 𝑉 ∗ denote its dual space of linear forms. 
+
+(1) Every pairwise XOR is one-read answerable on 𝑆 if and only if the coordinate linear forms restricted to 
+
+𝑉 , together with zero, exhaust 𝑉 ∗. In this case 𝑑 ≤ ⌊ log 2 (𝑛 + 1)⌋ , and the entire affine hull 𝑥 0 + 𝑉 is also XOR-feasible. 
+
+(2) The following conditions are equivalent: 
+
+(a) All Boolean functions of each pair are one-read answerable. 
+
+(b) All pairwise XOR and AND functions are one-read answerable. 
+
+(c) Every Boolean function on 𝑆 is one-read answerable. 
+
+(d) The cell 𝑆 is XOR-feasible and affinely independent.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •5
+
+The first part requires the raw coordinates to contain every linear measurement direction on the remaining uncertainty space. The second part requires affine independence when conjunctions and parity relations are both supported. The same writer cells then support arbitrary Boolean queries. Appendix A proves the theorem. Theorem 2 (Exact fixed-bit optima). For 𝑛 ≥ 2, with at most one raw bit read and exact answers on the full cube, the minimum retained state lengths are 
+
+𝐵 ⊕ (𝑛, 1) = 𝑛 − ⌊ log 2 (𝑛 + 1)⌋ , (2) 
+
+𝐵 pair (𝑛, 1) = 𝐵 all (𝑛, 1) = 𝑛 − log 2
+
+ 1 + ⌊ log 2 (𝑛 + 1)⌋  . (3) 
+
+The universal optimum can be attained by a nonlinear writer. If the writer is restricted to fixed affine measurements over F2, the optimum for the Boolean-pair workload is 𝑛 − 1.
+
+The retained length 𝐵 is an integer number of fixed bits. For the XOR workload, every feasible cell has at most 2⌊log 2 (𝑛 +1) ⌋ points. For the universal workload it has at most 𝑠 𝑛 = 1 + ⌊ log 2 (𝑛 + 1)⌋ points. The latter formula is the known Vapnik–Chervonenkis (VC) dimension of binary decision stumps [Yıldız 2012, 2015]. The retention problem also requires a partition of every history into decodable cells. The constructions below supply that global partition, without a history-specific codebook. The construction uses power-of-two-sized cells and attains the fixed-bit optimum. 
+
+4.1 An attaining XOR encoder 
+
+Set 𝑟 = ⌊log 2 (𝑛 + 1)⌋ . Assign public labels 𝑣 1, . . . , 𝑣 𝑛 ∈ F𝑟  
+
+> 2
+
+containing all 2 𝑟 − 1 nonzero vectors, and use zero labels for any remaining positions. Choose the positions of the 𝑟 standard basis vectors as anchors. Let 𝑧 be the corresponding raw archive bits. The writer retains the 𝑛 − 𝑟 nonanchor offsets 
+
+𝑎 𝑖 = 𝑥 𝑖 + ⟨ 𝑣 𝑖 , 𝑧 ⟩. (4) Anchor offsets are zero. For query (𝑖, 𝑗 ), if 𝑣 𝑖 + 𝑣 𝑗 = 0, return 𝑎 𝑖 + 𝑎 𝑗 . Otherwise choose the public position ℓ
+
+labeled 𝑣 𝑖 + 𝑣 𝑗 , read 𝑥 ℓ , and return 𝑥 ℓ + 𝑎 ℓ + 𝑎 𝑖 + 𝑎 𝑗 . The returned value equals 𝑥 𝑖 + 𝑥 𝑗 . The cells are cosets of a binary simplex-code subspace with zero padding. The construction uses this standard code structure. 
+
+4.2 An attaining universal encoder 
+
+Set 𝑘 = ⌊log 2 𝑠 𝑛 ⌋ and 𝑡 = 2𝑘 . List as public features 𝜙 1, . . . , 𝜙 𝑛 : {0, 1}𝑘 → { 0, 1} every nonzero Boolean function satisfying 𝜙 (0) = 0, then pad with zero functions. The feature list fits because there are 2 𝑡 −1 − 1 ≤ 𝑛 nonzero normalized functions. The list includes the 𝑘 identity functions. Use their positions as anchors, let 𝑧 be the corresponding raw bits, and retain 
+
+𝑎 𝑖 = 𝑥 𝑖 + 𝜙 𝑖 (𝑧 ) (5) at the 𝑛 − 𝑘 nonanchor positions. All anchor offsets are zero. Every payload defines exactly the 𝑡 candidate histories 𝑥 (𝑧 ) = 𝑎 + Φ(𝑧 ), where Φ(𝑧 ) = (𝜙 1 (𝑧 ), . . . , 𝜙 𝑛 (𝑧 )) .Given any pure Boolean query 𝑞 , compute its truth table on these candidates, 𝑔 (𝑧 ) = 𝑞 (𝑎 + Φ(𝑧 )) . Put 𝑏 = 𝑔 (0).If 𝑔 + 𝑏 is zero, answer 𝑏 without reading. Otherwise the public feature list contains 𝑔 + 𝑏 = 𝜙 ℓ . Read 𝑥 ℓ and answer 𝑥 ℓ + 𝑎 ℓ + 𝑏 . The query evaluation uses hypothetical histories obtained from the payload. The read address is fixed before the read response arrives. This procedure makes 𝑡 evaluations of 𝑞 . For a pair query it can construct 𝑔 directly from two feature tables and the two offsets, without materializing candidate histories. The exhaustive-label ingredients are established in stump shattering constructions [Yıldız 2012]. The offset encoder turns them into a full-cube partition.   
+
+> Preprint, 18 October 2026 6•Pranav Singh and Prashant Singh
+
+Workload dependence. With two raw reads, either pair workload needs zero retained state. With no reads, pairwise XOR needs 𝑛 − 1 bits and the Boolean-pair workload needs 𝑛 . The former identifies a record up to global complementation. The latter includes every coordinate projection. Appendix B proves these endpoint statements. 
+
+5 Universal queries with multiple reads 
+
+Let 𝐵 all (𝑛, 𝑅 ) denote the optimum for all Boolean queries under the same full-cube, fixed-state model. This workload is larger than pair queries when 𝑅 ≥ 2. Theorem 3 (Uniform bounds for universal retrieval). For 𝑛 ≥ 2 and 1 ≤ 𝑅 ≤ 𝑛 , define 
+
+𝐶 𝑛,𝑅 = 2𝑅 + ( 2𝑅 − 1) log 2 𝑛, 𝑘 𝑛,𝑅 = log 2
+
+ 1 + ⌊ log 2 (𝑛 − 𝑅 + 2)⌋  . (6) 
+
+Then 
+
+max {0, 𝑛 − ⌊ log 2 ⌊𝐶 𝑛,𝑅 ⌋⌋} ≤ 𝐵 all (𝑛, 𝑅 ) ≤ 𝑛 − 𝑅 + 1 − 𝑘 𝑛,𝑅 . (7) 
+
+In particular, uniformly for 1 ≤ 𝑅 ≤ ⌊ 𝑛 /2⌋,
+
+𝑛 − 𝑅 − log 2 log 2 𝑛 − 1 ≤ 𝐵 all (𝑛, 𝑅 ) ≤ 𝑛 − 𝑅 − log 2 log 2 𝑛 + 3. (8) 
+
+At 𝑅 = 0 the optimum is 𝑛 , and at 𝑅 = 𝑛 it is zero. For affine writers the optimum for arbitrary Boolean queries is exactly 𝑛 − 𝑅 for 0 ≤ 𝑅 ≤ 𝑛 .
+
+The converse is a standard decision-tree counting argument applied inside each memory cell. There are at most 
+
+𝑛 2𝑅 −122𝑅 
+
+full depth-𝑅 trees with raw-coordinate tests and Boolean leaves. Universal answerability requires these trees to realize every labeling of the cell. Decision-tree counting and shattering are established tools [Leboeuf et al. 2022; Yıldız 2012]. For the construction, allocate 𝑅 − 1 coordinates as selector anchors and apply the universal feature construction to the remaining 𝑛 − 𝑅 + 1 coordinates, with 𝑘 𝑛,𝑅 tail anchors. Retain only the offsets on all nonanchors. The reader first reads the selector bits, then evaluates the query on the 2 𝑘 𝑛,𝑅 possible tail histories and performs the single tail-feature read. Adaptivity is used between the selector stage and the final read. The degenerate selector-plus-stump construction appears in Yıldız [2012, Theorem 2]. Our full binary selector stage corresponds to the construction in Yıldız [2012, Theorem 3]. The offset encoding partitions the entire raw-history cube into decodable cells. Appendix C gives the partition and rounding details. Equation (8) limits universal retained-state savings. Beyond the 𝑅 bits recoverable by storing everything else, one can omit only about log 2 log 2 𝑛 further bits, up to constants. The affine-writer bound shows an unbounded additive nonlinear advantage, with no constant-factor reduction in retained state when 𝑅 = 𝑜 (𝑛 ). A compact semantic statistic can be much smaller for restricted history support or a restricted future query family. 
+
+6 Average-error guarantees 
+
+Worst-case exactness is a strong requirement. A related obstruction survives if each query may err on a fixed fraction of uniformly sampled records. Let 𝐵 𝜖 (𝑛, 𝑅 ) be the minimum fixed retained length such that, for every Boolean query 𝑞 ,Pr 
+
+> 𝑋 , Ω
+
+{b𝑞 (𝑋 ) ≠ 𝑞 (𝑋 )} ≤ 𝜖, 𝑋 ∼ Unif ({ 0, 1}𝑛 ), (9) where Ω denotes all algorithmic randomness independent of 𝑋 and the query. The read limit holds in every execution. Abstention is counted as an error. A query may be selected adversarially but is fixed independently of the particular drawn record. For the zero-read case, set 𝐶 𝑛, 0 = 1.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •7
+
+Theorem 4 (Average-error universal converse). For 𝑛 ≥ 2, 0 ≤ 𝑅 ≤ 𝑛 , and 0 ≤ 𝜖 < 1/2,
+
+𝐵 𝜖 (𝑛, 𝑅 ) ≥ max 0, 𝑛 − log 2 𝐶 𝑛,𝑅 + log 2 (1 − ℎ2 (𝜖 ))  , (10) 
+
+where ℎ2 (𝑝 ) = −𝑝 log 2 𝑝 − ( 1 − 𝑝 ) log 2 (1 − 𝑝 ) is binary entropy, with 0 log 2 0 = 0. Shared and private independent randomization are permitted. For 𝑅 ≥ 1, the exact construction gives the upper bound in Equation (7) . For 𝑅 = 0,retaining all 𝑛 bits suffices. Consequently, for each fixed 𝜖 < 1/2, uniformly over 1 ≤ 𝑅 ≤ ⌊ 𝑛 /2⌋,
+
+𝐵 𝜖 (𝑛, 𝑅 ) = 𝑛 − 𝑅 − log 2 log 2 𝑛 + 𝑂 𝜖 (1). (11) The proof chooses a random Boolean query, whose labels on the 2 𝑛 records are independent fair bits. Condi-tioned on the random tapes, each writer cell must approximate these labels using one of at most 2 𝐶 𝑛,𝑅 decision-tree output patterns. A binary entropy argument applied to the vector of state-indexed trees yields the bound, including randomized writers. Appendix D proves every step. The entropy inequality is a standard information-theoretic tool. The claim concerns its application to a writer fixed before the query. This quantifier matters. If a separate writer may be chosen after seeing 𝑞 , it can retain the one-bit answer 𝑞 (𝑥 ) and avoid retrieval. 
+
+7 Universal queries with word retrieval 
+
+Physical reads commonly return several bits together. We therefore extend the archive interface to fixed, disjoint words. Let 𝑀 ≥ 1 be the number of words and 𝑤 ≥ 1 their width in bits. The full record has 𝑁 = 𝑀𝑤 bits, and each read returns one of the 𝑀 original words without modification. The response alphabet has size 𝑄 = 2𝑤 . The writer retains 𝐵 bits before receiving the query. Define 𝐵 (𝑤 ) 
+
+> all
+
+(𝑀, 𝑅 ) as the minimum retention for every Boolean query, with at most 𝑅 adaptive word reads. Theorem 5 (Word-width bounds and exact caching regime). For 1 ≤ 𝑅 ≤ 𝑀 , define 
+
+𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+= 𝑄 𝑅 + 𝑄 𝑅 − 1
+
+𝑄 − 1 log 2 𝑀, (12) 
+
+𝑘 (𝑤 ) 
+
+> 𝑀,𝑅
+
+= log 2
+
+ 1 + ⌊ log 2 (𝑤 (𝑀 − 𝑅 + 1) + 1)⌋  . (13) 
+
+The minimum retained length satisfies 
+
+max {0, 𝑁 − ⌊ log 2 ⌊𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+⌋⌋} ≤ 𝐵 (𝑤 ) 
+
+> all
+
+(𝑀, 𝑅 ), (14) 
+
+𝐵 (𝑤 ) 
+
+> all
+
+(𝑀, 𝑅 ) ≤ 𝑁 − 𝑤 (𝑅 − 1) − max {𝑤, 𝑘 (𝑤 ) 
+
+> 𝑀,𝑅
+
+}. (15) 
+
+If log 2 𝑀 ≤ 2𝑤 − 1, then, for every 0 ≤ 𝑅 ≤ 𝑀 ,
+
+𝐵 (𝑤 ) 
+
+> all
+
+(𝑀, 𝑅 ) = 𝑁 − 𝑤𝑅. (16) 
+
+For 𝑀 ≥ 2 and 1 ≤ 𝑅 ≤ ⌊ 𝑀 /2⌋, the upper and lower bounds in Equations (14) –(15) differ by at most two bits. Their constants are independent of the word width. 
+
+The proof counts coordinate decision trees with a branch for each word value. Multiway decision-tree capacity is established in Yıldız [2012, Theorem 5] and Yıldız [2015, Theorem 3]. Theorem 5 applies this counting argument to a complete writer partition and supplies an attaining cache in the stated regime. Appendix F gives the proof and the uniform rounding argument. The constructive bound compares two writers. A raw-word cache retains all words except a public set of 𝑅 
+
+words. Reading those words reconstructs the complete record. The alternative reads 𝑅 − 1 selector words and applies the universal bit encoder to the remaining bits. Its final bit probe is implemented by reading the containing aligned word and selecting the required bit. The writer chooses whichever construction retains fewer bits, using only the public dimensions.   
+
+> Preprint, 18 October 2026 8•Pranav Singh and Prashant Singh
+
+Equation (16) makes response width consequential for universal retention. For eight-bit words, the equality holds whenever 𝑀 ≤ 2255 . A nonlinear writer cannot reduce the fixed retained length below raw caching in this regime. The statement concerns logical retained bits, with the full raw archive still present. The equality also covers adaptive readers and zero-error randomized schemes. For the zero-read case, set 𝐶 (𝑤 ) 
+
+> 𝑀, 0
+
+= 1. Proposition 6 (Word retrieval with average error). For 𝑀, 𝑤 ≥ 1 and 0 ≤ 𝑅 ≤ 𝑀 , let 𝐵 (𝑤 ) 
+
+> 𝜖
+
+(𝑀, 𝑅 ) allow error at most 𝜖 < 1/2 for each fixed Boolean query under the uniform record distribution and independent random tapes. Every execution uses at most 𝑅 word reads. Then 
+
+𝐵 (𝑤 ) 
+
+> 𝜖
+
+(𝑀, 𝑅 ) ≥ max 
+
+n
+
+0,
+
+l
+
+𝑁 − log 2 𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
++ log 2 (1 − ℎ2 (𝜖 )) 
+
+mo 
+
+. (17) 
+
+For 1 ≤ 𝑅 ≤ 𝑀 , if 
+
+1 + ( 1 − 𝑄 −𝑅 ) log 2 𝑀 𝑄 − 1 < 2(1 − ℎ2 (𝜖 )) , (18) 
+
+then 𝐵 (𝑤 ) 
+
+> 𝜖
+
+(𝑀, 𝑅 ) = 𝑁 − 𝑤𝑅 . A sufficient condition is ℎ2 (𝜖 ) < 1/2 and log 2 𝑀 ≤ ( 𝑄 − 1)( 1 − 2ℎ2 (𝜖 )) .
+
+The entropy argument from Theorem 4 applies to the multiway tree count. Integer rounding then establishes an exact optimality regime even with positive average error. The sufficient condition quantifies how source uncertainty, response width, and allowed error interact. The condition imposes the same guarantee for every query and does not assume that the query distribution is known. 
+
+8 Implementation and evaluation 
+
+The implementations return a fixed-length byte payload from the writer. The reader receives only that payload, a pure query evaluator, and an instrumented archive callback. The callback records every address and rejects budget overruns. Public codec objects contain dimensions and feature rules. The reader validates payload length and padding. The generic bit decoder evaluates a query on 2 𝑘 𝑛,𝑅 candidate records. Its direct implementation uses transient storage for offsets and candidate records. A specialized pair-gate decoder evaluates feature truth tables without materializing complete candidates. The word decoder reads selector words and obtains its final selected bit from the containing word. When raw caching retains fewer bits, the implementation instead reconstructs the record from cached and retrieved words. We compare the universal encoder with a matched raw-prefix cache. The cache enumerates its compatible records and selects the coordinate that maximizes answerable mass under the uniform source. A branch is answerable when every compatible record gives the same query value. The cache abstains on other branches. We also compare complete-record retention, the exact XOR encoder, and a categorical sufficient statistic for the dialogue-derived records. Appendix E specifies sampling and implementation details. 
+
+8.1 Computational checks 
+
+Table 2 summarizes the finite checks. The construction checks enumerate records and queries, compare decoded answers with direct evaluation, and enforce the read budget. Independent cell enumeration compares the structural characterization with attainable truth tables. The word check also solves minimum partitions of small cubes by direct subset enumeration. All reported checks passed. Figure 2 shows the proved bit-read bounds, and Figure 3 shows the word-width transition.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •9
+
+Check Cases XOR construction 458,748 Boolean-pair construction 1,212,352 Arbitrary truth tables 6,272 Multi-read construction 699,608 Independent binary-cell enumeration 65,808 Independent codec checks 201,660 Word-codec truth tables 12,624 Word-codec parity and point queries 716,800 Word-codec sampled threshold queries 800 
+
+Table 2. Construction and structural checks. XOR denotes exclusive disjunction. 10 1 10 2 10 3      
+
+> Raw binary facts n 246810 12 Bits omitted from retained state Pair XOR All Boolean queries 0510 15 20 25 30 Worst-case one-bit reads R 30 40 50 60 Retained bits (n=64)
+> Proved interval Constructed encoding Retain n −R raw bits
+
+Fig. 2. Retention bounds for bit retrieval. 
+
+8.2 Query shift and archive failures 
+
+We evaluated pair XOR, pair AND, masked parity, and masked threshold queries under uniform independent records. Each comparison used the same query and record for both methods. The writer supported every query family without refitting. Table 3 gives the sample counts and conditions. We measured coverage, error among answered queries, and mean reads. Wilson intervals in the accompanying results summarize coverage and conditional error. The stale-archive condition independently corrupted archive bits after writing. Ground truth remained the query value on the original record. The removed-archive condition returned abstention whenever a read was required. Table 4 reports the smallest record-size condition. The masked-query rows show lower fresh coverage for the raw cache, which often used fewer reads. The removed-coverage column favors the raw cache for several query families. Both methods made errors under archive corruption. Figure 4 compares these conditions. 
+
+8.3 Matched dialogue-agent evaluation 
+
+We evaluated retention in a text-to-decision pipeline for dialogue-based offer validation. The writer processes a conversation before learning which catalogue entity the agent will check. A query specifies an entity and                 
+
+> Preprint, 18 October 2026 10 •Pranav Singh and Prashant Singh 14812 16 20 24 Log ₂number of archive words 01234Extra retained-bit savings
+> 1-bit: attained 1-bit: bound 2-bit: attained 2-bit: bound
+> 14812 16 20 24 Log ₂number of archive words
+> 4-bit: attained 4-bit: bound 8-bit: attained 8-bit: bound
+
+Fig. 3. One-word-read savings and upper bounds relative to raw caching. 
+
+Quantity Value Record lengths (bits) 10, 16, 64 Worlds per method-condition cell 2,000 Method-condition cells 96 Archive bit-corruption probabilities 0.01, 0.10 Displayed condition 𝑛 = 10, 𝐵 = 8, 𝑅 ≤ 1, corruption 0 .10 
+
+Table 3. Controlled-source evaluation protocol. 
+
+Query Method Coverage Reads Removed coverage Stale error Pair XOR Universal 1.000 0.937 0.068 0.088 Pair XOR Raw cache 0.983 0.346 0.607 0.040 Pair AND Universal 1.000 0.612 0.401 0.067 Pair AND Raw cache 0.992 0.193 0.819 0.012 Masked parity Universal 1.000 0.875 0.141 0.086 Masked parity Raw cache 0.754 0.506 0.267 0.065 Masked threshold Universal 1.000 0.730 0.261 0.087 Masked threshold Raw cache 0.910 0.359 0.653 0.027 
+
+Table 4. Coverage, mean bit reads, and conditional stale error. XOR denotes exclusive disjunction. AND denotes conjunction. 
+
+domain. The reader decides whether the entity satisfies the tracked categorical constraints. The task uses the public MultiWOZ catalogues and annotated dialogue states [Ye et al. 2022]. We used two fixed observation sources from the original pretrained Nous models, provided with the package. The source code accompanies the Nous release [Singh 2026c]. The native source classifies each user utterance with its preceding system turn, then applies the native Nous updater. The history source classifies the complete observed prefix at compaction. We performed fresh inference without fitting either source. Every retention method receives identical observations within each source group. We compare retention methods within those groups.    
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •11 Pair XOR Pair AND Masked parity Masked threshold
+> 0.00 0.25 0.50 0.75 1.00 Fresh: coverage
+> Pair XOR Pair AND Masked parity Masked threshold
+> 0.00 0.25 0.50 0.75 1.00 Archive removed: coverage
+> Pair XOR Pair AND Masked parity Masked threshold
+> 0.00 0.05 0.10 10% corruption: error
+> Universal Raw cache
+
+Fig. 4. Coverage and conditional error under archive failures. 
+
+The primary query population contains goal-active domains with at least one annotated constraint among the tracked slots. We tested every catalogue entity in each eligible domain. Gold labels determine the evaluation population and correctness, and never enter the writer. An all-domain query population tests sensitivity to the requested workload. Table 5 gives the dataset and query counts. The posterior summary stores every source probability at double precision. The category vector stores each selected category separately. The mixed-radix representation stores the complete categorical answer state. The universal bit encoder uses the corresponding binary indicators and obtains its selected bit from an aligned byte. Raw caches retain a public suffix of that packed record. Their readers inspect uncached words only when needed to decide the query. The raw readers also exploit the same public categorical support for short-circuiting. All archive methods use the same packed record and charge each complete byte response. The theoretical bounds fix a worst-case read budget. The dialogue study compares policies with different read limits. Observation streams and query populations are shared within each source group. The universal encoder permits one byte read per query. For an archive of 𝑀 words, retaining 𝑐 cached words permits 𝑀 − 𝑐 reads. State-only methods permit no reads. Table 7 records these limits beside mean returned bytes. A catalogue-specific baseline compiles the public answer-equivalence classes of the categorical support. Let C𝑑 
+
+contain the distinct catalogue-answer patterns for domain 𝑑 . Domain-factorized states realize every combination of these patterns. An exact zero-read writer therefore requires 
+
+𝐵 cat =
+
+&
+
+log 2
+
+Ö
+
+> 𝑑
+
+|C 𝑑 |
+
+'
+
+. (19) A mixed-radix index of the domain patterns attains this bound. The public codebook is fixed by the catalogue and ontology. Its serialized size is charged separately from the episodic payload. Table 14 includes that cost in cohort storage. The construction is a finite-query sufficient-statistic baseline. Table 6 reports correctness against annotated constraints and balanced accuracy. Every fresh retained-state method preserves its source decisions. The history source has higher correctness than the native update source. The rejection control exposes the class imbalance in the primary population. Its raw accuracy exceeds that of the native source, while the native source has higher balanced accuracy. Within each source group, fresh encoding leaves decision accuracy unchanged. These measures separate source-decision quality from memory preservation.   
+
+> Preprint, 18 October 2026 12 •Pranav Singh and Prashant Singh
+
+Quantity Value Official test dialogues 1,000 Included final states 999 Observed user turns 7,372 Primary dialogue clusters 738 Primary queries per source 67,346 Compatible / incompatible primary queries 19,242 / 48,104 Catalogue sizes: hotel / restaurant / attraction 33 / 110 / 79 All-domain queries per source 221,778 Original methods / added catalogue baseline 9 / 1 Archive conditions 3Bootstrap replicates 2,000 Packed raw archive (B/state) 4Shared model bundle (B) 29,791,103 Shared dialogue archive (B) 13,790,771 Catalogue classes: hotel / restaurant / attraction 41 / 24 / 6 Combined catalogue-answer classes 5,904 Catalogue minimum bits / payload bytes 13 / 2 Additional public codebook (B) 8,878 
+
+Table 5. Matched dialogue-agent evaluation protocol. B denotes bytes. 
+
+Decision source Accuracy Balanced accuracy 95% interval Native update 0.4725 0.6170 [0.4487, 0.4978] History classifier 0.8070 0.8461 [0.7846, 0.8288] Always reject 0.7143 0.5000 [0.6992, 0.7293] Always accept 0.2857 0.5000 [0.2707, 0.3008] 
+
+Table 6. Offer-validation accuracy and dialogue-bootstrap intervals. Intervals concern accuracy. 
+
+Table 7 reports the primary resource comparison. The mixed-radix state preserves the posterior summary’s decisions with a smaller payload and no archive reads. The catalogue index reduces the payload further by preserving only the fixed tool-query family. Its extra codebook increases cohort storage at the studied scale. The arithmetic mixed-radix representation uses less aggregate storage. In the query-latency column, mixed radix and the catalogue statistic are faster than the universal bit encoder. The raw-cache row sharing the universal encoder’s cap uses less retained state and has lower median query latency. The universal encoder retains its archive and evaluates candidate records. Its guarantee covers the complete binary record space. The categorical representation preserves the complete extracted category state. The catalogue index preserves its fixed family of entity decisions. These guarantees use different record supports and query families. The missing-archive and stale-archive conditions distinguish abstention from changes to the original source decisions. Appendix G reports these outcomes, the history-source resource comparison, query-population shift, and shared extraction costs. Intervals resample complete dialogues and retain all their entity queries together. Decoder timings include compatibility evaluation. The upstream measurements separately charge text processing and updating.                                                                                
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •13
+> Method State (B) Archive (B) 𝑅 max Returned (B/query) Write ( 𝜇 s) Query ( 𝜇 s) p95 ( 𝜇 s) Posterior summary 312 000.0000 31.042 8.250 26.500 Category vector 7000.0000 4.250 1.208 2.708 Mixed radix 3000.0000 7.333 1.708 5.459 Catalogue statistic 2000.0000 14.625 2.875 4.834 Universal bit code 4410.1322 54.167 39.875 143.959 Raw cache, 0 B 0441.2382 10.042 10.500 35.375 Raw cache, 1 B 1430.8083 7.375 9.000 36.167 Raw cache, 2 B 2420.2827 6.875 3.958 32.541 Raw cache, 3 B 3410.1383 6.708 3.958 21.042 Raw cache, 4 B 4000.0000 6.083 3.917 9.417
+
+Table 7. Native-source resource costs. B denotes bytes, 𝑅 max is the cap on byte reads per query, and p95 is the query-latency 95th percentile. 
+
+𝑛 𝑅 Bits Bytes Write ( 𝜇 s) Query ( 𝜇 s) Query p95 ( 𝜇 s) 10 1 8 1 7.5 14.2 14.8 10 4 5 1 6.6 14.5 15.0 10 10 0 0 3.2 5.6 6.1 64 1 62 8 29.2 21.3 22.2 64 4 59 8 28.0 21.3 22.5 64 16 47 6 23.5 22.5 23.2 256 1 253 32 114.2 364.5 375.7 256 4 250 32 111.0 361.0 368.1 256 16 238 30 109.6 365.7 370.2 1024 1 1021 128 484.8 510.4 517.9 1024 4 1018 128 464.4 496.9 511.1 1024 16 1006 126 488.8 526.1 534.2 
+
+Table 8. Median bit-codec latency, query 95th percentile (p95), and retained state. 
+
+8.4 Computation and physical resources 
+
+Table 8 reports median writing and query latency for the bit implementation. Generic query time includes candidate reconstruction and predicate evaluation. The largest one-read record occupies the same rounded payload size as full-record storage. Logical bit savings therefore do not necessarily reduce the physical payload. We separately measured Python allocation peaks around each writer and reader call. These measurements excluded pre-existing inputs, archives, interpreter memory, native allocations, and operating-system resident memory. Table 17 records the allocation sample size and shared dialogue resources. The word implementation charges complete word responses and is checked separately from the bit timings. 
+
+9 Limitations 
+
+The theorems quantify over full-domain records and all Boolean queries, including long truth tables. Restricted sources or query families can admit smaller sufficient statistics. The results do not establish comparable hardness for natural-language questions. The archive must contain unchanged raw coordinates or disjoint words, and all record-dependent metadata is charged. Writing and decoding can require substantial transient storage and computation. Query purity is a caller contract. Finite computational checks do not replace the proofs. The codecs do not detect staleness or repair extraction errors. The matched evaluation uses previously trained linear text models on a source split already exposed in Nous research. The full-history source, catalogue 
+
+> Preprint, 18 October 2026
+
+14 • Pranav Singh and Prashant Singh 
+
+study, and constant controls were added after the initial native-source outcomes. The task validates selected categorical constraints and does not measure complete dialogue success. The cached relation control contains constructed questions whose imbalance can raise accuracy. Decoder timings and Python call allocations exclude the observation stage. We measure shared extraction costs and upstream resident memory separately. 
+
+10 Conclusion 
+
+Pre-query retention requires a writer to partition records into cells that a bounded reader can resolve. We characterize one-bit-read cells, construct full-domain encoders, and derive universal retention bounds for bit and word retrieval. Word width determines whether nonlinear retention provides any saving beyond raw caching. An explicit regime makes raw-word caching exactly optimal, including a range of positive average-error allowances. The matched evaluation favors a categorical sufficient statistic in storage and decoding latency. The catalogue index trades a smaller private state for shared storage and selective query coverage. Together, the results connect retention requirements to the retrieval interface, record support, and future query family. 
+
+Acknowledgments 
+
+Artificial intelligence tools assisted with implementation and manuscript preparation. The authors received no funding for this work. The authors declare no competing interests. 
+
+References 
+
+M. Bilgic and L. Getoor. 2011. “Value of Information Lattice: Exploiting Probabilistic Independence for Effective Feature Subset Acquisition.” 
+
+Journal of Artificial Intelligence Research , 41, 69–95. doi:10.1613/jair.3200. A. Gál and P. B. Miltersen. 2003. The Cell Probe Complexity of Succinct Data Structures . Tech. rep. RS-03-44. BRICS, University of Aarhus. https://www.brics.dk/RS/03/44/BRICS-RS-03-44.pdf. J.-S. Leboeuf, F. LeBlanc, and M. Marchand. 2022. Generalization Properties of Decision Trees on Real-valued and Categorical Features . (2022). https://arxiv.org/abs/2210.10781 arXiv: 2210.10781. A. Makhdoumi, S.-L. Huang, M. Médard, and Y. Polyanskiy. 2013. On Locally Decodable Source Coding . (2013). https://arxiv.org/abs/1308.5239v2 arXiv: 1308.5239. S. Natarajan Ramamoorthy and C. Rashtchian. 2020. “Equivalence of Systematic Linear Data Structures and Matrix Rigidity.” In: 11th Innovations in Theoretical Computer Science Conference (LIPIcs). Vol. 151, 35:1–35:20. doi:10.4230/LIPIcs.ITCS.2020.35. N. Nisan, S. Rudich, and M. Saks. 1999. “Products and Help Bits in Decision Trees.” SIAM Journal on Computing , 28, 3, 1035–1050. doi:10.1137 /S0097539795282444. M. Pătraşcu and E. Viola. 2010. “Cell-Probe Lower Bounds for Succinct Partial Sums.” In: Proceedings of the Twenty-First Annual ACM-SIAM Symposium on Discrete Algorithms . Society for Industrial and Applied Mathematics, 117–122. doi:10.1137/1.9781611973075.11. H. H. Permuter and T. Weissman. 2011. “Source Coding with a Side Information “Vending Machine”.” IEEE Transactions on Information Theory ,57, 7, 4530–4544. doi:10.1109/TIT.2011.2145510. P. Singh. 2026a. Nous: A Predictive World Model for Long-Term Agent Memory . (2026). https://arxiv.org/abs/2606.22030 arXiv: 2606.22030. P. Singh. 2026b. Nous: Learning and Certifying Memory Decisions Before Source Calibration . Version 2. (2026). https://arxiv.org/abs/2610.00094v2 arXiv: 2610.00094. P. Singh. 2026c. Nous: Public Research-Only Reproducibility Snapshot . Release jmlr-submission-2026-10-04. (2026). https://github.com/Pranavsi ngh431/nous-state/releases/tag/jmlr-submission-2026-10-04. J. Subramanian, A. Sinha, R. Seraj, and A. Mahajan. 2022. “Approximate Information State for Approximate Planning and Reinforcement Learning in Partially Observed Systems.” Journal of Machine Learning Research , 23, 12, 1–83. https://jmlr.org/papers/v23/20-1165.html. E. Viola. 2012. “Bit-Probe Lower Bounds for Succinct Data Structures.” SIAM Journal on Computing , 41, 6, 1593–1604. doi:10.1137/090766619. K. Wen, X. Dang, and K. Lyu. 2024. RNNs are not Transformers (Yet): The Key Bottleneck on In-context Retrieval . (2024). https://arxiv.org/abs/24 02.18510v4 arXiv: 2402.18510. F. Ye, J. Manotumruksa, and E. Yilmaz. 2022. “MultiWOZ 2.4: A Multi-Domain Task-Oriented Dialogue Dataset with Essential Annotation Corrections to Improve State Tracking Evaluation.” In: Proceedings of the 23rd Annual Meeting of the Special Interest Group on Discourse and Dialogue . Association for Computational Linguistics, 351–360. doi:10.18653/v1/2022.sigdial-1.34. O. T. Yıldız. 2012. “On the VC-dimension of Univariate Decision Trees.” In: Proceedings of the 1st International Conference on Pattern Recognition Applications and Methods . Vol. 1. SciTePress, 205–210. doi:10.5220/0003777202050210. Preprint, 18 October 2026 Pre-query retention with bit and word retrieval • 15   
+
+> O. T. Yıldız. 2015. “VC-Dimension of Univariate Decision Trees.” IEEE Transactions on Neural Networks and Learning Systems , 26, 2, 378–387. doi:10.1109/TNNLS.2014.2385837. M. Zou, Z. Guo, L. Liang, Z. Wang, Q. Wang, Q. Wen, I. King, L. Qu, and Z. Xu. 2026. Remember the Decision, Not the Description: A Rate-Distortion Framework for Agent Memory . (2026). https://arxiv.org/abs/2605.10870 arXiv: 2605.10870.
+
+A Proof of the structural characterization 
+
+We first justify the decoding characterization used throughout. On a nonempty cell 𝑆 , the reader’s state and query are fixed before its first response. Its first address is therefore fixed on the entire cell. Each Boolean function of the response is constant, identity, or complement. Thus its output restriction lies in D ( 𝑆 ). Conversely every member of this set is obtainable with zero or one read. Fix 𝑥 0 ∈ 𝑆 , let 𝑉 = span (𝑆 + 𝑥 0), and write ℓ𝑖 (𝑣 ) = 𝑣 𝑖 for the coordinate restrictions to 𝑉 . Suppose all pairwise XORs are available. Then, for distinct 𝑖, 𝑗 , 𝑐 𝑖 + 𝑐 𝑗 is constant or a coordinate plus a constant on 𝑆 . Subtracting its value at 𝑥 0 implies that ℓ𝑖 + ℓ𝑗 is zero or a listed ℓ𝑎 on the spanning set 𝑆 + 𝑥 0, hence on 𝑉 . The same-index sum is zero. Therefore 𝐸 = {0, ℓ 1, . . . , ℓ 𝑛 } is additively closed. The coordinate forms span 𝑉 ∗: any linear functional on 𝑉 
+
+extends to F𝑛  
+
+> 2
+
+and is a sum of ambient coordinates. Hence 𝐸 = 𝑉 ∗. Conversely, if 𝐸 = 𝑉 ∗, each ℓ𝑖 + ℓ𝑗 is zero or a coordinate restriction, and adding the appropriate value at 𝑥 0 recovers 𝑐 𝑖 + 𝑐 𝑗 on 𝑆 . The same reasoning holds on 
+
+𝑥 0 + 𝑉 . Finally, 2 dim 𝑉 = |𝐸 | ≤ 𝑛 + 1, proving part one. Now assume all pairwise XOR and AND functions are in D ( 𝑆 ). XOR feasibility makes this set additively closed: constants and complements are included, and any sum of two coordinate literals reduces to a pair XOR or a constant. For distinct coordinates, 
+
+(𝑐 𝑖 + 𝑎 )( 𝑐 𝑗 + 𝑏 ) = 𝑐 𝑖 𝑐 𝑗 + 𝑏𝑐 𝑖 + 𝑎𝑐 𝑗 + 𝑎𝑏, 𝑎, 𝑏 ∈ F2, (20) belongs to D ( 𝑆 ) by additive closure and pairwise AND availability. A product involving a constant or two literals of the same coordinate is a constant or a unary function and is already available. Consequently D ( 𝑆 ) is closed under products and complements, and therefore under all Boolean operations. For each row 𝑢 ∈ 𝑆 , the product of the literals matching 𝑢 over all coordinates is the singleton indicator of 𝑢 . The coordinates distinguish distinct rows, so this product vanishes at every other row. Sums of singleton indicators give every Boolean function on 𝑆 .Thus XOR-plus-AND availability implies universality. Universality implies every pair gate, and the latter implies XOR-plus-AND. To characterize universality geometrically, assume XOR feasibility and put 𝑑 = dim 𝑉 . The set D ( 𝑆 ) then consists of restrictions of all affine functions on 𝑥 0 + 𝑉 . There are 2 𝑑 +1 such functions, with distinct restrictions: an affine function vanishing on 𝑆 vanishes at 𝑥 0 and on the linear span 𝑉 . Hence D ( 𝑆 ) contains all 2 |𝑆 | Boolean functions on 𝑆 if and only if 𝑑 + 1 = |𝑆 |, which is affine independence. These implications prove all equivalences in Theorem 1. In particular, the normalized columns on the other |𝑆 | − 1 rows must include every nonzero binary vector, so 𝑛 ≥ 2|𝑆 | − 1 − 1 and |𝑆 | ≤ 𝑠 𝑛 . The resulting bound is the binary-stump capacity attributed above. 
+
+B Proof of the exact optima and endpoints 
+
+For XOR, the structural result gives |𝑆 | ≤ 2𝑟 for 𝑟 = ⌊log 2 (𝑛 + 1)⌋ . A 𝐵 -bit writer partitions 2 𝑛 records into at most 2 𝐵 cells. Thus 2 𝑛 ≤ 2𝐵 2𝑟 and 𝐵 ≥ 𝑛 − 𝑟 . The anchor encoder in Section 4.1 is a total map on the cube: every record supplies its anchor bits and every nonanchor supplies one offset. Conversely, any anchor vector 𝑧 and any offset payload recover exactly one record. Every payload therefore defines 2 𝑟 records and every payload is used. The stated decoder algebra proves correctness with at most one read. The encoder attains the lower bound. For the universal workload, |𝑆 | ≤ 𝑠 𝑛 gives 𝐵 ≥ ⌈ 𝑛 − log 2 𝑠 𝑛 ⌉ = 𝑛 − ⌊ log 2 𝑠 𝑛 ⌋. Set 𝑘 = ⌊log 2 𝑠 𝑛 ⌋ and 𝑡 = 2𝑘 . There are 2 𝑡 −1 − 1 nonzero Boolean functions on {0, 1}𝑘 vanishing at zero. Since 𝑡 ≤ 𝑠 𝑛 ,2𝑡 −1 − 1 ≤ 2⌊log 2 (𝑛 +1) ⌋ − 1 ≤ 𝑛. (21)   
+
+> Preprint, 18 October 2026 16 •Pranav Singh and Prashant Singh
+
+Their identity features provide distinct anchors. For every anchor vector and every nonanchor offset vector the formula 𝑥 𝑖 = 𝑎 𝑖 + 𝜙 𝑖 (𝑧 ) defines one record, whose anchor values are exactly 𝑧 and whose encoder returns exactly those offsets. Thus this is a partition into 2 𝑛 −𝑘 cells of size 2 𝑘 . For any Boolean query, its normalized candidate truth table occurs in the public feature list unless it is zero. The decoder in Section 4.2 is therefore defined and correct on every cell. The construction proves Equation (3), for pair gates and arbitrary queries alike. For affine one-read writers, every nonempty cell is an affine space 𝑥 0 + 𝐿 . Universal feasibility forces it to be affinely independent. An affine space of dimension 𝑑 has 2 𝑑 points and affine dimension 𝑑 , so affine independence requires 2 𝑑 = 𝑑 + 1, hence 𝑑 ≤ 1. A writer with 𝐵 < 𝑛 − 1 affine output bits has a kernel of dimension at least two and violates this condition. Retaining 𝑛 − 1 raw coordinates and reading the remaining one attains the bound. At zero reads, two records are indistinguishable for all pair XORs if and only if they differ by the all-ones vector or are equal. Indeed equality of 𝑥 1 + 𝑥 𝑗 for every 𝑗 > 1 fixes every difference relative to coordinate one. There are 2 𝑛 −1 equivalence classes. Retaining those 𝑛 − 1 differences attains the bound. Boolean pair queries include all coordinate projections for 𝑛 ≥ 2, so a no-read writer must be injective and requires 𝑛 bits. Two reads directly obtain the two queried coordinates for either pair workload, yielding zero retained bits. For arbitrary Boolean queries, zero reads likewise require 𝑛 bits and 𝑛 reads suffice with zero bits. If 𝑛 = 1, the pair workload is empty and needs zero bits. The arbitrary one-bit workload can be answered by one raw read. The binary codec classes restrict their dimensions to 𝑛 ≥ 2. Empty records can be treated separately with zero retained bits. These edge conventions are not used to extrapolate the displayed pair formulas outside their stated domain. For zero-error randomization independent of the record and query, fix one random tape for the writer and a tape for each possible query. There are finitely many records and Boolean functions on the finite cube. Each correctness event has probability one, so their finite intersection has probability one. A tape in that intersection supplies a deterministic scheme with the same fixed state and worst-case read constraints. The deterministic lower bounds apply. This argument does not apply to positive-error guarantees or expected read budgets. 
+
+C Proof of the multiple-read bounds 
+
+Condition on one retained state. A deterministic reader with at most 𝑅 coordinate reads is a binary decision tree of depth at most 𝑅 . The tree can be padded to a full depth-𝑅 tree by repeating arbitrary coordinate reads below terminated leaves and preserving their outputs. There are 2 𝑅 − 1 internal nodes, each with at most 𝑛 address choices, and 2 𝑅 leaves, each with two output choices. Thus there are at most 
+
+𝑇 𝑛,𝑅 = 𝑛 2𝑅 −122𝑅 
+
+= 2𝐶 𝑛,𝑅 (22) tree descriptions. The count overcounts functions and unreachable branches, which is safe for a converse. Every Boolean labeling on a cell 𝑆 extends to a query on the cube. Universal exact answerability therefore requires 2|𝑆 | ≤ 𝑇 𝑛,𝑅 , or |𝑆 | ≤ 𝐴 = ⌊𝐶 𝑛,𝑅 ⌋. Since 2 𝑛 ≤ 2𝐵 𝐴 , the lower bound in Equation (7) follows, clamped at zero. The sharper exact one-read bound takes precedence when 𝑅 = 1. For the upper bound put 𝑁 = 𝑛 −𝑅 + 1 and 𝑘 = ⌊log 2 (1+ ⌊ log 2 (𝑁 +1)⌋)⌋ . Reserve 𝑅 − 1 raw identity coordinates as selector anchors, and use the universal feature list on the remaining 𝑁 coordinates with 𝑘 tail anchors. Retain all 𝑁 − 𝑘 = 𝑛 − 𝑅 + 1 − 𝑘 nonanchor offsets. Every selector vector, tail-anchor vector, and offset vector specifies exactly one full record. The bijection proves that the writer partitions the whole cube and that no input-dependent index is hidden. The reader obtains the selector vector with 𝑅 − 1 charged reads. For each of the 2 𝑘 tail vectors, it reconstructs the corresponding hypothetical full record, using those selectors and the offsets. A single final feature read recovers the query value as before. All earlier selector responses are charged, and the last address may depend on them. At 𝑅 = 𝑛 , 𝑁 = 1 and 𝑘 = 1, so the retained state is empty and the construction uses at most 
+
+𝑛 reads.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •17
+
+For the uniform constants, let 𝐿 = log 2 𝑛 ≥ 1. We have 𝐶 𝑛,𝑅 ≤ 2𝑅 (1 + 𝐿 ) ≤ 2𝑅 +1𝐿 . The converse hence gives 
+
+𝐵 ≥ 𝑛 − 𝑅 − log 2 𝐿 − 1. If 𝑅 ≤ 𝑛 /2, then 𝑛 − 𝑅 + 2 ≥ 𝑛 /2 + 2 ≥ √𝑛 , and 1 + ⌊ log 2 (𝑛 − 𝑅 + 2)⌋ > 12 log 2 𝑛 . Taking a logarithm and flooring yields 𝑘 > log 2 𝐿 − 2. The upper construction gives 𝐵 = 𝑛 − 𝑅 + 1 − 𝑘 < 𝑛 − 𝑅 − log 2 𝐿 + 3, proving the stated safe bound. Finally, suppose an affine writer has kernel 𝐿 of dimension 𝑑 > 𝑅 , and consider a nonempty cell 𝑥 0 + 𝐿 . Use the query 𝑞 (𝑥 ) = 1{𝑥 = 𝑥 0 }. The reader path taken by 𝑥 0 imposes at most 𝑅 affine coordinate equations on that cell. Its solution set has dimension at least 𝑑 − 𝑅 ≥ 1, so some 𝑥 1 ≠ 𝑥 0 follows exactly the same path. The same leaf cannot be correct for both point-query labels. Thus 𝑑 ≤ 𝑅 . Since rank 𝑊 ≤ 𝐵 , this gives 𝐵 ≥ 𝑛 − 𝑅 . Retaining 
+
+𝑛 − 𝑅 raw bits and reading all remaining 𝑅 bits attains equality for arbitrary queries. The point-query argument does not give that lower bound for pair-only workloads. 
+
+D Proof of the average-error converse 
+
+Replace every abstention by the binary answer zero. The replacement cannot increase the error probability, since abstention was counted as an error. We can therefore prove a lower bound for binary-output readers. Let 𝐻 
+
+denote Shannon entropy and 𝐼 mutual information. Let 𝑁 = 2𝑛 . Choose a uniformly random Boolean query by assigning independent fair labels 𝑌 𝑥 to all 𝑥 ∈ { 0, 1}𝑛 . Use a fixed canonical truth-table description for each query. Let 𝑈 contain all random tapes, independent of this query and of the record. Granting all these tapes to the reader only makes its task easier. For each fixed tape, the writer is a deterministic map with at most 𝐾 = 2𝐵 state labels. For every state label, record the depth-at-most-𝑅 tree selected by the reader for this query and tape, padded as above. Put all 𝐾 tree descriptions into a vector 𝑇 . Unused state labels receive a fixed dummy tree. The number of possibilities for 𝑇 , conditioned on 𝑈 , is at most (𝑇 𝑛,𝑅 )𝐾 . Hence 
+
+𝐼 (𝑌 ;𝑇 | 𝑈 ) ≤ 𝐻 (𝑇 | 𝑈 ) ≤ 𝐾𝐶 𝑛,𝑅 . (23) The tree may depend on the entire query description, including labels outside its cell. Given 𝑈 ,𝑇 , reconstruct all 𝑁 labels by running, at each record 𝑥 , the tree indexed by 𝑊 𝑈 (𝑥 ). These are hypothetical evaluations in the proof. Write this reconstruction as b𝑌 and set 𝐸 𝑥 = 𝑌 𝑥 + b𝑌 𝑥 . Because b𝑌 is a deterministic function of 𝑈 ,𝑇 , conditional translation gives 
+
+𝐻 (𝑌 | 𝑇 , 𝑈 ) = 𝐻 (𝐸 | 𝑇 , 𝑈 ) ≤ 𝐻 (𝐸 ) ≤ ∑︁ 
+
+> 𝑥
+
+ℎ2 (𝑝 𝑥 ) ≤ 𝑁ℎ 2 (𝑒 ), (24) where 𝑝 𝑥 = Pr {𝐸 𝑥 = 1} and 𝑒 = 𝑁 −1 Í𝑥 𝑝 𝑥 . The last inequality is concavity of binary entropy. Independence and fairness give 𝐻 (𝑌 | 𝑈 ) = 𝑁 , and therefore 
+
+𝑁 (1 − ℎ2 (𝑒 )) ≤ 𝐼 (𝑌 ;𝑇 | 𝑈 ) ≤ 2𝐵 𝐶 𝑛,𝑅 . (25) The assumed error bound holds for every fixed query, so averaging over the random query yields 𝑒 ≤ 𝜖 < 1/2. Binary entropy is increasing on [0, 1/2], proving 2 𝐵 𝐶 𝑛,𝑅 ≥ 2𝑛 (1 − ℎ2 (𝜖 )) . Taking logarithms and using integer 
+
+𝐵 ≥ 0 gives Theorem 4. The exact construction supplies its upper bound. Combining it with 𝐶 𝑛,𝑅 ≤ 2𝑅 +1 log 2 𝑛 
+
+yields the uniform 𝑂 𝜖 (1) statement. No fresh-sample or independence assumption about adaptively retrieved archive values has been used. 
+
+E Reproduction and resource details 
+
+The reproduction driver runs the exhaustive checks, controlled simulations, cached Nous replay, derived relation queries, result audit, and figure generation. The reference environment is Python 3.12.14, NumPy 2.5.4, and Matplotlib 3.11.2 on macOS with an Apple M1 CPU and 8 GB RAM. No GPU or paid inference is used. CPU cache sizes were not available to the sandbox. Timings depend on local load and are not expected to be bitwise reproducible. Seeds and all per-cell sample counts are recorded in result JSON files.   
+
+> Preprint, 18 October 2026 18 •Pranav Singh and Prashant Singh
+
+The controlled source uses Python’s Mersenne Twister with seed 15102026. Each world is a uniform 𝑛 -bit integer. Pair indices are sampled uniformly without replacement. Masked queries draw a uniform 𝑛 -bit mask and replace a zero draw with one (so the final mask is not uniform over nonzero masks). Thresholds are the ceiling of half the mask weight. Corruption independently flips each archive bit at the stated probability, after writing. Ground truth remains the pre-corruption query value. The removed condition makes the read callback unavailable. A decoder returns abstention when it needs a read. No archive-free cache of previous queries is provided. The matched raw cache stores the first 𝐵 raw bits and enumerates all 2 𝑛 −𝐵 completions. A one-step selective decision tree chooses the coordinate maximizing the number of candidates in answer-homogeneous branches, with the lowest-coordinate tie break. Branches with mixed labels abstain. If the query is constant over all candidates, no read is taken. This policy attains optimal selective coverage for that cell under a uniform source, at one probe. The statement fixes the writer. Dialogue queries use seed 15102027. For each dialogue, distinct feature pairs and gates are sampled using the counts in Table 17. Identical queries are applied to every source method. Gates use truth-table index 2 𝑥 𝑖 + 𝑥 𝑗 .Dialogue relation intervals use whole-dialogue bootstrap replicates with NumPy seed 15102028. The slot replay uses seed 14102026. Methods are not selected by test performance. The data and module hashes accompany the reproducibility package. Each per-record codec payload contains exactly ⌈𝐵 /8⌉ bytes with zero padding, no header or embedded dimension. The dimension and feature order must be supplied by the public schema. A real container adds framing, identifiers, and storage overhead. The mathematical archive uses 𝑛 bits. The callback implementation uses 𝑛 byte-valued Boolean facts before Python object overhead. Its measurement address log is not an input to later queries. Shared source code, fixed schemas, original model bytes, archive bytes, batch-writer workspace, and query workspace are not included in the retained bit count. No history-specific model fit or embedding index is created by these experiments. The word-codec verification uses seed 16102026 for sampled threshold queries. Its exhaustive checks cover every truth table on the stated small cubes, followed by parity and point queries on larger cubes. The accompanying results specify each dimension and read budget. The bound checker uses exact integer arithmetic when the word count is a power of two. These checks preserve the original bit-experiment results and timings. 
+
+F Proofs for word retrieval 
+
+For a fixed memory cell, pad a reader to a full depth-𝑅 tree with 𝑄 branches per internal node. The padded tree has 𝑄 𝑅 leaves and (𝑄 𝑅 − 1)/( 𝑄 − 1) internal nodes. Each internal node chooses among 𝑀 word addresses. Each leaf chooses a binary output. Thus the number of descriptions is at most 
+
+𝑇 = 𝑀 (𝑄 𝑅 −1)/( 𝑄 −1) 2𝑄 𝑅 
+
+= 2𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+. (26) The count includes unreachable branches and repeated addresses. Every labeling of a cell extends to a Boolean query on the full record. Consequently each cell has at most ⌊𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+⌋ records. The writer partitions 2 𝑁 records into at most 2 𝐵 cells, which gives Equation (14). A raw-word cache retains 𝑁 − 𝑤𝑅 bits and reconstructs the record with 𝑅 reads. For the alternative, reserve 
+
+𝑅 − 1 complete words as selector anchors. The remaining 𝑠 = 𝑤 (𝑀 − 𝑅 + 1) bits receive the bit encoder of Section 4.2, with 𝑘 = 𝑘 (𝑤 ) 
+
+> 𝑀,𝑅
+
+anchors. The writer retains only the 𝑠 − 𝑘 nonanchor offsets. Every selector vector, tail-anchor vector, and offset vector defines exactly one record. The construction therefore partitions the full cube. After reading the selectors, the reader evaluates the query on each tail candidate. The selected bit is obtained from its containing word. The other bits in that response are ignored. The total is at most 𝑅 word reads, giving Equation (15) after comparison with the raw-word cache. When 𝑠 = 1, the tail is read directly.   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •19
+
+If log 2 𝑀 ≤ 𝑄 − 1, then 
+
+𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+≤ 𝑄 𝑅 + ( 𝑄 𝑅 − 1) = 2𝑄 𝑅 − 1 < 2𝑤𝑅 +1. (27) The count implies that ⌊log 2 ⌊𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+⌋⌋ ≤ 𝑤𝑅 . The converse and raw-word cache prove Equation (16). For 𝑅 = 0, coordinate queries force an injective writer, so 𝐵 = 𝑁 . Zero-error randomness can be fixed by the finite-intersection argument in Appendix B. To prove the uniform gap, let 𝐿 = log 2 𝑀 ≥ 1, 𝑎 = ⌊log 2 ⌊𝐿 ⌋⌋ , and 𝑑 = max {0, 𝑎 − 𝑤 }. For 𝑅 ≤ 𝑀 /2, 
+
+𝑠 + 1 = 𝑤 (𝑀 − 𝑅 + 1) + 1 ≥ 𝑀 /2 + 2. Therefore 1 + ⌊ log 2 (𝑠 + 1)⌋ ≥ ⌊ 𝐿 ⌋ and 𝑘 ≥ 𝑎 . The constructive retained length is at most 𝑁 − 𝑤𝑅 − 𝑑 . Set 𝐴 = log 2 (1 + 𝐿 /( 2𝑤 − 1)) . Since 𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+≤ 2𝑤𝑅 (1 + 𝐿 /( 2𝑤 − 1)) , the integer lower bound is at least 𝑁 − 𝑤𝑅 − ⌊ 𝐴 ⌋.The definition of 𝑎 gives 𝐿 < 2𝑎 +1. If 𝑎 ≤ 𝑤 , then 𝑑 = 0 and 𝐴 < log 2 (1 + 2𝑤 +1/( 2𝑤 − 1)) ≤ log 2 5 < 3. If 𝑎 > 𝑤 ,then 
+
+𝐴 − 𝑑 = log 2
+
+
+
+2−𝑑 + 𝐿 
+
+(2𝑤 − 1)2𝑑 
+
+
+
+< log 2
+
+
+
+1 + 2𝑤 +1
+
+2𝑤 − 1
+
+
+
+≤ log 2 5 < 3. (28) Hence ⌊𝐴 ⌋ − 𝑑 ≤ 2 in both cases. The difference between the constructive and converse bounds is at most two retained bits. Clamping the lower bound at zero cannot increase that difference. For Proposition 6, replace the binary-tree count in Appendix D by 𝑇 = 2𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+and use 2 𝑁 random query labels. The same conditional entropy proof gives 2𝑁 (1 − ℎ2 (𝜖 )) ≤ 2𝐵 𝐶 (𝑤 ) 
+
+> 𝑀,𝑅
+
+. (29) The proof permits shared or private independent random tapes and counts abstention as error. Taking logarithms gives Equation (17). Condition (18) makes its unrounded lower bound strictly greater than 𝑁 − 𝑤𝑅 − 1. Integer retention therefore requires 𝐵 ≥ 𝑁 − 𝑤𝑅 , and the exact cache attains equality. Finally suppose ℎ = ℎ2 (𝜖 ) < 1/2 and log 2 𝑀 ≤ ( 𝑄 − 1)( 1 − 2ℎ). If 𝑀 > 1, the left side of Equation (18) is strictly smaller than 1 + ( 1 − 2ℎ) = 2(1 − ℎ) because 𝑅 ≥ 1. If 𝑀 = 1, that left side equals one, which is also strictly smaller than 2 (1 − ℎ). These cases prove the sufficient condition. 
+
+G Matched evaluation details 
+
+The study reuses the original pretrained text models without fitting or selection. The local source uses term-frequency and inverse-document-frequency features from the user turn and preceding system turn. The history source uses the original combined history and local features. The model hashes and original training lock accompany the package. We checked that official test dialogue identifiers are disjoint from the original training and development identifiers. The writer receives only the source categorical probabilities. It receives neither the selected catalogue entity nor benchmark metadata. The source models never receive future system text or state annotations. A dialogue is excluded only when its final target contains a value outside the fixed ontology. Table 5 records the included population. A query checks only the slots tracked in this study. An unspecified or indifferent constraint accepts every catalogue value. Other constraints require an exact canonical match. The native-source method plan was fixed before computing the new offer outcomes. The history-source sensitivity analysis and both constant controls were added after the native-source outcomes were inspected. The catalogue baseline and attribute-grid control were added after both source groups had been evaluated. The primary population remained unchanged. We report every source and control. No source model was refitted or selected by these outcomes. The public schema and query predicates determine the catalogue code. Protocol versions and hashes accompany the results.                                                                                
+
+> Preprint, 18 October 2026 20 •Pranav Singh and Prashant Singh
+> Method State (B) Archive (B) 𝑅 max Returned (B/query) Write ( 𝜇 s) Query ( 𝜇 s) p95 ( 𝜇 s) Posterior summary 312 000.0000 15.791 5.500 11.291 Category vector 7000.0000 2.000 1.000 1.625 Mixed radix 3000.0000 3.583 1.208 3.375 Catalogue statistic 2000.0000 11.875 2.167 4.000 Universal bit code 4410.1202 38.667 34.458 55.916 Raw cache, 0 B 0441.3297 4.416 7.833 20.209 Raw cache, 1 B 1430.6859 2.708 7.542 21.292 Raw cache, 2 B 2420.2518 2.291 3.250 20.792 Raw cache, 3 B 3410.1126 2.167 3.250 13.167 Raw cache, 4 B 4000.0000 2.166 3.000 5.875
+
+Table 9. History-source resource costs. B denotes bytes, 𝑅 max is the cap on byte reads per query, and p95 is the query-latency 95th percentile. 
+
+Source Method Removed coverage Stale coverage Stale disagreement Native Mixed radix 1.0000 1.0000 0.0000 Native Catalogue statistic 1.0000 1.0000 0.0000 Native Universal bit code 0.8678 1.0000 0.0009 Native Raw cache, 1 B 0.3274 0.9527 0.0084 Native Raw cache, 2 B 0.8530 0.9848 0.0027 Native Raw cache, 3 B 0.8617 0.9937 0.0017 History Mixed radix 1.0000 1.0000 0.0000 History Catalogue statistic 1.0000 1.0000 0.0000 History Universal bit code 0.8798 1.0000 0.0021 History Raw cache, 1 B 0.4189 0.9724 0.0101 History Raw cache, 2 B 0.8530 0.9909 0.0037 History Raw cache, 3 B 0.8874 0.9959 0.0013 
+
+Table 10. Archive-failure coverage and disagreement with source decisions. Stale disagreement is conditional on answering. 
+
+Every writer returns a fixed byte payload with public dimensions. The mixed-radix encoding uses the ontology ordering. The universal encoding normalizes query labels over its candidate records. The raw caches retain complete words in a public suffix. A raw reader maintains the set of values consistent with its observed indicator bits. It returns an answer when every compatible value agrees. Otherwise it reads the lowest-index uncached word relevant to the query. A contradictory categorical observation causes abstention. Each query begins without a transcript from previous queries. Table 9 gives the second source’s resource measurements. Table 10 reports missing-archive coverage and disagreement with the original source under corruption. We independently flipped archived bits after writing and kept the retained state unchanged. Every method encountered the same corrupted archive within a dialogue. The state-only representations preserve their original answers in both conditions because they require no archive response. The catalogue compiler enumerates each domain’s categorical states and groups states with identical answer patterns. Its reader decodes the retained pattern index and returns the indexed entity answer. Every combination of domain patterns is realizable on the product support. The number of distinct complete answer vectors is therefore the product of the domain counts in Table 5. Two states with different vectors must have different zero-read payloads. This pigeonhole argument proves Equation (19).                                                          
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •21
+> Source Method Queries Coverage Conditional error Native Catalogue statistic 12,900 0.9606 0.7334 Native Mixed radix 12,900 1.0000 0.7244 History Catalogue statistic 12,900 0.8663 0.1774 History Mixed radix 12,900 1.0000 0.1952
+> Table 11. Selective answering on unseen attribute profiles.
+> Source Query population Queries Accuracy Balanced accuracy Native update Active constraints 67,346 0.4725 0.6170 Native update All domains 221,778 0.8318 0.6322 History classifier Active constraints 67,346 0.8070 0.8461 History classifier All domains 221,778 0.9331 0.8679
+> Table 12. Accuracy under a change of query population.
+> Source Predictions Text (B) Extraction (s) Update (s) Load (s) Native update 51,604 1,094,742 0.639 1.134 3.014 History classifier 7,000 1,238,071 0.307 0.000 0.784
+> Table 13. Shared model processing costs. B denotes bytes.
+
+For query-family shift, we construct an attribute grid from the public ontology. The grid includes profiles absent from the observed catalogue. These are controlled compositional queries on the same dialogue-derived states. The catalogue reader evaluates each new predicate on all states in its retained equivalence class. It answers only when every state agrees. The mixed-radix reader answers the same queries from its complete categorical state. Table 11 reports coverage and conditional error on profiles absent from the catalogue. Table 12 compares the primary population with queries from every domain. The wider population contains domains without a tracked constraint. Its accuracy therefore describes a different workload. We retain the constrained population as the primary comparison. Table 13 records the shared observation costs. The native source predicts at each user turn and updates its beliefs. The history source predicts once per final dialogue prefix. Both source groups load the same pretrained model bundle. Catalogue descriptors are public query inputs prepared before timing. The decoder timer covers retained-state decoding and compatibility checking, while the model timer covers the shared extraction stage. We report pooled query correctness and balanced accuracy. Abstentions count as incorrect for overall cor-rectness. Conditional error counts incorrect answers among answered queries. Source disagreement compares a decoded answer with the decision obtained directly from the original extracted categories. We used complete-dialogue bootstrap resampling with seed 17102027. The observation and corruption seed was 17102026. Every query and outcome remains attached to its original dialogue. The retained payloads, per-query outcomes, timings, and source probabilities are included in the reproducibility package. Table 14 includes episode-specific archives and the catalogue compiler’s additional shared schema. Common extractor and catalogue resources are listed separately in Table 5. The cohort-total column favors arithmetic mixed radix over the catalogue statistic. A smaller private payload does not necessarily reduce total storage. Let 
+
+𝐷 denote the number of stored dialogue states. Let 𝑝 cat and 𝑝 mix denote their catalogue and mixed-radix payload   
+
+> Preprint, 18 October 2026 22 •Pranav Singh and Prashant Singh
+
+Method State (B) Archive (B) Extra shared (B) Cohort total (B) Posterior summary 312 0 0 311,688 Category vector 7 0 0 6,993 Mixed radix 3 0 0 2,997 Catalogue statistic 2 0 8,878 10,876 Universal bit code 4 4 0 7,992 Raw cache, 0 B 0 4 0 3,996 Raw cache, 1 B 1 4 0 4,995 Raw cache, 2 B 2 4 0 5,994 Raw cache, 3 B 3 4 0 6,993 Raw cache, 4 B 4 0 0 3,996 Catalogue/mixed-radix crossover Stored states Equal total storage 8,878 Catalogue smaller from 8,879 
+
+Table 14. Cohort storage and catalogue amortization, excluding common resources. B denotes bytes. 
+
+Observation source Peak resident memory (B) Allocation pairs Native source 223,133,696 200 History source 260,161,536 200 
+
+Table 15. Upstream resident memory and traced writer/reader call pairs. B denotes bytes. 
+
+sizes, and let 𝑆 code denote the shared codebook size. All sizes are in bytes. One unchanged codebook serves the complete cohort. The serialized storage costs are 
+
+𝑇 cat (𝐷 ) = 𝐷𝑝 cat + 𝑆 code , (30) 
+
+𝑇 mix (𝐷 ) = 𝐷𝑝 mix . (31) Because 𝑝 mix > 𝑝 cat , the catalogue statistic uses less storage exactly when 
+
+𝐷 > 𝑆 code 
+
+𝑝 mix − 𝑝 cat 
+
+. (32) The crossover rows in Table 14 apply this expression to the reported payload and codebook sizes. Table 15 gives the upstream process high-water resident memory. The process includes dataset loading, models, text features, and source-state construction. The measurement precedes allocation of the result tensors used by the evaluation process. We separately traced writer and reader allocations on sampled dialogues. Those call measurements exclude pre-existing inputs, archives, public codebooks, interpreter memory, and native library allocations. The computational environment used Python 3.12.12, NumPy 2.2.6, SciPy 1.16.3, scikit-learn 1.7.2, and joblib 1.6.0. Linear algebra used one thread. Timings followed a fixed method order and describe the local reference implementation.                   
+
+> Preprint, 18 October 2026 Pre-query retention with bit and word retrieval •23
+> Source method Slot accuracy Relation accuracy 95% interval Mismatches Native Nous 0.792 0.900 [0.894, 0.906] 0Full-history classifier 0.901 0.947 [0.942, 0.952] 0Last local report 0.772 0.891 [0.884, 0.897] 0
+> Table 16. Source accuracy and encoding mismatches on dialogue-derived records. Intervals are dialogue-bootstrap confidence intervals.
+
+H Cached-output relation control 
+
+We replayed the native Nous updater on cached text-classifier predictions from MultiWOZ 2.4 [Singh 2026c; Ye et al. 2022]. We excluded one dialogue because its cached history was incomplete for the required slots. The exclusion was independent of method success. The updater reproduced every included slot decision. We compared the native updater, the cached full-history classifier, and the last local report. The full-history classifier receives a different text interface and serves as a diagnostic comparison. The final categorical slots admit a mixed-radix representation that recovers every slot without retrieval. For the relation evaluation, we represented every category except the last by a binary indicator. We sampled pair questions using XOR, AND, OR, and equivalence, and applied identical questions to each source method. Table 17 records the encoding sizes and sample counts. Both encodings preserved every source answer. The categorical representation used less retained storage and required no archive, whereas the universal encoder covered the full binary cube. Table 16 reports agreement with benchmark-derived labels. We resampled complete dialogues to estimate the intervals. The full-history classifier had higher accuracy in both query families. The relation and slot columns measure different targets. Categorical support explains the storage advantage: valid indicator records occupy only a subset of the full cube.   
+
+> Preprint, 18 October 2026 24 •Pranav Singh and Prashant Singh
+
+Quantity Value Controlled record lengths (bits) 10, 16, 64 Worlds per method-condition cell 2,000 Method-condition cells 96 Archive bit-corruption probabilities 0.01, 0.10 Displayed controlled condition 𝑛 = 10, 𝐵 = 8, 𝑅 ≤ 1, corruption 0 .10 Complete dialogues / included user turns 999 / 7,360 Replayed slot decisions 51,520 Slot radices (7, 5, 4, 4, 7, 5, 7)
+
+Possible categorical records 137,200 Categorical retained state (bits / bytes) 18 / 3 Binary indicators 32 Universal retained state (bits / bytes) 30 / 4 Universal binary-fact archive (bytes) 32 Relation queries per dialogue 64 Method-query executions 191,808 Dialogue bootstrap replicates 2,000 Shared extractor / text archive (bytes) 29,791,103 / 13,790,771 Timing records per condition 100 Allocation records per condition 20 Raw write/query allocation pairs 160 
+
+Table 17. Evaluation protocol and physical resources.

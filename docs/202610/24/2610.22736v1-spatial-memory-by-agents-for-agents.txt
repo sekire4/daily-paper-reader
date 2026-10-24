@@ -1,0 +1,334 @@
+Title: Spatial Memory by Agents, for Agents
+
+URL Source: https://arxiv.org/pdf/2610.22736v1
+
+Published Time: Mon, 19 Oct 2026 00:25:32 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Spatial Memory by Agents, for Agents 
+
+Qianwei Wang 2, Ce Zhang 3, Zhanpeng Luo 4, Pengpeng Su 5, Shuo Yang 5, and Hao Xu 1,∗
+
+Abstract — Spatial memory enables robots to reuse past observations for localization, navigation, and question answering. Designing such memory involves jointly deciding what to retain and how to retrieve it for diverse semantic, metric, and temporal needs. We investigate whether coding agents can automate this design process through iterative implementation and evaluation. Under a fixed development budget, a Designer Agent writes and revises code for memory construction and retrieval using feedback from a fixed Query Agent. The resulting implemen-tations are frozen before building memories from held-out observation histories, without access to downstream questions, and evaluated across five complementary task tracks using the same Query Agent. Across three independent design searches, Codex / GPT-6 Astra averages 44.23 on the equally weighted five-track score, versus 29.32 for ReMEmbR, the strongest evaluated baseline supporting all five tracks, a 50.9% relative improvement. Qualitative analysis relates performance differences to evidence retention and retrieval, while identifying grounding and evidence-use failures. These results demonstrate the potential of coding agents to automate spatial memory design, while revealing task-dependent trade-offs in performance and computational cost. Project page: https://ba-fa-3344.github.io/ .
+
+I. I NTRODUCTION 
+
+Spatial memory enables robots to use past observations to answer questions unknown during exploration. After traversing an office, a robot may be asked where a chair is, which cabinet is beside the desk, what the room looks like, or when it last saw an object. These questions require complementary spatial, semantic, and temporal evidence. Deciding what to retain and how to organize it is difficult: a memory supporting one query type may omit information essential to another. Existing systems organize observations differently. Re-MEmbR [1] stores captions with poses and timestamps, ConceptGraphs [2] builds object-centric graphs, DAAAM [3] maintains temporal object/place histories, and FARM [4] retrieves evidence through spatial relations. Perception models, association strategies, embeddings, and retrieval tools create a large, coupled design space: useful retrieval requires both retaining evidence and making it accessible to downstream agents. Repeated implementation, evaluation, and revision make manual development costly. 
+
+> ∗
+
+Corresponding author: Hao Xu. 
+
+> 1
+
+Hao Xu is with Nanjing University (e-mail: xuhao3e8@nju.edu.cn). 
+
+> 2
+
+Qianwei Wang is with Princeton University (e-mail: qw3601@princeton.edu). 
+
+> 3
+
+Ce Zhang is with Carnegie Mellon University (e-mail: cezhang@cs.cmu.edu). 
+
+> 4
+
+Zhanpeng Luo is with Johns Hopkins University (e-mail: zluo45@jh.edu). 
+
+> 5
+
+Pengpeng Su and Shuo Yang are with Mondo Robotics (e-mail: pengpeng.su@mondorobotics.com; shuo.yang@mondorobotics.com). Shared module pool     
+
+> YOLO Grounding DINO SAM CLIP DINOv3 VLMs
+
+... ...  
+
+> Human engineer Coding agent
+
+?  
+
+> </>
+> Spatial memory systems
+> Where is ...? Which one ...? ... What is nearby? When was ...? Along the route?
+> Public feedback
+
+Fig. 1. Spatial memory by agents, for agents. A shared component pool supports different implementations (puzzles) for the same question requirements (board). Coding agents revise their designs using public feedback. The human–agent contrast is conceptual. 
+
+Coding agents offer a way to explore this space by implementing candidates, running experiments, and revising code in response to failures. Recent work demonstrates these capabilities in agent architectures and ML pipelines [5], [6], and in robotics through trace-guided program repair and real-world policy improvement [7], [8]. This motivates our question (Fig. 1): given reusable components, development feedback, and a fixed budget, how well can a coding agent design spatial memory for another agent across diverse tasks? 
+
+Our workflow separates design , build , and query , with distinct Designer and Query Agent roles. The Designer iteratively develops memory construction and retrieval using public-task feedback. The selected implementation is frozen before building memories from held-out histories without downstream questions. A fixed Query Agent then answers through each system’s retrieval tools, enabling comparison under a common downstream agent. Figure 2 illustrates how a design revision changes the semantic evidence stored in memory. Building on NaVQA and OC-NaVQA [1], [3], our eval-uation covers category-level and referring-expression local-ization, spatial and temporal QA, and navigation-history QA. Across three independent searches, our strongest Designer, Codex / GPT-6 Astra, averages 44.23 Unified on held-out histories versus 29.32 for ReMEmbR [1], the strongest evaluated full-track baseline. We analyze implementations, arXiv:2610.22736v1 [cs.RO] 15 Oct 2026 T2 Which cabinet is near the foot of the bed?          
+
+> T3 What is hanging from the bedroom ceiling?
+> T3 What is depicted in the painting above the bed?
+> T3 What color are the bedroom walls?
+> T3 Where is the full-body mirror?
+> T4 How long ago did you
+> fi rst enter the bedroom?
+> Public evaluation
+> From geometric objects to semantic evidence
+> </>
+> Coding Agent
+> Re fi ne naming
+> Scores + logs
+> Build
+> Before
+> Build
+> Retained revision
+> aircraft model umbrella elevator door ceiling fan stained glass lamp mirror
+> Crop-based semantics Fig. 2. An agent-discovered revision on a public HM3D scene. Shared observations and public questions guide a crop-based naming revision: aircraft model becomes ceiling fan , while object geometry stays unchanged. Bottom panels show actual memory artifacts, not answer predictions; puzzle assemblies denote implementations.
+
+development traces, and resource costs to relate design choices to performance and computational trade-offs. Our contributions are:  
+
+> •
+
+A coding-agent workflow that jointly designs spatial memory construction and retrieval through budgeted, iterative implementation and evaluation.  
+
+> •
+
+A five-track spatial memory evaluation suite with sepa-rate development and test histories and a fixed Query Agent for controlled cross-task comparisons.  
+
+> •
+
+An empirical demonstration of improved average cross-task performance over evaluated full-track baselines, with analyses of evidence retention, retrieval interfaces, and performance–resource trade-offs. II. R ELATED WORK 
+
+A. Spatial Memory Construction and Retrieval 
+
+Dynamic scene graphs, Kimera, and Hydra organize geometry, objects, places, and temporal structure [9]–[11]; HOV-SG adds open-vocabulary room–floor hierarchies for navigation [12]. Other language-queryable representations include VLMaps’ top-down features [13], CLIP-Fields’ im-plicit fields [14], and OpenScene’s distilled point features [15]. ConceptFusion fuses multimodal features into geometry [16], whereas ConceptGraphs associates objects with descriptions and relations [2]. For downstream reasoning, ReMEmbR retrieves posed, timestamped captions [1]; 3D-Mem selects visual snapshots [17]; DAAAM exposes temporal object/place histories [3]; and FARM performs relational retrieval and visual verifica-tion [4]. Embodied VideoAgent combines appearance, context, geometry, and history [18], while GraphEQA couples scene graphs with task-relevant images [19]. Task-driven representations also have precedents: Clio adjusts map granularity to a supplied task list [20]. We search the implementation during development and freeze it before building on held-out histories. Similarly, VLMaps generates code to consume a map, whereas our Designer implements memory construction and access. Our focus is the selection and coordination of established mechanisms. 
+
+B. Functional Evaluation of Spatial Memory 
+
+Semantic MapNet studies semantic maps and their use in counting and navigation [21], MultiON tests multi-object navigation [22], and EMQA queries spatial and spatiotem-poral information from observed tours [23]. NaVQA and OC-NaVQA are the closest precedents for our protocol. ReMEmbR’s NaVQA formulation separates memory con-struction from spatial, temporal, and descriptive queries [1]. OC-NaVQA annotates actual object positions, uses full observation sequences, and compares memories using the same reasoning LLM [3]. OpenEQA adds open-ended history QA [24], and ScanRefer/ScanEnts3D supply grounded language annotations [25], [26]. We combine these resources with constructed questions into a shared build–package– query evaluation, retaining native OC-NaVQA reporting. The suite tests complementary memory capabilities through development feedback and held-out assessment for coding-agent design. 
+
+C. Coding-Agent-Driven System Design 
+
+ADAS searches code-defined agent architectures [5]; MLE-STAR uses ablation-guided refinement and ensemble search for ML pipelines [6]; and the Darwin Gödel Machine modifies a coding agent’s implementation [27]. MLE-bench evaluates budgeted machine-learning engineering through repeated agent runs [28]. In robotics, ASPIRE repairs robot programs using execution traces and distills reusable skills [7], while ENPIRE develops reset and verification interfaces with human feedback to support policy improvement through real-world trials [8]. Here, coding agents design persistent memory construction and access, evaluated across histories and tasks. III. S PATIAL MEMORY DESIGN WITH CODING AGENTS 
+
+A. Spatial Memory as the Design Target 
+
+Object grounding uses geometry and identity, while tempo-ral recall uses event histories [1]–[3]. These complementary demands motivate jointly designing memory retention and access. Given a posed RGB-D history O = {(It, D t, P t, τ t)},a system s = ( Bs, T s, p s) comprises a builder producing memory Ms = Bs(O), retrieval tools Ts, and tool-use instructions ps. A shared Query Agent answers through these interfaces: a = Aθ0 (q; Ms, T s, p s).The shared pool offers diverse pretrained modules, includ-ing YOLOE [29] for detection, FastSAM for segmentation, OpenCLIP and DINOv3 for visual features, Qwen3.5-4B for captioning, and Qwen3-VL-Embedding-2B for multimodal embeddings. We favor compact modules and a 4B consumer for onboard efficiency; quantized Qwen3.5-4B supports responsive inference on Jetson Orin devices [30]. 
+
+B. Designer Protocol 
+
+Each scratch search starts from an unimplemented builder with shared task instructions, metrics, module pool, and public data. The Designer may inspect public data and prior work and edit the builder, retrieval tools, and tool-use instructions; the evaluator and Query Agent core remain fixed. The loop is implement–evaluate–inspect–keep/revert–revise .Separate H100 workers build candidates and run Qwen3.5-4B evaluation, returning per-track scores, costs, predictions, and query-linked tool traces. The Designer can inspect public reference answers and memory packages, then record keep/revert decisions with rationales. Selection uses only public feedback. The 24-hour budget covers coding, API waiting, building, and evaluation. Configurations share task/evaluation interfaces but retain native harness editing, execution, and context man-agement. Full prompts, tools, configurations, and execution rules are in the code. We summarize progress with a resource-adjusted public score: 
+
+Jreport (s) = 15
+
+> 5
+
+X
+
+> t=1
+
+ut(s) − Cresource (s), (1) 10,347                  
+
+> queries
+> 176 scenes / sequences
+> T1 Category loc.
+> 4,685 ·45.3%
+> T2 Referring loc.
+> 3,166 ·30.6%
+> T3 Spatial QA
+> 1,636 ·15.8%
+> T4 Temporal QA
+> 623 ·6.0%
+> T5 Navigation QA
+> 237 ·2.3%
+> Frozen 9,063 ·Public 1,284
+
+## 78 
+
+> HM3D scenes
+
+## 89 
+
+> ScanNet scans
+
+## 9 
+
+> CODa sequences
+> Fig. 3. Benchmark composition across unique scenes and sequences. Sectors show query shares; Unified weights the five tracks equally.
+
+where ut ∈ [0 , 1] is the public track score. With [x]+ =max(0 , x ), the resource penalty is 
+
+Cresource (s) = 0 .2[ ms/m 0 − 1] + + 0 .5 min {1, [bs/b 0 − 1] +}.
+
+Here ms and bs average package bytes and build TPF across public inputs; m0 = 50 × 10 6 bytes and b0 = 0 .2 s/frame. Both penalties vanish within budget; the time penalty caps at 0.5. Query latency is not penalized. 
+
+C. Frozen Build–Package–Query Evaluation 
+
+The complete implementation is frozen before held-out evaluation. Packages are built from histories without questions or references and reused across tracks. Systems share the Query Agent checkpoint, common instructions, interaction loop, decoding, tool budget, retries, and query order; only method-specific tools and their instructions differ. IV. M ULTIFACETED EVALUATION 
+
+A. Coverage, Sources, and Split 
+
+Five tracks probe complementary memory requirements: category coverage and geometry (T1), instance discrimination (T2), semantic context (T3), temporal evidence (T4), and navigation-history QA (T5). We combine constructed questions with ScanNet and HM3D inputs [31], [32], ScanRefer expressions and Sca-nEnts3D annotations [25], [26], OpenEQA [24], and OC-NaVQA [3] on CODa [33]. Figure 3 summarizes 10,347 queries over 176 inputs: 167 spatial inputs and nine sequences. Public development contains 1,284 queries; frozen evaluation contains 9,063. Complete scene-scan/episode/trajectory IDs are disjoint across splits, although separate captures may revisit physical regions. T5 includes 177 official frozen ques-tions and 60 constructed, human-reviewed public questions on separate trajectories. 
+
+B. What Each Score Measures 
+
+Scores lie in [0 , 1] ; missing or malformed answers receive zero. a) T1: Category-level metric localization: The system returns instance positions for a category. A prediction at a 3D distance d from a target center receives credit w(d) = max(0 , 1 − d/g ), where g = clip( 12 bbox diagonal , 0.5, 2.0) 
+
+meters. Each query specifies a prediction cap K. After maximum-credit one-to-one matching of only the first K
+
+predictions, let G and P count targets and predictions, 
+
+R = min( G, K ), and C be total credit. The soft F-score is the harmonic mean of C/R and C/ max( P, R ), measuring localization and instance coverage. 
+
+b) T2: Referring-expression localization: Only the top-ranked position receives w(d) against the referred target, measuring instance resolution and localization. 
+
+c) T3: Open-ended spatial QA: A reference-guided Qwen3.5-4B judge assigns a semantic correctness rating 
+
+r ∈ { 1, . . . , 5}, mapped to (r − 1) /4. It uses a separate conversation from the Query Agent, but shares its checkpoint. 
+
+d) T4: Temporal QA: For absolute time error e and observation horizon H in seconds, ℓ(e, H ) = clip(1 −log(1+ 
+
+e)/ log(1 + H), 0, 1) rewards temporal precision relative to history length. For multiple events, the i-th prediction is paired with the i-th reference; scores are averaged over references, with missing events scored zero and extras ignored. 
+
+e) T5: Navigation QA: Recorded-history questions use exact yes/no accuracy, clip(1 − dxy /(100 m) , 0, 1) for hori-zontal position error, or ℓ(e, H ) for time/duration converted to seconds. Original OC-NaVQA errors are also reported separately; this track does not measure active navigation success. 
+
+C. Aggregation and Resource Accounting 
+
+Each track uses a query-micro average; Unified equally averages the five tracks. Unsupported tracks are N/A, with no Unified for partial systems. Formal results use only frozen queries. Resources are reported separately: build time per frame, package size, peak RAM/VRAM, and end-to-end query latency. The shared Query Agent uses temperature zero, disabled thinking, a 2,048-token output limit, and five tool iterations. V. E XPERIMENTS AND ANALYSIS 
+
+A. Setup and Reporting 
+
+Each of four harness–model configurations performs three independent 24-hour searches. Eight H100 GPUs per search parallelize builds and Qwen3.5-4B evaluations for faster feedback. Claude uses Max effort; Codex and DeepSeek use High. Each system builds once per input and serves three query repeats. Scores are scaled by 100. Avg, our primary comparison, reports mean ± sample std across three search means, measuring design-search variability (Table I). Each mean averages three query repeats. Best is the run with the highest public Unified within each configuration. All checkpoint/run selection uses public feedback; frozen evaluation follows. To reduce model-related variation, baselines share the Qwen3.5-4B Query Agent and use common build components where possible. Our ConceptGraphs implementation uses YOLO-World, SAM, and OpenCLIP from the shared pool. ReMEmbR retains caption–pose–time memory, using the same Qwen3.5-4B captioner and Qwen3-VL-Embedding-2B embedder available to the Designers. For the same reason, FARM’s Qwen3.5-9B captioner and query parser are replaced with Qwen3.5-4B; we call this configuration FARM-4B. DAAAM retains its own mapping stack, including FastSAM, DAM, visual/text encoders, and tracking, and serves the shared Query Agent. LLM-with-Captions provides a caption-memory control. ConceptGraphs and FARM-4B are evaluated on their supported T1–T3. 
+
+B. Effectiveness and Cost 
+
+We first compare cross-task memory utility and deployment cost under the shared Query Agent. Broader memory utility across tasks. Codex / GPT-6 Astra averages 44.23 Unified across three searches versus 29.32 for ReMEmbR, the strongest full-track baseline: a 14.91-point (50.9% relative) gain (Table I). The other configuration averages range from 38.77 to 40.66; all 12 systems exceed ReMEmbR on Unified. Astra’s average exceeds DAAAM on all five tracks and FARM-4B on its three supported tracks. On T2, it reaches 37.55 versus 17.97 and 25.77, respectively. Its gains over ReMEmbR concentrate in localization and temporal QA; T3 is nearly tied, and ReMEmbR remains stronger on T5. Opus 5 has higher average T4/T5 scores than Astra, illustrating complementary task profiles. The Astra run selected by public Unified achieves 45.75 frozen Unified; Avg remains the primary across-search comparison. 
+
+Compact memories with different query costs. Agent-designed systems also use compact storage (Table II). Mean package sizes span 4.31–23.94 MiB across configurations, compared with 67.90 for DAAAM and 67.77 for FARM-4B. Mean build TPF is also lower: 0.143–0.347 s/frame versus 0.667/0.425. ReMEmbR remains smaller at 2.07 MiB. Astra averages 23.94 MiB and 25.93 s/query, compared with Opus 5’s 4.31 MiB and 14.74 s/query, despite lower average T4/T5 scores. The workflow finds storage-efficient systems, but query-time reasoning adds a performance–cost trade-off. 
+
+C. Designed Systems and Performance Differences 
+
+We inspect all 12 implementations and public packages alongside the baselines to interpret their task profiles. This 
+
+qualitative comparison uses the systems selected by public Unified as concrete examples of spatial evidence, temporal granularity, and retrieval choices. 
+
+Preserving the right spatial quantity. ReMEmbR stores observer positions alongside captions, whereas Codex / GPT-6 Astra Best retains object geometry, linked views, and alternative crops. Localization accounts arithmetically for 12.00 of their 16.43-point Unified gap: an observation location need not be the described object’s location. Its target appearance, full-query context, and conditional target– anchor parsing support instance discrimination. FARM-4B shares geometric and relational retrieval ingredients; the important design choices concern instance retention, context representation, and ranking together. TABLE I FIVE -TRACK RESULTS AND DESIGN COST . T HREE INDEPENDENT SEARCHES PER DESIGNER .Frozen performance 24-hour design search System / Designer T1 ↑ T2 ↑ T3 ↑ T4 ↑ T5 ↑ Unified ↑ Tokens (M) ↓ Cost ($) ↓
+
+LLM-with-Captions 0.87 ±0.00 0.56 ±0.00 59 .70 ±0.06 19 .49 ±0.38 51 .27 ±0.13 26 .38 ±0.10 N/A N/A ConceptGraphs 2.07 ±0.02 6.49 ±0.02 31 .98 ±0.14 N/A N/A N/A N/A N/A DAAAM 9.48 ±0.00 17 .97 ±0.06 40 .33 ±0.42 31 .38 ±0.33 38 .64 ±0.51 27 .56 ±0.18 N/A N/A ReMEmbR 1.01 ±0.00 0.47 ±0.01 61 .64 ±0.11 24 .49 ±0.17 58 .98 ±0.62 29 .32 ±0.18 N/A N/A FARM-4B 16 .43 ±0.01 25 .77 ±0.08 46 .18 ±0.15 N/A N/A N/A N/A N/A 
+
+Claude / Claude Opus 4.8 Best 20 .37 ±0.04 28 .97 ±0.12 54 .70 ±0.10 55 .43 ±0.30 52 .01 ±0.29 42 .30 ±0.11 599 452 Avg 17 .65 ±2.38 24 .96 ±6.38 54 .05 ±2.08 53 .70 ±2.00 51 .37 ±2.91 40 .35 ±2.80 631 ±67 463 ±44 
+
+Claude / Claude Opus 5 Best 17 .53 ±0.08 24 .79 ±0.07 53 .45 ±0.19 56 .39 ±0.04 60 .12 ±0.30 42 .46 ±0.10 755 561 Avg 19 .31 ±1.91 29 .53 ±4.45 48 .39 ±6.81 52 .90 ±3.97 53 .15 ±6.04 40 .66 ±1.61 690 ±84 520 ±56 
+
+Codex / GPT-6 Astra Best 22 .33 ±0.06 39 .14 ±0.14 61 .66 ±0.28 52 .81 ±0.25 52 .78 ±0.37 45 .75 ±0.14 302 428 Avg 20 .97 ±1.62 37 .55 ±1.60 61 .35 ±0.96 49 .30 ±3.81 52 .00 ±1.27 44 .23 ±1.54 287 ±14 406 ±20 
+
+DeepSeek / DeepSeek-V4-Pro Best 22 .26 ±0.03 30 .44 ±0.07 48 .38 ±0.14 45 .51 ±0.31 53 .03 ±0.43 39 .92 ±0.16 564 25 
+
+Avg 18 .50 ±3.49 31 .03 ±0.76 47 .01 ±4.21 47 .24 ±2.08 50 .07 ±2.61 38 .77 ±1.40 494 ±67 23 ±3
+
+Scores ×100 , mean ± sample std. Baselines/Best: three query repeats. Avg: three independent search means, each averaging three query repeats; std measures design-search variability. Avg is primary; Best uses highest public Unified within each configuration. Bold excludes Avg. Design tokens/cost: one search for Best, three-search mean ± std for Avg. N/A: unsupported/not applicable. TABLE II BUILD AND QUERY COSTS (↓). System Build TPF s/frame Package MiB Peak RAM GiB Peak VRAM GiB Query sLLM-with-Captions 0.047 ±0.027 0.14 6.6 27.1 9.56 ±0.11 
+
+ConceptGraphs 0.078 ±0.060 0.23 6.6 11.4 6.17 ±0.37 
+
+DAAAM 0.667 ±0.387 67.90 17.3 22.8 11 .27 ±0.06 
+
+ReMEmbR 0.049 ±0.028 2.07 8.4 33.3 9.96 ±0.46 
+
+FARM-4B 0.425 ±0.101 67.77 15.6 47.0 5.98 ±0.08 
+
+Claude / Claude Opus 4.8 Best 0.171 ±0.084 3.98 10.8 31.6 19 .19 ±0.18 
+
+Avg 0.166 ±0.104 6.19 11.4 34.3 14 .87 ±3.38 
+
+Claude / Claude Opus 5 Best 0.113 ±0.068 3.37 11.4 36.5 12 .43 ±0.37 
+
+Avg 0.143 ±0.079 4.31 10.3 27.1 14 .74 ±2.72 
+
+Codex / GPT-6 Astra Best 0.180 ±0.062 15.19 10.4 33.1 26 .14 ±1.14 
+
+Avg 0.253 ±0.100 23.94 11.7 32.7 25 .93 ±1.41 
+
+DeepSeek / DeepSeek-V4-Pro Best 0.149 ±0.076 7.51 5.0 6.3 13 .91 ±0.74 
+
+Avg 0.347 ±0.449 10.67 10.0 23.6 14 .89 ±1.77 
+
+TPF: per-input mean ± sample std, counting all input frames and excluding model-pool startup. Package and per-input peak RAM/VRAM: means only. Query: mean ± sample std across repeat means. Avg pools three systems; these stds describe input/repeat dispersion. Partial systems query only T1–T3. Hardware: H100 for build and Qwen query. 
+
+Representing events at the required granularity. DAAAM provides object histories, region visits, and trajectory queries. Claude / Claude Opus 5 Best makes further task-facing distinctions among sightings, encounters, passing, area visits, and level arrivals in revisit-aware places. Its T4 score of 56.39 versus DAAAM’s 31.38 is consistent with the value of matching event semantics to the question. Codex / GPT-6 Astra Best retains temporal evidence too, but is stronger on T1–T3 and weaker on T4/T5. These complementary profiles reflect the different evidence needed for object discrimination and event interpretation. 
+
+Coordinating complexity with the consumer. Claude / Claude Opus 4.8 Best combines geometric fusion, vi-sual/lexical ranking, caption reranking, and neighboring-object evidence. DeepSeek / DeepSeek-V4-Pro Best takes a more compact route: an instance/crop store, temporal region layer, and three tools. Its seven-tool Run 2 scores 0.75 points lower on Unified while requiring almost three times the build TPF, although it improves T2–T4. More components offer capacity but only help when their evidence remains usable within the shared interaction budget. 
+
+Remaining challenges in grounding and evidence use. 
+
+Reliable instance grounding remains a central challenge: even the best T1/T2 scores are 22.33/39.14. These tasks couple coverage, instance discrimination, and position accuracy. Temporal QA adds a semantic difficulty: a precise time can describe the wrong event. In a public DeepSeek / DeepSeek-V4-Pro Run 3 candidate, the Query Agent uses a 119.25 s 0 6 12 18 24  
+
+> Eff ective search time (h)
+> 0.2 0.3 0.4 0.5
+> Resource-adjusted public score
+> Claude / Claude Opus 4.8 Claude / Claude Opus 5 Codex / GPT-6 Astra DeepSeek / DeepSeek-V4-Pro Fig. 4. Public Unified minus resource penalty: mean best-retained progress across three searches using eight H100 GPUs.
+
+visibility span to answer a bathroom-dwell question whose reference is 7.1 s. Finally, retained evidence needs an effective access path. Context overflows and invalid tool arguments in selected DeepSeek systems cause failed frozen queries; the development traces below also show useful geometry going unused. These challenges span both memory representation and its use by the agent. 
+
+D. Search Process and Evidence Use 
+
+Figure 4 tracks progress with eight H100 GPUs per search. Between-system variation exceeds fixed-system query variation, highlighting the value of independent searches. 
+
+Readout changes can unlock existing evidence. For a public living-room duration question (19.7 s ground truth), Codex / GPT-6 Astra Run 2 initially nests visit spans beneath scene views; the Query Agent answers with the 113.3 s trajectory horizon. Promoting the spans to primary records changes the answer to 13 s; stationary-camera support improves it to 15.333 s, with the same build and tool. Readout improves evidence use, although the answer remains imperfect. Conversely, a revision requires an extra inspection call for coordinates. The Query Agent makes none across 1,284 public queries; T2 falls from 35.49 to zero and the revision is reverted. The geometry exists but its access path fails. Figure 2 illustrates the complementary refinement of stored semantic evidence. 
+
+E. Seeded Initialization 
+
+Given the scratch results, we next ask whether an es-tablished memory system provides a better starting point for broader task coverage. Two Claude / Claude Opus 5 searches start from each of ReMEmbR and FARM-4B, using the scratch budget and public-only development protocol (Table III). Both ReMEmbR outcomes improve T1, T2, and T4, addressing its weak localization and temporal scores. Run 1 largely preserves T3 and improves T5, reaching 44.22 Unified versus 42.46 for the matched scratch Best; Run 2 loses T3/T5 performance. The two outcomes illustrate the challenge of extending a memory while retaining its strengths. ?       
+
+> Question Query Agent
+> Retrieve Evidence
+> Memory
+> QA How many dining tables are in rooms with a bed?
+> Object evidence Table + bed
+> 1 table
+> Count once
+> Navigation Find the sofa closest to the refrigerator.
+> Fridge Sofa Selected sofa
+> move_to look_at
+> found
+> Fig. 5. A Query Agent reasons with memory from Codex / GPT-6 Astra Best. Below the illustrative house overview, recorded examples show contextual QA and target-directed navigation.
+
+Both FARM-4B outcomes add T4/T5 support. On its original T1–T3, however, Run 1 improves only T2, whereas Run 2 improves all three. Both remain below the matched scratch Avg of 40.66. Seeding thus offers useful starting capabilities, with mixed outcomes as the Designer adapts them to broader demands. 
+
+F. OC-NaVQA and Answerer Compatibility 
+
+To connect the five-track results with earlier spatial-memory studies, Table IV reports the official 177-question subset within T5 using native OC-NaVQA metrics. DAAAM’s com-parison uses GPT-5-mini [3], motivating a second evaluation of the same packages with this Query Agent alongside our shared Qwen3.5-4B setup. This also lets us examine how memory utility changes with the consumer. Claude / Claude Opus 5 Best leads binary accuracy with both answerers (78.61/79.60%). Codex / GPT-6 Astra Best rises from 59.70% with Qwen3.5-4B to 77.61% with GPT-5-mini, versus 72.14% for ReMEmbR and 65.17% for DAAAM. It also lowers DAAAM’s position/time errors from 48.33 m/3.51 min to 44.32 m/2.36 min, although ReMEmbR remains best on both errors (24.84 m/1.75 min). The native-metric view thus preserves the complementary strengths seen in the main results: agent-designed memories are competitive, while accurate metric and temporal answers remain sensitive to the memory–consumer pairing. The table also reports query costs for each configuration. TABLE III SEEDED INITIALIZATION : PER -TRACK INITIAL AND FINAL PERFORMANCE .Seed Run T1 initial → final T2 initial → final T3 initial → final T4 initial → final T5 initial → final Unified initial → final ReMEmbR 1 1.01 → 14.51 0.47 → 31.23 61.64 → 61.04 24.49 → 48.52 58.98 → 65.81 29.32 → 44.22 ReMEmbR 2 1.01 → 17.05 0.47 → 26.62 61.64 → 50.65 24.49 → 54.40 58.98 → 51.18 29.32 → 39.98 FARM-4B 1 16.43 → 15.42 25.77 → 27.90 46.18 → 32.76 N/A → 46.16 N/A → 47.56 N/A → 33.96 FARM-4B 2 16.43 → 21.70 25.77 → 30.65 46.18 → 51.17 N/A → 48.16 N/A → 46.34 N/A → 39.60 Scores ×100 , means of three frozen query repeats. Initial scores reuse the baselines in Table I; final scores follow two searches per seed with Claude / Claude Opus 5. FARM-4B initially supports T1–T3; all final systems support T1–T5. TABLE IV OC-N AVQA: 177 OFFICIAL FROZEN QUERIES .System Binary % ↑                                                                                                       
+
+> Pos. m↓
+> Time err. min ↓
+> Query s↓
+> Qwen3.5-4B
+> LLM-with-Captions 64 .18 ±0.00 63 .44 ±1.48 8.34 ±0.19 7.56 ±0.15
+> DAAAM 38 .31 ±0.86 57 .26 ±3.77 5.11 ±1.08 48 .83 ±0.93
+> ReMEmbR 70 .15 ±1.49 50 .97 ±0.51 4.97 ±0.08 7.00 ±0.61
+> Codex / GPT-6 Astra Best 59 .70 ±0.00 56 .25 ±2.44 5.59 ±0.41 19 .94 ±2.51
+> Claude / Claude Opus 5 Best 78 .61 ±0.86 51 .55 ±0.00 5.82 ±0.06 9.79 ±0.83
+> GPT-5-mini
+> LLM-with-Captions 72 .64 ±3.76 40 .79 ±5.80 3.93 ±0.51 17 .09 ±0.07
+> DAAAM 65 .17 ±4.80 48 .33 ±3.26 3.51 ±0.15 46 .98 ±1.95
+> ReMEmbR 72 .14 ±3.11 24 .84 ±2.88 1.75 ±0.15 19 .26 ±0.60
+> Codex / GPT-6 Astra Best 77 .61 ±4.48 44 .32 ±4.07 2.36 ±0.25 20 .84 ±1.46
+> Claude / Claude Opus 5 Best 79 .60 ±0.86 55 .31 ±3.15 4.38 ±0.26 13 .00 ±1.03
+> Mean ±sample std over three 177-query repeats; bold: best per answerer. Query time includes completion attempts. DAAAM alone uses its native five-tool, serial 15-call protocol here for GPT-5-mini; the main evaluation uses five tool iterations. Qwen: H100; GPT: local tools and remote API. TABLE V SIMULATION ROBOT DEPLOYMENT : 40 HOUSE TASKS .System Navigation SR 20 tasks, % ↑
+> Memory-QA Acc. 20 tasks, % ↑
+> No Memory 3.3±2.910 .0±5.0
+> Keyframe RAG 6.7±7.631 .7±2.9
+> ReMEmbR 10 .0±5.036 .7±2.9
+> Codex / GPT-6 Astra Best 58 .3±5.833 .3±5.8
+> Mean ±sample std across inference seeds 42, 43, and 44; 20 tasks per category and seed. Controller, task starts, and prebuilt memories are fixed.
+
+G. Simulation Robot Deployment 
+
+The recorded-history results motivate a further question: can the designed memory also guide a robot’s actions? We test navigation and QA in a ProcTHOR house [34] within Isaac Sim (Fig. 5). No Memory, Keyframe RAG, ReMEmbR, and Codex / GPT-6 Astra Best share a Qwen3.5-4B controller and task starts; memories are prebuilt from one robot survey and read-only. No Memory uses only current observations and task-local interaction; Keyframe RAG retrieves sampled survey images by embedding similarity, together with their poses and timestamps. The 40 tasks comprise 20 navigation goals and 20 QA questions covering counting, distance, and support relations. The controller receives live observations, pose, a known collision map, and each system’s native retrieval tools. Navigation succeeds when the robot declares the target found within 1 m with depth-confirmed visibility; QA uses exact integer or choice matching. Table V reports three inference-seed repeats. 
+
+Turning memory into navigation targets. The agent-designed memory achieves 58.3% navigation success versus 10.0% for ReMEmbR. Its object coordinates and crops provide actionable targets: the successful sofa episode in Fig. 5 retrieves sofa/refrigerator candidates, then moves to and faces the selected sofa. ReMEmbR’s caption poses instead locate observations, not objects. Target confirmation remains difficult: in 20 of 25 failed episodes, the robot declares success prematurely; five are near the correct target but fail depth-based visibility. Improving this final stage requires connecting retrieved evidence with the robot’s current view and approach. 
+
+Context and coverage in memory QA. QA is 33.3% versus ReMEmbR’s 36.7%: only two additional correct answers for ReMEmbR across 60 repeated trials. Distance comparisons favor ReMEmbR (9/18 versus 7/18); captions can preserve useful co-occurrence without object coordinates. Both systems struggle with complete, unique counts. For the table-count question in Fig. 5, the agent-designed system answers two instead of one in two repeats; the illustrated repeat inspects context and counts once. Bounded retrieval and instance/context ambiguity can impede enumeration: whole-house QA requires consistent evidence across objects and rooms, beyond a useful navigation target. VI. D ISCUSSION 
+
+Conclusion. Spatial memory benefits from coordinated retention, retrieval, and use. Coding-agent design improves average cross-task utility over established baselines, producing compact memories with complementary localization, temporal reasoning, and navigation strengths. 
+
+Limitations. Complete-system evaluation leaves individual mechanisms less understood; controlled ablations would deepen our qualitative analysis. The onboard-oriented pool and 4B consumer leave stronger cloud-hosted reasoners and hybrid designs largely unexplored. OC-NaVQA’s answerer-dependent results motivate these comparisons and independent T3 judges. Future Work. How should robotics benchmarks evaluate agent-adapted systems? Pairing task metrics with public feedback, held-out environments, explicit budgets, and agent-designed baselines could test new mechanisms, component coordination, and efficiency under changing demands. ACKNOWLEDGMENTS 
+
+We used coding agents to help write code and create figures. REFERENCES [1] A. Anwar, J. Welsh, J. Biswas, S. Pouya, and Y. Chang, “ReMEmbR: Building and reasoning over long-horizon spatio-temporal memory for robot navigation,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) ,2025, pp. 2838–2845. [2] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, et al. ,“ConceptGraphs: Open-vocabulary 3D scene graphs for perception and planning,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) , 2024, pp. 5021–5028. [3] N. Gorlo, L. Schmid, and L. Carlone, “Describe anything anywhere at any moment,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2026, pp. 35 002–35 013. [4] S. He, L. Huang, A. Lilja, F. Huebel, J. Frey, M. Pavone, S. S. Sastry, J. Malik, and C. Tomlin, “FARM: Find anything using relational spatial memory,” arXiv preprint arXiv:2606.15476 , 2026. [5] S. Hu, C. Lu, and J. Clune, “Automated design of agentic systems,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2025. [6] J. Nam, J. Yoon, J. Chen, J. Shin, S. Ö. Arık, and T. Pfister, “MLE-STAR: Machine learning engineering agent via search and targeted refinement,” in Adv. Neural Inf. Process. Syst. , vol. 38, 2025, pp. 116 692–116 712. [7] R. Lu, Y. Wu, E. Kou, L. Fu, W. Xiao, A. Mandlekar, Y. Xu, G. Shi, K. Goldberg, A. Chen, M. Chowdhury, Y. Zhu, L. J. Fan, and G. Wang, “ASPIRE: Agentic /skills discovery for robotics,” arXiv preprint arXiv:2607.00272 , 2026. [8] W. Xiao, J. Xie, T. Zhang, H. Lin, L. M. Fu, H. Xue, J. Lu, Y. Yang, C. Dai, Z. Wang, J. Wu, G. Wang, S. S. Sastry, K. Goldberg, L. J. Fan, Y. Zhu, and G. Shi, “ENPIRE: Agentic robot policy self-improvement in the real world,” arXiv preprint arXiv:2606.19980 , 2026. [9] A. Rosinol, A. Gupta, M. Abate, J. Shi, and L. Carlone, “3D dynamic scene graphs: Actionable spatial perception with places, objects, and humans,” in Proc. Robot. Sci. Syst. , 2020. [10] A. Rosinol, A. Violette, M. Abate, N. Hughes, Y. Chang, J. Shi, A. Gupta, and L. Carlone, “Kimera: From SLAM to spatial perception with 3D dynamic scene graphs,” Int. J. Robot. Res. , vol. 40, no. 12–14, pp. 1510–1546, 2021. [11] N. Hughes, Y. Chang, and L. Carlone, “Hydra: A real-time spatial perception system for 3D scene graph construction and optimization,” in Proc. Robot. Sci. Syst. , 2022. [12] A. Werby, C. Huang, M. Büchner, A. Valada, and W. Burgard, “Hierarchical open-vocabulary 3D scene graphs for language-grounded robot navigation,” in Proc. Robot. Sci. Syst. , 2024. [13] C. Huang, O. Mees, A. Zeng, and W. Burgard, “Visual language maps for robot navigation,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) ,2023, pp. 10 608–10 615. [14] N. M. M. Shafiullah, C. Paxton, L. Pinto, S. Chintala, and A. Szlam, “CLIP-Fields: Weakly supervised semantic fields for robotic memory,” in Proc. Robot. Sci. Syst. , 2023. [15] S. Peng, K. Genova, C. Jiang, A. Tagliasacchi, M. Pollefeys, and T. Funkhouser, “OpenScene: 3D scene understanding with open vocabularies,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2023, pp. 815–824. [16] K. M. Jatavallabhula, A. Kuwajerwala, Q. Gu, M. Omama, et al. ,“ConceptFusion: Open-set multimodal 3D mapping,” in Proc. Robot. Sci. Syst. , 2023. [17] Y. Yang, H. Yang, J. Zhou, P. Chen, H. Zhang, Y. Du, and C. Gan, “3D-Mem: 3D scene memory for embodied exploration and reasoning,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) ,2025, pp. 17 294–17 303. [18] Y. Fan, X. Ma, R. Su, J. Guo, R. Wu, X. Chen, and Q. Li, “Embodied VideoAgent: Persistent memory from egocentric videos and embodied sensors enables dynamic scene understanding,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV) , 2025, pp. 6342–6352. [19] S. Saxena, B. Buchanan, C. Paxton, P. Liu, B. Chen, N. Vaskevicius, L. Palmieri, J. Francis, and O. Kroemer, “GraphEQA: Using 3D semantic scene graphs for real-time embodied question answering,” in 
+
+Proc. Conf. Robot Learn. (CoRL) , vol. 305, 2025, pp. 2714–2742. [20] D. Maggio, Y. Chang, N. Hughes, M. Trang, D. Griffith, C. Dougherty, E. Cristofalo, L. Schmid, and L. Carlone, “Clio: Real-time task-driven open-set 3D scene graphs,” IEEE Robot. Autom. Lett. , vol. 9, no. 10, pp. 8921–8928, 2024. [21] V. Cartillier, Z. Ren, N. Jain, S. Lee, I. Essa, and D. Batra, “Semantic MapNet: Building allocentric semantic maps and representations from egocentric views,” Proc. AAAI Conf. Artif. Intell. , vol. 35, no. 2, pp. 964–972, 2021. [22] S. Wani, S. Patel, U. Jain, A. X. Chang, and M. Savva, “MultiON: Benchmarking semantic map memory using multi-object navigation,” in Adv. Neural Inf. Process. Syst. , vol. 33, 2020, pp. 9700–9712. [23] S. Datta, S. Dharur, V. Cartillier, R. Desai, M. Khanna, D. Batra, and D. Parikh, “Episodic memory question answering,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2022, pp. 19 119–19 128. [24] A. Majumdar, A. Ajay, X. Zhang, P. Putta, et al. , “OpenEQA: Embodied question answering in the era of foundation models,” in 
+
+Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2024, pp. 16 488–16 498. [25] D. Z. Chen, A. X. Chang, and M. Nießner, “ScanRefer: 3D object localization in RGB-D scans using natural language,” in Proc. Eur. Conf. Comput. Vis. (ECCV) , 2020, pp. 202–221. [26] A. Abdelreheem, K. Olszewski, H.-Y. Lee, P. Wonka, and P. Achlioptas, “ScanEnts3D: Exploiting phrase-to-3D-object correspondences for improved visio-linguistic models in 3D scenes,” in Proc. IEEE/CVF Winter Conf. Appl. Comput. Vis. (WACV) , 2024, pp. 3524–3534. [27] J. Zhang, S. Hu, C. Lu, R. Lange, and J. Clune, “Darwin Gödel Machine: Open-ended evolution of self-improving agents,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2026. [28] J. S. Chan, N. Chowdhury, O. Jaffe, J. Aung, et al. , “MLE-bench: Evaluating machine learning agents on machine learning engineering,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2025. [29] A. Wang, L. Liu, H. Chen, Z. Lin, J. Han, and G. Ding, “YOLOE: Real-time seeing anything,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV) , 2025, pp. 24 591–24 602. [30] NVIDIA, “TensorRT Edge-LLM: Performance benchmarks,” Online documentation, v0.10.0, 2026, accessed: Sep. 14, 2026. [Online]. Available: https://nvidia.github.io/TensorRT-Edge-LLM/user_guide/ performance/performance-benchmarks.html [31] A. Dai, A. X. Chang, M. Savva, M. Halber, T. Funkhouser, and M. Nießner, “ScanNet: Richly-annotated 3D reconstructions of indoor scenes,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR) ,2017, pp. 5828–5839. [32] S. K. Ramakrishnan, A. Gokaslan, E. Wijmans, O. Maksymets, A. Clegg, J. Turner, E. Undersander, W. Galuba, A. Westbury, A. X. Chang, M. Savva, Y. Zhao, and D. Batra, “Habitat-Matterport 3D dataset (HM3D): 1000 large-scale 3D environments for embodied AI,” in NeurIPS Datasets and Benchmarks , vol. 1, 2021. [33] A. Zhang, C. Eranki, C. Zhang, J.-H. Park, R. Hong, P. Kalyani, L. Kalyanaraman, A. Gamare, A. Bagad, M. Esteva, and J. Biswas, “Toward robust robot 3-D perception in urban environments: The UT Campus Object Dataset,” IEEE Trans. Robot. , vol. 40, pp. 3322–3340, 2024. [34] M. Deitke, E. VanderBilt, A. Herrasti, L. Weihs, K. Ehsani, J. Salvador, W. Han, E. Kolve, A. Kembhavi, and R. Mottaghi, “ProcTHOR: Large-scale embodied AI using procedural generation,” in Adv. Neural Inf. Process. Syst. , vol. 35, 2022, pp. 5982–5994.

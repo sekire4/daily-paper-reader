@@ -1,0 +1,1060 @@
+Title: Cache2LoRA: Understanding and Improving Context Internalization
+
+URL Source: https://arxiv.org/pdf/2610.24107v1
+
+Published Time: Tue, 20 Oct 2026 00:10:57 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+# Cache2LoRA: Understanding and Improving Context Internalization 
+
+Yi Fang 1 Gaurav Srivastava 1 Zhenyu Bi 1 Sirui Ding 2 Xuan Wang 1*
+
+> 1
+
+Department of Computer Science, Virginia Tech, Blacksburg, VA, USA 
+
+> 2
+
+Department of Biomedical Data Science, Stanford University, Stanford, CA, USA 
+
+{yif,gks,zhenyub,xuanw}@vt.edu srding@stanford.edu 
+
+Abstract 
+
+Context-to-LoRA methods encode documents as low-rank parameter updates, allowing lan-guage models to answer without retaining the source text in their decoding context. How re-liably do these updates preserve facts and sup-port their use under different instructions? Con-trolled diagnosis of existing context-to-LoRA methods separates fact discrimination, target retention, and response adaptation. Competing sources influence answers, while target-only construction and memory-state optimization improve recovery at fixed update size. Re-covering facts also does not ensure that an-swers follow response instructions. We in-troduce Cache2LoRA, which uses each query to aggregate evidence from a reusable frozen document cache before generating LoRA up-dates. Trainable encoding operates only on the query and memory-token suffix, and multi-style supervision teaches both evidence preser-vation and answer expression. Across 17 tasks, Cache2LoRA improves on existing context-to-LoRA methods and achieves macro F1 of 0.663, approaching full-context in-context learning at 0.671. For 32K documents and 256-token out-puts at batch size 16, its decoding throughput is 5.9 × that of full-context ICL. At matched mem-ory size, generated LoRA preserves answer accuracy more reliably than the learned-KV variant under long, diverse intervening text and combines more effectively with retained docu-ment KV, yielding higher hybrid F1 and EM. 
+
+1 Introduction 
+
+Parameter memory represents document informa-tion as weight updates rather than additional tokens in the answering context. Recent writers gener-ate LoRA updates in a forward pass, avoiding per-document gradient optimization (Charakorn et al., 2026; Liu et al., 2026). This offers a way to carry document information into the model’s computa- 
+
+> *Corresponding author: xuanw@vt.edu .
+
+tion without attending to document positions dur-ing decoding. Can these generated updates pre-serve the right facts and support their use under different response instructions? We diagnose D2L and SHINE along three di-mensions: fact discrimination, target retention, and response adaptation. Our source-substitution exper-iments link borrowed answers to competing facts. When we restrict writing to the passage relevant to the question, factual recovery improves without increasing the update size. Optimizing the writer’s memory states also improves recovery at fixed out-put size. These controls suggest that the difficulty lies partly in determining which information to write, beyond how much the update can hold. We also find that D2L can recover reference content without adopting the requested answer form. Effec-tive internalization requires selecting relevant facts and learning to express them as instructed. For fact selection, the query supplies information that document-only writers lack: what the reader needs from the document. This motivates using the query during writing, but the resulting construction cost must be paid for every question. Within param-eter memory, Doc-to-Atom enables query routing but requires semantic decomposition and compila-tion into LoRA units beforehand (Diao et al., 2026). AAG first generates a synthetic document and uses it with the query to produce adapters, coupling parameter construction to an additional context-generation stage (Liao et al., 2025). Activation-based compressors instead produce compact em-beddings or KV states. OSCAR, QGC, and ATA-Compressor jointly encode document content with each query, repeating document encoding when another question concerns the same source (Louis et al., 2025; Cao et al., 2024; Li et al., 2025a). We propose Cache2LoRA , which generates query-specific LoRA directly from a reusable cache of the supplied document. A frozen backbone pre-fills the document once, without semantic atom-1arXiv:2610.24107v1 [cs.AI] 16 Oct 2026 ization or synthetic-context generation. For each question, trainable encoding acts only on the query and appended memory tokens, aggregating relevant information without re-encoding the document. A generation head converts these states into LoRA updates for the answerer. Multi-style teacher su-pervision supports both factual recovery and varied response instructions, while a retention objective limits interference on unrelated inputs. New docu-ments and queries require no gradient optimization. Across 17 tasks, Cache2LoRA reaches macro F1 of 0.663, approaching full-context ICL’s 0.671, and improves on released D2L, Cache2LoRA-TF, and further-trained D2L. Cached construction avoids repeated document encoding. For 32K documents and 256-token outputs at batch size 16, decoding throughput reaches 5.9 × that of full-context ICL. Generated LoRA also shows two advantages over directly using the learned memory tokens as KV states at matched memory size. First, it preserves answer accuracy more reliably under long, diverse intervening text, keeping query-specific document memory usable after construction. Second, it com-plements retained document KV more effectively, yielding higher hybrid F1 and EM across both se-lectors and all tested budgets. 
+
+2 Related Work 
+
+2.1 Context-to-LoRA Generation 
+
+Context distillation transfers source-conditioned behavior into parameters (Snell et al., 2022; Cac-cia et al., 2025), while hypernetworks predict up-dates from task or input representations (Ha et al., 2016; Karimi Mahabadi et al., 2021; Ivison and Peters, 2022; Phang et al., 2022). Our writer com-bines generated adaptation with distillation. D2L maps document latents to LoRA, and SHINE maps memory-token states to updates (Charakorn et al., 2026; Liu et al., 2026). Both write before seeing the query. Our diagnoses of factual recovery and response adaptation motivate query-guided writing. Parametric RAG and Doc-to-Atom select pre-compiled parameter memories (Su et al., 2025; Diao et al., 2026), whereas we generate an update for each query. AAG constructs adapters from syn-thetic context (Liao et al., 2025), while we use the supplied document’s cache. Override adjusts gen-erated updates to resolve conflicts with pretrained knowledge (Cheng et al., 2026). We instead train the writer to select facts and express answers. 
+
+2.2 Fast Weights and Test-Time Adaptation 
+
+Fast-weight programmers write input-dependent weights, encompassing certain linear-attention up-dates (Schlag et al., 2021). Our writer likewise generates dynamic parameters, specifically LoRA updates for a pretrained answerer. Test-time train-ing optimizes parameters during inference (Sun et al., 2020; Hardt and Sun, 2024). TTT layers use a trainable model as recurrent state, and Titans up-dates neural memory at test time (Sun et al., 2024; Behrouz et al., 2025). Cache2LoRA instead gener-ates updates from cached document states without test-document gradients. Forward generation is also used in fast-weight systems. 
+
+2.3 Context Compression 
+
+Text selection and learned activation memories pro-vide alternatives to parameter storage (Jiang et al., 2024; Mu et al., 2023; Ge et al., 2023; Chevalier et al., 2023). We use CCM and 500xCompres-sor as KV controls (Kim et al., 2024; Li et al., 2025b). OSCAR, QGC, and ATACompressor con-dition compression on the query (Louis et al., 2025; Cao et al., 2024; Li et al., 2025a), but jointly en-code document content with each question. Our writer reuses document states. We also compare with released OSCAR on Mistral. KV eviction selects existing states (Zhang et al., 2023; Xiao et al., 2024; Li et al., 2024; Zhang et al., 2026; Kim et al., 2026), whereas our writer aggre-gates document information into new parameter updates. Cartridges and related studies compare KV and parameter memories optimized for a cor-pus or document (Eyuboglu et al., 2026; Rakotoni-rina et al., 2026). Our comparison instead uses forward-generated, query-specific memories. 
+
+3 Diagnosis 
+
+We examine fact discrimination, target retention, and response adaptation in D2L, and repeat se-lected tests on SHINE (Figure 1). The base model answers with the question alone or with the full document through in-context learning (ICL). Ap-pendices A.4 and A.5 detail the baselines and each test’s data, procedures, controls, and metrics. 
+
+3.1 Fact Discrimination D2L can confuse facts from different sources. 
+
+We combine Wikipedia passages about different people and ask for one person’s birth year. Each passage names the person and birth year, so we 2(a) Diagnosis            
+
+> 1 Fact Discrimination 2 Target Retention 3 Response Adaptation
+> Iris lives in Rome Noah lives in Lima Borrowed Iris: Lima Iris lives in Rome Target information share Iris lives in Rome Rain starts tonight The cup is blue
+> +
+> ×
+> Short answer Explain
+> (b) Writing paradigms
+> D2L / SHINE Doc-to-Atom Cache2LoRA
+> Doc Writer
+> ×
+> LoRA
+> LLM
+> Query
+> Doc Writer
+> ×××
+> Atoms LoRAs
+> Σ
+> Query
+> LLM
+> Doc Writer
+> Query
+> ×
+> LoRA
+> LLM
+
+Figure 1: Illustrative diagnostics and writing paradigms. (a) Fact discrimination, target retention, and response adaptation assess factual recovery and answer expression. Teal bars schematize relative target shares. (b) Queries guide answering in all three paradigms, memory routing in Doc-to-Atom, and memory writing in Cache2LoRA. 
+
+can trace a wrong answer to another person. Tests that vary the number of people also cover D2L on Gemma and SHINE on Qwen (Figure 10). 
+
+Changing the borrowed fact changes the an-swer. In 67 responses, the first reported year be-longs to another person. We change that person’s year in the source text, regenerate the LoRA update, and ask the same question. The first year changes in 91% of cases, versus 27% when we change a third person’s year. Averaging the vectors read from the borrowed passage during writing changes the first year in 65/67 cases, versus 22/67 for a third passage. Borrowed and other passages receive sim-ilar mean attention shares (0.119 vs. 0.117), so attention share alone does not identify which fact is borrowed (Appendix B.1). 
+
+D2L’s direct contribution varies little across questions. We hold each document’s adapter fixed and measure its contribution to activations at a fixed answer prefix across eight questions. The frac-tion of activation energy that varies across ques-tions averages 0.066 for D2L versus 0.434 for directly optimized LoRA of the same size (Fig-ure 2b). Figure 2a also shows overlap between facts’ contributions during writing. This overlap is only weakly correlated with changes in competing-answer scores ( r = 0 .057 , Appendix B.1). 
+
+3.2 Target Retention Adding other content makes the requested fact harder to recover. In FactSet, we keep the ques-tion and the fact needed to answer it fixed while adding statements. ROUGE-L Recall (R-L) mea-sures how much of the reference answer appears in the response. On FactSet-Homo, D2L scores 0.982 when LoRA is generated from that fact alone and 0.184 when other facts are included, while ICL retains full coverage (Table 7). Generic sentences without names or numbers cause smaller losses than added facts (Appendix B.2). SQuAD and NQ 1 4 8  
+
+> Fact j
+> 148Fact i (a) Extraction overlap
+> 0.00 0.04 0.08 Normalized mass
+> D2L Optimized LoRA 0.0 0.2 0.4 0.6
+> Energy fraction
+> 0.066 0.434
+> (b) Query variation
+
+Figure 2: Internal readouts on FactSet-Homo. (a) Over-lap between facts’ extraction contributions over 16 docu-ments. (b) Variation in LoRA’s direct effect across ques-tions, measured as a fraction of activation energy. Lines pair D2L and directly optimized LoRA of the same size on eight documents. Thick marks show means. 
+
+mark the passages containing each answer, allow-ing the same comparison on natural text (Table 7). 
+
+Changing what is written improves recovery at the same LoRA size. In a 64-question test, we track the attention given to the target statement as more facts are added (Figure 3a). Increasing only the target’s attention weights, with all added facts still present, raises R-L from 0.77 to 0.95 with 15 additions (Figure 3b). We also freeze the answerer and LoRA generator, then use supervised training to adjust only the vectors passed to the generator. At the same LoRA size, responses containing the correct answer increase from 4/64 to 64/64 for D2L and from 8/64 to 55/64 for SHINE (Figure 4). On these examples, the fixed generator can produce more effective LoRA updates, pointing to the construction of its input vectors as a bottleneck. 3.3 Response Adaptation Including the reference answer does not ensure the requested form. We keep the document, ques-tion, and generated LoRA fixed, and change only the answering instruction. We examine responses that cover the entire reference answer, measured by R-L=1. Averaged over 13 tasks, only 4.5% of these D2L responses have at most five words, com-30 7 15 31     
+
+> Added statements
+> 0.0 0.2 0.4 0.6
+> Attention to target
+> (a) Target attention
+> Other facts Generic fi ller
+> 0.0 0.5 1.0
+> Answer score
+> Original Boost target Average others Shift to target
+> 0.31 0.38 0.25 0.39 0.77 0.95 0.84 0.95
+> (b) Changes to writing
+> F1 R-L
+
+Figure 3: Changes to writing on 64 questions. (a) Atten-tion share given to the target as statements are added. (b) F1/R-L with 15 added facts: unchanged writing, boost-ing target attention, averaging other statements’ vectors, or shifting attention toward the known target. 0 16 32 48 64 
+
+> Responses containing the target answer (out of 64)
+
+D2L SHINE  
+
+> 4/64 8/64 64/64 55/64
+> Original vectors Adjusted vectors
+
+Figure 4: Adjusting the vectors used to generate LoRA. The answerer, generator, and LoRA size stay fixed. Su-pervised training changes only the generator’s input vectors. Bars count responses containing an accepted answer out of 64 questions (Appendix B.4). Short Explain 020 40 60   
+
+> Mean words
+> 7.9 49.9 15.1 25.4
+> (a) Instruction change
+> ICL D2L
+> ICL D2L Target only 050 100
+> Short responses (%)  304/304 0/18 46/293
+> (b) Reference covered
+
+Figure 5: Answer form under changed instructions. (a) Mean words across 13 tasks. (b) Short answers ( ≤5words) among FactSet-Homo responses covering the full reference (R-L=1). Target only generates LoRA from the relevant passage with D2L. Labels give counts. 
+
+pared with 75.7% for ICL (Table 8). Even when D2L writes from only the passage containing the answer, short responses remain uncommon. Ask-ing for an explanation instead of a short answer increases D2L’s response length much less than ICL’s (Figure 5). D2L on Gemma shows the same limited change in length (Table 20). 
+
+4 Cache2LoRA 
+
+The diagnoses motivate two design choices: using the query to guide which facts are written, and supervising how those facts are expressed. Given a document D and query q, the full Cache2LoRA model aggregates relevant content from a reusable 1 Multi-Style Supervision 
+
++        
+
+> Style pool
+> Short answer Sentence
+> Teacher
+> Responses Filter
+> 2 Context-to-Parameter Generation
+> 1Prefill  Context KV
+> +
+> Query
+> +
+> M memories
+> 2Encode
+> Frozen Trainable
+> Transformer blocks
+> Encoding LoRA Memory states
+> Projection Residual MLP Linear
+> Split
+> AB
+> Generator LoRA
+
+Figure 6: Cache2LoRA overview. Multi-style teacher answers supervise query-specific LoRA generation. En-coding LoRA acts on the query-and-memory suffix over a frozen document cache. Each layer’s M memory states generate a rank-M update. 
+
+document cache into learned memory states, then converts those states into LoRA updates. Multi-style teacher answers train the writer for factual recovery and response adaptation (Figure 6). 
+
+4.1 Query-Guided Memory Construction 
+
+A frozen copy of the answering backbone reads 
+
+D once with encoding LoRA disabled, storing its layerwise keys and values as C(D). This cache is reused across queries about D. For each q, we process the query followed by M learned memory tokens as a suffix attending to C(D).An encoding LoRA , shared across documents and queries, adapts the attention and feed-forward projections for this suffix. Each memory token attends to the cached document, the query, and preceding memory tokens, combining document content according to the question. We denote its hidden state at layer ℓ and memory position m by 
+
+hℓ,m . The default writer forms states per query without external relevance scores or attention bias. Document states remain fixed during this pro-cess. New token projections and feed-forward com-putation are confined to the suffix, although suffix attention still accesses the full cache. Its cost there-fore still grows with document length. 
+
+Training-free variant. We also introduce Cache2LoRA-TF, a training-free variant that applies query guidance to a pretrained writer. A frozen matcher scores document positions for the query. These scores bias the writer’s extraction attention toward relevant content, and its existing generator converts the aggregated states into LoRA. Our main implementation uses released D2L with all writer parameters fixed. Appendix C.2 details this variant and its extension to SHINE. 44.2 Generating and Applying LoRA 
+
+In the full model, we generate answering LoRA from the learned memory states at each layer ℓ:
+
+zℓ,m = Pℓ LN( hℓ,m ),
+
+(Aℓ, B ℓ) = Gℓ(zℓ, 1: M ),
+
+∆Wℓ = BℓAℓ.
+
+(1) Here Pℓ projects each state into the generator’s latent space. The generator Gℓ uses a residual MLP, normalization, and a linear head to produce scaled LoRA factors. Each memory state supplies one rank component. We apply ∆Wℓ to the answerer’s 
+
+down_proj weights at layer ℓ.The encoding LoRA is learned during training and reused to construct memory. The answering LoRA is generated for each document–query pair to supply information to the answerer. 
+
+Answering. The answerer receives the query and response instruction with the generated update ap-plied. In standalone use, its decoding context con-tains neither the document nor the writer’s memory tokens. The same update can also supplement doc-ument KV retained by SnapKV or DropKV (Sec-tion 5.5). New documents and queries require only forward passes through the trained writer. 
+
+4.3 Multi-Style Supervision 
+
+To train the full model, we use the same frozen backbone as a teacher conditioned on the full doc-ument and query. It generates answers under var-ied instructions, including short answers, complete sentences, and explanations. The student uses the generated LoRA and the corresponding answering prompt, without the document. At each teacher-answer prefix, we match the student’s next-token distribution to the teacher’s using forward KL (Hin-ton et al., 2015). These targets teach content and answer form without passage labels. 
+
+Preserving base behavior. Generated LoRA changes the answerer’s computation wherever the update is applied. We therefore combine answer distillation with a retention objective, 
+
+L = LKL + λretain Lretain . (2) Here LKL is the tokenwise distillation loss above. On unrelated text, Lretain matches predictions with the generated update to those of the unmodified backbone. It limits interference with base-model behavior, a concern also observed for document-trained LoRA (Eyuboglu et al., 2026). 
+
+Training. We jointly train the memory embed-dings, encoding LoRA, projections, and parameter generator. Gradients pass through the answerer to the generated factors and writer, while backbone weights remain frozen. Our default uses rank-32 encoding LoRA and M = 8 memory tokens to gen-erate rank-eight answering updates. Training runs for 2,000 steps with λretain = 0 .3. Appendix A details data construction and training settings. 
+
+5 Experiments 
+
+5.1 Setup Tasks and metrics. We evaluate 17 tasks span-ning FactSet, Wikipedia, SQuAD (Rajpurkar et al., 2016), DROP (Dua et al., 2019), NewsQA (Trischler et al., 2017), TriviaQA (Joshi et al., 2017), Natural Questions (Kwiatkowski et al., 2019), and LongBench (Bai et al., 2024), including HotpotQA (Yang et al., 2018). We report token F1, exact match (EM), and ROUGE-L Recall (R-L) for reference coverage. Tasks receive equal weight. 
+
+Baselines. The Qwen3-4B comparison in-cludes released D2L, further-trained D2L, and full-context ICL. We also evaluate Cache2LoRA-TF, our training-free variant using frozen D2L. The Mistral comparison adds OSCAR. Main results use the same short-answer instruction. SHINE is evaluated on its released Qwen3-8B backbone in the diagnoses and the Cache2LoRA-TF extension. Appendix A.4 details the baseline settings. 
+
+KV baselines and state budgets. We compare with SnapKV, DropKV, Fast KVzip, and our re-productions of CCM and 500xCompressor (Ap-pendix A.4). Their budget equals 48 KV posi-tions, matching Cache2LoRA’s 6.75 MiB output. Selected-KV baselines recompute the instruction and query over compressed document KV before answering. Budgets exclude prompt states, model weights, and construction caches. 
+
+5.2 Comparison with Existing Methods Cache2LoRA improves on D2L baselines across different backbones. On Qwen3-4B, the training-free variant improves over released D2L, while the full model exceeds both this variant and further-trained D2L on all metrics and approaches full-context ICL in F1 (Table 1). The advantage over released D2L also holds on Mistral and Gemma (Tables 2 and 16). The training-free variant also improves Gemma D2L and Qwen3-8B SHINE on their respective tests (Table 15). 5Table 1: Comparison with parameter and KV baselines. 17-task Qwen3-4B averages (Appendix D.1). TF uses frozen D2L. KV methods and Cache2LoRA use 6.75 MiB. Teal marks best non-ICL scores.                                  
+
+> Method F1 R-L EM ICL (full context) 0.671 0.845 0.518
+> Parameter writers
+> D2L 0.173 0.514 0.016 D2L + Further Training 0.391 0.468 0.272
+> KV baselines, 48 positions
+> SnapKV 0.636 0.789 0.485 DropKV 0.621 0.780 0.472 Fast KVzip 0.430 0.553 0.341 500xCompressor 0.520 0.606 0.392 CCM 0.485 0.559 0.358
+> Cache2LoRA-TF 0.260 0.755 0.025
+> Cache2LoRA 0.663 0.774 0.510
+
+Table 2: Mistral-7B comparison. Averages over 17 tasks, with best non-ICL scores highlighted. State measures document memory.                     
+
+> Method State (MiB) F1 R-L EM ICL 423.7 0.449 0.855 0.242 D2L 9.0 0.294 0.535 0.125 OSCAR 32.0 0.218 0.762 0.010
+> Cache2LoRA 9.0 0.456 0.780 0.261
+
+Cache2LoRA is competitive with context com-pression. At the same state budget on Qwen3-4B, Cache2LoRA exceeds SnapKV, the strongest KV baseline in F1 and EM, although SnapKV and DropKV retain more reference content (Table 1). On Mistral, Cache2LoRA also exceeds OSCAR’s official checkpoint (Louis et al., 2025) in F1 and EM with substantially less state (Table 2; setup in Appendix D.1). OSCAR has similar reference coverage but longer answers, so answer form also matters when interpreting its lower accuracy. 
+
+5.3 Improvements on Diagnostic Tests Fact discrimination. On Wikipedia birth-year questions, Cache2LoRA corrects nearly all of D2L’s errors that borrowed another person’s year. The remaining cases become other errors rather than correct answers (Appendix D.3). 
+
+Target retention. With fixed target questions, Cache2LoRA largely preserves accuracy as same-type facts are added, whereas D2L collapses. Other-type additions also preserve performance. Generic filler lowers F1 at similar coverage, showing that robustness depends on content (Table 18). 
+
+Response adaptation. When asked for an ex-planation instead of a short answer, Cache2LoRA expands its responses much more than D2L 
+
+Table 3: Writer, supervision, and memory-form ab-lations. Qwen3-4B macro averages over the 17-task evaluation suite. Component comparisons share the training pool and step budget. Short-answer-only and D2L prompt are single-style controls; teacher recipes share documents, queries, encoder architecture, and step budget. Memory output forms share training data, train-ing budget, and a 6.75 MiB output size.                                
+
+> Configuration F1 R-L EM
+> (a) Cache2LoRA writer variants
+> Cache2LoRA 0.663 0.774 0.510 w/o encoding LoRA 0.562 0.650 0.405 w/o query conditioning 0.182 0.233 0.106 w/ matcher 0.665 0.775 0.511
+> (b) Cache2LoRA teacher recipes
+> Cache2LoRA (multi-style) 0.663 0.774 0.510 Short-answer-only 0.578 0.710 0.418 D2L prompt 0.307 0.777 0.088
+> (c) Memory output form
+> Generated LoRA 0.663 0.774 0.510 Memory Tokens KV 0.682 0.807 0.522
+
+(Table 19). It also more often answers correctly while satisfying held-out uppercase, JSON, and prefix formats (Table 21). Response-length adaptation also holds on Gemma (Table 20). 
+
+5.4 Ablation Study Query guidance matters during writing. Remov-ing the query from construction sharply reduces accuracy, although the answerer still receives it. Removing encoding LoRA also hurts performance, while adding explicit matching to the complete en-coder yields little improvement (Table 3a). 
+
+Multi-style supervision improves F1 and EM over both single-style controls. We compare multi-style supervision with short-answer-only and original-D2L-prompt supervision under matched training data, budget, and architecture. Multi-style training achieves higher F1 and EM than both con-trols and higher R-L than short-answer-only su-pervision (Table 3b), showing gains beyond using short-answer targets alone. The comparison with D2L-prompt also extends to varied answering in-structions and held-out formats (Table 22). 
+
+Generated LoRA largely preserves unrelated reasoning performance. On the first 200 GSM8K questions, accuracy is 92% with LoRA generated from unrelated documents, versus 94% without LoRA under identical ICL prompts. Retention also reduces unrelated-text prediction drift with little change in QA accuracy (Appendix D.4). 
+
+Memory Tokens KV achieves higher stan-dalone accuracy. Memory Tokens KV directly 60 1K 4K 16K 32K 0.0 0.2 0.4 0.6 0.8     
+
+> F1
+> 01K 4K 16K 32K 0.0 0.2 0.4 0.6
+> EM Inserted tokens
+> Cache2LoRA ICL DropKV (10%) Memory Tokens KV
+
+Figure 7: Memory recall under intervening context. Macro F1 and EM over six tasks. Unrelated text pre-cedes the question. LoRA, Memory Tokens KV, and selected document KV are fixed before insertion. LoRA and Memory Tokens KV each use 6.75 MiB. ICL retains the full document. DropKV retains 10% of document KV (minimum 48 positions). 
+
+uses the layerwise KV states of 48 learned mem-ory tokens instead of generating LoRA. Training data, training budget, and output size are matched. Memory Tokens KV performs better on all metrics in standard standalone evaluation (Table 3c). 
+
+LoRA supports more interference-resistant recall than Memory Tokens KV. We insert up to 32K tokens of unrelated LongBench text before the answering question across six tasks. LoRA and Memory Tokens KV are constructed from the orig-inal document and query, then fixed across lengths. ICL retains the full document, while DropKV re-tains a subset of document KV. At the longest inser-tion, Cache2LoRA has higher macro EM than all three alternatives and similar F1 to ICL (Figure 7). Memory Tokens KV declines sharply, falling below DropKV once text is inserted. Its reference cover-age also drops sharply, indicating that the accuracy loss is not merely a consequence of longer answers. Memory Tokens KV relies on attention to a fixed memory prefix, whose use may be disrupted by intervening text (Shi et al., 2023). Its use may also be position-sensitive (Liu et al., 2024). Shifting memory-key RoPE positions to restore their origi-nal distance to the question substantially improves KV recall at 4K. At 32K, however, it remains far below LoRA on all six tasks despite this correc-tion (Table 17), so this positional mismatch alone does not explain the gap. At 4K, aligned KV even exceeds LoRA in F1 on two tasks, showing that po-sitional handling materially affects the comparison. The persistent gap at 32K distinguishes initial an-swer recovery from continued use of a constructed memory: generated LoRA is more robust in the latter setting, even though learned KV performs 8 16 32 64 0.62 0.66 0.70            
+
+> SnapKV: F1
+> 816 32 64 0.48 0.52 0.56
+> SnapKV: EM
+> 816 32 64 0.62 0.66 0.70
+> DropKV: F1
+> 816 32 64 0.48 0.52 0.56
+> DropKV: EM
+> KV only + LoRA + Memory Tokens KV
+
+Figure 8: Hybrid F1 and EM with SnapKV and DropKV. The horizontal axis gives total document-derived state (MiB, log scale). Generated LoRA and Memory Tokens KV each add 6.75 MiB to the same selected document cache at B = 48 , 128 , 512 .
+
+better in standard standalone evaluation (Table 3c). LoRA modifies computation at each subsequent position without requiring memory-prefix retrieval, potentially supporting more stable recall. 
+
+5.5 Hybrid Answering 
+
+Prior work combines document-trained LoRA with compressed KV (Zuo et al., 2026). We test gener-ated updates with document positions selected by SnapKV or DropKV. Both selectors use the query. All conditions process the instruction and query again over the selected cache, including controls without LoRA. The writer and selectors are com-bined without joint training (Appendix A.6). 
+
+LoRA combines better with selected KV on F1 and EM. We replace LoRA with Memory Tokens KV while keeping the selected document cache fixed. Both add 6.75 MiB. Across all tested budgets, LoRA gives higher F1 and EM with both SnapKV and DropKV (Figure 8). Memory Tokens KV has higher R-L at all three budgets. 
+
+The update’s source and query matter. Hold-ing the selected cache and answering procedure fixed, enabling Cache2LoRA improves F1 with both selectors. Replacing it with an update from another document lowers performance below KV-only answering. An update for a different query about the same document also underperforms KV-only answering on the matched subset (Table 24). The gains thus depend on an update aligned with both the source and the current question, rather than merely adding an adapter. In particular, the 71K 4K 16K 32K 01000 2000      
+
+> Time (ms)
+> 12.2× faster
+> (a) Time to first token ↓
+> Cache2LoRA Re-encode document
+> 1K 4K 16K 32K
+> Document length (tokens, log scale)
+> 0200 400 600
+> Tokens/s
+> 5.9× ICL
+> (b) Decoding throughput ↑
+> Cache2LoRA ICL SnapKV DropKV Figure 9: Qwen3-4B efficiency on one H200. (a) Time from the query to the first answer token, excluding one-time document caching. Cache2LoRA generates and applies LoRA, while the control re-encodes the docu-ment for each query. (b) Batch-16 decoding throughput with 256 output tokens. SnapKV and DropKV retain 48 positions. Full results are in Table 27b.
+
+same-document control holds the source informa-tion fixed while changing which question guides memory construction. 
+
+LoRA helps even when answer positions are retained. When selection prioritizes positions con-taining the reference answer, adding Cache2LoRA still improves F1 and EM with both selectors (Ta-ble 25). Its benefit is therefore not confined to cases where compression removes those positions. This supports a complementary role in using retained evidence, although retaining answer positions does not guarantee that all supporting context survives. With conflicting facts, Wikipedia answers often fol-low LoRA under tighter compression but shift to-ward KV as more positions are retained (Table 26). These results support using generated LoRA as a complement to retained document KV. The gains persist across both selectors and all tested budgets, up to 512 retained positions, without joint training, indicating that the update remains useful as more source context is retained. 
+
+5.6 Efficiency 
+
+On one H200, we measure one-time document caching, time to the first answer token after caching, and batch-16 decoding with 256 output tokens. 
+
+Caching benefits long documents. Relative to re-encoding on the same backbone, Cache2LoRA reaches the first answer token 2.1 × faster at 4K, 6.6 × at 16K, and 12.2 × at 32K (Figure 9a). The control re-encodes the document and suffix for each question. These ratios exclude one-time document caching, which costs 1,820.6 ms for Cache2LoRA at 32K and is shared across queries (Table 27b). At 32K, cached 16-token answering is 4.6 × faster than the re-encoding control (Table 27c). 
+
+Compact memory benefits long-document batch decoding. As document length grows from 4K to 32K, Cache2LoRA throughput changes from 596 to 560 tokens/s, while full-context ICL drops from 512 to 95 tokens/s. The resulting speedup grows from 1.2 × to 5.9 × (Figure 9b). At 32K, per-request decoding state is 12.52 MiB versus ICL’s 4,613.91 MiB, excluding the separately retained document cache. SnapKV and DropKV remain faster at 606 and 601 tokens/s with the current inference infrastructure. Merging LoRA into the weights avoids memory-prefix attention, but our measurements execute adapter factors separately for each request. This batch-throughput advan-tage does not imply lower single-request latency: cached ICL is faster in the tested 32K settings with 16- and 256-token outputs (Table 27c). Table 27 reports all state and timing results. 
+
+6 Conclusion 
+
+We diagnose fact discrimination, target retention, and response adaptation in document-to-LoRA writers. Source interventions and fixed-capacity controls motivate query-guided information aggre-gation, while instruction probes motivate supervi-sion of answer expression. Cache2LoRA combines these choices with reusable document caching, im-proving on released D2L, Cache2LoRA-TF, and further-trained D2L. Its generated updates also sup-plement selected document KV, with gains persist-ing at larger retained-context budgets. At matched memory size, generated LoRA shows two strengths relative to the learned-KV variant: it preserves answer accuracy more reliably under long, diverse intervening text and complements retained document KV more effectively, yielding higher hybrid F1 and EM across both selectors and all tested budgets. These results support generated parameter memory for interference-resistant recall and hybrid answering. 8Limitations 
+
+Cache2LoRA constructs a new LoRA update for each query. The full document cache is needed during construction, while decoding uses the com-pact output. The cache can be stored on CPU be-tween construction calls, though our measurements use GPU-resident caches and do not include trans-fer latency. Per-query construction adds prepara-tion time and transient GPU memory. We report preparation latency, decoding-state size, and the document-prefill peak allocation increment (Ap-pendix D.6), rather than a total deployment peak including all resident models and caches. Our ex-periments assume fixed source documents. Main-taining caches and constructed memories as docu-ments are revised remains future work. The current evaluation considers individual queries. In multi-turn interactions, relevant context can change as a conversation develops, creating choices about when to retain, refresh, or replace a constructed memory. We leave the design and evaluation of these memory management policies for conversational use to future work. Finally, the writer constructs each update from the context available for a query. Our hybrids com-bine this output with selected document KV. Com-posing memories constructed independently from separate documents is a distinct setting that we have not evaluated. Such composition requires deciding which memories to combine and how to reconcile conflicting information across them. 
+
+Ethical Considerations 
+
+This work studies document memory using existing public benchmarks, synthetic facts, and pretrained language models. Their use remains subject to the original licences and access conditions. Com-pression into LoRA or KV states should not be treated as anonymization: either form may pre-serve sensitive source information and reproduce it in answers. Applications should use authorized documents, control access to derived memories, and account for source deletion or correction. Gen-erated answers may also retain errors or biases from the source text and backbone. Generative AI tools assisted with analysis code and manuscript editing. The authors remain respon-sible for the methods, results, and final text. 
+
+References 
+
+Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan Zeng, Lei Hou, Yuxiao Dong, Jie Tang, and Juanzi Li. 2024. LongBench: A bilingual, multi-task benchmark for long context understanding. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 3119–3137, Bangkok, Thailand. Association for Computational Linguistics. Ali Behrouz, Peilin Zhong, and Vahab Mirrokni. 2025. Titans: Learning to memorize at test time. Preprint ,arXiv:2501.00663. Lucas Caccia, Alan Ansell, Edoardo Ponti, Ivan Vuli´ c, and Alessandro Sordoni. 2025. Training plug-n-play knowledge modules with deep context distillation. 
+
+arXiv preprint arXiv:2503.08727 .Zhiwei Cao, Qian Cao, Yu Lu, Ningxin Peng, Luyang Huang, Shanbo Cheng, and Jinsong Su. 2024. Retain-ing key information under high compression ratios: Query-guided compressor for LLMs. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,pages 12685–12695. Rujikorn Charakorn, Edoardo Cetin, Shinnosuke Ue-saka, and Robert Tjarko Lange. 2026. Doc-to-lora: Learning to instantly internalize contexts. Preprint ,arXiv:2602.15902. Shuaizhi Cheng, Xiang Shi, Zhiwei Zhang, and Mingwei Li. 2026. The override gap: Amagnitude account of knowledge conflict failure in hypernetwork-based instant LLM adaptation. 
+
+Preprint , arXiv:2604.23750. Alexis Chevalier, Alexander Wettig, Anirudh Ajith, and Danqi Chen. 2023. Adapting language models to compress contexts. Preprint , arXiv:2305.14788. Xingjian Diao, Wenbo Li, Yashas Malur Saidutta, Avinash Amballa, Lazar Valkov, and Srinivas Chap-pidi. 2026. Doc-to-atom: Learning to com-pile and compose memory atoms. Preprint ,arXiv:2606.12400. Dheeru Dua, Yizhong Wang, Pradeep Dasigi, Gabriel Stanovsky, Sameer Singh, and Matt Gardner. 2019. DROP: A reading comprehension benchmark requir-ing discrete reasoning over paragraphs. In Proceed-ings of the 2019 Conference of the North American Chapter of the Association for Computational Lin-guistics: Human Language Technologies, Volume 1 (Long and Short Papers) , pages 2368–2378, Min-neapolis, Minnesota. Association for Computational Linguistics. Sabri Eyuboglu, Ryan Ehrlich, Simran Arora, Neel Guha, Dylan Zinsley, Emily Liu, Atri Rudra, James Y. Zou, Azalia Mirhoseini, and Christopher Ré. 2026. Cartridges: Lightweight and general-purpose long context representations via self-study. In Interna-tional Conference on Learning Representations .
+
+9Tao Ge, Jing Hu, Lei Wang, Xun Wang, Si-Qing Chen, and Furu Wei. 2023. In-context autoencoder for con-text compression in a large language model. Preprint ,arXiv:2307.06945. David Ha, Andrew Dai, and Quoc V. Le. 2016. Hyper-Networks. Preprint , arXiv:1609.09106. Moritz Hardt and Yu Sun. 2024. Test-time training on nearest neighbors for large language models. In 
+
+The Twelfth International Conference on Learning Representations .Geoffrey Hinton, Oriol Vinyals, and Jeff Dean. 2015. Distilling the Knowledge in a Neural Network. 
+
+Preprint , arXiv:1503.02531. Hamish Ivison and Matthew Peters. 2022. Hyperde-coders: Instance-specific decoders for multi-task NLP. In Findings of the Association for Computa-tional Linguistics: EMNLP 2022 , pages 1715–1730. Association for Computational Linguistics. Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dong-sheng Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2024. LongLLMLingua: Accelerating and enhanc-ing LLMs in long context scenarios via prompt com-pression. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 1658–1677, Bangkok, Thailand. Association for Computational Linguistics. Mandar Joshi, Eunsol Choi, Daniel Weld, and Luke Zettlemoyer. 2017. TriviaQA: A large scale distantly supervised challenge dataset for reading comprehen-sion. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 1601–1611, Vancouver, Canada. Association for Computational Linguistics. Rabeeh Karimi Mahabadi, Sebastian Ruder, Mostafa Dehghani, and James Henderson. 2021. Parameter-efficient multi-task fine-tuning for transformers via shared hypernetworks. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Confer-ence on Natural Language Processing (Volume 1: Long Papers) , pages 565–576, Online. Association for Computational Linguistics. Jang-Hyun Kim, Dongyoon Han, and Sangdoo Yun. 2026. Fast kvzip: Efficient and accurate llm in-ference with gated kv eviction. arXiv preprint arXiv:2601.17668 .Jang-Hyun Kim, Junyoung Yeom, Sangdoo Yun, and Hyun Oh Song. 2024. Compressed context memory for online language model interaction. In Interna-tional Conference on Learning Representations .Tom Kwiatkowski, Jennimaria Palomaki, Olivia Red-field, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Ken-ton Lee, Kristina Toutanova, Llion Jones, Matthew Kelcey, Ming-Wei Chang, Andrew M. Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Natu-ral questions: A benchmark for question answering research. Transactions of the Association for Compu-tational Linguistics , 7:452–466. Xuancheng Li, Haitao Li, Yujia Zhou, Qingyao Ai, and Yiqun Liu. 2025a. ATACompressor: Adaptive task-aware compression for efficient long-context process-ing in LLMs. In Proceedings of the 2025 Annual International ACM SIGIR Conference on Research and Development in Information Retrieval in the Asia Pacific Region .Yuhong Li, Yingbing Huang, Bowen Yang, Bharat Venkitesh, Acyr Locatelli, Hanchen Ye, Tianle Cai, Patrick Lewis, and Deming Chen. 2024. SnapKV: LLM knows what you are looking for before genera-tion. Preprint , arXiv:2404.14469. Zongqian Li, Yixuan Su, and Nigel Collier. 2025b. 500xCompressor: Generalized prompt compression for large language models. In Proceedings of the 63rd Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 25081–25091. Association for Computational Lin-guistics. Huanxuan Liao, Shizhu He, Yao Xu, Yuanzhe Zhang, Shengping Liu, Kang Liu, and Jun Zhao. 2025. Awakening augmented generation: Learning to awaken internal knowledge of large language models for question answering. In Proceedings of the 31st International Conference on Computational Linguis-tics , pages 1333–1352. Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paran-jape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2024. Lost in the Middle: How Language Models Use Long Contexts. Transactions of the Asso-ciation for Computational Linguistics , 12:157–173. Yewei Liu, Xiyuan Wang, Yansheng Mao, Yoav Gel-bery, Haggai Maron, and Muhan Zhang. 2026. SHINE: A scalable in-context hypernetwork for map-ping context to LoRA in a single pass. Preprint ,arXiv:2602.06358. Maxime Louis, Thibault Formal, Hervé Dejean, and Stéphane Clinchant. 2025. OSCAR: Online soft com-pression and reranking. Preprint , arXiv:2504.07109. Jesse Mu, Xiang Lisa Li, and Noah Goodman. 2023. Learning to Compress Prompts with Gist Tokens. 
+
+Preprint , arXiv:2304.08467. Jason Phang, Yi Mao, Pengcheng He, and Weizhu Chen. 2022. HyperTuning: Toward Adapting Large Lan-guage Models without Back-propagation. Preprint ,arXiv:2211.12485. Pranav Rajpurkar, Jian Zhang, Konstantin Lopyrev, and Percy Liang. 2016. SQuAD: 100,000+ questions for machine comprehension of text. In Proceedings of the 2016 Conference on Empirical Methods in Natu-ral Language Processing , pages 2383–2392, Austin, Texas. Association for Computational Linguistics. 
+
+10 Nathanaël Carraz Rakotonirina, Momchil Hardalov, Gonzalo Iglesias, and Adrià de Gispert. 2026. Where should a document live: Context, representations, or parameters? Preprint , arXiv:2609.17346. Imanol Schlag, Kazuki Irie, and Jürgen Schmidhuber. 2021. Linear transformers are secretly fast weight programmers. In Proceedings of the 38th Interna-tional Conference on Machine Learning , volume 139 of Proceedings of Machine Learning Research , pages 9355–9366. PMLR. Freda Shi, Xinyun Chen, Kanishka Misra, Nathan Scales, David Dohan, Ed H. Chi, Nathanael Schärli, and Denny Zhou. 2023. Large Language Models Can Be Easily Distracted by Irrelevant Context. In 
+
+Proceedings of the 40th International Conference on Machine Learning , volume 202 of Proceedings of Machine Learning Research , pages 31210–31227. PMLR. Charlie Snell, Dan Klein, and Ruiqi Zhong. 2022. Learning by distilling context. Preprint ,arXiv:2209.15189. Weihang Su, Yichen Tang, Qingyao Ai, Junxi Yan, Changyue Wang, Hongning Wang, Ziyi Ye, Yujia Zhou, and Yiqun Liu. 2025. Parametric retrieval augmented generation. Preprint , arXiv:2501.15915. Yu Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram, Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang, Sanmi Koyejo, Tatsunori Hashimoto, and Carlos Guestrin. 2024. Learning to (learn at test time): RNNs with expressive hidden states. Preprint ,arXiv:2407.04620. Yu Sun, Xiaolong Wang, Zhuang Liu, John Miller, Alexei Efros, and Moritz Hardt. 2020. Test-time training with self-supervision for generalization un-der distribution shifts. In Proceedings of the 37th International Conference on Machine Learning , vol-ume 119 of Proceedings of Machine Learning Re-search , pages 9229–9248. PMLR. Adam Trischler, Tong Wang, Xingdi Yuan, Justin Har-ris, Alessandro Sordoni, Philip Bachman, and Kaheer Suleman. 2017. NewsQA: A machine comprehen-sion dataset. In Proceedings of the 2nd Workshop on Representation Learning for NLP , pages 191–200, Vancouver, Canada. Association for Computational Linguistics. Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. Efficient streaming lan-guage models with attention sinks. In The Twelfth International Conference on Learning Representa-tions .Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan Salakhutdinov, and Christo-pher D. Manning. 2018. HotpotQA: A dataset for diverse, explainable multi-hop question answering. In Proceedings of the 2018 Conference on Empiri-cal Methods in Natural Language Processing , pages 2369–2380, Brussels, Belgium. Association for Com-putational Linguistics. Aozhong Zhang, Selcuk Gurses, Yanxia Deng, Naigang Wang, Chi-Chun Liu, Davis Wertheimer, Derrick Liu, Xin Li, Zi Yang, Felix X.-F. Ye, and Penghang Yin. 2026. DropKV: Decoupling residual-output per-turbation for near-optimal KV-cache eviction. In 
+
+Advances in Neural Information Processing Systems .Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuan-dong Tian, Christopher Ré, Clark Barrett, Zhangyang Wang, and Beidi Chen. 2023. H 2O: Heavy-hitter ora-cle for efficient generative inference of large language models. Preprint , arXiv:2306.14048. Chunsheng Zuo, Liaoyaqi Wang, William Jurayj, William Fleshman, and Benjamin Van Durme. 2026. Rethinking LoRA memory through the lens of KV cache compression. Preprint , arXiv:2606.05698. 
+
+11 A Experimental Setup 
+
+A.1 Training Data                                                                        
+
+> Source Before teacher filtering After teacher filtering Mix (%) Documents Queries Documents Queries SQuAD 5,000 23,522 5,000 22,902 18.67 DROP 3,000 21,456 2,988 17,707 11.12 ROPES 932 6,119 932 5,877 3.48 PwC 3,000 23,485 3,000 22,804 11.21 SQuAD, same-article groups 2,000 16,000 2,000 15,540 7.47 SQuAD, same-type answers 2,439 14,037 2,439 13,652 9.11 SQuAD, long concatenations 2,127 16,611 2,127 16,092 7.95 DROP, long concatenations 827 6,522 827 4,968 3.09 Synthetic, competing facts 1,500 9,024 1,500 9,024 5.60 Synthetic, shared subjects 1,500 8,956 1,500 8,946 5.60 Synthetic biographies 1,969 11,077 1,969 11,069 7.36 Synthetic, long multi-hop 2,500 15,028 2,500 12,771 9.34 Total 26,794 171,837 26,782 161,352 100.00
+
+Table 4: Training data for the main Qwen3-4B model. Documents and queries count source records before style expansion. After filtering, a record is counted if at least one response survives. Mix is the source’s share of retained document variants in the training pool. 
+
+A.1.1 Sources and Input Construction 
+
+Training uses the training splits of SQuAD, DROP, ROPES, and PwC, together with synthetic facts. Natural inputs group questions by document. Hot-potQA, 2WikiMultihopQA, and MuSiQue are ex-cluded from the training corpus. Table 4 re-ports source documents and queries before and after teacher-response filtering; multiple teacher re-sponses do not count as additional source records. 
+
+Document construction and separation. We combine single passages with multi-passage inputs containing related facts or distractors. Synthetic documents include competing facts, shared subjects, biographies, and relational questions. Training inputs are limited to 3,072 tokens. Before teacher generation, overlap checks exclude matches to evaluation and calibration material using passage overlap and query similarity. Synthetic names and templates are also separated from held-out pools. Long natural documents combine four to six source units, with at most two questions per unit and up to eight questions per document, plus shuffled filler passages, targeting 1,500–3,072 tokens. Long synthetic documents contain 16–26 fictional people and four to eight one- or two-hop questions. Construction uses seed 1009. A separate calibration set monitors training, and all reported models use the final checkpoint. Appendix A.2 reports the overlap audit. 
+
+Overlap thresholds. For overlap checks, text is lowercased and reduced to sequences of word char-acters. A passage is excluded if at least 10% of its word 13-grams, or at least 50 such occurrences, appear in the evaluation/calibration exclusion in-dex. Exact matches to indexed short passages or sentences of at least six words are also excluded, along with matched source titles where available. A question is excluded when its normalized text matches exactly, or its word-trigram Jaccard sim-ilarity is at least 0.6, and an accepted-answer pair has token F1 of at least 0.5. These checks are re-peated on the constructed documents. Synthetic question templates are additionally compared after replacing capitalized names by a placeholder and digit sequences by zero. Matching templates are removed, and synthetic documents with fewer than three remaining questions are discarded. Source passages may recur across training constructions, but long natural-document variants use previously unused normalized questions. The two style vari-ants of each document are retained intentionally. 
+
+A.1.2 Teacher Responses and Sampling Teacher prompting. A frozen teacher produces responses in eight styles: evaluation short answer, original D2L, direct answer, explicit short answer, entity or number, complete sentence, extractive span, and brief explanation. Before compatibil-ity filtering, their sampling probabilities are 0.20, 0.15, 0.15, 0.10, 0.12, 0.12, 0.10, and 0.06, respec-12 tively. For each query, two compatible styles are sampled sequentially without replacement, renor-malizing these weights over the remaining eligi-ble styles. Extractive styles require a verbatim accepted-answer span, excluding the base DROP and ROPES sources and yes/no answers. Entity styles require an accepted answer of at most five words and exclude yes/no, why, and general how questions. Count questions additionally require an answer span in the document. PwC uses direct-answer and D2L styles. The single-style controls use either short-answer-only or original-D2L re-sponses, with the same sampled training data and training budget as the multi-style model. During distillation, the student answers without the docu-ment using the corresponding response style. 
+
+Filtering and training mixture. Teacher genera-tion is greedy with a 256-token limit. We remove empty, truncated, or unsuitable responses and fil-ter short-answer targets against accepted answers; PwC is exempt from the short-answer correctness filter. After normalizing thousands separators and English number words from zero to twenty, a re-sponse is removed if it has zero token F1 against all accepted answers and contains none of them. Refusals without an accepted-answer match and queries shorter than three characters are also re-moved. Documents with no retained questions are discarded. Retained variants are pooled without additional source weighting and reused through-out training. The D2L-style control uses the same construction pool and filtering rules. Gemma gen-erates its own teacher responses from this pool and applies the input limit with its own tokenizer. Table 5 gives the teacher templates. Table 6 lists the 22 closed-QA wrappers used in the three legacy styles. For the three legacy styles, the student re-ceives the wrapped question alone. For the remain-ing styles, it receives the same instruction and raw question with the document prefix removed. 
+
+A.2 Evaluation and Scoring Datasets and cohorts. The main benchmark con-tains 17 tasks. FactSet and Wikipedia tasks use 304 questions each, document QA and constructed multi-document tasks use 300, and LongBench tasks use 200 (150 for MultiFieldQA-en). The duplicate non-LongBench HotpotQA task is ex-cluded. Cross-writer comparisons use the common thirteen-task cohort without LongBench. Compar-isons align questions and accepted answers, and task averages receive equal weight even when re-lated tasks are grouped for display. Qwen evalua-tions use complete benchmark inputs. 
+
+Concatenated inputs. SQuAD-4 combines an answer paragraph with three others from the same article, SQuAD-Mix groups shuffled paragraphs, and NQ-4 combines answer passages from different queries. Each question receives a separate update constructed from the concatenated input. 
+
+Answering instructions. Unless varied ex-plicitly, comparisons use the D2L short-answer instruction: “Answer the following question. Output only the answer and do not output any other words.” Generation is greedy with a 256-token limit. Response-adaptation tests instead request an entity or number, one complete sentence, a brief explanation, or use the question alone. Documents, factual questions, and generated memory remain fixed while the answering instruction changes. The writer receives the raw question, without the varying response instruction. Qwen sweeps cover the main tasks. Cross-method averages cover thirteen shared tasks. Qwen/Gemma comparisons use three untruncated tasks. 
+
+Metrics. We report normalized token F1, exact match (EM), and ROUGE-L Recall (R-L). R-L measures reference coverage, while containment credits an accepted answer appearing anywhere in the response. Scores take the best accepted refer-ence and are averaged equally across tasks. Short responses contain at most five words. Conditional brevity is measured among responses with full ref-erence coverage, excluding tasks without such re-sponses. Longer answers are scored against the same short-answer references, so their accuracy is interpreted alongside length and coverage. Response-length span is the difference between the longest and shortest task-average responses across instructions, divided by the correspond-ing ICL span. Normalization matches backbones, tasks, and instructions: four on Qwen, and short answer plus explanation on Gemma. 
+
+Held-out formats. Uppercase, JSON, and an 
+
+ANSWER: prefix are absent from the teacher styles. JSON and prefix tests use SQuAD-4, NQ-4, Wikipedia birth year, and NQ pages. Uppercase evaluation uses the same subset for every method, restricted to references containing cased letters and therefore excluding numeric birth years. Format 13 Table 5: Teacher prompts and sampling weights. Each template is a single user message in the backbone’s chat template, followed by the assistant-generation prefix. D denotes the document. For the original-D2L, direct-answer, and explicit-short-answer styles, q includes a sampled D2L closed-QA instruction, except for PwC. Other styles use the raw question. Table 6 lists the closed-QA wrappers. Blank lines are condensed here. 
+
+Style Weight User-message template Evaluation short answer 0.20 D
+
+Answer the following question. Output only the answer and do not output any other words. Question: q
+
+Original D2L 0.15 You are an honest and helpful assistant. # Provided Information 
+
+D
+
+—# System Instruction - The information provided is up-to-date information and/or the user instruction. - When the provided information is not relevant to the question, ignore it and answer the question based on your knowledge. - If the provided information is related to the question, incorporate it in your response. - If the provided information is an instruction, follow the instruction carefully. —# User Input 
+
+q
+
+Direct answer 0.15 Document: 
+
+D
+
+Answer the question directly. 
+
+q
+
+Explicit short answer 0.10 Document: 
+
+D
+
+Answer the question directly. Output only the answer and do not output any other words. 
+
+q
+
+Entity or number 0.12 Document: 
+
+D
+
+Answer with only the name, entity, date or number that answers the question. Do not write a sentence. Question: q
+
+Complete sentence 0.12 Document: 
+
+D
+
+Answer the question in one short, complete sentence. Question: q
+
+Extractive span 0.10 Document: 
+
+D
+
+Copy the exact words from the document that answer the question. Output only that span, verbatim. Question: q
+
+Brief explanation 0.06 D
+
+Answer the following question, then explain your answer in one or two sentences. Question: q
+
+success requires uppercase text, a bare JSON ob-ject containing only a string-valued answer, or the prescribed prefix, respectively. Content scores use the extracted answer; joint success requires both correct formatting and exact-match correctness. For separate content scoring, removable formatting wrappers do not count as answer content. 
+
+Training–evaluation overlap. An exact-paragraph audit after normalization finds no training passages in the benchmark. Query matches occur in DROP and MultiFieldQA-en, but their passages differ. SQuAD and DROP share training source families, but not tested passages. 
+
+A.3 Model Architecture and Training Architecture. Cache2LoRA uses a frozen Qwen3-4B document encoder with bfloat16 computation. Rank-32 encoding LoRA processes the query and eight learned memory tokens over the unchanged document cache. A trainable projection and residual generator convert their states into a rank-eight answering update for the feed-forward output projections. The generator 14 Table 6: D2L closed-QA wrappers. One of these 22 templates is sampled uniformly for the original-D2L, direct-answer, and explicit-short-answer styles. q0 is the raw question. The resulting string supplies q in Table 5 and serves as the student’s prompt. PwC uses its original query. 
+
+No. Template 1 Answer the question based on the given passages. Only give me the answer and do not output any other words. Question: q0
+
+2 Answer without any explanation. Question: q0
+
+3 Based on the provided text, what is the answer to the following question? Provide only the answer. Question: q0
+
+4 Extract the answer to the question from the text. Be concise. Do not explain. Question: q0
+
+5 What is the answer to this question, based on the context? Respond with the answer only. Question: q0
+
+6 Provide a direct answer to the question using the given passages. Do not give any explanation. Question: q0
+
+7 Answer the question using only information from the provided text. No extra words. Question: q0
+
+8 From the passages, answer the question. Just the answer, please. Question: q0
+
+9 Give the answer to the question. Do not include any other text. Question: q0
+
+10 The answer to the question is in the text. Find it and state it clearly. No need for explanation. Question: q0
+
+11 Concisely answer the question based on the text provided. Don’t include any other words. Just the answer. Question: q0
+
+12 Read the passages and answer the question with the minimal necessary words. Question: q0
+
+13 What is the direct response to the question, according to the text? Avoid explanation. Question: q0
+
+14 Please provide only the answer to the question, derived from the text. Question: q0
+
+15 Using the provided context, answer the question. Output the answer and nothing else. Question: q0
+
+16 Identify the answer in the text and present it without elaboration. Question: q0
+
+17 Answer the following question based on the text. Your answer should be brief and to the point. No explanation. Question: q0
+
+18 Based on the information given, what is the answer to the question? Only state the answer. Question: q0
+
+19 Find the answer to the question in the provided passages and write it down. No explanations. Question: q0
+
+20 The question is: q0. Provide the answer based on the text, and nothing more. 21 Question: q0
+
+Answer directly based on the text provided. No extra words. 22 Question: q0
+
+Please provide the answer based on the text. No explanation is needed. 
+
+is initialized from D2L and trained jointly with the encoder. The encoding LoRA uses scaling 
+
+α/r = 32 /32 = 1 , with zero dropout, on the attention query, key, value, and output projections and all three feed-forward projections. Generator dimensions and output scaling are specified in Appendix C.1. The default omits explicit matching and D2L’s static bias adapter. 
+
+Training. Training uses forward KL distillation with a retention weight of 0.3 for 2,000 steps, with 32 document variants per step. Encoder and generator learning rates are 10 −4 and 2 × 10 −6,with 100 warmup steps. We use AdamW with 
+
+(β1, β 2) = (0 .9, 0.999) , ϵ = 10 −8, zero weight de-cay, gradient-norm clipping at 1.0, and seed 0. Af-ter linear warmup, cosine decay reduces each learn-ing rate to 10% of its peak. Each document con-tributes at most eight retained question–response pairs. The backbone remains frozen. Component controls share these defaults unless noted. 15 Ablation controls. Removing encoding LoRA leaves the backbone encoder unadapted while train-ing the memory embeddings and generator. Re-moving query conditioning hides the query dur-ing writing in both training and evaluation; the answerer still receives it. The explicit-matching control adds relevance biases to the trained writer, whereas Cache2LoRA-TF keeps the writer frozen. Memory Tokens KV retains the query-conditioned encoder but directly uses the layerwise KV states of 48 learned memory tokens instead of generating LoRA. It matches LoRA in output size (6.75 MiB), multi-style training data, and schedule. We use two single-style supervision controls: short-answer-only targets and original-D2L teacher responses (D2L-prompt). Both sample the same training data and use the same training budget as the multi-style model. Architecture, objective, and optimization settings are held fixed. A separate D2L-prompt control omits retention. 
+
+Other backbones. Gemma-2-2B is trained sepa-rately using its own teacher and the same training recipe. Its generator is initialized from the corre-sponding D2L checkpoint. To accommodate the evaluation cache, ten NQ-page documents are trun-cated to 4,032 tokens; other inputs in the thirteen-task cohort are untruncated. The Mistral model uses Mistral-7B-Instruct-v0.2 teacher responses and the same multi-style schedule. 
+
+A.4 Baselines 
+
+Base answers without document information, while ICL receives the full document. Released D2L and SHINE checkpoints provide the parameter-writer baselines, with their native parameter scaling and document-independent components preserved (Charakorn et al., 2026; Liu et al., 2026). Their writers do not receive the answering query. See Appendix C.2 for the training-free variant. 
+
+D2L + Further Training. We continue train-ing the released D2L checkpoint with its baseline recipe, retaining the query-independent writer and static bias adapter. The hypernetwork is trained while the backbone remains frozen, using D2L-prompt forward-KL distillation and retention with weight 0.3. The hypernetwork learning rate is 
+
+2 × 10 −6 with 50 warmup steps. 
+
+Learned KV baselines. We reproduce CCM and 500xCompressor on Qwen3-4B using our multi-style data and training schedule. CCM applies en-coding LoRA only to appended memory positions, whereas 500xCompressor also adapts document encoding. Both produce 48-position KV without receiving the query during construction; the an-swerer receives the query over this prefix. These are adaptations to our backbone and training recipe, rather than the original released training runs. 
+
+Selected KV. SnapKV and DropKV select docu-ment positions using the query (Li et al., 2024; Zhang et al., 2026). Fast KVzip uses released gating weights with global allocation (Kim et al., 2026). Standalone comparisons match the state budget of Cache2LoRA; additional budget compar-isons appear in Appendix D.5. 
+
+OSCAR. We use the official 
+
+naver/oscar-mistral-7B checkpoint, in-cluding its trained answerer. OSCAR compresses document segments jointly with each query using its native segment and memory configuration. It receives the same short-answer instruction and generation limit as the other methods. Its state budget is computed from the resulting memory prefix and averaged across tasks. 
+
+A.5 Diagnostic Protocols 
+
+The probes hold target questions fixed while chang-ing source content, construction, or answering instructions. Target-only controls use annotated supporting evidence; directly optimized reference adapters preserve the size and structure of gener-ated updates. Internal probes use D2L on Qwen3-4B unless stated otherwise. 
+
+Fact discrimination and repair. Wikipedia probes add competing people or replace their facts. Birth-year responses are classified by the first year as correct, borrowed from another person, or other, with correctness taking precedence when years co-incide. Source interventions alter the borrowed source or average its memory values, using another source as a control. The intervention cohort con-tains 192 questions; the repair cohort contains 304. Repair counts track the same baseline-borrowed cases, and gold labels are used only for evaluation. 
+
+Target retention. Synthetic probes hold 64 target questions fixed while adding same-type facts, other-type facts, or empty content. Target amplification restores the target’s isolated attention share without renormalizing or directly suppressing distractors. Value averaging replaces distractor values by their mean while retaining their keys; gold-support bias 16 favors annotated evidence. A natural-text probe adds distractor passages or generic filler to 60 fixed SQuAD targets. Filler avoids names, dates, and numbers. Attention enrichment measures target attention relative to its share of input tokens. 
+
+Query dependence and attention sharing. For a fixed adapter, the activation probe measures how much its direct contribution varies across questions, normalized by total activation energy. It uses eight documents with eight questions each and measures the direct document-dependent contribution, ex-cluding the shared bias from the measured vector. Appendix B.1 defines the statistic. Attention shar-ing is measured by the overlap between facts’ com-bined extraction and assembly weights, averaged across layers on sixteen FactSet-Homo documents. 
+
+KV and capacity controls. Learned KV com-pressors undergo the same source-count, fixed-target expansion, and response-instruction probes, with matched questions within each comparison. Target-only controls use annotated evidence. Ca-pacity controls optimize the writer’s internal mem-ory states while freezing the backbone and down-stream parameter mapping. Each resulting adapter is shared across all questions about its document. D2L uses 200 distillation steps with retention; its learning rate is calibrated on the first document, which remains in the reported cohort. SHINE uses the analogous frozen-mapping intervention. 
+
+A.6 KV Compression and Hybrid Protocols 
+
+All methods use matched documents, queries, in-structions, and scoring. SnapKV and DropKV re-tain only document positions using their official selection procedures. The instruction and query are then processed again over the selected cache, and the first answer token is generated from this recomputation. No full-document query states or first-token prediction are reused. Selected keys retain their original positional encoding. 
+
+Hybrid construction. Hybrid comparisons match unique document–query pairs across conditions, removing repeated records. Standalone benchmark tables retain the original evaluation records. We combine the selected cache with either gen-erated LoRA or Memory Tokens KV without joint training, sweeping 48, 128, and 512 retained doc-ument positions. Both additions use 6.75 MiB. Learned memory KV is appended after the selected document cache, with answering positions continu-ing after the document and memory prefixes. Se-lected positions and answering are identical with and without adapters. Fast KVzip uses default global allocation across layers and heads, with a matched total budget and the same answering procedure. 
+
+Evidence interventions. Adapter substitutions use an update from another document or another question about the same document while holding the selected cache fixed. Answer-retention controls prioritize positions containing an accepted answer and their immediate neighbors, filling the remain-ing budget by the original selection scores. Inputs without an answer match use ordinary selection. Counterfactual tests combine caches and adapters from original and altered documents while keeping the question fixed; containment of the original and altered answers is scored separately. 
+
+A.7 Efficiency Measurement and State Accounting 
+
+Measurements use one H200, Qwen3-4B, and a shared HuggingFace implementation, with a 4-bit constructor and bfloat16 answerer. Document caching is paid once; per-query preparation in-cludes constructing and applying memory through the first answer token. Decoding tests vary doc-ument and output length, with batch-one latency and batch-16 throughput reported in Table 27. Tim-ings use repeated measurements after warmup with GPU synchronization, excluding tokenization and CPU transfers. Batched LoRA executes separate adapter factors for each request; timings exclude online scheduling and shared-prefix paging. LoRA construction uses eight learned memory tokens to generate a rank-eight update; the Memory Tokens KV variant uses 48 learned memory tokens as its KV output. Both outputs occupy 6.75 MiB. The re-encoding control processes the document, query, and memory-token suffix for every question on the same backbone. It measures that computa-tional path, not the accuracy or implementation of another published compressor. Document-derived state counts retained docu-ment KV and generated adapters. Total decoding state additionally includes prompt states. Both ex-clude shared model weights, document caches re-tained for future queries, padding, and allocator overhead. The rank-eight update and 48-position KV each occupy 6.75 MiB. 17 A.8 Intervening-Text Protocol Fixed memory and shared inputs. We test 1,808 questions from SQuAD-4, NQ-4, Wikipedia birth year, FactSet-Homo, NewsQA, and SQuAD-Mix. LoRA and Memory Tokens KV are con-structed once from the original document and query, then held fixed across insertion lengths. Both use the checkpoints from the main comparisons and oc-cupy 6.75 MiB. DropKV selects 10% of document positions using the original query, with a minimum of 48 or the full document if shorter, and also keeps this selection fixed. ICL retains the full document. All methods receive identical unrelated text before the D2L short-answer instruction and question. Passages come from the English LongBench HotpotQA, 2Wiki, MuSiQue, and MultiFieldQA subsets, excluding duplicates and passages containing accepted answers. Longer conditions extend the same shuffled passage stream, up to 32K inserted tokens. Answers use greedy short-answer decoding. 
+
+Memory-key RoPE alignment. Construction is unchanged: the writer processes the document pre-fix, then the query and 48 memory tokens. Their cached keys carry RoPE positions o−48 , . . . , o −1,where o is the total construction length. Answer-ing still processes the template, intervening text, and question over the memory prefix, with prompt position IDs starting at o. The alignment control leaves the input sequence, prompt position IDs, and attention mask unchanged, retaining all intervening tokens. It shifts only memory-key positions by the added prompt length L, keeping values fixed: 
+
+k′ = k ⊙ cos( Lθ ) + rotate _half( k) ⊙ sin( Lθ ).
+
+(3) The shift restores the memory-to-question RoPE offsets of the no-insertion condition. We use the answerer’s rotary embedding and Qwen3 rotation convention, compute in float32, and cast back to bfloat16. Both writer and answerer use RoPE base 5,000,000 without scaling. At L = 0 , keys are bitwise unchanged and all 300 SQuAD-4 predictions match the original vari-ant. In an eight-case check, shifting both mem-ory keys and prompt positions by 4,096 or 32,768 preserves all first-token argmax predictions, with maximum logit differences of 0.25–0.31. Shifting only keys changes these predictions in four to eight cases, with maximum logit differences of 13–19. These checks confirm that the intervention changes 1 2 4 8   
+
+> Facts written
+> 0.0 0.5 1.0
+> (a) Token F1
+> 1248
+> Facts written
+> 0.0 0.5 1.0
+> (b) R-L recall
+> D2L / Qwen3-4B D2L / Gemma-2-2B SHINE / Qwen3-8B ICL range
+
+Figure 10: Wikipedia fact-count probe: 304 matched queries per count, using raw queries. Gray bands span the minimum and maximum ICL scores across the three writer/backbone configurations. 
+
+positional alignment while preserving the zero-shift behavior. 
+
+B Additional Diagnostic Evidence 
+
+B.1 Fact Discrimination: Responses and Source Attribution D2L query-dependent responses. Figure 2b compares D2L-generated and directly optimized LoRA of the same size, with each adapter held fixed across eight questions about its document. The query-dependent activation-energy fraction η
+
+averages 0.066 and 0.434, respectively. Larger val-ues indicate greater variation in the adapter’s direct contribution across queries. For each of eight synthetic documents d, we ask its eight factual queries and append the forced answer prefix “The R of S is”. Figure 2b uses only the final token, “is”. Let xdℓq denote the in-put to down_proj at that position in layer ℓ, and let udℓq = ∆ Wdℓ xdℓq be the document-dependent adapter’s direct contribution, including its scaling. We define 
+
+¯udℓ = 18
+
+> 8
+
+X
+
+> q=1
+
+udℓq ,ηd =
+
+P36 
+
+> ℓ=1
+
+P8 
+
+> q=1
+
+∥udℓq − ¯udℓ ∥22
+
+max 
+
+
+
+10 −20 , P36 
+
+> ℓ=1
+
+P8 
+
+> q=1
+
+∥udℓq ∥22
+
+ .
+
+(4) Centering is across queries within each document and layer. The numerator and denominator sum squared coordinates over all 36 layers and eight queries before taking the ratio. The denomina-tor is total uncentered adapter-output energy, not the backbone’s activation energy. Reported means are η = 18
+
+P 
+
+> d
+
+ηd, giving documents equal weight. The shared D2L bias adapter remains installed during the forward pass but is excluded from u.18 Table 7: Full-document and target-only writing (Qwen3-4B). ICL answers with the source text; D2L writes from the full input, while D2L (oracle) writes only from annotated supporting evidence. SQuAD-4 combines four passages and NQ uses full pages.                                       
+
+> ICL D2L D2L (oracle) Task F1 R-L F1 R-L F1 R-L FactSet-Homo 1.000 1.000 0.081 0.184 0.517 0.982 Wikipedia 0.844 0.977 0.059 0.217 0.280 0.958 SQuAD-4 0.729 0.943 0.210 0.604 0.307 0.834 NQ 0.568 0.841 0.162 0.530 0.261 0.689 NewsQA 0.479 0.770 0.217 0.538 0.351 0.787
+
+Hidden states therefore reflect the installed model, while the measured vector includes only the direct document-dependent update. 
+
+Attention sharing. The shared-attention matrix has an off-diagonal fraction of 0.740 to 0.773, versus 7/8 for uniform mixing across eight facts. Across 896 off-diagonal pairs, correlation with competing-answer log-likelihood changes is 0.057. 
+
+Content interventions. Of 192 Wikipedia birth-year responses, 67 exactly borrow another person’s year. Replacing that source’s year changes the first output year in 61/67 cases, versus 18/67 when re-placing a control source. Averaging its memory values changes the first year in 65/67 cases, ver-sus 22/67 for a control passage. In 5/67 cases, the response follows the replacement year. Borrowed and other passages receive nearly identical mean at-tention shares (0.119 and 0.117). Privileged target bias raises full-cohort F1/R-L from 0.058/0.219 to 0.255/0.896. This probe uses support annotations. 
+
+B.2 Target Retention: Target Strength and Added Content Synthetic interventions. Mean target extraction share falls from 0.503 in isolation to 0.105, 0.057, and 0.035 with 7, 15, and 31 additions. With 31 empty-content sentences, share falls to 0.075 while ROUGE-L Recall remains 0.969, separating atten-tion allocation from harmful content competition. At fifteen other-type additions, F1/R-L rises from 0.307/0.766 to 0.381/0.945 under amplifi-cation, versus 0.248/0.836 under value averaging. Gold-support bias reaches 0.393/0.945 on the same queries. The amplification containment gain is 0.172. Correct and incorrect responses have nearly equal target shares (0.058 and 0.057). 
+
+Natural-text validation. On the 60-target SQuAD probe with seven distractors, target share falls from 0.873 to 0.117, while enrichment 
+
+Table 8: Baseline short-answer diagnosis (13 non-LongBench tasks). The last two columns report the fraction of responses with at most five words, overall and conditional on R-L=1. Conditional rates omit tasks with no full-recall responses.               
+
+> Method F1 R-L
+> ≤5words Given R-L=1 No-document LM 0.111 0.208 0.291 0.409 ICL 0.751 0.917 0.742 0.757 D2L 0.187 0.553 0.043 0.045
+
+remains near one. With filler, share reaches 0.206 but enrichment rises to 1.471. Both show little correlation with individual answer containment (0.030 and 0.075 at k = 7 ). 0 1 3 7    
+
+> Added passages
+> 0.0 0.5 1.0
+> Target share
+> (a) Target attention
+> 0137
+> Added passages
+> 0.0 0.5 1.0 1.5
+> Enrichment
+> (b) Length adjustment
+> SQuAD passages Generic paragraphs
+
+Figure 11: Natural-text validation on 60 SQuAD targets. Generic paragraphs omit names, dates, and numbers. Enrichment divides attention share by target token frac-tion. The dashed line marks 1. 
+
+B.3 Response Adaptation: Evidence and Response Control Coverage and brevity. On FactSet-Homo, 18 re-sponses reach full recall under joint D2L writing, compared with 293 for gold-only D2L and 304 for ICL. Of these, 0, 46, and 304 respectively contain at most five words. Better access to supporting evidence therefore leaves a substantial gap in pro-ducing the requested short answer. 
+
+B.4 Capacity Control 
+
+Optimizing D2L’s aggregator-output slots with its downstream mapping fixed raises containment 19 1 2 4 8      
+
+> People in source
+> 0.4 0.6 0.8 1.0
+> F1
+> (a) Fact discrimination
+> 013715 31
+> Added same-type facts
+> 0.0 0.5 1.0
+> R-L
+> (b) Target retention
+> CCM 500xCompressor
+
+Figure 12: Fact discrimination and target retention in existing KV compressors. (a) F1 as a Wikipedia source grows from one to eight people. (b) R-L on 64 fixed targets as same-type facts are added. Both construct 48-position KV without the query. 
+
+from 4/64 to 64/64. Reconstruction from captured latents yields zero recorded relative error. The analogous SHINE memory-state interven-tion raises containment from 8/64 to 55/64, versus 57/64 for a directly optimized reference. These supervised probes establish effective writes within the fixed mapping on the tested material. 
+
+B.5 KV Diagnostic Controls 
+
+These probes examine fact discrimination and tar-get retention in CCM and 500xCompressor along-side the parameter writer and its no-query control. The CCM and 500xCompressor implementations use the same multi-style teacher data and train-ing schedule as Cache2LoRA. Both construct 48-position KV without the query. Reproduction de-tails are in Appendix A.4. 
+
+Competing facts. With one versus eight people in the Wikipedia source, CCM F1 drops from 0.812 to 0.387, and 500xCompressor F1 from 0.797 to 0.445. Cache2LoRA remains stable. 
+
+Target retention and evidence selection. Same-type additions produce the largest losses for the query-independent learned KV compressors. Cache2LoRA maintains R-L above 0.96 across the tested additions. Target-only construction also im-proves the query-independent compressors on nat-ural documents, connecting their full-document errors to evidence access. The no-query parameter variant also struggles under target-only construc-tion (Table 11), so its ablation does not isolate selection among competing facts. 
+
+Response adaptation. The multi-style KV com-pressors retain the ability to expand their answers under an explanation instruction, including the query-independent models. These results show that the response rigidity observed in D2L does not characterize every memory constructor. 
+
+C Method Details 
+
+The main writer is defined in Section 4; architecture and training settings appear in Appendix A.3. 
+
+C.1 Generator and Training Objective Generator dimensions and scaling. For Qwen3-4B, each of the 36 layers supplies eight memory states of width 2,560. Parameter-free LayerNorm precedes a learned layer-specific 2,560 ×512 pro-jection. Each layer then uses one residual MLP block with dimensions 512 → 2,048 → 512 , SiLU activation, and LayerNorm before and after the two linear transformations. The residual output is nor-malized to unit L2 norm. A bias-free head at each layer maps the latent vector to 9,728 input-factor and 2,560 output-factor coordinates. The per-layer, per-rank factor scales are inher-ited from the released D2L checkpoint and held fixed. After these row scales, the answering im-plementation applies the checkpoint’s multiplier 
+
+s = 45 .254834 to the factor product, ∆Wℓ =
+
+sB ℓAℓ, without another division by rank. Section 4 absorbs this fixed multiplier into the scaled fac-tors. The residual MLP and linear output heads are trained jointly with the encoder. The document-independent D2L bias adapter is omitted. 
+
+Exact retention objective. Let p0 be the frozen backbone distribution and p∆ the distribution after applying a generated update. For an unrelated text 
+
+u of Tu tokens, we use 
+
+ℓretain (u, ∆) = 1
+
+Tu − 1
+
+> Tu−1
+
+X
+
+> t=1
+
+KL  p0(· | u≤t) ∥
+
+p∆(· | u≤t).
+
+(5) KL is computed over the full vocabulary at tem-perature one, averaged over valid next-token posi-tions within each text and then equally over texts. The reference distribution is detached. The student reads the same text without the source document. The training loss adds this average with weight 0.3 to the forward-KL answer-distillation loss, which averages answer positions within each response and then equally across responses. 
+
+Retention texts and sampling. The fixed train-ing pool contains sixteen unrelated texts: eight 20 Table 9: Fact discrimination as source count increases. Birth-year and birthplace queries share a target passage with K − 1 added people. Pairs report F1 / R-L; borrowed counts cover 152 birth-year queries at K = 8 .                                             
+
+> Method K= 1 K= 2 K= 4 K= 8 Borrowed 500xCompressor 0.797 0.905 0.715 0.827 0.633 0.732 0.445 0.502 22/152 CCM 0.812 0.914 0.678 0.780 0.515 0.601 0.387 0.436 19/152 Cache2LoRA w/o query 0.111 0.112 0.101 0.104 0.097 0.099 0.089 0.093 19/152 Cache2LoRA 0.825 0.931 0.815 0.927 0.825 0.934 0.819 0.934 2/152
+
+Table 10: Target retention under document expansion. R-L on 64 targets with k added facts or empty sentences.                                                               
+
+> Method Additions k= 0 13715 31 500xCompressor Same-type 0.992 0.984 0.938 0.781 0.500 0.188 Other-type 0.992 1.000 0.984 0.984 0.922 0.789 Empty 0.992 1.000 1.000 0.992 0.969 0.914 CCM Same-type 1.000 0.844 0.742 0.586 0.352 0.094 Other-type 1.000 0.992 0.992 0.984 0.992 0.875 Empty 1.000 0.977 0.992 1.000 0.961 0.992 Cache2LoRA Same-type 0.992 0.977 0.984 0.977 0.977 0.977 Other-type 0.992 0.984 0.969 0.984 0.992 0.992 Empty 0.992 0.977 0.977 0.984 0.992 0.992
+
+Table 11: Full-document and target-only construction. Paired F1 scores use the full document / target evidence.                                     
+
+> Method FactSet-Homo Wiki (year) SQuAD-4 NQ-4 500xCompressor 0.896 0.992 0.413 0.887 0.516 0.720 0.494 0.622 CCM 0.624 0.969 0.321 0.911 0.468 0.663 0.456 0.606 Cache2LoRA w/o query 0.001 0.005 0.089 0.118 0.199 0.226 0.231 0.247 Cache2LoRA 0.970 0.972 0.928 0.968 0.711 0.759 0.609 0.657
+
+Table 12: Response adaptation across memory constructors. Macro averages over 13 non-LongBench tasks under short-answer and explanation instructions. Length is measured in words.                  
+
+> Method Words R-L Short Explain Short Explain 500xCompressor (48) 4.63 46.93 0.69 0.77 CCM (48) 4.25 46.83 0.63 0.71 Cache2LoRA 5.09 46.37 0.86 0.89
+
+PhantomWiki biographies from the 500-person uni-verse and eight LoCoMo dialogue excerpts. Bi-ographies containing names from the 50-person diagnostic universe are excluded. Each source is shuffled with seed 0. Its first twenty texts are re-served for retention evaluation, and the following eight form the training pool. Dialogue excerpts are first limited to 2,000 characters. All retention inputs are tokenized without a chat prompt and limited to their first 128 tokens. In the default four-worker training run, the six-teen texts are partitioned across workers. Each worker evaluates four texts using the first generated update in its final local microbatch, and worker losses are averaged. Gradients pass through the generated update into the writer. Memory Tokens KV uses the same objective and text pool, replacing the update with its generated memory prefix. 
+
+C.2 Training-Free Variant: Cache2LoRA-TF 
+
+Cache2LoRA-TF is our training-free variant of query-guided writing. It makes an existing writer query-aware without changing its parameters. Given document D and query q, a frozen-backbone 21 matcher estimates token relevance ri(D, q ). We smooth and align these scores to document memory positions, then bias the writer’s extraction logits. 
+
+αm = softmax( am + b(D, q )) . (6) Here am contains slot m’s extraction logits, and 
+
+b(D, q ) favors relevant memory positions. The frozen generator converts these states to LoRA. 
+
+Bias-only implementation. For the smoothed and aligned relevance scores ri(D, q ), the bias in Equation 6 is 
+
+bi(D, q ) = max 
+
+
+
+−c, τ −1 log ri + ϵ
+
+max j rj + ϵ
+
+
+
+.
+
+(7) The highest-scoring positions receive zero bias, while lower-scoring positions receive negative bi-ases bounded below by −c. Temperature τ controls bias strength; ϵ stabilizes the logarithm. The standard Qwen D2L matcher uses 16 at-tention heads selected on calib_squad_k4 . Token relevance is smoothed over three neighbors on each side, aligned by character offsets, and converted to log biases with τ = 1 , c = 12 , and ϵ = 10 −6.Standard D2L evaluations use reassociated extrac-tion and retain at most 2,048 memory positions by bias before soft aggregation. Unaligned template positions retain their configured neutral bias. 
+
+Writer interfaces. D2L retains the highest-scoring document positions and adds relevance bias to attention over their projected memories before la-tent assembly and parameter generation, preserving native scaling and document-independent compo-nents. SHINE instead biases memory-token atten-tion to document positions. Its query-dependent memory computation is repeated. Diagnostic com-parisons preserve each writer’s native scaling and document-independent components. Directly opti-mized reference adapters use the same parameter shapes. SHINE uses its native prompts with bias strength 4. Transfer tests use matched queries. Cross-writer results appear in Appendix D.1. 
+
+D Additional Experimental Results 
+
+Settings appear in Appendix A. 
+
+D.1 Comparison with Existing Methods 
+
+Table 13 reports per-task results for the five meth-ods. On LongBench, Cache2LoRA improves F1 and EM over Cache2LoRA-TF on each task while yielding lower reference coverage. Answer accu-racy and reference coverage thus differ. 
+
+Standalone memory comparison. Table 14 re-ports per-task F1, R-L, and EM for Cache2LoRA and the KV baselines in Table 1. Each uses 6.75 MiB of document-derived state, represented as a rank-eight LoRA update or 48 KV positions. 
+
+Evaluation across writers. Table 15 summarizes Cache2LoRA-TF across writers on the common thirteen-task cohort. Tasks receive equal weight, and queries are matched within each writer. Table 1 reports the full 17-task Qwen average. 
+
+Gemma Replication Table 16 reports per-task results for the separately trained Gemma model. 
+
+Comparison with OSCAR on Mistral The main-text Table 2 compares Cache2LoRA on Mis-tral with released OSCAR (Louis et al., 2025). Cache2LoRA has higher F1 and EM with less av-erage document-derived state. OSCAR has similar reference coverage and produces longer answers, so the difference in exact and token-level correct-ness should be read alongside answer length. We use the official checkpoint (Appendix A.4). 
+
+D.2 Memory Recall under Intervening Context 
+
+Figure 7 tests whether fixed query-specific doc-ument memory remains usable after increasing amounts of unrelated text. Here, memory recall refers to using the constructed memory to answer the original question, rather than locating evidence in the full source document. Tasks, prompts, and insertion procedures are specified in Appendix A.8. 
+
+Accuracy and answer expression. Figure 7 re-ports macro F1 and EM. From zero insertion to 32K, Cache2LoRA macro F1 changes from 0.735 to 0.611, EM from 0.599 to 0.478, and R-L from 0.839 to 0.771. ICL changes from 0.745 to 0.610, 0.606 to 0.422, and 0.907 to 0.874, respectively. DropKV changes from 0.719 to 0.554 in F1, 0.583 to 0.375 in EM, and 0.884 to 0.808 in R-L. Memory Tokens KV falls from 0.773 to 0.050 in F1, from 0.635 to 0.016 in EM, and from 0.899 to 0.144 in R-L. Its loss therefore includes a substantial de-cline in reference coverage, alongside an increase in answer length. Without LoRA or the document, macro F1 is only 0.037 at 32K. The response changes differ across tasks. On FactSet-Homo, Cache2LoRA mean answer length changes from 2.0 to 2.1 words, while ICL increases from 2.0 to 5.7. ICL R-L remains 0.990 at 32K, 22 Table 13: Per-task results on Qwen3-4B. Each method reports F1, R-L, and EM on the same queries. Teal cells mark the best rounded score for each task and metric, excluding ICL.                                                                               
+
+> Task ICL D2L D2L + Further Training Cache2LoRA-TF Cache2LoRA
+> F1 R-L EM F1 R-L EM F1 R-L EM F1 R-L EM F1 R-L EM SQuAD 0.789 0.948 0.620 0.308 0.838 0.010 0.684 0.800 0.507 0.325 0.881 0.013 0.762 0.872 0.570
+> DROP 0.539 0.839 0.323 0.150 0.789 0.000 0.486 0.665 0.297 0.174 0.809 0.000 0.602 0.818 0.393
+> Wiki (birth year) 0.980 0.990 0.970 0.054 0.197 0.000 0.178 0.178 0.178 0.221 0.799 0.000 0.928 0.928 0.928
+> Wiki (birthplace) 0.708 0.964 0.283 0.065 0.237 0.000 0.163 0.206 0.092 0.266 0.913 0.020 0.678 0.921 0.270
+> FactSet-Homo 1.000 1.000 1.000 0.081 0.184 0.000 0.246 0.248 0.118 0.379 0.840 0.010 0.970 0.972 0.941
+> FactSet-Hetero 0.966 0.997 0.951 0.186 0.544 0.000 0.590 0.612 0.533 0.294 0.804 0.010 0.893 0.954 0.859
+> FactSet-Distract 0.978 1.000 0.967 0.317 0.776 0.118 0.745 0.762 0.720 0.395 0.952 0.138 0.929 0.987 0.895
+> SQuAD-4 0.729 0.943 0.530 0.210 0.604 0.003 0.418 0.531 0.253 0.311 0.861 0.007 0.711 0.861 0.507
+> SQuAD-Mix 0.718 0.927 0.523 0.218 0.607 0.000 0.443 0.531 0.273 0.299 0.867 0.003 0.744 0.902 0.550
+> NQ-4 0.564 0.811 0.367 0.210 0.561 0.013 0.426 0.487 0.270 0.272 0.715 0.033 0.609 0.745 0.410
+> NewsQA 0.479 0.770 0.243 0.217 0.538 0.007 0.342 0.466 0.183 0.273 0.675 0.007 0.450 0.626 0.257
+> TriviaQA 0.748 0.892 0.657 0.249 0.785 0.077 0.652 0.783 0.560 0.287 0.855 0.093 0.798 0.883 0.717
+> NQ 0.568 0.841 0.393 0.162 0.530 0.007 0.380 0.478 0.233 0.218 0.664 0.013 0.612 0.738 0.433
+> 2Wiki 0.402 0.620 0.285 0.092 0.479 0.000 0.268 0.345 0.185 0.095 0.542 0.000 0.419 0.512 0.305
+> MFQA 0.495 0.734 0.187 0.264 0.451 0.020 0.255 0.362 0.027 0.371 0.659 0.040 0.403 0.506 0.107
+> HotpotQA 0.550 0.671 0.405 0.114 0.423 0.025 0.292 0.370 0.185 0.162 0.644 0.040 0.554 0.626 0.400
+> MuSiQue 0.189 0.426 0.110 0.052 0.197 0.000 0.082 0.140 0.015 0.085 0.360 0.000 0.211 0.308 0.130
+
+but EM falls to 0.454. Among its 166 newly in-correct exact-match responses, 163 retain full R-L coverage. DropKV shows a similar pattern: mean answer length rises from 2.0 to 5.6 words, while R-L remains 0.985 and EM falls to 0.385 at 32K. These patterns are consistent with extra answer text contributing to the exact-match loss. Thus, the aggregate results include both task-dependent ac-curacy changes and changes in answer expression. The query is known during construction; we test later use of that fixed update. 
+
+Restoring positional proximity helps at 4K but is insufficient at 32K. The RoPE alignment con-trol restores the memory-to-question RoPE offsets of the no-insertion condition while retaining the full intervening sequence (Appendix A.8). At 4K, it substantially improves Memory Tokens KV on all six tasks and exceeds LoRA in F1 on SQuAD-4 and SQuAD-Mix. At 32K, its F1 remains be-tween 0.004 and 0.116, well below LoRA on every task (Table 17). Thus, correcting this positional mismatch addresses an important source of degra-dation at 4K but does not explain away the long-interference gap. Competition with intervening to-kens for attention remains a plausible explanation, rather than a directly measured mechanism. 
+
+Memory access and parameter updates. Mem-ory Tokens KV requires attention to a fixed mem-ory prefix, so additional context may interfere with access to the stored information even though the memory itself is unchanged. Generated LoRA mod-ifies feed-forward computation at each subsequent position without requiring memory-prefix retrieval, which may support more stable recall. Two findings support the usefulness of this pa-rameter pathway. First, at 32K insertion, LoRA re-tains F1 of 0.611 and R-L of 0.771, compared with 0.050 and 0.144 for Memory Tokens KV. Second, with identical prompts on the first 200 GSM8K questions, loading LoRA generated from unrelated documents yields 92% accuracy versus 94% with-out LoRA (Appendix D.4). The first result mea-sures access to the constructed document memory. The second measures preservation of unrelated rea-soning performance after loading LoRA. 
+
+D.3 Diagnostic Improvements 
+
+We revisit the fact-discrimination and target-retention probes from Section 3 to test repair through improved evidence access, comparing D2L, Cache2LoRA-TF, and Cache2LoRA. 
+
+Borrowed-answer correction. On the 304-query Wikipedia repair cohort, D2L yields 60 cor-rect, 119 borrowed, and 125 other responses. Cache2LoRA-TF yields 243, 30, and 31. Of 119 borrowed cases, 92 become correct, 19 stay bor-rowed, and eight become other errors. Cache2LoRA yields 282 correct, three borrowed, and 19 other responses. The corresponding counts are 301/1/2 for ICL and 259/4/41 for the original-23 Table 14: Standalone memory comparison. Per-task F1, R-L, and EM for six methods, all using 6.75 MiB of document-derived state. KV methods use a 48-position budget. Teal cells mark the best rounded score across all six methods for each task and metric. 
+
+(a) Selected document KV 
+
+Task SnapKV DropKV Fast KVzip F1 R-L EM F1 R-L EM F1 R-L EM SQuAD 0.766 0.925 0.580 0.737 0.933 0.550 0.779 0.942 0.613 
+
+DROP 0.548 0.815 0.357 0.491 0.797 0.297 0.529 0.756 0.340 Wiki (year) 0.975 0.980 0.970 0.986 0.990 0.984 0.711 0.737 0.704 Wiki (place) 0.692 0.947 0.260 0.668 0.951 0.211 0.167 0.345 0.076 FactSet-Homo 0.972 0.972 0.947 0.997 0.997 0.997 0.998 1.000 0.997 
+
+FactSet-Hetero 0.947 0.975 0.928 0.940 0.997 0.911 0.953 0.997 0.931 
+
+FactSet-Distract 0.959 0.992 0.934 0.935 1.000 0.905 0.927 1.000 0.891 SQuAD-4 0.713 0.931 0.517 0.670 0.903 0.467 0.257 0.439 0.143 SQuAD-Mix 0.688 0.898 0.483 0.645 0.867 0.463 0.259 0.479 0.123 NQ-4 0.507 0.758 0.290 0.484 0.738 0.290 0.218 0.395 0.107 NewsQA 0.461 0.701 0.217 0.470 0.705 0.223 0.075 0.176 0.030 TriviaQA 0.754 0.891 0.660 0.763 0.877 0.677 0.467 0.591 0.397 NQ 0.485 0.743 0.323 0.497 0.711 0.320 0.156 0.309 0.067 2Wiki 0.302 0.412 0.220 0.305 0.421 0.200 0.232 0.328 0.165 MFQA 0.407 0.599 0.127 0.420 0.613 0.153 0.226 0.333 0.027 HotpotQA 0.484 0.583 0.340 0.401 0.515 0.290 0.250 0.367 0.155 MuSiQue 0.152 0.299 0.090 0.142 0.241 0.085 0.101 0.208 0.040 Macro 0.636 0.789 0.485 0.621 0.780 0.472 0.430 0.553 0.341 
+
+(b) Learned KV and LoRA 
+
+Task 500xCompressor CCM Cache2LoRA 
+
+F1 R-L EM F1 R-L EM F1 R-L EM SQuAD 0.719 0.826 0.530 0.672 0.771 0.483 0.762 0.872 0.570 DROP 0.523 0.695 0.337 0.517 0.680 0.337 0.602 0.818 0.393 
+
+Wiki (year) 0.413 0.414 0.411 0.321 0.322 0.319 0.928 0.928 0.928 Wiki (place) 0.449 0.593 0.197 0.364 0.471 0.148 0.678 0.921 0.270 
+
+FactSet-Homo 0.896 0.896 0.875 0.624 0.630 0.566 0.970 0.972 0.941 FactSet-Hetero 0.889 0.956 0.849 0.848 0.893 0.806 0.893 0.954 0.859 FactSet-Distract 0.830 0.942 0.776 0.892 0.951 0.852 0.929 0.987 0.895 SQuAD-4 0.516 0.630 0.333 0.468 0.558 0.280 0.711 0.861 0.507 SQuAD-Mix 0.515 0.629 0.337 0.526 0.612 0.350 0.744 0.902 0.550 
+
+NQ-4 0.494 0.583 0.333 0.456 0.549 0.290 0.609 0.745 0.410 
+
+NewsQA 0.388 0.509 0.207 0.401 0.507 0.203 0.450 0.626 0.257 
+
+TriviaQA 0.726 0.796 0.650 0.716 0.791 0.647 0.798 0.883 0.717 
+
+NQ 0.452 0.532 0.293 0.424 0.505 0.260 0.612 0.738 0.433 
+
+2Wiki 0.250 0.315 0.175 0.282 0.340 0.205 0.419 0.512 0.305 
+
+MFQA 0.288 0.385 0.040 0.274 0.375 0.047 0.403 0.506 0.107 HotpotQA 0.342 0.395 0.235 0.319 0.359 0.230 0.554 0.626 0.400 
+
+MuSiQue 0.156 0.200 0.080 0.136 0.193 0.065 0.211 0.308 0.130 
+
+Macro 0.520 0.606 0.392 0.485 0.559 0.358 0.663 0.774 0.510 
+
+Table 15: Cache2LoRA-TF across writers. Macro F1 over 13 non-LongBench tasks: three FactSet variants, two Wikipedia attributes, SQuAD, DROP, NewsQA, TriviaQA, NQ, SQuAD-4, SQuAD-Mix, and NQ-4. Tasks have equal weight; queries are matched per writer. 
+
+Writer / backbone raw Cache2LoRA-TF 
+
+D2L / Qwen3-4B 0.19 0.29 
+
+D2L / Gemma-2-2B 0.51 0.73 
+
+SHINE / Qwen3-8B 0.51 0.64 
+
+D2L-teacher control. Of the same 119 baseline-borrowed cases, 113 become correct and six be-come other errors. Its Token F1 gain over D2L is 0.874, and over Cache2LoRA-TF is 0.706. This measures correct recovery as well as removal of borrowed answers on the repair cohort. 
+
+Fixed-target expansion. Table 18 fixes 64 tar-get queries and references while adding same-type facts, other-type facts, or empty content. It di-rectly tests the target-retention claim in Section 5. With 31 same-type additions, F1 falls by 0.403 for D2L and 0.197 with matching, versus 0.007 for Cache2LoRA. Cache2LoRA also maintains F1 and EM under other-type fact additions. With empty-content additions, it preserves reference coverage, 24 Table 16: Per-task benchmark results on Gemma-2-2B. Cache2LoRA uses the Gemma teacher with the same objective and training budget as the Qwen configuration.                                                                                                                                                                                        
+
+> ICL D2L Cache2LoRA-TF Cache2LoRA
+> Task F1 R-L EM F1 R-L EM F1 R-L EM F1 R-L EM SQuAD 0.882 0.917 0.753 0.769 0.799 0.633 0.828 0.848 0.700 0.841 0.861 0.690 DROP 0.691 0.754 0.553 0.535 0.587 0.433 0.601 0.639 0.483 0.686 0.747 0.530
+> Wiki (birth year) 0.969 0.970 0.967 0.181 0.181 0.181 0.559 0.559 0.559 0.931 0.931 0.931
+> Wiki (birthplace) 0.712 0.964 0.283 0.174 0.237 0.059 0.624 0.839 0.243 0.713 0.936 0.303
+> FactSet-Homo 1.000 1.000 1.000 0.418 0.426 0.319 0.938 0.939 0.891 0.996 0.997 0.990
+> FactSet-Hetero 1.000 1.000 1.000 0.696 0.701 0.648 0.947 0.952 0.938 0.934 0.961 0.931 FactSet-Distract 1.000 1.000 1.000 0.847 0.847 0.826 0.989 0.990 0.984 0.972 0.979 0.970 SQuAD-4 0.873 0.910 0.753 0.517 0.551 0.377 0.793 0.840 0.647 0.817 0.838 0.670
+> SQuAD-Mix 0.868 0.904 0.713 0.514 0.558 0.333 0.788 0.821 0.633 0.824 0.853 0.657
+> NQ-4 0.701 0.726 0.507 0.476 0.485 0.310 0.589 0.601 0.420 0.674 0.680 0.470
+> NewsQA 0.606 0.642 0.387 0.415 0.456 0.233 0.537 0.562 0.337 0.561 0.573 0.370
+> TriviaQA 0.820 0.886 0.730 0.696 0.746 0.623 0.762 0.808 0.693 0.828 0.883 0.747
+> NQ 0.683 0.712 0.517 0.437 0.459 0.270 0.501 0.523 0.350 0.636 0.645 0.467 Average 0.831 0.876 0.705 0.513 0.541 0.404 0.727 0.763 0.606 0.801 0.837 0.671
+
+Table 17: Position control under intervening context. Each cell reports F1 / R-L. RoPE-aligned KV shifts only the learned memory keys’ RoPE positions to restore their relative distance to the question without removing intervening text. Original KV and Cache2LoRA scores are from Figure 7; RoPE-aligned KV scores are from the additional position control.                                        
+
+> 4K intervening tokens 32K intervening tokens Task Memory Tokens KV RoPE-aligned KV Cache2LoRA Memory Tokens KV RoPE-aligned KV Cache2LoRA SQuAD-4 .316 / .502 .647 / .859 .591 / .812 .054 / .201 .087 / .290 .574 / .811 NQ-4 .256 / .429 .446 / .625 .456 / .659 .115 / .295 .116 / .316 .405 / .648 Wikipedia-Year .243 / .260 .893 / .898 .910 / .918 .012 / .026 .039 / .125 .875 / .875 FactSet-Homo .269 / .280 .745 / .788 .957 / .957 .002 / .013 .004 / .018 .947 / .947 NewsQA .192 / .308 .312 / .626 .349 / .565 .028 / .088 .056 / .150 .316 / .529 SQuAD-Mix .336 / .514 .638 / .845 .620 / .838 .092 / .240 .109 / .325 .547 / .817
+
+while F1 and EM decrease. Inspection of paired outputs at k = 31 shows that all eight newly fail-ing exact-match responses expand correct short answers into full sentences. 
+
+Relation to response adaptation. The paired aliasing and dilution probes test recovery of tar-get answers under controlled changes to source content. The prompt controls in Appendix B.3 test a separate requirement: whether the answerer can use this evidence under different response instruc-tions. The empty-content results further distinguish target-answer preservation from compliance with the requested answer form. 
+
+Response Adaptation Results Matched instructions. Across the 17 tasks, Cache2LoRA produces means of 7.2, 49.3, 13.2, and 26.0 words under short-answer, explanation, sentence, and query-only prompts, respectively. 
+
+Matched response instructions and writer scope. 
+
+Table 19 compares response length and answer quality across instructions. Table 20 extends the comparison to Gemma. The direction depends on the writer: Gemma D2L stays much briefer than its ICL reference under explanation, whereas Qwen D2L is verbose under a short-answer request. Cache2LoRA on Gemma expands from 2.2 to 27.0 words, with recall increasing from 0.816 to 0.859. ICL reaches 28.2 words and 0.918 recall, versus 7.2 words and 0.454 for Gemma D2L. Cache2LoRA’s short-response fraction falls from 0.94 to approx-imately zero under explanation. This replicates response adaptation with the complete method. 
+
+Normalized response-length span. We define response-length span as the maximum minus mini-mum task-macro mean word count across the tested instructions, normalized by the corresponding ICL span. Qwen uses the four instructions and 13 tasks in Table 19, yielding 31.2% for D2L and 89.9% for Cache2LoRA. Gemma uses the two instructions 25 Table 18: Diagnostic repair under fixed-target expansion. All conditions retain the same 64 target queries and references. k counts added same-type facts, other-type facts, or empty units. The target-only result at k = 0 is shared across content types. Bold, shaded values mark the best method for each content type, metric, and k.
+
+Added content Metric k = 0 k = 1 k = 3 k = 7 k = 15 k = 31 
+
+D2L 
+
+Same-type facts F1 0.407 0.303 0.188 0.036 0.020 0.004 R-L 0.984 0.742 0.469 0.125 0.062 0.016 EM 0.141 0.094 0.062 0.000 0.000 0.000 Other-type facts F1 0.407 0.406 0.374 0.346 0.311 0.304 R-L 0.984 0.977 0.914 0.844 0.781 0.758 EM 0.141 0.141 0.125 0.125 0.109 0.109 Empty content F1 0.407 0.410 0.410 0.415 0.386 0.378 R-L 0.984 0.984 0.984 1.000 0.961 0.969 EM 0.141 0.141 0.141 0.141 0.125 0.109 
+
+Cache2LoRA-TF 
+
+Same-type facts F1 0.395 0.352 0.354 0.322 0.294 0.198 R-L 0.953 0.781 0.836 0.797 0.727 0.617 EM 0.141 0.156 0.141 0.109 0.094 0.016 Other-type facts F1 0.395 0.396 0.385 0.400 0.381 0.366 R-L 0.953 0.961 0.945 0.961 0.945 0.938 EM 0.141 0.141 0.125 0.141 0.125 0.109 Empty content F1 0.395 0.396 0.379 0.398 0.376 0.379 R-L 0.953 0.961 0.945 0.953 0.938 0.945 EM 0.141 0.141 0.125 0.141 0.125 0.125 
+
+Cache2LoRA 
+
+Same-type facts F1 0.955 0.935 0.955 0.958 0.947 0.948 
+
+R-L 0.992 0.977 0.984 0.977 0.977 0.977 
+
+EM 0.922 0.906 0.922 0.938 0.922 0.922 
+
+Other-type facts F1 0.955 0.937 0.952 0.958 0.955 0.971 
+
+R-L 0.992 0.984 0.969 0.984 0.992 0.992 
+
+EM 0.922 0.906 0.938 0.938 0.938 0.953 
+
+Empty content F1 0.955 0.925 0.893 0.909 0.864 0.874 
+
+R-L 0.992 0.977 0.977 0.984 0.992 0.992 
+
+EM 0.922 0.891 0.844 0.875 0.797 0.812 
+
+Table 19: Answer quality and response length under four instructions. All methods use the same 13 tasks and three training styles plus a query-only instruction. Length is measured in words. 
+
+Method F1 R-L EM Mean words 
+
+Short answer 
+
+ICL 0.751 0.917 0.602 7.9 D2L 0.187 0.553 0.018 15.1 
+
+Cache2LoRA 0.745 0.862 0.594 5.1 
+
+One sentence 
+
+ICL 0.306 0.927 0.000 13.1 D2L 0.177 0.550 0.000 12.4 
+
+Cache2LoRA 0.297 0.874 0.001 11.3 
+
+Query only 
+
+ICL 0.187 0.959 0.000 53.9 D2L 0.146 0.577 0.000 26.8 
+
+Cache2LoRA 0.275 0.885 0.004 20.1 
+
+Explanation 
+
+ICL 0.092 0.955 0.000 49.9 D2L 0.131 0.578 0.000 25.4 
+
+Cache2LoRA 0.086 0.891 0.000 46.4 
+
+26 Table 20: Response length and answer coverage across backbones. Short-answer and explanation prompts use the same 904 queries from SQuAD-4, NQ-4, and Wikipedia birth year. Each backbone configura-tion uses one checkpoint for both instructions, which are represented in the multi-style recipe.                            
+
+> Short answer Explanation Method Mean words R-L Mean words R-L
+> Qwen3-4B
+> ICL 7.9 0.915 48.7 0.952 D2L 14.0 0.454 26.0 0.485
+> Cache2LoRA 5.3 0.844 46.8 0.875
+> Gemma-2-2B
+> ICL 2.7 0.869 28.2 0.918 D2L 2.5 0.405 7.2 0.454
+> Cache2LoRA 2.2 0.816 27.0 0.859
+
+and three tasks in Table 20, yielding 18.4% and 97.5%, respectively. 
+
+Response evaluations. The four-prompt sweep measures response-length adaptation alongside reference coverage. Under held-out formats, Cache2LoRA improves joint format compliance and answer correctness over D2L across all three families. Relative to ICL, joint success is higher for uppercase and prefix instructions and lower for JSON, while reference coverage remains lower across the three formats. These comparisons distin-guish compliance with an output format from the quality of the answer expressed within it. 
+
+D.4 Ablation Studies 
+
+Table 3 summarizes writer and supervision abla-tions. Component definitions and matched training settings appear in Appendix A.3. 
+
+Teacher recipes across response instructions. 
+
+Table 3b compares multi-style supervision with short-answer-only and D2L-prompt single-style controls under matched training data and bud-get. Multi-style supervision improves F1 and EM over both controls. R-L is higher than short-answer-only supervision and similar to D2L-prompt supervision. Table 22a compares D2L-prompt and multi-style supervision under five answering instructions on the same 17 tasks. The original-prompt model benefits from the more explicit entity instruction, while the multi-style recipe retains higher short-answer F1 and EM at similar reference coverage. Both models produce longer responses when explanations are requested. The multi-style recipe preserves this behavior and increases reference coverage under sentence, query-only, and explanation prompts. We report these answers’ length and coverage, with F1 and EM scored against unchanged short references. Table 22b compares the same checkpoints under held-out format instructions. The multi-style recipe improves joint success across all three families. Both teacher recipes and the no-retention control have similar format compliance. 
+
+Retention on Unrelated Inputs We evaluate pre-diction drift on 40 unrelated biography and dia-logue passages, using their first 128 tokens. Up-dates are constructed for 64 SQuAD-4 and 64 Wikipedia birth-year queries. KL measures di-vergence from the unmodified backbone’s predic-tive distribution. The matched D2L-prompt check-points differ only in retention weight. Retention re-duces KL from 0.2818 to 0.0265 and keeps perplex-ity close to the base model, while QA F1 changes from 0.313 to 0.307. The multi-style model also shows low drift. Retention thus limits interference without improving QA accuracy. 
+
+Unrelated mathematical reasoning. We evalu-ate the first 200 GSM8K questions using the same model and standard GSM8K in-context examples in both conditions. The reference uses no gener-ated LoRA; the comparison loads LoRA generated from documents unrelated to GSM8K while keep-ing the answering prompt identical. Accuracy is 94% without LoRA and 92% with LoRA, a two-percentage-point decrease. Thus, generated doc-ument memory largely preserves performance on this unrelated reasoning sample. This comparison evaluates the complete model, complementing the retention-weight ablation above.                   
+
+> Table 23: Retention on unrelated text. Base-model perplexity is 13.05. QA F1 is the 17-task macro average.
+> Teacher λKL PPL QA F1 D2L-prompt 00.2818 15.08 0.313 D2L-prompt 0.3 0.0265 12.93 0.307 Multi-style 0.3 0.0238 12.90 0.663
+
+D.5 Hybrid Answering 
+
+Figure 8 compares KV-only answering with the addition of generated LoRA or Memory To-kens KV across retained-context budgets. At 
+
+B = 48 , 128 , 512 , both added-memory forms use 6.75 MiB and share the selected document cache. LoRA gives higher F1 and EM with both selectors at every tested shared budget, whereas Memory 27 Table 21: Format compliance and answer quality under held-out formats. JSON and prefix use four matched tasks. Uppercase uses reference-eligible samples from three tasks. Content metrics score extracted answers independently of format compliance.                                                   
+
+> Method Format success F1 R-L EM Joint
+> Uppercase answer
+> ICL 0.954 0.450 0.863 0.190 0.186 D2L 0.907 0.137 0.385 0.009 0.009
+> Cache2LoRA 0.915 0.442 0.636 0.234 0.208
+> JSON object
+> ICL 0.993 0.724 0.905 0.603 0.603 D2L 0.845 0.291 0.447 0.173 0.173
+> Cache2LoRA 0.998 0.710 0.826 0.569 0.569
+> ANSWER: prefix
+> ICL 0.997 0.421 0.932 0.229 0.229 D2L 0.746 0.169 0.492 0.035 0.035
+> Cache2LoRA 0.999 0.487 0.836 0.295 0.295
+
+Table 22: Teacher-recipe comparison across response instructions. D2L prompt denotes single-style supervision. All configurations use Cache2LoRA with the same source documents, queries, encoder architecture, and training-step budget. Panel (a) reports Qwen3-4B macro averages over the 17-task evaluation suite. Panel (b) follows the cohorts and scoring of Table 21.                                                               
+
+> (a) Teacher setting and answering instruction
+> Instruction Teacher setting Mean words F1 R-L EM Short answer D2L prompt 19.6 0.307 0.777 0.088 Multi-style 7.2 0.663 0.774 0.510
+> Entity D2L prompt 9.6 0.579 0.734 0.431 Multi-style 3.5 0.706 0.739 0.572
+> Sentence D2L prompt 15.5 0.254 0.771 0.003
+> Multi-style 13.2 0.273 0.793 0.003
+> Query only D2L prompt 37.2 0.207 0.796 0.002 Multi-style 26.0 0.246 0.808 0.006
+> Explanation D2L prompt 47.7 0.094 0.795 0.000 Multi-style 49.3 0.087 0.819 0.000
+> (b) Joint success under held-out formats
+> Teacher setting Uppercase JSON Prefix D2L prompt 0.023 0.356 0.013 D2L prompt, w/o Lretain 0.018 0.345 0.019 Multi-style 0.208 0.569 0.295
+
+Tokens KV gives higher R-L. Both improve on KV-only answering. This tests complementarity beyond standalone accuracy (Table 3c). At B = 48 , SnapKV and DropKV with Cache2LoRA each use 13.50 MiB of document-derived state. KV-only answering at B = 128 uses 18.00 MiB, yet has lower F1 and EM with compara-ble recall. These sizes follow Figure 8 and exclude prompt states. 
+
+Hybrid Controls and Evidence Interventions Matched answering pipeline. With the answer-ing pipeline fixed, adding Cache2LoRA raises F1 by 0.060 for SnapKV and 0.085 for DropKV. An update from another document or query scores be-low KV-only answering (Table 24). 
+
+Answer-position retention. Table 25 reports the seven-task macro averages. Restricting the analysis to the 2,068 queries with retained answer-matching positions preserves the effect. At B = 48 , adapter use raises F1 from 0.781 to 0.812 for SnapKV and from 0.760 to 0.809 for DropKV. 
+
+Counterfactual conflicts. Table 26 reports original-answer and counterfactual-answer contain-ment separately. At small budgets on Wikipedia, changing only the adapter source substantially shifts which fact appears in the response. At 28 Table 24: Cache2LoRA gains under the same answering pipeline. Macro averages over 17 matched tasks. Both KV methods use B = 48 . Within each KV method, all conditions use the same selected document KV and process the instruction and query over that cache. The lower block uses documents with multiple queries. 
+
+Configuration Snap F1 R-L EM Drop F1 R-L EM KV only 0.636 0.789 0.485 0.620 0.780 0.472 KV + Cache2LoRA 0.696 0.816 0.545 0.705 0.825 0.555 KV + Cache2LoRA (other document) 0.573 0.720 0.424 0.570 0.717 0.426 Cache2LoRA only 0.663 0.774 0.510 0.663 0.774 0.510 
+
+Same-document query swap: matched subset of eight tasks 
+
+KV only 0.764 0.908 0.605 0.741 0.906 0.588 KV + Cache2LoRA (current query) 0.815 0.930 0.670 0.820 0.937 0.677 KV + Cache2LoRA (other query) 0.665 0.794 0.512 0.671 0.801 0.532 
+
+Table 25: Answer-position retention control. Seven tasks with answer-matching KV positions prioritized within budget. Each pair shares the retained cache and query replay. 
+
+KV only KV + Cache2LoRA Method B F1 R-L EM F1 R-L EM SnapKV 16 0.669 0.847 0.556 0.749 0.861 0.630 SnapKV 48 0.779 0.925 0.636 0.811 0.930 0.673 DropKV 16 0.550 0.756 0.452 0.700 0.815 0.597 DropKV 48 0.759 0.911 0.615 0.810 0.924 0.672 
+
+Table 26: Counterfactual evidence conflicts. Cells report the fractions of responses containing the original ( X)and counterfactual ( Y ) answers. KV and Cache2LoRA use independently chosen documents for each query. 
+
+Method B KV source KV only + Cache2LoRA ( X) + Cache2LoRA ( Y )
+
+FactSet-Homo 
+
+SnapKV 16 X 0.54 / 0.00 0.87 / 0.00 0.45 / 0.06 SnapKV 16 Y 0.00 / 0.54 0.03 / 0.41 0.00 / 0.87 SnapKV 48 X 0.95 / 0.00 0.99 / 0.00 0.86 / 0.02 SnapKV 48 Y 0.00 / 0.93 0.01 / 0.87 0.00 / 0.97 DropKV 16 X 0.93 / 0.00 0.99 / 0.00 0.82 / 0.05 DropKV 16 Y 0.00 / 0.92 0.09 / 0.81 0.00 / 0.99 DropKV 48 X 1.00 / 0.00 1.00 / 0.00 0.92 / 0.02 DropKV 48 Y 0.00 / 1.00 0.01 / 0.93 0.00 / 1.00 
+
+Wikipedia year 
+
+SnapKV 16 X 0.33 / 0.00 0.91 / 0.00 0.05 / 0.66 SnapKV 16 Y 0.07 / 0.30 0.76 / 0.03 0.00 / 0.87 SnapKV 48 X 0.98 / 0.00 0.98 / 0.00 0.71 / 0.13 SnapKV 48 Y 0.00 / 0.97 0.17 / 0.67 0.00 / 0.97 DropKV 16 X 0.56 / 0.01 0.93 / 0.00 0.12 / 0.57 DropKV 16 Y 0.07 / 0.49 0.63 / 0.12 0.00 / 0.95 DropKV 48 X 0.99 / 0.00 0.99 / 0.00 0.85 / 0.08 DropKV 48 Y 0.00 / 0.98 0.05 / 0.85 0.00 / 0.97 
+
+larger budgets, the cached source remains domi-nant, while a conflicting adapter can reduce its an-swer containment. These interventions show both factual supplementation and interference between the two memory forms, with their relative influence varying with the KV budget. 
+
+D.6 Efficiency 
+
+Table 27 groups measurements by output length. Panel (a) reports preparation, state, and decoding costs with 64 output tokens. Panel (b) compares document caching and per-query costs with 256 output tokens. Panel (c) varies output length at fixed document lengths and includes answer generation. Document caching is paid once per doc-29 Table 27: Preparation and decoding efficiency. Qwen3-4B on one H200, grouped by output length. Document prefill is paid once. Per-query preparation ends at the first answer token. State excludes model weights and document caches retained for future queries. Throughput uses batch 16; OOM denotes out of memory. 
+
+(a) 64 output tokens: document lengths and KV budgets 
+
+State (MiB) Prefill Prepare Decode Throughput Doc. Method Total Document (ms) (ms) batch 1 (ms/tok) batch 16 (tok/s) 4K ICL (full document) 581.9 576.4 279 29.6 22.38 512 SnapKV, B=48 12.7 6.8 279 47.0 22.35 627 DropKV, B=48 12.7 6.8 279 59.7 23.02 644 SnapKV, B=128 23.9 18.0 279 47.4 22.42 649 DropKV, B=128 23.9 18.0 279 60.4 22.73 595 
+
+Cache2LoRA 12.5 6.8 178 123.0 22.33 598 16K ICL (full document) 2309.9 2304.4 592 35.4 22.49 178 SnapKV, B=48 12.7 6.8 592 71.6 22.32 598 DropKV, B=48 12.7 6.8 592 114.5 22.50 597 SnapKV, B=128 23.9 18.0 592 71.8 22.52 645 DropKV, B=128 23.9 18.0 592 114.4 22.88 637 
+
+Cache2LoRA 12.5 6.8 669 123.2 22.07 596 32K ICL (full document) 4613.9 4608.4 1630 45.2 22.92 95 SnapKV, B=48 12.7 6.8 1630 102.0 22.75 651 DropKV, B=48 12.7 6.8 1630 185.6 22.67 635 SnapKV, B=128 23.9 18.0 1630 101.7 22.77 644 DropKV, B=128 23.9 18.0 1630 184.1 22.72 605 
+
+Cache2LoRA 12.5 6.8 1796 171.3 22.59 526 64K ICL (full document) 9221.9 9216.4 5185 61.7 29.70 OOM SnapKV, B=48 12.7 6.8 5185 167.6 22.98 633 DropKV, B=48 12.7 6.8 5185 334.5 22.84 637 SnapKV, B=128 23.9 18.0 5185 165.4 22.87 630 DropKV, B=128 23.9 18.0 5185 330.9 23.77 604 
+
+Cache2LoRA 12.5 6.8 5535 268.7 22.98 564 128K ICL (full document) 18437.9 18432.4 18038 97.3 49.37 OOM SnapKV, B=48 12.7 6.8 18038 295.1 23.07 607 DropKV, B=48 12.7 6.8 18038 619.7 23.08 614 SnapKV, B=128 23.9 18.0 18038 294.3 23.57 594 DropKV, B=128 23.9 18.0 18038 621.0 23.61 597 
+
+Cache2LoRA 12.5 6.8 19724 476.6 22.96 583 
+
+ument, while each query pays memory construction and preparation through the first answer token. 
+
+Document-prefill memory. Table 27b reports the median document-prefill peak allocation incre-ment above GPU memory allocated immediately before that phase, measured with PyTorch peak-allocation counters after warmup. It includes allo-cations made during document prefill, but excludes memory already resident at the start of that phase. It is not the total deployment peak, nor the peak for per-query LoRA construction. 30 Table 27: Preparation and decoding efficiency (continued). KV baselines in (b) retain up to 48 document positions. State in (b) is measured at the first answer token. Doc. peak ∆ is the prefill peak allocation increment above the phase-start baseline; – denotes no separate document phase. In (c), query latency includes preparation and batch-one generation after document caching, and state includes the generated output. 
+
+(b) 256 output tokens: document caching and per-query costs 
+
+Preparation (ms) Req. state Throughput Doc. peak ∆
+
+Doc. Method Document Query (MiB) batch 16 (tok/s) (MiB) 1K ICL (full document) 36.3 29.1 149.91 630 222.2 SnapKV 36.3 46.3 12.66 624 222.2 DropKV 36.3 51.9 12.66 626 222.2 CCM 171.9 29.5 12.52 607 475.2 500xCompressor 178.0 30.5 12.52 628 350.0 Re-encoding control 0.0 200.3 12.52 626 –
+
+Cache2LoRA 100.0 135.8 12.52 575 251.6 4K ICL (full document) 114.6 29.4 581.91 512 886.7 SnapKV 114.6 47.5 12.66 605 886.7 DropKV 114.6 60.2 12.66 627 886.7 CCM 243.6 28.4 12.52 634 1354.5 500xCompressor 246.2 29.0 12.52 648 1231.1 Re-encoding control 0.0 277.2 12.52 651 –
+
+Cache2LoRA 157.6 131.4 12.52 596 887.8 16K ICL (full document) 585.8 35.9 2309.91 178 3544.8 SnapKV 585.8 72.1 12.66 635 3544.8 DropKV 585.8 114.4 12.66 616 3544.8 CCM 758.7 29.3 12.52 632 5006.5 500xCompressor 824.0 29.0 12.52 634 4883.1 Re-encoding control 0.0 850.3 12.52 628 –
+
+Cache2LoRA 666.3 128.1 12.52 583 3546.1 32K ICL (full document) 1648.9 45.4 4613.91 95 7088.9 SnapKV 1648.9 102.6 12.66 606 7088.9 DropKV 1648.9 185.6 12.66 601 7088.9 CCM 1958.8 29.4 12.52 618 9875.8 500xCompressor 2105.5 29.5 12.52 617 9752.5 Re-encoding control 0.0 2130.4 12.52 612 –
+
+Cache2LoRA 1820.6 174.6 12.52 560 7090.5 
+
+(c) Output-length sweep: query latency and final request state 
+
+Output Query latency Throughput State Doc. Method (tokens) batch 1 (ms) batch 16 (tok/s) (MiB) 4K ICL (full document) 16 369.4 519 584.02 256 5789.2 512 617.77 1024 23214.2 484 725.77 Re-encoding control 16 619.7 654 14.62 256 6220.4 651 48.38 1024 23891.6 651 156.38 
+
+Cache2LoRA 
+
+16 468.4 600 14.62 256 6039.4 596 48.38 1024 24272.3 573 156.38 32K ICL (full document) 16 400.1 96 4616.02 256 6167.0 95 4649.77 1024 24330.5 94 4757.77 Re-encoding control 16 2513.1 620 14.62 256 8261.3 612 48.38 1024 26505.7 611 156.38 
+
+Cache2LoRA 
+
+16 544.2 557 14.62 256 6335.9 560 48.38 1024 24990.5 561 156.38 
+
+31

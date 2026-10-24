@@ -1,0 +1,475 @@
+Title: Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+URL Source: https://arxiv.org/pdf/2610.25425v1
+
+Published Time: Tue, 20 Oct 2026 01:46:14 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+## GenMI Lab, MBZUAI 20 th October, 2026 
+
+# Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection 
+
+Yifan Lu 1, Rubin Wei 2, Ziyun Zou 1, Junhong Liang 1, Haolin Yang 1, Xinlin Zhuang 3, Abhijit Das 1,Adinath Madhavrao Dukre 1, Shadab Khan 4, Zhouhan Lin 2, Imran Razzak 1
+
+> 1
+
+MBZUAI, Abu Dhabi, UAE, 2LUMIA Lab, School of Artificial Intelligence, Shanghai Jiao Tong University, China, 3The Chinese University of Hong Kong, Hong Kong, 4ADIA Lab, Abu Dhabi, UAE Large language models store substantial factual knowledge in their parameters, yet this knowledge is difficult to control, update, and reliably elicit at inference time. Existing memory-augmented approaches typically rely on a single auxiliary mechanism, such as retrieval, parameter updates, or neural memory, and therefore apply the same form of correction to tokens with very different knowledge demands. We propose Mixture-of-Memories (MoM), a memory-augmented language modeling framework that separates routed neural memory from writable factual memory. MoM combines a frozen base LM with two neural memory experts: a latent memory that provides low-latency hidden-state corrections and a lexical memory that provides a token-space knowledge pathway. A lightweight Budget Router sets per-token mixture weights from uncertainty and disagreement features, replacing the fixed interpolation of prior memory modules. For post-hoc updates, an external explicit memory stays outside the router, because a router trained before facts are written learns to down-weight it; new facts are appended without retraining any component and used only when an answer-level gate accepts the retrieved fact. Experiments across language modeling, factual QA, update analysis, and efficiency show that MoM improves both predictive accuracy and updateability while retaining low inference overhead. 
+
+Keywords: Parametric Memory, Knowledge Updating, Token-Level Routing 
+
+Contact : Yifan.Lu@mbzuai.ac.ae NQ WebQ TriviaQA           
+
+> ▲5.52
+> ▲8.68
+> ▲5.81
+> NQ WebQ TriviaQA
+> ▲8.44 ▲5.24
+> ▲0.07
+> Base RAG kNN-LM MoM
+> 32 135 130
+> 45
+> ▼3.0×
+> Base RAG kNN-LM MoM
+> 53 25 9
+> 35
+> ▲1.4×
+
+Mistral-7B Llama-3.1-8B Time to first token ( ↓)TTFT (ms) Tokens per second ( ↑)TPS (tokens/s) Base LM CPT LoRA RAG MoM 
+
+Figure 1: Performance and efficiency comparison. Left and middle : accuracy on three QA benchmarks with Mistral-7B and Llama-3.1-8B; bars are scaled within each benchmark. MoM improves over the base LM on every benchmark, whereas parametric methods (CPT, LoRA) and non-parametric retrieval (RAG) each lower at least one. Right : inference efficiency on a 7B backbone, measured by time to first token (TTFT, ↓ lower is better) and tokens per second (TPS, ↑
+
+higher is better). Relative to RAG and kNN-LM, MoM lowers TTFT by 2.9–3.0 × and raises TPS by 1.4–3.9 ×.
+
+Corresponding author(s): Imran Razzak; Email: Imran.Razzak@mbzuai.ac.ae arXiv:2610.25425v1 [cs.CL] 18 Oct 2026 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection 
+
+## 1. Introduction 
+
+Large language models (LLMs) encode a substantial amount of world knowledge in their parameters (Allen-Zhu and Li, 2025). This capability follows from large-scale next-token prediction and is one reason pretrained LMs generalize well. Parametric knowledge, however, is a poor interface for knowledge-intensive prediction. Parameters are optimized to capture broad statistical regularities, not to give explicit control over how individual facts are stored, accessed, or updated. The mechanism that handles common linguistic and factual patterns therefore becomes unreliable when a prediction depends on precise, infrequent, or newly introduced knowledge (Chang et al., 2024, Gekhman et al., 2024, Ovadia et al., 2024), which leaves a gap between what an LLM absorbs during pretraining and what it can reliably use at inference time. This gap has at least three sources. A fact may be weakly represented because it is under-supported in pretraining, difficult to recover because the context does not elicit it, or stale because it changed after training. Existing approaches address these failure modes only partially. Parameter-side methods internalize new information into model weights, but frequent or repeated updates remain difficult to support cleanly (Wang et al., 2024c). External retrieval and token-level memory make updates easier but add search and context-processing overhead at inference time (Cao et al., 2026). Latent-space memory compresses information into hidden representations and can improve retention, but it is tied to model-specific representations (Wang et al., 2024b, 2025). Plug-and-play parametric memories imitate non-parametric retrievers with lightweight auxiliary modules, which improves portability and inference efficiency, yet they still expose a single auxiliary path with fixed interpolation (Cao et al., 2026, Wei et al., 2025). Because all of these mechanisms ultimately act through next-token prediction at inference time, their differences matter only insofar as they change the local prediction problem during generation. The need for extra knowledge is not uniform across positions. At many steps, the base LM is already sufficient: the next token is governed mainly by local syntax, common lexical patterns, or highly reinforced knowledge, so auxiliary support brings little benefit. The challenging cases are concentrated on a much smaller subset of positions where prediction depends on precise factual content, such as entities, numbers, dates, and other knowledge-bearing slots (Yao et al., 2025). Even there, the relevant deficiency is not always the same. Some errors reflect weak parametric support and call for a lightweight correction to the base prediction; others reflect a need for more explicit token-level guidance or direct access to facts introduced after pretraining. This makes a single global augmentation rule difficult to justify. If the same auxiliary correction is applied uniformly throughout generation, the model is forced to treat easy and difficult positions alike, and to use the same form of support for qualitatively different failure modes. A more natural formulation is to let knowledge support vary with the local prediction state, invoking different auxiliary paths only where they are likely to reduce token-level error. To bridge the gap, we propose Mixture-of-Memories (MoM), a memory-augmented language modeling framework that separates memory for stable prediction from memory for post-hoc updates. MoM combines a frozen base LM with two routed neural memory experts: a latent memory (LatM) that provides low-latency, retrieval-like corrections in hidden space, and a lexical memory (LexM) that operates in token space and is therefore less coupled to the backbone’s representations. A lightweight Budget Router assigns token-wise mixture weights over these stable sources from uncertainty and disagreement features. Mutable knowledge goes to an explicit memory (ExpM), an external store that is kept outside the router; it retrieves a stored fact once per question and injects its answer only when an answer-level gate judges the fact reliable. Facts are added by appending entries, without retraining the backbone, the neural memories, or the router. Our contributions are as follows: 
+
+> 2Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+• We propose Mixture-of-Memories, which composes a frozen base language model with a latent and a lexical memory through a lightweight token-wise Budget Router. • We keep mutable knowledge in an explicit memory outside the router, so new facts can be written without retraining the backbone, the neural memories, or the router, and take effect immediately. • Extensive experiments show that MoM reduces WikiText-103 perplexity on GPT2-large from 10.45 to 9.37, improves the average factual QA score over frozen backbones by 15.6% on Mistral-7B and 10.9% on Llama-3.1-8B, and lowers time to first token by 2.9–3.0 × relative to retrieval-augmented baselines on a 7B backbone. 
+
+## 2. Related Work 
+
+Retrieval-augmented generation. Retrieval-augmented generation grounds predictions in external knowl-edge. RAG (Lewis et al., 2020) retrieves documents or passages, RETRO (Borgeaud et al., 2022) retrieves corpus chunks, and kNN-LM (Khandelwal et al., 2020) retrieves nearest-neighbor continuations from a datastore of activations. Recent work post-trains the reader to make better use of retrieved evidence, through hierarchical-thought instruction tuning in HIRAG (Jiao et al., 2025) or reinforcement learning with a cur-riculum in RAG-RL (Huang et al., 2025). These methods keep knowledge explicit and easy to refresh, but they shift cost to inference: online search adds latency, retrieved evidence lengthens the context, and large indexes or datastores require storage. MoM amortizes retrieval-like corrections into neural memory experts that are invoked through token-wise routing, and it reserves explicit lookup for a small store of written facts. 
+
+Parametric long-term memory. Parametric memory methods reduce the serving cost of retrieval by compressing corpus-level knowledge into learned auxiliary modules. MLP Memory (Wei et al., 2025) uses an external MLP to mimic non-parametric retrieval, and Memory Decoder (Cao et al., 2026) attaches a plug-and-play decoder memory to a frozen language model. Both make memory access fast and model-compatible, but compressing knowledge into parameters gives up direct writability, one of the main advantages of retrieval: adding or revising facts requires retraining, re-distillation, or rebuilding the memory. MoM keeps parametric memories for stable, low-latency modeling and delegates factual updates to a separate explicit memory. 
+
+Conditional computation and knowledge editing. Sparse mixture-of-experts models route tokens to experts to scale capacity (Shazeer et al., 2017, Fedus et al., 2022, Du et al., 2022). MoM instead routes among heterogeneous knowledge sources, namely the base LM, a hidden-space memory, and a token-space memory, for conditional memory access. For editing, MEND (Mitchell et al., 2022a), ROME (Meng et al., 2022), and MEMIT (Meng et al., 2023) modify model weights, whereas SERAC (Mitchell et al., 2022b), GRACE (Hartvigsen et al., 2023), and WISE (Wang et al., 2024a) store edits in auxiliary modules. ExpM is closest to the second group, but it writes facts as raw key–value entries without per-edit optimization. 
+
+## 3. Methodology 
+
+MoM is built on a separation principle: stable neural memories are routed, while mutable explicit knowledge is injected externally. The two kinds of memory serve different purposes. Neural memories are trained once and reused across inputs, which makes them suitable for token-level routing. Explicit memory is sparse, user-or time-dependent, and may be empty during router training but populated at test time. Placing such a store in the same router softmax lets the router learn that explicit memory is useless whenever the store 
+
+> 3
+
+Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection Tokenizer 
+
+Input Tokens !≤t Who was cast originally 
+
+Example 
+
+> Query: Tokens: LatM: LexM: ExpM: Answer: “Who was originally cast …” Use hidden-space facts Use token-space patterns Indiana Jones → Tom Selleck Tom Selleck
+
+Routed Neural Memory Core 
+
+Frozen Base LM  
+
+> General Language Knowledge Input: tokens !≤t Output: base prediction Pretrained LM Provides original LM ability & general knowledge
+
+Latent Memory  
+
+> Hidden-space Memory Input: hidden state ht
+> Output: memory prediction Source: Distilled from retrieval teacher Retrieval-like memory, low-latency, no online index
+
+Lexical Memory  
+
+> Token-space Memory Input: tokens !≤t Output: memory prediction Source: Distilled from retrieval teacher Token-level memory, not tied to hidden states
+
+Budget Router   
+
+> Inputs: Base LM LatM LexM Core Weights ：πBaseLM , π LatM , π LexM
+
+Core Prediction 
+
+pcore = Σm πm pm   
+
+> New facts appended at inference time
+> Memory Write External KV Store
+> Indiana Jones ↓Tom Selleck
+> Read: ht+ TF-IDF → top-1 fact Gate: Accept → Copy its Answer Post-hoc Update No Retraining Bypasses Router
+
+Writable Explicit Memory 
+
+Final Prediction 
+
+pMoM = mix ( pcore , pExpM )Autoregressive Decoder Answer 
+
+> Tom Selleck Routes Core Experts Only
+
+to play Jones Indiana ?
+
+Who was originally cast to play Indiana Jones?   
+
+> Who was cast originally
+
+Figure 2: Mixture-of-Memories architecture. The input is tokenized and each next-token prediction is formed from three core sources: a frozen Base LM, a hidden-space Latent Memory (LatM), and a token-space Lexical Memory (LexM). The Budget Router produces per-token mixture weights over these sources. The writable Explicit Memory (ExpM) stores appended facts in an external key–value store and bypasses the router. For each question, it retrieves the fact and injects its answer only when an answer-level gate accepts it; otherwise the routed core predicts alone. New facts thus take effect without retraining. 
+
+is empty (Section 4.3). MoM therefore consists of a routed neural memory core and an external explicit memory overlay (Figure 2). Given a context x≤t = (x1, . . . , xt), the model predicts the next token yt = xt+1. The routed core consists of three stable sources, 
+
+𝒞 = {Base, LatM, LexM }, (1) where Base is the frozen parametric memory of the language model, LatM is a latent-space memory distilled from retrieval behavior, and LexM is a token-space lexical memory. 
+
+3.1. Design Overview 
+
+MoM first builds a core distribution by routing among the stable sources: 
+
+pcore (yt ∣ x≤t) = ∑
+
+m∈𝒞 
+
+πm(t) pm(yt ∣ x≤t), (2) where pm is the distribution produced by source m and πm(t) is a token-dependent routing weight. The conditioning of pm is module-specific: Base and LexM consume the token sequence, while LatM consumes a hidden representation extracted from the frozen base model. The final prediction overlays the explicit memory: 
+
+pMoM (yt ∣ x≤t) = (1 − αt) pcore (yt ∣ x≤t) + αt pExpM (yt ∣ x≤t, ∆), (3) 
+
+4Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection 
+
+where ∆ is the external key–value store. The coefficient αt = dtλt separates two decisions: dt ∈ {0, 1 }
+
+indicates whether ExpM’s gate accepts the retrieved fact (Eq. 13), and λt ∈ [0, 1 ] sets the injection strength. When the gate rejects, dt = 0 and Eq. 3 reduces exactly to the routed core. Neither dt nor λt is produced by the Budget Router. 
+
+3.2. Routed Neural Memory Core Base memory. The base source is a frozen autoregressive language model with parameters θBase . It produces logits zBase (t) = FθBase (x≤t) and the next-token distribution 
+
+pBase (yt ∣ x≤t) = softmax (zBase (t)) yt . (4) The base model also provides a hidden representation 
+
+ht = ϕ(ℓ) 
+
+> θBase
+
+(x≤t) (5) from a fixed layer ℓ. LatM and the ExpM encoders reuse hidden states from the same backbone forward pass, while LexM takes the token sequence as input. 
+
+Latent memory. LatM removes the online nearest-neighbor search of retrieval-augmented LMs. Instead of searching a datastore at every token, it learns a parametric approximation of retrieval-style corrections in the hidden space of the base model: 
+
+pLatM (yt ∣ ht) = softmax (GLatM (ht)) yt . (6) 
+
+GLatM is a lightweight MLP-style memory module. It is trained by distilling retrieval-augmented teacher distributions and frozen afterwards, and it provides low-latency corrections when the base representation already contains enough signal to predict the needed retrieval behavior. 
+
+Lexical memory. LexM complements LatM by operating in token space rather than in the hidden space of the base model: 
+
+pLexM (yt ∣ x≤t) = softmax (Dec LexM (x≤t)) yt . (7) Because LexM consumes token IDs rather than hidden states, it does not depend on the representation geometry of a particular base model. LatM is efficient but base-specific, whereas LexM can be attached to another backbone with a compatible vocabulary (Appendix B.1). After training, LexM is frozen and becomes a stable source of the routed core. 
+
+3.3. Budget Router 
+
+The Budget Router decides when each stable source should influence the next-token distribution. It outputs a distribution over the routed core: 
+
+log π(t) = LogSoftmax (Rψ( ft)) , (8) where π(t) = [πBase (t), πLatM (t), πLexM (t)] , Rψ is an MLP, and ft contains inexpensive uncertainty and disagreement features: 
+
+ft = [ HBase (t), margin Base (t), JSD (pBase , pLatM )( t), JSD (pBase , pLexM )( t) ] . (9) 
+
+> 5Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+HBase is the entropy of the base distribution, margin Base is the gap between its two largest token probabilities, and JSD measures disagreement between distributions. The core mixture is computed in log space with the log-sum-exp operator, LSE m(am) = log ∑m exp (am):
+
+log pcore (yt ∣ x≤t) = LSE m∈𝒞 [ log πm(t) + log pm(yt ∣ x≤t)] . (10) ExpM is deliberately absent from Eq. 8 because it is mutable and may be empty while the router is trained, so routing it would teach the router to suppress explicit memory. 
+
+3.4. External Explicit Memory 
+
+ExpM stores facts as writable entries. A fact consists of a question or prompt xi and its answer token sequence 
+
+ai = (ai,1 , . . . , ai,Mi ). Each entry keeps a dense key ki, a TF-IDF vector ˜ki of xi, the answer ai, and a source record. Adding knowledge appends entries to the store ∆ and changes no parameter of the base model, LatM, LexM, the router, or the ExpM encoders. 
+
+Query and key encoders. ExpM reads the frozen backbone rather than raw text. At position t it forms the feature 
+
+zt = [ ht ; ¯ht ], (11) where ht is the backbone hidden state of Eq. 5 and ¯ht is the mean hidden state of the most recent valid tokens. Two separate towers Eq and Ek map this feature to L2-normalized vectors. The query q = Eq(zT) is taken at the last position T of the question, where the answer starts, and the key of a fact, ki = Ek(z(xi)) , is taken at the last position of its own question prefix. 
+
+Retrieval. ExpM retrieves once per question, before the answer is generated. Each entry is scored by a convex combination of dense and lexical similarity, 
+
+si = (1 − β) q⊤ki + 12 + β cos ( ˜q, ˜ki), (12) where ˜q is the TF-IDF vector of the question and β ∈ [0, 1 ] weights the lexical term. Rescaling the dense cosine to [0, 1 ] puts both terms on the same range. ExpM takes the highest-scoring entry i⋆ over the whole store as its answer candidate. The top-k entries 𝒩 under the same score serve to compute gate features. 
+
+Answer-level gate. Retrieval always returns a candidate, including for questions whose fact is not in the store, so ExpM must decide whether to trust it. A logistic-regression gate estimates the probability that the retrieved answer is correct: 
+
+g(x) = σ(w⊤ϕ(x) + b), d = 1[g(x) ≥ η]. (13) The features ϕ(x) are the retrieval score si⋆ (x), its margin over the second-best candidate, the lexical overlap between x and xi⋆ , the agreement among the answers in 𝒩 , and the probability that the routed core assigns to the first retrieved answer token, pcore (ai⋆,1 ∣ x). The last feature lets the gate weigh the retrieval evidence against the core’s own prediction. 
+
+> 6Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Answer injection. The gate decision holds for the whole answer, with dt = d at every answer position. If the gate accepts, ExpM proposes the stored answer token by token, followed by the end-of-sequence token. At the j-th answer position, 
+
+pExpM (yt ∣ x≤t, ∆) = 1[yt = ai⋆,j], (14) and Eq. 3 is applied with λt = 0.8 . Because pExpM is a point mass and λt > 0.5 , the proposed token always receives the highest probability, so greedy decoding reproduces the retrieved answer exactly; the overlay then acts as gated answer copying. If the gate rejects, dt = 0 throughout and the routed core generates the answer alone. 
+
+3.5. Training 
+
+MoM is trained in stages so that each component is optimized for its role. 
+
+Teacher construction. We first construct a retrieval-augmented teacher distribution 
+
+p∗(yt ∣ x≤t) = (1 − λret ) pBase (yt ∣ x≤t) + λret pret (yt ∣ x≤t), (15) where pret is an offline kNN retrieval distribution. Interpolating with the base model reduces the brittleness of pure retrieval supervision while exposing the neural memories to retrieval-like corrections. 
+
+Neural memory distillation. LatM and LexM are trained to match the teacher while preserving next-token accuracy. For each m ∈ {LatM, LexM }, we minimize 
+
+ℒm 
+
+> distill
+
+= μ KL (p∗ ∥ pm) + (1 − μ) CE (pm, yt). (16) After distillation, Base, LatM, and LexM are frozen. 
+
+Router training. With all core distributions fixed, only the router parameters ψ are trained: 
+
+ℒrouter = Et[ − log pcore (yt ∣ x≤t)] + βLexM Et[πLexM (t)] 
+
++ γ Et[∥ π(t) − π(t − 1)∥ 1] − λent Et[H(π(t))] . (17) The likelihood term teaches the router which source improves prediction. The LexM budget term discourages unnecessary use of the heavier token-space decoder, the smoothness term stabilizes decisions across adjacent tokens, and the entropy term prevents collapse to a single source. 
+
+Explicit memory. The ExpM encoders are trained once and then frozen. During this stage, λt in Eq. 3 is produced by a token-level gate, and the encoders and gate minimize 
+
+ℒExpM = ℒnce + ℒnll + ℒloc . (18) 
+
+ℒnce is an InfoNCE loss: the query at the answer start is compared with the unmasked candidate keys through 
+
+q⊤kj/τ with temperature τ, and the cross-entropy target is the key of the question’s own fact. ℒnll is the mean negative log-likelihood of the gold answer tokens under the mixed distribution of Eq. 3, computed on examples whose fact is in the store. ℒloc averages − log (1 − λt) over the answer positions of examples whose 
+
+> 7Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+fact is absent from the store and of locality examples, so the gate learns to close when memory should not be used. Writing a fact (x, a) requires no gradient update: 
+
+∆ ← ∆ ∪ {( Ek(z(x)) , ˜k(x), a)} . (19) At inference time, MoM computes the three core distributions, routes them into pcore , and applies the ExpM overlay of Eq. 3 when the gate accepts the retrieved fact. 
+
+## 4. Experiments 
+
+We first report factual QA results, then attribute the gains to individual memory channels, analyze how ExpM absorbs updates, and finally measure efficiency. Appendix B.1 reports the transfer of LexM across backbones. 
+
+4.1. Experimental Setup Datasets. For language modeling we use WikiText-103 (Merity et al., 2017). For factual QA we evaluate on the full evaluation splits of NQ (Kwiatkowski et al., 2019), WebQuestions (WebQ; Berant et al., 2013), TriviaQA (Joshi et al., 2017), TruthfulQA (Lin et al., 2022), and HotpotQA (Yang et al., 2018). Wikipedia-2021 (Izacard et al., 2023) is the corpus for memory training, continued pretraining, the kNN-LM datastore, and RAG retrieval. Appendix A.1 and Appendix A.3 give dataset and metric details. 
+
+Baselines. We compare MoM with the frozen base LM and with two groups of methods. The parametric group comprises full continued pretraining (CPT), LoRA (Hu et al., 2022), and MLP Memory (Wei et al., 2025). The retrieval group comprises RAG with a BGE retriever (Xiao et al., 2024) that prepends the top-5 Wikipedia passages, kNN-LM with a 50M-key datastore, and a paper-guided reproduction of RAG-RL (Huang et al., 2025). MLP Memory is reported for Mistral only. Its official release provides Mistral checkpoints but no Llama-3.1-8B checkpoint, and rebuilding its backbone-specific hidden-state datastore over billions of Wikipedia tokens exceeded our storage budget. Appendix A.2 specifies all configurations. 
+
+Implementation. We use Mistral-7B-v0.3 (Jiang et al., 2023) and Llama-3.1-8B (Grattafiori et al., 2024) as the main backbones and GPT2-large (Radford et al., 2019) for controlled language-modeling attribution. All base LMs and trained memory experts are frozen during evaluation. For the QA benchmarks, ExpM holds question–answer pairs from the training split, and its retrieval weight β, gate, and threshold η are selected on dev folds held out from that split. Training the full stack takes about 1,800 GPU-hours on 8 ×H200 GPUs, a one-time cost broken down by stage in Appendix A.6. 
+
+4.2. Main QA Results 
+
+Table 1 reports the factual QA results. MoM attains the highest average on both backbones, improving the frozen backbone by 15.6% on Mistral-7B-v0.3 and 10.9% on Llama-3.1-8B, and leads MLP Memory, the strongest parametric baseline, by 1.08 points on Mistral. On Mistral, RAG is stronger on TruthfulQA and HotpotQA and the RAG-RL reproduction on NQ and WebQ, but MoM never falls below its frozen backbone on any benchmark, whereas every other method except MLP Memory lowers at least one benchmark. The pattern tracks where each method intervenes. CPT and LoRA rewrite the weights behind every prediction, and their WebQ gains on both backbones come with NQ losses of up to 8.47 points. RAG conditions every 
+
+> 8Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Table 1: Factual QA results. Small colored numbers give the absolute change relative to the corresponding frozen backbone; the Average column reports the mean over the five benchmarks and its relative change. †Paper-guided reproduction (Appendix A.2). MLP Memory and RAG-RL are reported for Mistral only. Metric definitions are in Appendix A.3. Methods Open-domain QA Truthfulness Multi-hop QA Average NQ WebQ TriviaQA TruthfulQA HotpotQA Mistral-7B-v0.3 20.63 29.28 57.65 32.09 20.96 32.12 
+
+Non-parametric methods 
+
++ RAG 22.56 +1.93 24.90 −4.38 54.21 −3.44 35.47 +3.38 29.77 +8.81 33.38 (+3.9%) 
+
++ RAG-RL † 31.08 +10.45 38.12 +8.84 55.47 −2.18 27.46 −4.63 20.72 −0.24 34.57 (+7.6%) 
+
+Parametric methods 
+
++ CPT 12.16 −8.47 34.06 +4.78 61.21 +3.56 29.18 −2.91 16.04 −4.92 30.53 (−5.0%) 
+
++ LoRA 18.17 −2.46 34.50 +5.22 61.60 +3.95 30.91 −1.18 16.23 −4.73 32.28 (+0.5%) 
+
++ MLP Memory 25.20 +4.57 37.45 +8.17 60.99 +3.34 32.54 +0.45 24.14 +3.18 36.06 (+12.3%) 
+
++ MoM 26.15 +5.52 37.96 +8.68 63.46 +5.81 35.10 +3.01 23.01 +2.05 37.14 (+15.6%) 
+
+Llama-3.1-8B 26.99 32.59 65.27 25.56 15.37 33.16 
+
+Non-parametric methods 
+
++ RAG 20.23 −6.76 25.90 −6.69 64.91 −0.36 23.93 −1.63 16.26 +0.89 30.25 (−8.8%) 
+
+Parametric methods 
+
++ CPT 20.11 −6.88 36.33 +3.74 65.49 +0.22 26.13 +0.57 15.42 +0.05 32.70 (−1.4%) 
+
++ LoRA 19.40 −7.59 34.90 +2.31 59.50 −5.77 24.30 −1.26 11.30 −4.07 29.88 (−9.9%) 
+
++ MoM 35.43 +8.44 37.83 +5.24 65.34 +0.07 27.98 +2.42 17.22 +1.85 36.76 (+10.9%) 
+
+answer on retrieved passages and lowers the Llama average by 8.8%. MoM instead leaves the backbone and its input unchanged and acts only on the output distribution. MoM additionally weights each memory per token from uncertainty and disagreement features and lets ExpM answer only when the gate accepts the retrieved fact, so unhelpful memory is down-weighted or skipped. 
+
+4.3. Component Analysis Language modeling channel attribution. Figure 3 isolates the neural memories on WikiText-103 with GPT2-large and ExpM disabled. LatM with a fixed mixing weight lowers perplexity from 10.45 to 9.58. A token-wise router over Base LM and LatM reaches 9.61, recovering most of this gain without a globally tuned coefficient. Adding LexM lowers perplexity further to 9.37, so the token-space memory contributes information that LatM does not provide. The result shows that the routed core assigns more probability to the observed next token, and with the backbone frozen, this gain reflects knowledge that the neural memories add without changing the backbone weights. Appendix B.2 reports how the router distributes weight across token types on each backbone. 
+
+Routed versus external explicit memory. Figure 4 tests the central design choice of MoM by exposing the same populated store in two ways. As an external overlay, ExpM raises QA score by 7.87–8.86 points on the three benchmarks. As a fourth routed source, the same store adds only 0.75–1.23 points, because the router, trained while the store was empty or sparse, assigns ExpM little mass. The store contents are identical, so    
+
+> 9Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection 9.0 9.5 10.0 10.5
+> Perplexity (↓ lower is better) + LatM + LexM + LatM (router) + LatM (fixed λ) Base LM
+> 9.37
+> 9.61 9.58 10.45
+
+WikiText-103 · GPT2-large 
+
+> Best model Other variants
+
+Figure 3: WikiText-103 perplexity with GPT2-large and ExpM disabled (lower is better). NQ HotpotQA WebQ 0510 15 20 25 
+
+> Score
+> 14.85 14.72 13.14 15.82 15.11 14.86 16.57 16.34 16.09 23.71 23.20 21.01
+> +0.75 +8.86 +1.23 +8.48 +1.23 +7.87
+> Fixed core Router core + ExpM (routed) + ExpM (external)
+
+Figure 4: Explicit memory ablation study. NQ HotpotQA 12 16 20 24 28     
+
+> Exact Match (↑)
+> 15.84 15.22 20.64 20.69 22.71 21.82 25.37 23.11
+> Pure LM Standard Router w/o Entropy Reg. w/o ExpM Penalty
+
+Figure 5: EM of router variants that route ExpM as a fourth source with the store populated at inference. 
+
+the gap reflects allocation rather than memory quality. 
+
+Router training with routed ExpM. Figure 5 shows that the router’s own training objective limits a routed ExpM. Every variant improves over Pure LM, removing either regularizer helps further, and removing the ExpM usage penalty helps most. Both terms oppose the allocation ExpM needs. A stored answer changes a greedy prediction only when its weight lets the stored token win, as the overlay ensures with λt = 0.8 .The entropy regularizer, which keeps the router from collapsing onto one source, penalizes such peaked allocations, and the usage penalty lowers ExpM mass directly. Learned while the store is empty or sparse, the resulting low ExpM weight persists once the store is populated. Using a stored fact is an all-or-nothing decision per question, which suits an answer-level gate better than a token-level softmax trained before the fact is written. 
+
+4.4. Explicit Memory Updates 
+
+We test whether written facts take effect immediately and whether writing them disturbs answers the model already gets right. For each backbone, we draw two disjoint sets of 200 questions from the NQ-open training     
+
+> 10 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection Llama Mistral 025 50 75 100
+> Score
+> 0.50 100.00 14.15 100.00 0.50 99.50 14.85 99.83
+> New facts ( Dnew )
+> Llama (199/200) Mistral (200/200)
+> 99.00 98.50 98.61 98.11 100.00 100.00 99.50 99.50
+> Retained facts ( Dold )
+> Before writes After writes EM F1
+
+Figure 6: EM and F1 before and after writing the 200 
+
+Dnew facts into an initially empty ExpM store. Dnew is queried with the questions used for writing. Parentheses give the number of Dold questions whose decoded answer is unchanged. 020 40 60 80 100 120 140 32ms 135ms 130ms 45ms 4.2× 4.1×    
+
+> Time to first token (↓) TTFT (ms)
+> 010 20 30 40 50 60 53 25 935 2.1× 5.9×
+> Tokens per second (↑) TPS (tokens/s)
+> Base LM (7B) +RAG +kNN-LM +MoM
+
+Figure 7: Inference efficiency with a 7B backbone, mea-sured by time to first token (TTFT, lower is better) and tokens per second (TPS, higher is better). 
+
+split, excluding the dev folds and all questions used to train or calibrate ExpM: Dnew , which both the base LM and the routed core answer incorrectly, and Dold , which both answer correctly. We write the Dnew facts, one answer each, into an empty store and evaluate both sets with the QA configuration of Table 1. Since 
+
+Dnew is queried with the questions used for writing, its score measures how reliably a written fact is read back, not generalization to rephrased questions. Figure 6 shows that the writes take effect immediately and leave Dold almost untouched. EM on Dnew rises from 0.50 on both backbones to 100.00 on Llama and 99.50 on Mistral. Since no Dold fact is written, a Dold 
+
+answer can change only if the gate accepts an entry retrieved for an unrelated question. This happens once in 400 queries: on Llama, the release year of Call Me by Your Name changes from the correct 2017 to “May 11, 2018,” lowering EM from 99.00 to 98.50. 
+
+4.5. Efficiency 
+
+Figure 7 compares time to first token (TTFT) and decoding throughput (TPS). RAG and kNN-LM raise TTFT from 32 ms to 135 and 130 ms and lower throughput from 53 to 25 and 9 tokens/s. Both put a search over an external index on the critical path, RAG also prefills the retrieved passages, and kNN-LM searches its datastore at every decoding step. MoM with the full router reaches 45 ms and 35 tokens/s, a 2.9–3.0 × lower TTFT than the two retrieval methods. Compared with the frozen base model, this is a 1.4 × higher TTFT and 66% of its decoding throughput. Appendix A.6 reports memory, storage, and training costs. 
+
+## 5. Conclusion 
+
+We presented Mixture-of-Memories (MoM), a memory-augmented language modeling framework that routes stable neural memories token by token and handles factual updates through a writable explicit memory outside the router. MoM lowers WikiText-103 perplexity and obtains the best average factual QA score on Mistral-7B-v0.3 and Llama-3.1-8B, with a lower time to first token than retrieval-augmented baselines. The 
+
+> 11 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+same populated store helps far more as an external overlay than as a routed source, and written facts take effect immediately while previously correct answers are almost all preserved. Future work can extend MoM to other knowledge-intensive NLP tasks and to settings where knowledge changes continuously. 
+
+## Limitations 
+
+The proposed method has two main limitations. First, the explicit memory selects a single fact for each question from the whole store: as the store grows, more entries compete for each query, which raises the chance that a wrong fact is retrieved and accepted, making the current design more suitable for targeted factual updates than very large memory stores. Second, although our results are strong on QA benchmarks, the present evaluation is still concentrated on knowledge-intensive question answering. Further validation on a broader set of NLP tasks is needed to assess the generality of the approach. 
+
+> 12 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+## References 
+
+Zeyuan Allen-Zhu and Yuanzhi Li. Physics of language models: Part 3.2, knowledge manipulation. In 
+
+International Conference on Learning Representations , volume 2025, pages 85824–85832, 2025. Jonathan Berant, Andrew Chou, Roy Frostig, and Percy Liang. Semantic parsing on Freebase from question-answer pairs. In Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing ,pages 1533–1544, 2013. Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Millican, George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, et al. Improving language models by retrieving from trillions of tokens. In International Conference on Machine Learning ,pages 2206–2240. PMLR, 2022. Jiaqi Cao, Jiarui Wang, Rubin Wei, Qipeng Guo, Kai Chen, Bowen Zhou, and Zhouhan Lin. Memory decoder: A pretrained, plug-and-play memory for large language models. Advances in Neural Information Processing Systems , 38:115487–115510, 2026. Hoyeon Chang, Jinho Park, Seonghyeon Ye, Sohee Yang, Youngkyung Seo, Du-Seong Chang, and Minjoon Seo. How do large language models acquire factual knowledge during pretraining? Advances in neural information processing systems , 37:60626–60668, 2024. Nan Du, Yanping Huang, Andrew M Dai, Simon Tong, Dmitry Lepikhin, Yuanzhong Xu, Maxim Krikun, Yanqi Zhou, Adams Wei Yu, Orhan Firat, et al. GLaM: Efficient scaling of language models with mixture-of-experts. In International Conference on Machine Learning , pages 5547–5569. PMLR, 2022. William Fedus, Barret Zoph, and Noam Shazeer. Switch transformers: Scaling to trillion parameter models with simple and efficient sparsity. Journal of Machine Learning Research , 23(120):1–39, 2022. Zorik Gekhman, Gal Yona, Roee Aharoni, Matan Eyal, Amir Feder, Roi Reichart, and Jonathan Herzig. Does fine-tuning llms on new knowledge encourage hallucinations? In Proceedings of the 2024 conference on empirical methods in natural language processing , pages 7765–7784, 2024. Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Alex Vaughan, et al. The Llama 3 herd of models. arXiv preprint arXiv:2407.21783 , 2024. Tom Hartvigsen, Swami Sankaranarayanan, Hamid Palangi, Yoon Kim, and Marzyeh Ghassemi. Aging with GRACE: Lifelong model editing with discrete key-value adaptors. Advances in Neural Information Processing Systems , 36:47934–47959, 2023. Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Representations , 2022. Jerry Huang, Siddarth Madala, Risham Sidhu, Cheng Niu, Hao Peng, Julia Hockenmaier, and Tong Zhang. RAG-RL: Advancing retrieval-augmented generation via RL and curriculum learning. arXiv preprint arXiv:2503.12759 , 2025. URL https://arxiv.org/abs/2503.12759 .Gautier Izacard, Patrick Lewis, Maria Lomeli, Lucas Hosseini, Fabio Petroni, Timo Schick, Jane Dwivedi-Yu, Armand Joulin, Sebastian Riedel, and Edouard Grave. Atlas: Few-shot learning with retrieval augmented language models. Journal of Machine Learning Research , 24(251):1–43, 2023. 
+
+> 13 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud, Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, and William El Sayed. Mistral 7B, 2023. URL https://arxiv.org/abs/2310.06825 .Yihan Jiao, Zhehao Tan, Dan Yang, Duolin Sun, Jie Feng, Yue Shen, Jian Wang, and Peng Wei. HIRAG: Hierarchical-thought instruction-tuning retrieval-augmented generation. In Findings of the Association for Computational Linguistics: EMNLP 2025 , pages 5111–5130, 2025. URL https://aclanthology.org/ 2025.findings-emnlp.274/ .Mandar Joshi, Eunsol Choi, Daniel S Weld, and Luke Zettlemoyer. TriviaQA: A large scale distantly supervised challenge dataset for reading comprehension. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1601–1611, 2017. Urvashi Khandelwal, Omer Levy, Dan Jurafsky, Luke Zettlemoyer, and Mike Lewis. Generalization through memorization: Nearest neighbor language models. In 8th International Conference on Learning Representa-tions, ICLR 2020, Addis Ababa, Ethiopia, April 26-30, 2020 . OpenReview.net, 2020. Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, et al. Natural questions: A benchmark for question answering research. Transactions of the Association for Computational Linguistics , 7:453–466, 2019. Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. Retrieval-augmented generation for knowledge-intensive NLP tasks. Advances in Neural Information Processing Systems , 33:9459–9474, 2020. Stephanie Lin, Jacob Hilton, and Owain Evans. TruthfulQA: Measuring how models mimic human falsehoods. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 3214–3252, 2022. Kevin Meng, David Bau, Alex Andonian, and Yonatan Belinkov. Locating and editing factual associations in GPT. Advances in Neural Information Processing Systems , 35:17359–17372, 2022. Kevin Meng, Arnab Sen Sharma, Alex J. Andonian, Yonatan Belinkov, and David Bau. Mass-editing memory in a transformer. In The Eleventh International Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . OpenReview.net, 2023. Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. In 
+
+5th International Conference on Learning Representations, ICLR 2017, Toulon, France, April 24-26, 2017, Conference Track Proceedings . OpenReview.net, 2017. Eric Mitchell, Charles Lin, Antoine Bosselut, Chelsea Finn, and Christopher D. Manning. Fast model editing at scale. In The Tenth International Conference on Learning Representations, ICLR 2022, Virtual Event, April 25-29, 2022 . OpenReview.net, 2022a. Eric Mitchell, Charles Lin, Antoine Bosselut, Christopher D Manning, and Chelsea Finn. Memory-based model editing at scale. In International Conference on Machine Learning , pages 15817–15831. PMLR, 2022b. Oded Ovadia, Menachem Brief, Moshik Mishaeli, and Oren Elisha. Fine-tuning or retrieval? comparing knowledge injection in llms. In Proceedings of the 2024 conference on empirical methods in natural language processing , pages 237–250, 2024. 
+
+> 14 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. Language models are unsupervised multitask learners. OpenAI blog , 1(8):9, 2019. Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc V. Le, Geoffrey E. Hinton, and Jeff Dean. Outrageously large neural networks: The sparsely-gated mixture-of-experts layer. In 5th International Conference on Learning Representations, ICLR 2017, Toulon, France, April 24-26, 2017, Conference Track Proceedings . OpenReview.net, 2017. Peng Wang, Zexi Li, Ningyu Zhang, Ziwen Xu, Yunzhi Yao, Yong Jiang, Pengjun Xie, Fei Huang, and Huajun Chen. WISE: Rethinking the knowledge memory for lifelong model editing of large language models. 
+
+Advances in Neural Information Processing Systems , 37:53764–53797, 2024a. Yu Wang, Yifan Gao, Xiusi Chen, Haoming Jiang, Shiyang Li, Jingfeng Yang, Qingyu Yin, Zheng Li, Xian Li, Bing Yin, et al. MemoryLLM: Towards self-updatable large language models. arXiv preprint arXiv:2402.04624 , 2024b. Yu Wang, Xinshuang Liu, Xiusi Chen, Sean O’Brien, Junda Wu, and Julian McAuley. Self-updatable large language models by integrating context into model parameters. arXiv preprint arXiv:2410.00487 , 2024c. Yu Wang, Dmitry Krotov, Yuanzhe Hu, Yifan Gao, Wangchunshu Zhou, Julian McAuley, Dan Gutfreund, Rogerio Feris, and Zexue He. M+: Extending MemoryLLM with scalable long-term memory. arXiv preprint arXiv:2502.00592 , 2025. Rubin Wei, Jiaqi Cao, Jiarui Wang, Jushi Kai, Qipeng Guo, Bowen Zhou, and Zhouhan Lin. MLP memory: A retriever-pretrained memory for large language models. arXiv preprint arXiv:2508.01832 , 2025. Shitao Xiao, Zheng Liu, Peitian Zhang, Niklas Muennighoff, Defu Lian, and Jian-Yun Nie. C-Pack: Packed resources for general Chinese embeddings. In Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval , 2024. URL https://arxiv.org/abs/2309.07597 .Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W. Cohen, Ruslan Salakhutdinov, and Christopher D. Manning. Hotpotqa: A dataset for diverse, explainable multi-hop question answering. In Ellen Riloff, David Chiang, Julia Hockenmaier, and Jun’ichi Tsujii, editors, Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, Brussels, Belgium, October 31 - November 4, 2018 , pages 2369–2380. Association for Computational Linguistics, 2018. Zijun Yao, Weijian Qi, Liangming Pan, Shulin Cao, Linmei Hu, Liu Weichuan, Lei Hou, and Juanzi Li. Seakr: Self-aware knowledge retrieval for adaptive retrieval augmented generation. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 27022–27043, 2025. 
+
+> 15 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+## A. Experimental Details 
+
+A.1. Datasets and Splits 
+
+WikiText-103 is used for GPT2-large language modeling. Wikipedia-2021 is used for memory training, CPT, the kNN-LM datastore, and the RAG corpus. The QA evaluation uses the full evaluation splits of Natural Questions (3,610 questions), HotpotQA (7,405), WebQuestions (2,032), TriviaQA (17,944), and TruthfulQA. For the update experiments, Dnew and Dold each contain 200 questions from the NQ-open training split, selected separately for each backbone (Section 4.4). The facts of Dnew are written into an initially empty store, and Dold is never written. We report score after all 200 writes. 
+
+A.2. Baselines Parametric baselines. CPT updates all parameters of the backbone by continued pretraining with the language-modeling objective. LoRA (Hu et al., 2022) keeps the backbone frozen and learns low-rank updates to its weight matrices. MLP Memory (Wei et al., 2025) is a pretrained MLP that imitates the next-token distribution of a nearest-neighbor retriever, and its output is interpolated with the distribution of the frozen backbone. 
+
+Retrieval baselines. RAG retrieves the top-5 Wikipedia passages for each question with a BGE retriever (Xiao et al., 2024) and prepends them to the backbone’s prompt. kNN-LM (Khandelwal et al., 2020) interpolates the backbone’s next-token distribution with the next tokens of the nearest stored contexts, retrieved from a 50M-key datastore stored with product quantization. 
+
+Post-trained RAG reproduction. RAG-RL (Huang et al., 2025) trains the reader with reinforcement learning and curriculum learning. We implemented a paper-guided reproduction with a bge-base-en-v1.5 retriever, exact inner-product FAISS search over 200,000 uniformly sampled Wikipedia-2021 chunks, question-only queries, top-5 retrieval, greedy bf16 decoding, and seed 42, with Mistral-7B-v0.3 as the reader backbone. 
+
+A.3. Metrics 
+
+For open-domain QA, EM is computed after answer normalization and measures whether the generated answer exactly matches any accepted answer alias. F1 is the token-level overlap after the same normalization. We report F1 for NQ. For TruthfulQA, we use the official multiple-choice suite: MC1 measures whether the single best answer is preferred, MC2 measures the total probability assigned to true answers relative to false answers, and MC3 measures the fraction of true answers ranked above false answers. We report their average when a single TruthfulQA score is needed. 
+
+A.4. ExpM Configuration 
+
+The Budget Router outputs weights over Base, LatM, and LexM only, and the routed core is trained separately from ExpM. The ExpM encoders read the frozen backbone feature of Eq. 11 with a 32-token averaging window. For the QA benchmarks, ExpM retrieves the top-scoring entry over the whole store with the score of Eq. 12, computes the agreement feature from the top-k entries, and injects the retrieved answer with λ = 0.8 
+
+when the gate accepts it. On the dev folds, β is chosen from {0, 0.25, 0.5, 0.75, 1 } and k from {4, 8, 16 }, so the 
+
+β used at test time can differ across benchmarks and backbones. TriviaQA answers have many valid surface 
+
+> 16 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Table 2: LexM attached to Llama-3.1-8B. “Mistral” rows transplant a Mistral-trained LexM through a token-string vocabulary mapping without retraining; “Llama” rows use a LexM trained on Llama. λ is a fixed mixing weight. LexM on Llama NQ HotpotQA TriviaQA EM F1 EM F1 EM F1 None (Llama base) 17.15 26.99 15.37 25.09 65.27 71.61 Mistral, λ = 0.10 16.95 26.99 15.34 25.16 65.21 71.61 Mistral, small router 16.95 26.99 15.37 25.17 65.24 71.64 
+
+Llama, λ = 0.10 18.34 28.17 15.67 25.35 65.30 71.61 Llama, λ = 0.25 19.47 29.17 15.48 24.99 64.92 71.09 
+
+forms, so each TriviaQA training question is written with up to ten answer aliases; evaluation still uses the official normalized scorer, which accepts any annotated alias. The encoders are not retrained for the QA experiments. Only the answer-level gate is fitted. 
+
+A.5. Hyperparameter Selection 
+
+In the QA experiments, the gate threshold is η = 0.35 for NQ, WebQ, and HotpotQA on both backbones, and 
+
+0.5 (Mistral) and 0.8 (Llama) for TriviaQA. Ablations use λ = 0.4 unless they sweep the value. We report full test-set results for the main tables. 
+
+A.6. Training Cost and Deployment Overhead 
+
+Training takes about 1,800 H200 GPU-hours once: about 400 for the kNN teacher targets, 1,100 for LatM distillation, 150 for LexM, 50 for the router, and 100 for preprocessing and pipeline overhead. The stages run sequentially with the base LM frozen, and afterwards new facts enter only through ExpM writes. With a 7B backbone, LatM (1.0B parameters, 2.0 GB in bf16), LexM (0.77B, 1.55 GB), and the 580-parameter router raise resident weights from 14.0 GB to 17.6 GB. The ExpM store has no trainable parameters, occupies about 15 MB, and grows with the number of written facts, whereas our product-quantized kNN-LM datastore occupies 3.2 GB. Both neural memories are MLPs that add about 6 ⋅ nlayer ⋅ dmodel ⋅ dff FLOPs per token, and ExpM retrieves once per question rather than per token. 
+
+## B. Supplementary Experiments 
+
+B.1. Cross-Backbone Transfer of Lexical Memory 
+
+LexM consumes token IDs, so it can be moved to another backbone. We transplant a Mistral-trained LexM into Llama-3.1-8B through a token-string mapping between the two vocabularies, which changes 8.27% of the target embedding rows and requires no retraining. Table 2 shows that the transplanted LexM keeps EM within 0.20 points of the Llama backbone on all three benchmarks, so it can be attached without disrupting the base model but adds no knowledge in this setting. In contrast, a LexM trained on Llama itself raises NQ EM from 17.15 to 19.47 with a fixed weight of 0.25, while changing TriviaQA EM by at most 0.35 points. 
+
+> 17 Mixture-of-Memories: Low-Overhead Language Modeling with Modular Knowledge Injection
+
+Background : “... scenes in Raiders of the Lost Ark ... the ‘ Indiana Jones ’ outfit ... According to Paul Scrabo, 
+
+Paul Picerni originally was cast as the second detective ...” 
+
+Refer to the background document and answer the question: 
+
+Question : Who was originally cast to play Indiana Jones?  The answer is: 
+
+Output : Paul Picerni 
+
+> RAG
+
+Answer the question: 
+
+Question : Who was originally cast to play Indiana Jones?  The answer is: 
+
+Output : Steve Mcqueen 
+
+> Base LM
+
+Answer the question: 
+
+Question : Who was originally cast to play Indiana Jones? 
+
+The answer is: 
+
+Output : Tom Selleck 
+
+> MoM
+
+Figure 8: Model outputs on a factual question. RAG retrieves superficially relevant content but extracts the wrong entity, while MoM returns the correct answer. 
+
+B.2. Router Gate Interpretability 
+
+To test whether the router learns non-trivial token-wise allocation, we group generated tokens into semantic, numeric, and syntactic categories, represented by ENTITY, NUMBER, and PUNCT tokens, and compute the average gate weight of each memory channel. The allocation depends on both the token type and the backbone. On Mistral, punctuation tokens are routed mostly to the base LM (gate weight 0.908 on PUNCT), while NUMBER tokens receive a larger LatM weight of 0.286, so LatM is used selectively on factual or numeric positions. On Llama, LexM dominates, with gate weights of 0.614, 0.698, and 0.749 on ENTITY, NUMBER, and PUNCT, while LatM receives only 0.7–1.2% of the mass. The router therefore adapts its memory usage to token semantics and to the quality of each channel on a given backbone rather than following a static interpolation rule. 
+
+B.3. Case Study 
+
+Figure 8 shows a case study. For the question of who was originally cast as Indiana Jones, RAG retrieves passages that contain both “Indiana Jones” and the phrase “originally was cast.” The retrieved evidence, however, states that Paul Picerni was originally cast in a different role. RAG copies this entity and answers “Paul Picerni,” the base LM answers “Steve McQueen,” and CPT, LoRA, and MLP Memory also return plausible but incorrect actors. MoM returns the gold answer, “Tom Selleck,” showing that ExpM can recover a written fact even when lexical retrieval is misled by entity and phrase overlap.

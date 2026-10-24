@@ -1,0 +1,321 @@
+Title: DialogMem: Evaluating Dialogue-Grounded Embodied Memory in 3D Environments
+
+URL Source: https://arxiv.org/pdf/2610.24767v1
+
+Published Time: Tue, 20 Oct 2026 01:01:49 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# DialogMem: Evaluating Dialogue-Grounded Embodied Memory in 3D Environments 
+
+## SeongJun Jeong 1, Junghyun Kim 1, Gi-Cheon Kang 2∗, Byoung-Tak Zhang 1∗
+
+> 1
+
+Seoul National University 
+
+> 2
+
+Ajou University {sjjeong, jhkim}@bi.snu.ac.kr, gckang@ajou.ac.kr, btzhang@bi.snu.ac.kr 
+
+Abstract 
+
+Embodied agents in human-centered environments require memory that integrates what they observe with what humans tell them over time. However, existing embodied memories are built primarily from visual experience, leaving open how dialogue with humans can be grounded in the objects encoun-tered throughout that experience. We introduce DialogMem, a two-phase benchmark in which agents build memory from time-aligned streams of posed RGB-D observations and dia-logue, and later use it for instance-level object navigation and question answering (QA). DialogMem provides 142 episodes across 27 real-world 3D scenes, with 14,193 QA pairs and 11,890 navigation instructions. We evaluate nine memory rep-resentations within a unified framework of memory formation, evidence retrieval, and reasoning for task outputs. In exper-iments, appending dialogue to visual memory at evaluation time substantially improves QA but yields negligible navi-gation gains, suggesting that relevant dialogue is present in memory but not grounded to specific objects. Controlled di-agnostics show that navigation improves with link quality but falls short of ground-truth object-level memory even under perfect linking. Retrieving the correct object entry and recov-ering its spatial location remain further bottlenecks. These results identify three bottlenecks for dialogue-grounded em-bodied memory: grounding and organizing dialogue at object-level entries during formation, retrieving the correct entry, and localizing it accurately. 
+
+## Introduction 
+
+Humans build memories of their environments through ex-tended experience. They remember which objects they ob-served, when and where they encountered them, and what others told them about those objects. Embodied agents oper-ating in human-centered environments need a similar capac-ity: integrating perceptual evidence, trajectory context, and dialogue-derived information into persistent memory. Embodied memory research has made rapid progress in turning long streams of visual experience into persistent rep-resentations. These representations support navigation (Wani et al. 2020; Khanna et al. 2024), question answering (Ma-jumdar et al. 2024; Hu et al. 2025), and object search (Yadav et al. 2025), and are often queried at evaluation time by a vision-language model (VLM) (Bai et al. 2025; Hurst et al. 
+
+> ∗
+
+Corresponding author. 
+
+2024). Yet most existing benchmarks (Majumdar et al. 2024; Khanna et al. 2024; Yadav et al. 2025; Hu et al. 2025) and methods (Gu et al. 2024; Yang et al. 2025) build memory pri-marily from RGB-D observations and agent poses, without explicitly retaining dialogue-derived information. We there-fore ask: when experience also includes dialogue, how should embodied memory be organized so that a VLM can both re-call what was said and localize the objects it refers to? 
+
+To address this, we introduce DialogMem, a benchmark for evaluating how well agents build memory from time-aligned streams of posed RGB-D observations and dialogue, and later use it for instance-level object navigation and ques-tion answering (QA). Navigation and QA probe two distinct aspects of dialogue-grounded memory: spatial grounding of referenced objects and semantic access to what was said about them. DialogMem provides 142 episodes across 27 real-world 3D scenes, with 14,193 QA pairs and 11,890 nav-igation instructions. Each episode is split into two phases. In Phase 1, the agent traverses a 3D environment while receiving time-aligned streams of posed RGB-D observations and di-alogue turns, forming memory over an extended multimodal experience. In Phase 2, the resulting memory is queried by navigation instructions and questions that draw on three types of memory content: perceptual content capturing object ap-pearance and spatial relations, episodic content from the tra-jectory, and social content from dialogue. Each query refers to a target object using one or more of these content types. Both tasks require identifying the referenced object. Navi-gation further requires recovering its spatial location, while QA requires retrieving information about the target. We evaluate nine memory representations on Dialog-Mem, spanning raw stream storage, structured visual mem-ories (Gu et al. 2024; Yang et al. 2025), and dialogue-augmented variants that either append dialogue at evaluation time or link dialogue turns to memory entries during forma-tion. All representations use the same VLM reasoner (Bai et al. 2025), enabling controlled comparison of memory representation and retrieval. Across all memory represen-tations, navigation and QA exhibit a clear asymmetry: dia-logue substantially improves QA but yields negligible navi-gation gains. Neither evaluation-time appending nor simple formation-time linking reliably grounds dialogue-derived in-formation in the objects it refers to. A controlled sweep over link quality shows that navigation improves as links become arXiv:2610.24767v1 [cs.AI] 17 Oct 2026 more accurate, yet even perfect links fall short of ground-truth object-level memory. Controlled diagnostics further re-veal substantial bottlenecks in retrieving the correct object entry and recovering its spatial location. Changing the rea-soner does not close the gap. These findings motivate object-centered memories that ground and organize what agents observe and what they are told around the correct object entries during memory formation. DialogMem provides a testbed for measuring progress on this goal, together with the retrieval and localization bottlenecks it exposes. 
+
+Contributions. 
+
+• We formulate dialogue-grounded embodied memory as forming persistent memory from posed RGB-D and dia-logue streams, retrieving relevant evidence, and reasoning over it for embodied tasks. 
+
+• We introduce DialogMem, the first benchmark that treats dialogue as a persistent memory source jointly grounded with visual experience and evaluates the resulting mem-ory through both navigation and QA. 
+
+• We evaluate nine memory representations under a com-mon reasoning framework and introduce controlled link-quality and oracle probes that decompose failure into dialogue–object grounding, entry retrieval, and 3D lo-calization. 
+
+## Related Work 
+
+Dialogue in Embodied Tasks. Language has been widely used as an interface for embodied agents (Thomason et al. 2020; Gao et al. 2022; Padmakumar et al. 2022), includ-ing navigation instructions, task guidance, clarification, and human-agent collaboration. However, these settings typically treat dialogue as task-time context rather than as content to be retained across tasks. In contrast, DialogMem treats dia-logue as a memory source during memory formation, requir-ing agents to ground dialogue-derived object information in perceptual and spatial experience for later navigation and question answering. 
+
+Embodied Memory Benchmarks. Prior embodied memory benchmarks have made important progress in testing mem-ory over long-horizon visual experience. Evaluation targets include object locations (Wani et al. 2020; Khanna et al. 2024), spatial layouts (Pasukonis, Lillicrap, and Hafner 2022; Pleines et al. 2025; Zhu et al. 2023), and temporal observation history (Majumdar et al. 2024; Min et al. 2024; Hu et al. 2025; Yadav et al. 2025). The input streams in these benchmarks are largely limited to visual observations and poses, leaving out dialogue-derived object information such as aliases, usage patterns, and corrections. Consequently, these benchmarks primarily evaluate perceptual and episodic memory, leav-ing social memory largely unexplored. DialogMem treats dialogue as a persistent memory source alongside visual ex-perience, thereby extending embodied memory evaluation to include social memory. Table 1 summarizes this distinction. 
+
+3D Scene Representations as Embodied Memory. Recent 3D scene representations, such as semantic maps (Huang et al. 2023), 3D scene graphs (Gu et al. 2024), and dense 3D representations (Yang et al. 2025; Hong et al. 2023), can serve as embodied memory for downstream tasks by organizing past RGB-D observations into persistent spatial structures. Recent systems often pair such representations with VLM reasoners (Bai et al. 2025; Hurst et al. 2024), using retrieved visual or spatial evidence for tasks such as object localization and navigation. However, these represen-tations are typically constructed from visual observations alone, leaving open how dialogue-derived object informa-tion should be incorporated into object-level memory. 
+
+## Embodied Memory Formulation 
+
+We formalize embodied memory to provide a unified frame-work for describing and comparing the memory representa-tions evaluated in this work. 
+
+Input streams and memory. We consider an embodied agent operating in a 3D environment over timesteps t =1, . . . , T . At each step, the agent receives an input tuple: 
+
+st = ( It, p t, D t), (1) where It is an RGB-D frame, pt ∈ SE (3) is the agent pose, and Dt is the dialogue content aligned with time t, when available. The agent constructs or updates an internal state 
+
+Mt, referred to as its embodied memory , updated incremen-tally by an update function U:
+
+Mt = U(Mt−1, s t). (2) 
+
+Retrieval and reasoning. At evaluation time, given a query q, a retrieval function R selects task-relevant evidence 
+
+z = R(MT , q ). A reasoner F then produces the output 
+
+y = F(z, q ). The form of y depends on the task, such as a target location for navigation or an answer for question answering. This formulation is agnostic to how M is repre-sented, allowing it to take the form of either raw observation streams or structured visual representations, such as scene graphs and 3D spatial representations. 
+
+## DialogMem 
+
+DialogMem instantiates the preceding formulation in real-world scanned 3D environments, where agents must integrate perceptual, episodic, and social memory content for down-stream navigation and question answering. 
+
+Task 
+
+Overview. The two-phase structure separates memory for-mation from memory use, so that downstream performance reflects what the agent has retained rather than what it can infer from the current observation (see Figure 1). 
+
+Phase 1: Memory formation. The agent receives posed RGB-D observations and dialogue streams over an extended traversal. The goal is to construct a memory MT that covers three types of memory content. Perceptual content captures object appearance and spatial relations, originating from RGB-D observations. Episodic content comes from the tra-jectory and captures when and how often each object was observed. An instruction such as “go to the sofa” further defines a navigation segment, associating objects with seg-ments and supporting references such as “the chair you saw Harper: That's my bed.        
+
+> Posed RGB -D Stream
+> Dialogue Stream
+> Harper: The guest
+> bed is Amelia’s now.
+> This is her room.
+> James: Go to the table.
+> Lucas: The whole
+> family has dinner
+> together at the dining
+> table.
+> James: And when
+> friends come over on
+> weekends, we play
+> board games there too.
+> Harper: Remember that
+> bed we saw in Amelia’s
+> room? That used to be my
+> bed.
+> Lucas: Right, and the
+> lower cabinet you can see
+> now is where Amelia
+> keeps snacks.
+> Lucas: James
+> keeps his cooking
+> tools in that cabinet.
+
+Phase 1 : Memory Formation 
+
+Phase 2 : Memory Evaluation      
+
+> Go to the bed whose use
+> changed during our walk.
+> Moving to target.
+> What color was the sofa you saw
+> before the family's dinner table?
+> It looks grey.
+> 123456
+> Time
+> 1
+> 2
+> 3
+> 4
+> 6
+> 5
+
+Environment Trajectory 
+
+# (A) Task Overview 
+
+> o
+> that’s
+> t you here
+> acks.
+
+Nav. Trajectory Nav. Instruction Memory Content 
+
+Perceptual 
+
+Episodic 
+
+Social 
+
+Go to the bed with 
+
+two lamps. 
+
+Go to the bed you saw 
+
+before James told you to go to the table. 
+
+Go to the cabinet 
+
+where Amelia keeps snacks.  D 
+
+> S
+> D
+> S
+> DS
+
+Question  Answer Memory Content 
+
+(Target → Answer) 
+
+Perceptual  → Social 
+
+Episodic  → Social 
+
+Social  → Perceptual 
+
+Who owns the bed 
+
+with two lamps? 
+
+Harper 
+
+Who previously 
+
+owned the bed we 
+
+saw before James told 
+
+us to go to the table? 
+
+Harper 
+
+What color is the 
+
+cabinet where James 
+
+keeps his cooking tools? 
+
+It is dark gray. Figure 1: Task overview with representative examples. In Phase 1, the agent receives time-aligned streams of posed RGB-D and dialogue. In Phase 2, the resulting memory supports navigation and QA tasks drawing on three memory contents: perceptual 
+
+(object appearance and spatial relations), episodic (trajectory experience), and social (dialogue-derived facts). For QA, the arrow notation shows which memory content identifies the target (before the arrow) and which provides the answer (after the arrow). All Phase 2 examples share the same Phase 1 stream. 
+
+on the way to the sofa.” Social content comes from dialogue and captures human-provided object information, including ownership, aliases, usage patterns, and updates or correc-tions. 
+
+Phase 2: Memory evaluation. Phase 2 evaluates whether the agent can retrieve and use the memory content formed in Phase 1. It consists of two task types grounded in the same Phase 1 episode: navigation and question answering. In navigation , starting from its Phase 1 endpoint, the agent receives a natural language instruction that identifies a target object and navigates to its location, e.g., “Go to the cabinet where Amelia keeps snacks.” In question answering , the agent first identifies a target object using Phase 1 memory evidence and then answers a question about that object, e.g., 
+
+“Who owns the bed with two lamps?” 
+
+Benchmark Construction 
+
+Environment and metadata. We build DialogMem on 27 scenes from the HM3D validation split (Ramakrishnan et al. 2021), using object annotations from GOAT-Bench (Khanna et al. 2024). DialogMem is an evaluation-only benchmark: following prior embodied QA evaluation practice (Majum-dar et al. 2024), all baselines use pretrained models without training or fine-tuning on DialogMem. For each scene, we use an LLM (GPT-4o (Hurst et al. 2024)) to generate scene-specific resident profiles. Each profile specifies a resident’s name, relationship to others, and speaking style, giving di-alogue generation a consistent set of speakers. For each an-notated object, we construct perceptual memory content by parsing GOAT-Bench descriptions into attributes and spatial relations. We construct social memory content with an LLM conditioned on the resident profiles. Social memory content includes ownership, usage patterns, aliases, and significance. It also includes dynamic updates and corrections, allowing us to test whether agents revise object memory as dialogue changes previously provided information. 
+
+Trajectory and observations. For each episode, we sam-ple 5–16 navigation goals. Rather than following shortest Benchmark Real. Memory Isolated Dialogue Dialogue Perceptual Episodic Social 3D Eval. Phase Present as Memory                                                                                                         
+
+> CVDN (Thomason et al. 2020) ✓––✓––––DialFRED (Gao et al. 2022) –––✓––––TEACh (Padmakumar et al. 2022) –––✓––––MemoryMaze (Pasukonis, Lillicrap, and Hafner 2022) –✓–––✓––MemoryGym (Pleines et al. 2025) –✓–––✓––Excalibur (Zhu et al. 2023) –✓–––✓––MultiON (Wani et al. 2020) ✓✓–––✓––OpenEQA (Majumdar et al. 2024) ✓✓–––✓––GOAT-Bench (Khanna et al. 2024) ✓✓–––✓––SIF (Min et al. 2024) –✓–––✓✓–3DMEM-Bench (Hu et al. 2025) ✓✓–––✓✓–FindingDory (Yadav et al. 2025) –✓✓––✓✓–DialogMem (Ours) ✓✓✓✓✓✓✓✓
+
+Table 1: Comparison with embodied dialogue and embodied memory benchmarks. “Real. 3D” denotes whether the benchmark uses real-world scanned 3D environments. “Isolated Phase” denotes whether memory formation is separated from later evaluation. “Dialogue as Memory” denotes whether dialogue is used as a persistent memory source. Perceptual, Episodic, and Social indicate the memory content evaluated by downstream tasks. paths between them, the trajectory visits the goals with inter-mediate exploration segments. This produces both explicitly visited goal objects and incidental objects observed along the way. We record RGB-D frames and agent poses using Habitat-sim (Savva et al. 2019). An object counts as ob-served when its HM3D semantic mask covers at least 5% of a rendered view. For each observed object, we compute episodic memory content, including observation order, ob-servation frequency, and association with specific navigation goals. 
+
+Dialogue generation. Dialogue is generated in two stages, so that object-level information is fixed before any utterance is written. We first construct a sequence of structured turn specifications. Each fixes the speaker, location, turn type, visible and referenced objects, and the memory content the turn expresses, with at most one object-level item per turn to keep grounding verifiable. An information selection pol-icy restricts which content types a turn may use: perceptual content appears only in navigation-related turns, while so-cial content appears in commentary, recall, and post-arrival turns. Episodic facts are never stated at all; observation order and frequency must be recovered from the trajectory. Navi-gation turns do, however, define the segments that episodic references rely on, as in “the bed you saw before I asked you to go to the table.” Some turns also reference objects observed earlier but not visible at the current waypoint, mir-roring natural recall. Both cases require relating dialogue to the trajectory and to earlier observations. The LLM then converts each specification into an utterance, conditioned on speaker persona and dialogue context while constrained to the specified content. 
+
+Task instantiation. Navigation instructions and QA pairs are generated from structured specifications rather than free-form prompts. For each object, we enumerate the available memory content and construct task specifications that iden-tify the object using one or more memory content types. Each specification fixes the target object, the target-identification evidence, and the answer evidence before any text is gener-ated; the LLM only converts this specification into natural language. While target identification may combine multiple content types, each answer is drawn from a single content type. For QA, we exclude specifications whose target is iden-tified by a single content type and whose answer is drawn from that same type. Otherwise, identifying the object would already reveal the answer. Because every turn and task item is specified before generation, the benchmark records which object each turn refers to and which content type each item draws on. This also determines whether each QA answer is stated in dialogue: 60.5% are verbalized, while the remain-ing 39.5% appear only in the visual or trajectory streams (Appendix K). These annotations also enable the controlled link-quality and oracle interventions we later use to diagnose memory failures. 
+
+Quality control. Both dialogue and task items pass through rule-based validation and an LLM-based grounding audit, since LLM utterance generation can introduce con-tent not present in the specification. Rule-based checks cover metadata leakage, format constraints, information-policy vi-olations, and visibility alignment. The LLM-based audit checks whether each utterance and task is consistent with its referenced memory content. Items that fail are regenerated; items still inconsistent after regeneration are dropped. For QA, we first exclude social-answer questions whose answer evidence is not grounded in the dialogue. We then remove under-specified items. Within each episode, we group QA and navigation items by object category and retrieval cue. If a group spans multiple distinct objects of the same category, its cue does not uniquely identify the target, and we exclude the entire group. A final deterministic filter removes QA items whose question already reveals the expected answer (Appendix A). Finally, we validate the resulting benchmark with human annotation. Three annotators independently la-Target-identification content QA Navigation Perceptual 2,773 2,012 Episodic 1,231 1,531 Social 3,170 2,446 Compositional 7,019 5,901 Total 14,193 11,890 
+
+Table 2: DialogMem task composition. QA and naviga-tion items grouped by the memory content used to identify the target object; compositional items combine two or more content types. Overall scale: 27 scenes, 142 episodes, 296– 2,405 frames per episode (avg. 894.6) with avg. 71.8 dialogue turns. bel 450 sampled items: 200 QA, 200 navigation, and 50 dialogue turns. By majority judgment, 98.4% are valid (Ap-pendix B). 
+
+Dataset Statistics 
+
+Table 2 summarizes DialogMem after filtering. The bench-mark contains 142 episodes from 27 scenes with 10,197 dialogue turns, 14,193 QA pairs, and 11,890 navigation in-structions. Episodes average 894.6 RGB-D frames and 71.8 dialogue turns, requiring agents to organize information over long visual and dialogue streams. Both task types cover per-ceptual, episodic, and social references, and about half the items combine more than one content type (49.5% of QA and 49.6% of navigation). For QA, the answer is drawn from a single content type, which may differ from the one used to identify the target. 
+
+## Experiments 
+
+We use DialogMem to study how memory representations should organize long posed RGB-D and dialogue streams for embodied tasks. Our experiments are structured around three questions: (Q1) how do different memory represen-tations perform across question answering and navigation? (Q2) does it matter whether dialogue enters memory dur-ing formation or at evaluation time, and does this vary by memory content type? and (Q3) what must a memory repre-sentation provide to close the remaining performance gap? 
+
+Setup 
+
+Baselines. We compare nine memory representations grouped into four categories. All share the same interface. Each constructs a memory MT from Phase 1 streams and applies its own retrieval function R to select evidence z at evaluation time, which a fixed VLM reasoner F turns into the output. Performance differences across baselines there-fore primarily reflect memory formation and retrieval rather than reasoning. 
+
+Raw stream storage preserves Phase 1 streams with-out explicit organization: Dialogue stores all turns as text, Frames stores all RGB-D frames with poses, and 
+
+Frames+Dialogue stores both. The reasoner receives the full dialogue when available and 16 uniformly sampled frames. An ablation on Frames+Dialogue up to 128 frames (Ap-pendix G) shows that a larger budget does not close the gap to structured visual memory. For navigation, these baselines select one of the sampled frames and use its observation pose. Dialogue is the exception: it stores no frames or poses. 
+
+Structured visual memory organizes Phase 1 ob-servations into object-centric structures. ConceptGraph (CG) (Gu et al. 2024) builds an object-centric memory of detected instances, where each instance is represented by an image crop, an object label, and an estimated 3D location. 
+
+3D-Mem (Yang et al. 2025) groups spatially co-located ob-jects into snapshots, each storing a scene image that captures the co-observed objects together with their individual crops. Following the setting used for both methods in 3D-Mem, the retriever uses the VLM to predict the object categories most relevant to the question or instruction. Only the in-stances (CG) or snapshots (3D-Mem) whose detected cat-egories match are retained as the evidence z. For QA, the reasoner answers from the retained evidence; for navigation, it selects one object instance or snapshot, whose estimated 3D location is used as the predicted destination. 
+
+Structured visual memory with dialogue adds the full Phase 1 dialogue as textual evidence at evaluation time, leav-ing the visual memory and navigation interfaces unchanged (CG+Dialogue , 3D-Mem+Dialogue ). 
+
+Structured visual memory with linked dialogue instead grounds each turn to specific snapshots during formation. At evaluation time, each retrieved snapshot carries only its linked turns, and unlinked turns are dropped. We instantiate two linkers on 3D-Mem. The CLIP linker links each turn to the snapshots whose scene images are most similar to the turn text under CLIP (Radford et al. 2021). The VLM linker uses the VLM to identify which co-observed object the turn refers to, then links the turn to that object’s snapshots. These are deliberately simple baselines rather than proposed methods, probing whether grounding dialogue during formation beats deferring it to evaluation time. 
+
+Metrics. For QA, we report LLM-match (Majumdar et al. 2024): an LLM judge rates the semantic agreement between predicted and reference answers on a 1–5 rubric, mapped linearly to 0–100 and averaged over items. Instead of a pro-prietary model (Hurst et al. 2024), we use an open-source model (Qwen3-VL-4B-Instruct (Bai et al. 2025), tempera-ture 0) for reproducibility; its scores correlate closely with GPT-4o’s (Pearson r=0 .87 ; Appendix N). For navigation, our main metric is geodesic success : the predicted target location must lie within 1.0 m geodesic distance of the ob-ject’s ground-truth location on the scene navigation mesh. We score this location directly, without path execution, so results reflect spatial grounding in memory rather than planning or actuation. We additionally report execution success (arriving within 1.0 m after rolling out the predicted trajectory) and 
+
+SPL (success weighted by path efficiency; Appendix Q). 
+
+Implementation details. We use Qwen3-VL-4B-Instruct (Bai et al. 2025) for all VLM roles and run inference on a single NVIDIA RTX A6000 GPU with 48 GB of memory. For structured methods, memory construction and 3D location estimation follow the publicly released implementations (Gu et al. 2024; Yang et al. 2025). 
+
+Results and Analysis                                         
+
+> Memory QA (LLM-m.) Geo. Exec. SPL
+> Raw stream storage
+> Dialogue 56.5 –––Frames 24.3 11.3 10.3 10.1 Frames+Dialogue 60.1 12.7 11.5 11.3
+> Structured visual memory
+> CG 19.8 25.2 22.1 21.9 3D-Mem 35.1 31.0 30.9 30.6
+> Structured visual memory with dialogue
+> CG+Dialogue 58.4 25.5 22.8 22.7 3D-Mem+Dialogue 63.4 31.1 30.1 29.7
+> Structured visual memory with linked dialogue
+> CLIP linker 58.8 30.6 30.3 29.9 VLM linker 48.6 30.8 30.4 30.1
+
+Table 3: Results across memory representations. Geo. is geodesic success. Exec. is execution success after rolling out the predicted trajectory, and SPL is success weighted by path efficiency. 
+
+Dialogue and visual memory support different tasks (Q1). 
+
+Across the nine memory representations, no single one sup-ports both tasks (Table 3). Dialogue supports moderate QA (56.5) but stores no poses and cannot localize objects at all. Frames localizes to some degree (11.3) but is weak on QA (24.3). Structured visual memory outperforms raw frame storage on navigation but stays below Dialogue on QA. The two tasks thus draw on different representations, and we next ask whether adding dialogue to visual memory helps both. 
+
+Appending dialogue helps QA but leaves navigation un-grounded (Q2). Appending the full Phase 1 dialogue at evaluation time yields large QA gains. 3D-Mem improves from 35.1 to 63.4 and Frames from 24.3 to 60.1. These gains concentrate on answers already stated in the dialogue: 3D-Mem+Dialogue scores far higher on verbalized items than on others, while visual-only 3D-Mem is nearly invari-ant to this split (Appendix K). Episodic answers gain the least from dialogue and are the lowest after appending. The gains also shrink when a referenced fact has been updated. On social facts that a later turn updates or corrects, 3D-Mem+Dialogue’s QA score drops substantially (77.4 to 61.1, Appendix M). Appended dialogue does not separate an ob-ject’s latest state from its earlier mentions. Navigation, in contrast, barely moves: 3D-Mem goes from 31.0 to 31.1 (McNemar’s test, p=0 .42 ; Appendix F) and Frames from 11.3 to 12.7. One natural explanation is that the reasoner cannot extract useful evidence from appended dialogue. The same appended dialogue, however, lifts social-answer QA from 20.9 to 76.9 (Table 5), so the reasoner can read and use it. Yet social navigation instructions, whose targets are specified entirely through dialogue, stay at 32.1, as do all other content types (Table 4). The referenced objects are also in memory as detections (Appendix E). What appears to be                                         
+
+> Memory Perc. Epis. Soc. Comp.
+> Raw stream storage
+> Dialogue ––––Frames 11.3 8.8 10.9 12.1 Frames+Dialogue 12.4 10.1 13.7 13.0
+> Structured visual memory
+> CG 24.9 25.2 27.0 24.6 3D-Mem 32.1 29.0 32.1 30.6
+> Structured visual memory with dialogue
+> CG+Dialogue 26.8 24.2 27.0 24.7 3D-Mem+Dialogue 32.0 29.4 32.1 30.8
+> Structured visual memory with linked dialogue
+> CLIP linker 32.1 28.5 31.7 30.2 VLM linker 32.1 28.7 31.4 30.8
+
+Table 4: Navigation geodesic success by instruction con-tent type. Perc., Epis., Soc., and Comp. denote perceptual, episodic, social, and compositional instructions. missing is the link between dialogue and the object entries. Dialogue tells the agent which object is meant and what to answer, but appending it at evaluation time does not attach that evidence to the object entries navigation must localize.                               
+
+> Memory Perc. Epis. Soc.
+> Raw stream storage
+> Dialogue 72.8 27.2 72.5 Frames 41.3 33.5 6.5 Frames+Dialogue 77.8 33.6 72.6
+> Structured visual memory
+> CG 35.1 15.0 15.2 3D-Mem 61.6 34.0 20.9
+> Structured visual memory with dialogue
+> CG+Dialogue 71.7 31.1 74.4 3D-Mem+Dialogue 77.4 38.5 76.9
+> Structured visual memory with linked dialogue
+> CLIP linker 71.3 36.4 70.9 VLM linker 67.2 35.6 49.2
+
+Table 5: QA LLM-match by answer source. Columns group QA items by the memory content type the answer is drawn from, marginalizing over the target-identification cue. 
+
+Off-the-shelf linkers do not supply the missing link. The natural fix is to create the missing links during memory for-mation rather than at evaluation time. Unlike appending, the CLIP and VLM linkers attach each turn to specific snapshots as the memory is built. Neither improve navigation over 3D-Mem’s 31.0 (30.6 and 30.8), and both underperform append-ing on QA (58.8 and 48.6 vs. 63.4), with the VLM linker well below it (Table 3). This leaves open whether the approach is wrong or the linkers are simply too weak. 
+
+Navigation improves with dialogue–object link quality. 
+
+To separate these two possibilities, we control link quality Figure 2: Downstream effect of dialogue–object link qual-ity. Curves show a controlled linker swept over link quality under two error modes; markers show the CLIP and VLM linkers, and dashed lines the no-link baseline and the three ground-truth probes. Values are means over three evaluation seeds, with standard deviations at most 0.7 points. directly. We define it as the percentage of dialogue turns linked to a snapshot that contains the object they refer to, and sweep it from 0 to 100 (Figure 2). The sweep, the ground-truth probes, and the CLIP and VLM linkers share a subset of 500 navigation and 500 QA items, stratified across mem-ory content types. These values therefore differ from the full-benchmark numbers in Table 3. At each level, the turns without a correct link are either left unlinked ( missing links )or attached to a wrong snapshot ( wrong links ), separating the cost of low recall from that of low precision. Navigation improves steadily with link quality but tops out at 39.3 under perfect links, so linking is the right target yet not sufficient on its own. The CLIP and VLM linkers sit near the bottom of this curve, correctly linking only 29.1% and 9.5% of turns, so better linkers would move navigation up the curve. On QA the two error modes diverge. Missing links collapse QA (34.3 at link quality 0), while wrong links leave it essentially flat (67.5). QA thus depends on whether the relevant dialogue is present at all, not on which snapshot it is attached to. This also explains the VLM linker’s low QA: it links only 9.5% of turns, so most of the dialogue never reaches the reasoner. 
+
+Closing the remaining gap requires grounding, retrieval, and localization (Q3). The dashed reference lines in Fig-ure 2 decompose the remaining navigation gap with ground-truth probes that keep the 3D-Mem pipeline unchanged. This gap is not a reasoner limitation. Our default reasoner (Qwen3-VL-4B) reaches 33.6, the 3D-Mem+Dialogue base-line in Figure 2; the larger Qwen3-VL-8B scores 31.5 and GPT-4o 28.8. The larger reasoners are simply more conser-vative: they more often answer unknown rather than com-mitting to a memory entry, which the benchmark scores as failure (Appendix H). For grounding and organization , the 
+
+Snapshot metadata probe attaches each object’s ground-truth metadata to the snapshots containing it, including episodic facts that never appear in dialogue. This raises nav-igation from 33.6 to 44.1, above even the perfect-link point (39.3). The margin reflects two gains: organizing evidence into object-level facts, and adding episodic content. For re-trieval , the model must still select the correct entry from this grounded memory. Oracle selection replaces that choice with the ground-truth object’s memory entry while keeping 3D-Mem’s estimated position, lifting navigation to 56.6. For 
+
+localization , Oracle position further replaces the estimated pose with the object’s ground-truth location, raising naviga-tion to 96.2. The selection-to-position gap is thus dominated by error in 3D-Mem’s estimated 3D locations. Both oracle probes still require the reasoner to confirm that the supplied entry matches the instruction, answering yes or unknown, so they isolate a single memory component rather than granting success automatically. The small shortfall of oracle position from a perfect score is the reasoner occasionally rejecting even the correct entry, not a memory error. Together, the de-composition points to three targets: grounding dialogue to the right objects and organizing it into object-level facts during memory formation, retrieving the correct entry at evaluation time, and estimating its 3D location accurately. 
+
+## Conclusion 
+
+This paper introduces DialogMem, a benchmark for study-ing how embodied memory should organize what an agent observes together with what humans tell it. DialogMem provides time-aligned posed RGB-D and dialogue streams for memory formation, and navigation and QA tasks that query the resulting memory over perceptual, episodic, and social content. Evaluating nine memory representations with controlled diagnostics, we isolate three research directions.. First, memory formation should ground what the agent ob-serves and what it is told around the same object entries. Second, retrieving the correct entry remains a substantial bottleneck, even when ground-truth facts are attached to the correct entries. Third, object locations must be estimated accurately; this is the limiting factor once the correct entry is retrieved. DialogMem provides a testbed for measuring progress toward embodied agents that remember and act on what humans tell them over time. 
+
+Limitations. DialogMem uses LLM-generated dialogue de-rived from structured object-level specifications. While this enables exact grounding annotations and controlled diagnos-tics, it does not capture the full ambiguity, noise, and dynam-ics of spontaneous human dialogue. The benchmark uses 27 real-world HM3D scans but evaluates agents in simulation with noise-free poses, so the findings may not fully transfer to broader environment types or physical robots with percep-tion and pose errors. Our study diagnoses existing memory representations rather than proposing new ones. The oracle probes establish upper bounds on each component’s contri-bution, but designing a memory representation that jointly realizes these gains is left to future work. Our analysis is in-stantiated with 3D-Mem and a small set of VLM reasoners; whether our findings generalize to other memory architec-tures, linkers, and reasoners remains to be validated. 
+
+## Acknowledgments 
+
+This work was partly supported by grants from the IITP (RS-2021-II211343-GSAI/10%, RS-2022-II220951-LBA/10%, RS-2022-II220953-PICA/10%, RS-2026-25553157-MIACC/10%), the NRF (RS-2024-00353991-SPARC/15%, RS-2023-00274280-HEI/15%), the KEIT (RS-2025-25453780/15%), and the KIAT (RS-2025-25460896/15%), funded by the Korean government. 
+
+## References 
+
+Bai, S.; Cai, Y.; Chen, R.; Chen, K.; Chen, X.; Cheng, Z.; Deng, L.; Ding, W.; Gao, C.; Ge, C.; et al. 2025. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 .Gao, X.; Gao, Q.; Gong, R.; Lin, K.; Thattai, G.; and Sukhatme, G. S. 2022. Dialfred: Dialogue-enabled agents for embodied instruction following. IEEE Robotics and Au-tomation Letters , 7(4): 10049–10056. Gu, Q.; Kuwajerwala, A.; Morin, S.; Jatavallabhula, K. M.; Sen, B.; Agarwal, A.; Rivera, C.; Paul, W.; Ellis, K.; Chel-lappa, R.; et al. 2024. Conceptgraphs: Open-vocabulary 3d scene graphs for perception and planning. In 2024 IEEE In-ternational Conference on Robotics and Automation (ICRA) ,5021–5028. IEEE. Hong, Y.; Zhen, H.; Chen, P.; Zheng, S.; Du, Y.; Chen, Z.; and Gan, C. 2023. 3d-llm: Injecting the 3d world into large language models. Advances in Neural Information Process-ing Systems , 36: 20482–20494. Hu, W.; Hong, Y.; Wang, Y.; Gao, L.; Wei, Z.; Yao, X.; Peng, N.; Bitton, Y.; Szpektor, I.; and Chang, K.-W. 2025. 3dllm-mem: Long-term spatial-temporal memory for embodied 3d large language model. arXiv preprint arXiv:2505.22657 .Huang, C.; Mees, O.; Zeng, A.; and Burgard, W. 2023. Vi-sual language maps for robot navigation. In 2023 IEEE In-ternational Conference on Robotics and Automation (ICRA) ,10608–10615. IEEE. Hurst, A.; Lerer, A.; Goucher, A. P.; Perelman, A.; Ramesh, A.; Clark, A.; Ostrow, A.; Welihinda, A.; Hayes, A.; Rad-ford, A.; et al. 2024. Gpt-4o system card. arXiv preprint arXiv:2410.21276 .Khanna, M.; Ramrakhya, R.; Chhablani, G.; Yenamandra, S.; Gervet, T.; Chang, M.; Kira, Z.; Chaplot, D. S.; Batra, D.; and Mottaghi, R. 2024. Goat-bench: A benchmark for multi-modal lifelong navigation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,16373–16383. Majumdar, A.; Ajay, A.; Zhang, X.; Putta, P.; Yenaman-dra, S.; Henaff, M.; Silwal, S.; Mcvay, P.; Maksymets, O.; Arnaud, S.; et al. 2024. Openeqa: Embodied question an-swering in the era of foundation models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 16488–16498. Min, S. Y.; Puig, X.; Chaplot, D. S.; Yang, T.-Y.; Rai, A.; Parashar, P.; Salakhutdinov, R.; Bisk, Y.; and Mottaghi, R. 2024. Situated instruction following. In European Confer-ence on Computer Vision , 202–228. Springer. Padmakumar, A.; Thomason, J.; Shrivastava, A.; Lange, P.; Narayan-Chen, A.; Gella, S.; Piramuthu, R.; Tur, G.; and Hakkani-Tur, D. 2022. Teach: Task-driven embodied agents that chat. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 36, 2017–2025. Pasukonis, J.; Lillicrap, T.; and Hafner, D. 2022. Eval-uating long-term memory in 3d mazes. arXiv preprint arXiv:2210.13383 .Pleines, M.; Pallasch, M.; Zimmer, F.; and Preuss, M. 2025. Memory gym: Towards endless tasks to benchmark mem-ory capabilities of agents. Journal of Machine Learning Research , 26(6): 1–40. Radford, A.; Kim, J. W.; Hallacy, C.; Ramesh, A.; Goh, G.; Agarwal, S.; Sastry, G.; Askell, A.; Mishkin, P.; Clark, J.; et al. 2021. Learning transferable visual models from natural language supervision. In International conference on machine learning , 8748–8763. PmLR. Ramakrishnan, S. K.; Gokaslan, A.; Wijmans, E.; Maksymets, O.; Clegg, A.; Turner, J.; Undersander, E.; Galuba, W.; Westbury, A.; Chang, A. X.; et al. 2021. Habitat-matterport 3d dataset (hm3d): 1000 large-scale 3d environ-ments for embodied ai. arXiv preprint arXiv:2109.08238 .Savva, M.; Kadian, A.; Maksymets, O.; Zhao, Y.; Wijmans, E.; Jain, B.; Straub, J.; Liu, J.; Koltun, V.; Malik, J.; et al. 2019. Habitat: A platform for embodied ai research. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , 9339–9347. Thomason, J.; Murray, M.; Cakmak, M.; and Zettlemoyer, L. 2020. Vision-and-dialog navigation. In Conference on Robot Learning , 394–406. PMLR. Wani, S.; Patel, S.; Jain, U.; Chang, A.; and Savva, M. 2020. Multion: Benchmarking semantic map memory using multi-object navigation. Advances in Neural Information Process-ing Systems , 33: 9700–9712. Yadav, K.; Ali, Y.; Gupta, G.; Gal, Y.; and Kira, Z. 2025. Findingdory: A benchmark to evaluate memory in embodied agents. arXiv preprint arXiv:2506.15635 .Yang, Y.; Yang, H.; Zhou, J.; Chen, P.; Zhang, H.; Du, Y.; and Gan, C. 2025. 3D-mem: 3D scene memory for embodied exploration and reasoning. In Proceedings of the Computer Vision and Pattern Recognition Conference , 17294–17303. Zhu, H.; Kapoor, R.; Min, S. Y.; Han, W.; Li, J.; Geng, K.; Neubig, G.; Bisk, Y.; Kembhavi, A.; and Weihs, L. 2023. Ex-calibur: Encouraging and evaluating embodied exploration. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 14931–14942.
