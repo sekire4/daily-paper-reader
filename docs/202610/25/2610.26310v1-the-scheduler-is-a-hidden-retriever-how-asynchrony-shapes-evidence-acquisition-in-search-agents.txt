@@ -1,0 +1,672 @@
+Title: The Scheduler Is a Hidden Retriever: How Asynchrony Shapes Evidence Acquisition in Search Agents
+
+URL Source: https://arxiv.org/pdf/2610.26310v1
+
+Published Time: Tue, 20 Oct 2026 03:23:18 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# The Scheduler Is a Hidden Retriever: How Asynchrony Shapes Evidence Acquisition in Search Agents 
+
+# Ruiyang Ren ∗
+
+reyon_ren@outlook.com Nanyang Technological University Singapore 
+
+# Yuhao Wang ∗
+
+yh.wang500@outlook.com Nanyang Technological University Singapore 
+
+# Yinan Zhang †
+
+yinan.zhang@ntu.edu.sg Nanyang Technological University Singapore 
+
+# Chunyan Miao †
+
+ascymiao@ntu.edu.sg Nanyang Technological University Singapore 
+
+## Abstract 
+
+Language-model agents increasingly solve complex tasks through parallel reasoning and asynchronous information gathering. Con-trolled replay across two model families and three benchmarks shows that delivery timing redirects search decisions made before all results arrive, despite identical initial evidence. Acquisition dis-agreement reaches up to 24 percentage points above same-order repeat variation. This dependence persists after all initial evidence arrives and through a second search, turning temporary differ-ences in what agents have seen into lasting differences in what they acquire. An acquisition-regret bound with a matching con-struction shows that invariance at a fixed early arrival count can limit the use of evidence already received. We introduce Confluent Evidence Acquisition (CEA), which instead releases local reason-ing when each subquestion’s evidence is complete and allocates shared search independently of completion order. For a fixed plan and stable conditional response law, we prove joint invariance of decisions, acquisitions, and answers. With question-only plans across three benchmarks, CEA brings acquisition disagreement to within 1.0 percentage point of repeat variation and achieves accu-racy comparable to complete-input controls, improving over early commitment by up to 12.6 percentage points. Replacing CEA’s fixed allocation with first-ready allocation under contention adds 21.6 percentage points of acquisition disagreement, while local query-target disagreement remains near repeat variation. Timed comparisons show that CEA reaches decisions earlier and re-sponds faster than the same program waiting for all initial evi-dence. 
+
+## Keywords 
+
+asynchronous search agents, schedule invariance, evidence inte-gration, dependency domains 
+
+## 1 Introduction 
+
+Progress in reasoning and tool use enables language-model agents to tackle increasingly complex tasks requiring sustained informa-tion gathering across multiple subtasks [40]. Parallel search and asynchronous execution let these subtasks advance while tool re-sults are still arriving [11, 34]. In agentic search, reasoning and 
+
+> ∗These authors contributed equally.
+> †Corresponding authors.
+
+information acquisition evolve together, as an arriving result can guide a new query before other calls finish. Whether execution tim-ing changes the evidence ultimately acquired is a reliability ques-tion for Web agents. An intermediate fact can arrive in time for final reasoning yet too late to guide search. Figure 1 shows two recorded runs for a question comparing directors’ death dates [10]. Both receive the same original documents and have one search opportunity. With a director’s name available early, one run retrieves his biogra-phy. The other spends its search identifying him. Both eventually receive the name, but only one acquires the date and answers correctly. The scheduler acts as a hidden retriever by determining which supplied evidence can guide the next query, a mechanism we call temporal evidence selection .We replay identical evidence packets in different delivery orders to examine early commitment , when an agent decides whether and what to search before all results arrive. Across three benchmarks and two model families, early commitment produces acquisition disagreement up to 24 percentage points above same-order repeat variation. Presenting the received documents in a fixed order does not remove the effect, because the evidence available at commit-ment still differs. Timing also changes whether missing support-ing evidence is recovered. Acquisition differences persist after all original evidence arrives and through a second search. In the two-search evaluation, early commitment improves accuracy but leaves acquisition more sensitive to timing. Average accuracy captures task success but cannot establish whether supporting evidence is acquired reproducibly, a distinction that matters when auditing an agent’s conclusions [37]. These findings motivate acquisition that is both useful and sta-ble. We formalize schedule invariance as an unchanged acquisition or answer distribution across delivery orders. Our acquisition-regret bound, with a matching construction, shows that enforcing invariance at a fixed early arrival count can restrict the use of informative evidence already received. A shared-budget coun-terexample shows that even invariant local proposals can yield different acquisitions when completion order determines which query executes. Under search contention, this allocation rule adds 21.6 percentage points of acquisition disagreement, while local query-target disagreement remains near repeat variation. Stable acquisition involves both the evidence dependencies that govern 
+
+> 1arXiv:2610.26310v1 [cs.AI] 19 Oct 2026 Ren et al.
+
+Question Which film’s director died earlier, The Coca-Cola Kid or Ayul Kaithi ?
+
+Asynchronous arrivals Search during delivery After delivery completes     
+
+> Arrival positions 1–6 After the 2nd arrival All six original documents received
+> Ayul Kaithi page arrives early
+> Ayul Kaithi page arrives late
+> 11
+> 2
+> 23344556
+> 6
+> Director: K. Subash Director not yet known
+> K. Subash death date
+> Biography retrieved
+> Ayul Kaithi film director
+> Biography not retrieved
+> Director: K. Subash
+
+Death date available   
+
+> Answer: Ayul Kaithi (correct)
+> Director: K. Subash
+
+Death date still missing   
+
+> Answer: The Coca-Cola Kid (incorrect)
+
+Figure 1: Arrival timing redirects retrieval. Two recorded runs receive the same six documents in different orders. Each exe-cutes one search after the second arrival (shaded prefix). The highlighted film page identifies K. Subash, whose biography is absent from the packet. Both runs eventually identify him, but only the upper run acquires his death date. 
+
+query formation and the resource dependencies that govern execu-tion. We introduce Confluent Evidence Acquisition (CEA) to retain the stability and answer quality of complete-input reasoning while al-lowing asynchronous progress. Reasoning on each subquestion begins once its evidence is complete, without waiting for unre-lated results. A schedule-independent allocation rule determines which proposed search executes. For a fixed plan and stable condi-tional response law, we prove epistemic confluence , meaning that local decisions, executed acquisitions, and the final answer have a schedule-invariant joint distribution. With question-only plans and evidence assigned by retrieval-call ownership, CEA brings acquisition disagreement to within 1.0 percentage point of repeat variation across three benchmarks. Accuracy is comparable to complete-input controls and improves over early commitment by up to 12.6 percentage points. In timed comparisons, CEA reaches decisions earlier and responds faster than the same program wait-ing for all initial evidence. We make three contributions. 
+
+• Temporal evidence selection. We isolate how delivery timing redirects retrieval and show why acquisition stabil-ity must be assessed alongside evidence quality and answer accuracy. 
+
+• Structural limits of early invariance. We derive an acquisition-regret bound with a matching construction and show how shared-budget allocation introduces a sep-arate source of instability. 
+
+• Dependency-scoped coordination. CEA coordinates lo-cal evidence completion and shared search allocation, guar-anteeing joint invariance for a fixed plan. It achieves ac-curacy comparable to complete-input controls with earlier decisions and faster responses. 
+
+## 2 Problem and Evaluation Setup 
+
+We replay fixed evidence packets over a frozen corpus to isolate delivery-order effects on acquisition and task success from changes in retrieval content or service latency. 
+
+Schedule invariance. Let 𝐸 be an initial evidence packet and 𝜋 
+
+its delivery order. An agent is schedule invariant for a measured outcome if changing 𝜋 , with the question, 𝐸 , retriever, and model settings fixed, leaves the outcome distribution unchanged. We dis-tinguish supplied evidence from evidence acquired through search and assess invariance for search decisions, retrieved document sets, and answers. 
+
+An evidence acquisition task. Answering each question requires evidence from multiple documents. We withhold one supporting document from the supplied packet while keeping it in the retrieval corpus. The six-item packet contains the remaining support and re-trieved distractors. A dependent chain retains the bridge document but lacks an endpoint, whereas a comparison lacks support for one side. Recovering the withheld document requires search beyond this packet. Oracle and closed-book reference conditions respec-tively include the withheld document or supply only the question. The corpus, excerpts, and content-derived identifiers are fixed before permutation. Deterministic BM25 [30] returns the same top-five documents for each query. Structural and retrievability checks select questions before inference (Appendix A). 
+
+Datasets and models. The primary evaluation uses DeepSeek-V4-Flash on 200 compositional and 200 bridge-comparison ques-tions from 2Wiki [10], 100 HotpotQA bridge questions [41], and 100 MuSiQue questions [35]. 2Wiki compositional and HotpotQA bridge questions connect evidence along one reasoning chain; 2Wiki bridge-comparison questions compare information from two independent chains. MuSiQue is evaluated without a question-type split. We test cross-model consistency with GPT-5.6 Luna on fixed 100-question subsets of both 2Wiki tasks and the same Hot-potQA and MuSiQue cohorts. Supplementary experiments test reasoning controls, two-search acquisition, and budget allocation under low and high contention. Appendix A gives settings and coverage. 
+
+Acquisition from generated plans. For 100 fixed questions per benchmark (bridge comparison for 2Wiki), a question-only plan-ner proposes one chain or two independent subquestions. Initial retrieval fills six slots, with each document assigned to the call that 
+
+> 2The Scheduler Is a Hidden Retriever
+
+retrieved it. All policies use the same plan and packet across sched-ules. Support is neither inserted nor withheld, and annotations are used only for scoring (Section 5.2). 
+
+Decision timing and evidence integration. The agent chooses 
+
+search(query) or answer(answer) . We release the decision af-ter two or six arrivals to compare commitment during delivery, as asynchronous runtimes permit [8, 11], with commitment after completion. This isolates evidence availability. Always waiting re-covers the complete-input regime. Native strategies update notes in arrival order, whereas batch strategies use canonical identi-fier order. These yield native@2 , native@6 , wait_all@2 , and 
+
+wait_all@6 . Prefix batches fix presentation order but vary which documents are available. Complete batches fix both. CEA reasons on completed domains and coordinates shared search allocation (Section 4). 
+
+Tracing an acquisition decision. We trace one acquisition deci-sion through input completion with a one-search budget. Early tra-jectories retain their action, feedback, and notes. After six arrivals, a completed-input probe records proposals without execution; final answering uses the completed history. The two-search extension allows another search after input completion and any first-search feedback. It measures the union of retrieved documents. Both poli-cies keep the second search available after a provisional answer. 
+
+Evaluation measures. Target disagreement compares query-target categories derived from lexical matches to annotated names and aliases. Jaccard distance , 𝑑(𝐴, 𝐵) = 1 − |𝐴 ∩ 𝐵|/|𝐴 ∪ 𝐵| , com-pares retrieved document sets; answering gives an empty set, and two empty sets have distance zero. Probe queries use the same retriever, but their results do not enter the history. Answer dis-agreement compares normalized strings. We measure search rate, withheld-document recovery over all trajectories and per search, and normalized exact-match accuracy with dataset aliases (Appendix D). Recovery disagreement records whether runs differ in retrieving the withheld document. We also record readiness position, model calls, and tokens. 
+
+Timed execution. Paired runs compare local completion with a global barrier using the same program under controlled arrival pro-files. Elapsed time runs from dispatch to the final response (Sec-tion 5; Appendix A). 
+
+Estimating schedule effects. Permutation experiments evaluate each question under eight fixed delivery orders, with two indepen-dent runs per order. Each repeat uses a distinct prompt marker (nonce), shared across orders, so same-order repeats measure run-to-run variation at fixed settings (Appendix C). We separate sched-ule effects from repeat variation by subtracting same-order dis-agreement from cross-order disagreement. For an observed out-come 𝑥 𝜋𝑟 under order 𝜋 and repeat 𝑟 , the matched contrast is ̂Δ𝜋𝜎 = 12 {𝑑(𝑥 𝜋0 , 𝑥 𝜎1 ) + 𝑑(𝑥 𝜋1 , 𝑥 𝜎0 )} − 12 {𝑑(𝑥 𝜋0 , 𝑥 𝜋1 ) + 𝑑(𝑥 𝜎0 , 𝑥 𝜎1 )}. (1) The mean contrast measures excess disagreement in percent-age points (pp). We use question-bootstrap 95% confidence in-tervals [7] and pair strategy comparisons within each question. Estimation details appear in Appendices A and C. 
+
+## 3 How Scheduling Shapes Information Acquisition 
+
+A search decision determines what additional evidence an agent acquires. We trace how schedule dependence enters acquisition, persists after input completion, and affects evidence quality, then characterize the cost of invariance at a fixed early arrival count. 
+
+## 3.1 Scheduling Selects the Evidence for Search 
+
+Delivery can affect a search decision through the evidence avail-able at commitment or the order in which it is processed. Figure 2 shows the primary analysis; Appendix Figure E1 reports the GPT replication. Batch 6/6 ( wait_all@6 ) presents all six documents in a fixed order, whereas Notes 6/6 ( native@6 ) accumulates notes in arrival order. Both show little excess retrieval disagreement when all six documents are available for the first decision. The pattern changes when decisions are made after only two ar-rivals (Notes 2/6, native@2 ). Retrieved-set disagreement exceeds same-order repeat variation by 11.6–23.8 pp across all eight model– task settings. Different delivery orders expose the decision to dif-ferent subsets of the same original packet. Because the retriever is deterministic and no retrieval feedback precedes this decision, the schedule effect enters through whether and what the agent chooses to search. To distinguish the selected evidence from its presentation, Batch 2/6 ( wait_all@2 ) presents the first two arrivals together in document-identifier order. Substantial sensitivity remains in ev-ery tested setting. On 2Wiki compositional questions, the primary evaluation yields 21.7 pp of excess disagreement, versus 21.6 pp with incremental processing. The same pattern appears in the GPT replication, with early incremental/batch contrasts of 12.7/12.5 pp on HotpotQA and 11.7/11.2 pp on MuSiQue (Appendix Table E3). Sorting fixes presentation but cannot make evidence still in flight available to the decision. Scheduling also changes access to useful support. Under early commitment, disagreement about whether the missing document is recovered exceeds the repeat baseline by 7.7 pp on bridge com-parison and 19.3 pp on compositional questions in the primary evaluation (Appendix E). These controls identify temporal evi-dence selection , in which timing shapes the evidence used to form a query and redirects corpus access despite a fixed packet and retrieval rule. 
+
+## 3.2 Input Completion Does Not Ensure Informational Convergence 
+
+Completing delivery gives agents the same original documents, but their acquired evidence and notes may differ. To test whether these histories still affect information seeking, Probe 6/6 records a new search-or-answer proposal after six arrivals without execut-ing it. The implied retrieval sets still disagree by 5.5–14.7 pp above re-peat variation across six task–model comparisons (Figure 2; Ap-pendix Figure E1). Unlike waiting before the first decision (Notes 6/6), completing delivery after early acquisition leaves subsequent search sensitive to the prior schedule. Table 1 distinguishes whether to search from what to retrieve. Search demand remains sensitive in every task, reaching 14.7 pp              
+
+> 3Ren et al. Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> 010 20 30
+> a2Wiki
+> Compositional
+> Complete Early Follow-up
+> Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> b2Wiki
+> Bridge comparison
+> Complete Early Follow-up
+> Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> cHotpotQA
+> Bridge
+> Complete Early Follow-up
+> Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> dMuSiQue
+> Complete Early Follow-up
+> Excess disagreement (pp)
+> What to search for Documents retrieved
+
+Figure 2: Acquisition differences persist after input completion (DeepSeek V4). Batch reads documents in fixed order; Notes up-dates on arrival. Fractions count received documents. Circles compare what the agent searches for (target categories); squares compare returned documents (Jaccard distance). Dashed lines connect early Notes to its unexecuted probe (shaded, hollow). Zero marks same-order repeat variation; bars show 95% CIs. Early Batch reports sets only; MuSiQue has no target categories. 
+
+of excess disagreement on compositional questions. Even when both runs choose to search, their queries imply different docu-ment sets, with direction contrasts of 4.3 and 6.2 pp on HotpotQA and MuSiQue, respectively. These outcomes separate two con-sequences of an earlier acquisition history. It can alter whether the agent seeks more information at all, and it can redirect the evidence sought even when both trajectories choose to continue. 
+
+> Task (
+
+𝑛 ) Search demand Search direction Comp. (200) 14.7 [12.4, 17.1] 2.0 [0.8, 3.4]  
+
+> Bridge (200)
+
+8.2 [6.2, 10.3] 1.3 [0.2, 2.4]  
+
+> HotpotQA (100)
+
+8.6 [5.4, 11.9] 4.3 [0.6, 8.1]  
+
+> MuSiQue (100)
+
+3.2 [0.3, 6.2] 6.2 [2.9, 9.6] 
+
+Table 1: Search demand and direction remain schedule-sensitive after delivery (DeepSeek V4). Excess disagreement above same-order repeats (pp [95% CI]). Demand compares search/answer choices; direction compares retrieval sets when both runs search. Comp./Bridge denote 2Wiki tasks; eligible pairs: Appendix A. 
+
+Persistence through a second search. We allow a second search af-ter input completion and any first-search feedback. On 100 compo-sitional questions, GPT-5.6 yields cumulative acquisition contrasts of 10.4 pp for early commitment and 2.4 pp for complete-input com-mitment, a paired difference of 8.0 pp [5.5, 10.4]. Further search can recover support without eliminating this dependence in the accumulated evidence. 
+
+## 3.3 Acquisition Quality Beyond Final Accuracy 
+
+We next examine what these acquisition differences mean for sup-port recovery and answer accuracy. Under the single-search bud-get, waiting reduces search use and increases recovery per search across all eight incremental settings (Table 2). Both agents also re-cover more support overall and answer more accurately on both 2Wiki tasks. In the primary bridge-comparison evaluation, recov-ery rises from 13.2% to 79.6%, alongside a 30.3 pp accuracy gain. Search productivity improves across tasks even though accuracy changes are much smaller on HotpotQA and MuSiQue. In the two-search evaluation, early commitment reaches 43.6% accuracy versus 40.9% for complete-input commitment, a paired gain of 2.7 pp [0.4, 5.1]. It uses 1.54 versus 1.13 searches per trajec-tory, with support recovery at 84.4% and 83.5%. Higher accuracy and frequent support recovery coexist with greater schedule sen-sitivity in the acquired evidence (Section 3.2). The complete-input controls clarify what a stable policy should preserve. On the primary bridge-comparison task, batch reasoning almost never searches and reaches 66.4% accuracy, versus 89.8% for incremental reasoning. Both have low sensitivity, but incremen-tal reasoning recovers more support (Appendix Table E1). Stabil-ity is compatible with productive retrieval; the reasoning program shapes how effectively the available evidence guides search. Different evidence paths can produce the same correct answer (Appendix B). The design objective is to preserve useful acquisition while making evidence selection insensitive to delivery timing. 
+
+## 3.4 The Acquisition Cost of Early Invariance 
+
+The complete-input controls show that useful acquisition can co-exist with low schedule sensitivity. At a fixed early arrival count, however, invariance can restrict how a policy uses evidence it al-ready has. The key is that packets requiring different searches may share a possible prefix. Fix the question and other decision inputs, and consider one policy across a family of admissible packets. After 𝑚 of 𝑛 arrivals, with 1 ≤ 𝑚 < 𝑛 , it uses only the canonically processed prefix set 𝑆 
+
+to choose a search-or-answer action with law 𝜇 𝑆 .Form a graph 𝐺 of these prefixes, joining two whenever they can arise from the same packet. Invariance equates decision laws along each edge; a shared prefix carries this constraint across pack-ets. Exact decision invariance is therefore equivalent to a common law within each connected component (Appendix B). Let 𝑑 𝐺 (𝑆, 𝑇 ) 
+
+denote shortest-path distance. Let ℓ𝐸 (𝑎) ∈ [0, 1] be the loss in acquisition utility relative to the best single action for packet 𝐸 , and 𝑟 𝐸 (𝑆) = 𝔼 𝑎∼𝜇 𝑆 ℓ𝐸 (𝑎) the                                   
+
+> 4The Scheduler Is a Hidden Retriever
+> Incremental reasoning Batch reasoning Task Runs with search Searches finding support Answer accuracy Answer accuracy
+> DeepSeek V4
+> 2Wiki: bridge comparison −10.1 +80.9 +30.3 [26.6, 34.2] −2.5 [−5.7, 0.6]
+> 2Wiki: compositional −13.1 +54.8 +17.4 [13.1, 21.7] −4.4 [−7.1, −1.8]
+> HotpotQA −25.1 +35.0 +3.6 [−1.1, 8.3] −8.9 [−13.1, −5.1]
+> MuSiQue −24.2 +15.0 −1.1 [−3.6, 1.5] −5.5 [−8.2, −3.0]
+> GPT-5.6
+> 2Wiki: bridge comparison −14.8 +64.9 +36.1 [30.8, 41.4] +12.8 [7.4, 18.2]
+> 2Wiki: compositional −9.6 +53.6 +18.2 [12.5, 24.1] +16.6 [10.4, 22.9]
+> HotpotQA −21.1 +30.4 +2.1 [−1.4, 5.8] −0.6 [−3.5, 2.1]
+> MuSiQue −24.8 +10.7 +0.3 [−3.6, 4.4] +3.1 [0.8, 5.7]
+
+Table 2: Waiting makes searches more selective. Differences are complete-input minus early commitment (pp). Support recov-ery is the fraction of searches finding the withheld document; brackets give paired 95% CIs for accuracy. 
+
+expected regret. For 𝑘 packet-prefix pairs (𝐸 𝑖 , 𝑆 𝑖 ) whose prefixes lie in one component 𝐶 , define 
+
+Γ = inf 
+
+> 𝑎
+
+1𝑘 
+
+> 𝑘
+
+∑
+
+> 𝑖=1
+
+ℓ𝐸 𝑖 (𝑎), 𝜌 𝐺 = min 
+
+> 𝑉 ∈𝐶
+
+1𝑘 
+
+> 𝑘
+
+∑
+
+> 𝑖=1
+
+𝑑 𝐺 (𝑉 , 𝑆 𝑖 ). 
+
+(2) Here Γ is the smallest average utility loss achievable with one ac-tion across packets; 𝜌 𝐺 measures how closely their prefixes con-nect to a common reference. PRoposition 3.1 (Schedule stability and acisition Re-gRet). If adjacent prefixes have decision laws at total variation distance at most 𝜀 , then 
+
+1𝑘 
+
+> 𝑘
+
+∑
+
+> 𝑖=1
+
+𝑟 𝐸 𝑖 (𝑆 𝑖 ) ≥ [Γ − 𝜌 𝐺 𝜀] +, (3) 
+
+where [𝑥] + = max {𝑥, 0} .
+
+PRoof. For 𝑉 ∈ 𝐶 , shortest paths give TV (𝜇 𝑆 𝑖 , 𝜇 𝑉 ) ≤ 𝜀𝑑 𝐺 (𝑉 , 𝑆 𝑖 ).Since 0 ≤ ℓ 𝐸 𝑖 ≤ 1 , bounded-loss comparison [6] yields 
+
+𝑟 𝐸 𝑖 (𝑆 𝑖 ) ≥ 𝔼 𝜇 𝑉 ℓ𝐸 𝑖 − 𝜀𝑑 𝐺 (𝑉 , 𝑆 𝑖 ). 
+
+Every action has average loss at least Γ, as does a mixture under 𝜇 𝑉 .Minimizing average distance over 𝑉 and using nonnegative regret proves the bound. □
+
+When acquisition needs conflict ( Γ > 0 ), exact invariance forces positive average regret. Allowing 𝜀 variation along each edge re-laxes the bound by at most 𝜌 𝐺 𝜀 . Closely connected prefixes leave little room to adapt decisions to packet-specific evidence while pre-serving stability. For support recovery, suppose the 𝑘 packets have distinct, indi-vidually recoverable targets, while one search can recover at most 
+
+𝑏 < 𝑘 of them. Then Γ ≥ 1 − 𝑏/𝑘 , so exact invariance leaves an average recovery failure probability of at least 1 − 𝑏/𝑘 over the selected pairs. The matching construction attains this bound on prefixes that identify their packet and its target (Appendix B). Each such infor-mative prefix is adjacent to one common, ambiguous prefix, which ties their decision laws together. With 𝜌 𝐺 = 1 , every selected pair attains regret [1 − 𝑏/𝑘 − 𝜀] +. Because the selected prefixes already identify the targets, this loss comes from the invariance require-ment itself. CEA replaces fixed-count commitment with completion of each subquestion’s assigned evidence. The local decision sees the same evidence under every delivery order, while unrelated delivery con-tinues. Shared search budgets introduce a further dependency at execution. CEA also resolves allocation independently of comple-tion order, so scheduling cannot redirect acquisition through com-petition between stable proposals (Section 4). 
+
+## 4 Confluent Evidence Acquisition 
+
+We introduce Confluent Evidence Acquisition (CEA), which coordi-nates reasoning and search through their evidence and resource dependencies while allowing independent work to proceed. 
+
+## 4.1 Evidence and Resource Dependencies 
+
+CEA organizes reasoning around the inputs assigned to each sub-question. A branch handles one subquestion, such as establishing a person’s birthplace in a comparison. The subquestion and its as-signed initial documents form a dependency domain , fixed before delivery. A branch begins reasoning once all documents in its domain have arrived, while other branches may still await their inputs. Changing delivery order changes when this branch is ready, but not which initial evidence it uses. CEA replaces commitment af-ter a fixed arrival count with completion of the decision’s inputs (Section 3.4). Those inputs may still leave facts unresolved, so the branch can request further retrieval. In an explicit task graph [20, 39], retrieval calls identify which evidence belongs to each subquestion. Our controlled experiments use annotated chains, with two domains for comparisons and one for dependent chains. Subquestions provide starting entities and relations without revealing annotated intermediates or answers. 
+
+> 5Ren et al.
+
+a Form local requests    
+
+> Complete local evidence Search request
+> Director identified Director’s birthplace Actor identified Actor’s birthplace
+> Independent reasoning
+
+b One search slot, two allocation rules     
+
+> Request completion order
+> First Second
+> First-ready
+> First request wins
+> CEA
+> Director has priority
+> Director Actor Actor Director Director biography Actor biography Director biography
+> No wait for actor
+> Director biography
+> Wait for director
+> Different retrieved evidence Same retrieved evidence
+
+Figure 3: Stable requests can still yield different acquisitions. In this deterministic example, evidence identifies a director and an actor but omits their birthplaces. The rows reverse request completion order. With one search slot, first-ready retrieves different biographies; CEA fixes priority before delivery and retrieves the director’s biography in both orders. 
+
+With question-only plans, each document is assigned to the sub-question whose retrieval call returned it (Section 5.2). Evidence independence does not imply independent access to search. Even when branches form stable queries, they may com-pete for the same budget. In Figure 3, giving one search slot to the first completed proposal changes which query executes across schedules. CEA allows independent proposal formation and re-solves this competition through an allocation rule that does not depend on completion order. 
+
+## 4.2 Coordinating Reasoning and Search 
+
+Local reasoning. Let 𝐷 1, … , 𝐷 𝑘 be the domains’ initial evidence sets, indexed topologically with branch-identifier tie breaking. Readiness occurs at the last assigned document’s arrival position 
+
+𝑟 𝑖 (𝜋) = max 
+
+> 𝑒∈𝐷 𝑖
+
+pos 𝜋 (𝑒). (4) Incremental CEA processes the ready domain’s evidence in canon-ical order, accumulating private notes before proposing a query or answer. Each request contains only its subquestion, evidence, and notes. Canonical processing fixes the reasoning sequence; pri-vate histories keep concurrent branches from altering its context. With one domain, readiness requires all 𝑛 = |𝐸| items. CEA (Batch) presents the domain’s complete evidence in one request. 
+
+Search allocation. A query proposal does not immediately trig-ger search. With priorities fixed before delivery, CEA assigns the single search opportunity to the least-indexed requester 𝑗 ⋆. Its query can execute once its proposal is available and every higher-priority domain has declined search. Lower-priority branches need not finish their proposals. If all domains decline, no retrieval occurs. More generally, allocation can be any fixed function of domain-indexed proposals and schedule-independent inputs. Search is el-igible once pending proposals cannot change the allocation. Pri-orities may follow the plan or a question-seeded hash of domain identifiers. 
+
+Feedback and synthesis. Search results return only to the se-lected branch, which replaces its proposal with a local answer without altering other branches’ query inputs. Final synthesis orders all local outputs by domain, retaining subquestion and root-entity labels. Completion times cannot change their presentation. 
+
+## 4.3 Joint Invariance and Search Release 
+
+We call joint schedule invariance of local decisions, executed ac-quisitions, and the final answer epistemic confluence . Let 𝑋 be a complete request, 𝑌 its response, and 𝐻 the preceding execution history. Assumption (A-K) states that ℒ(𝑌 ∣ 𝑋 , 𝐻 ) = 𝐾 (⋅ ∣ 𝑋 ) at fixed model settings, so the response distribution depends only on the request. With deterministic retrieval, these conditions yield the following guarantee. PRoposition 4.1 (Epistemic confluence of CEA). Under these conditions, CEA preserves the joint law of domain-indexed decisions, executed acquisitions, and the final answer across permutations of the original packet. Readiness and tool-release positions may change. 
+
+To see why, couple corresponding logical calls with seeds shared across schedules and independent across calls. Each branch processes identical domain inputs in the same order, so induction gives matching private histories and proposals. Stable allocation selects the same requester. Deterministic retrieval, private feed-back, and canonical synthesis then preserve agreement through the final answer. Conditioning on a plan generated independently of delivery and averaging over plans preserves the guarantee. The same dependencies determine how early search can start. Let 𝜏 𝑖 be the time at which domain 𝑖 ’s proposal becomes available. For the realized winner 𝑗 ⋆ under fixed priority, search requires its proposal and the higher-priority declines, giving the earliest eligi-ble release 
+
+𝜏 eligible = max  
+
+> 𝑖≤𝑗 ⋆
+
+𝜏 𝑖 . (5) Local reasoning can overlap delivery to other domains; once alloca-tion is settled, search can overlap their unfinished reasoning. Final synthesis waits for all domain outputs and any selected retrieval feedback. Appendix B proves the release criterion and reports in-put checks; Section 5 tests acquisition quality and asynchronous progress.           
+
+> 6The Scheduler Is a Hidden Retriever 010 20
+> Excess acquisition disagreement (pp) 2Wiki HotpotQA MuSiQue
+> Early commitment Complete input CEA
+> (a) Acquisition stability 0612
+> Input tokens (thousands)
+> CEA (subtask notes) 6.88 Shared (all-task notes) 11.51
+> 050 100
+> Answer accuracy (%)
+> 87.3 86.0
+> 40.2% fewer input tokens (b) Reasoning cost and accuracy 0510
+> Time saved vs. waiting for all evidence (s) First subtask decision Final response
+> DeepSeek V4 GPT-5.6 (c) Time saved by local execution
+
+Figure 4: CEA evaluation. Panels (a,b) use GPT-5.6. (a) Acquisition disagreement with question-only plans under early com-mitment (2/6 arrivals), complete-input shared history (6/6), and CEA. Zero marks same-order repeat variation. (b) Mean input-token cost per run and accuracy with matched reasoning calls. CEA keeps subtask notes separate; Shared combines them. (c) Time saved against the same program waiting for all initial evidence (20 DeepSeek V4 and 100 GPT-5.6 questions). Whiskers show 95% CIs, paired in (c). 
+
+## 5 Stable Acquisition with Asynchronous Progress 
+
+CEA aims to retain the stability and answer quality of complete-input reasoning while allowing independent work to proceed. We test stability and search allocation, then evaluate question-only plans. Evidence recovery, matched reasoning controls, and timed execution assess useful search and efficiency (Figure 4). 
+
+## 5.1 Stability from Retrieval to Answers 
+
+We first compare CEA with early commitment on controlled bridge comparisons. Excess acquisition disagreement falls from 21.5 to 
+
+−0.2 pp with DeepSeek V4 and from 24.4 to −0.7 pp in the matched GPT evaluation. Changing delivery order now produces about as much variation as repeating the same order. The corresponding answer contrasts are −0.6 and −0.3 pp. On dependent chains, pri-mary answer disagreement also falls from 12.1 to 1.0 pp (Appendix Table E1). Stable queries and stable acquisitions are distinct requirements. A branch may form the same request under every schedule, yet lose the opportunity to execute it when another branch finishes first. To test why stable query formation needs stable allocation, we keep local reasoning fixed and give the shared search slot to the first completed request (Table 3). With one supporting docu-ment withheld, only about 1% of trajectories have two requesters, so fixed priority and first-ready rarely choose between competing queries. With terminal support withheld from each branch on the same 100 questions, contention reaches 80.9–82.5%. Local query-target disagreement remains near repeat variation under both rules, yet first-ready adds 21.6 pp [18.3, 24.8] of acquisition disagreement, with similar accuracy. The winning request determines which new evidence enters the selected branch and, through its answer, the fi-nal synthesis.    
+
+> Allocation Acq. (pp) Acc. (%)
+
+Δ Acq. (pp)  
+
+> (a) One missing support: low contention
+> Fixed priority
+
+0.6 86.7 —First-ready 0.7 87.3 +0.1 [−2.1, 2.4]  
+
+> (b) Two missing supports: high contention
+> Fixed priority
+
+−0.5 74.5 —First-ready 21.1 74.1 +21.6 [18.3, 24.8] 
+
+Table 3: CEA allocation ablation on 100 2Wiki bridge-comparison questions (GPT-5.6; one search slot). Acq. de-notes acquisition contrast and Acc. denotes accuracy. Δ is first-ready minus fixed [paired 95% CI]. 
+
+Each local proposal is formed from complete evidence, so the dif-ference arises when competing requests are converted into an ex-ecuted search. The shared budget couples otherwise independent branches at this step. A completion-order rule turns their relative completion times into a choice of evidence. CEA assigns this choice to a schedule-independent rule, allowing proposal formation to re-main concurrent while keeping timing from selecting the evidence used by later reasoning (Figure 3). 
+
+## 5.2 Acquisition from Model-Generated Plans 
+
+The controlled analysis uses annotated chains to define dependen-cies. Here, a planner sees only the question and specifies subques-tions and initial retrieval queries. Each retrieved document belongs to the subquestion whose call returned it, giving CEA its depen-dency domains (Section 2; Appendix A). Generated plans contain either a single reasoning chain or two independent subquestions. In the latter case, one branch can reason while the other awaits its inputs. We fix each generated plan and retrieved packet across policies to compare execution of the same task.                  
+
+> 7Ren et al.
+> Task Early Shared CEA Δvs. Early (pp) 2Wiki 38.5 47.9 51.1 +12.6 [6.4, 18.9]
+> HotpotQA 38.9 42.0 42.5 +3.6 [0.3, 7.1]
+> MuSiQue 26.8 25.8 26.8 −0.1 [−3.6, 3.5]
+
+Table 4: Accuracy (%) with question-only plans ( 𝑛 = 100 
+
+per task). Early commits after two arrivals; Shared uses complete-input shared history. Δ is CEA minus Early [paired 95% CI]. 
+
+CEA retains complete-input stability and answer quality with these generated dependencies. Excess acquisition disagreement is 0.6, −0.2 , and 1.0 pp on 2Wiki, HotpotQA, and MuSiQue, compara-ble to the shared-history control that waits for all inputs (Figure 4a; Appendix E). Accuracy is also comparable to that control, while exceeding early commitment by 12.6 pp on 2Wiki and 3.6 pp on HotpotQA, with a −0.1 pp change on MuSiQue (Table 4; Appendix Table E3). CEA obtains its coordination structure from the agent’s own retrieval calls, extending stable acquisition beyond annotated chains. 
+
+## 5.3 Useful Evidence and Efficient Reasoning 
+
+On the controlled two-domain task, withheld-support recovery measures whether stable acquisition remains useful (Section 3.3). CEA raises recovery from 79.6% to 86.4% with DeepSeek V4 and from 63.0% to 81.4% in the matched GPT evaluation, relative to complete-input native@6 . The gain comes mainly from more fre-quent productive searches. CEA’s corresponding accuracies are 90.5% versus 89.8% and 87.7% versus 76.4%, respectively (Appen-dix Tables E1 and E2). We next isolate the contribution of private histories. A matched 100-question GPT control makes six note-taking calls over canon-ically ordered evidence for the full question and passes the shared history to both subquestion decisions. CEA retains only each do-main’s evidence and notes. The reasoning-call structure, allocation, feedback, and synthesis are matched. Both use 9.9 calls per trajec-tory, but CEA uses 6,877 input tokens versus 11,505, a 40.2% re-duction, with accuracies of 87.3% and 86.0% (Figure 4b). Keeping histories local avoids repeatedly carrying other subquestions’ evi-dence and notes into later calls. By combining subquestion outputs only at final synthesis, CEA uses the same dependency boundaries to stabilize reasoning and limit the context carried through local calls. CEA can also coordinate different local reasoning programs. In-cremental note-taking raises primary accuracy from 67.2% with Batch to 90.5%; GPT Batch reaches 89.5% versus 87.3% with incre-mental reasoning (Appendix Table E2). GPT acquisition contrasts remain near repeat variation with CEA, CEA (Batch), and shared history. CEA’s coordination rules accommodate either program, al-lowing local reasoning to be chosen for answer quality while pre-serving stable acquisition. 
+
+## 5.4 Progress through Local Completion 
+
+We time the same CEA program under two release rules. Local com-pletion starts each domain’s reasoning once all its inputs arrive; the global barrier waits for all initial evidence. On the two-domain task, first subquestion decisions finish 8.7 s earlier with GPT (100 ques-tions) and 8.3 s earlier with DeepSeek V4 (20 questions). Across 800 matched GPT pairs, final-response time falls from 27.3 to 26.5 s, a paired 3.1% reduction [2.4, 3.8]. Accuracy is 88.3% with local com-pletion and 88.1% with the barrier. DeepSeek V4 saves 3.9% [1.9, 5.9] in response time (Figure 4c). Local reasoning can finish during delivery, but final synthesis waits for all branch outputs and selected retrieval feedback (Sec-tion 4.3). This explains why local decisions advance more than fi-nal responses. All three staggered arrival profiles show positive mean savings in both agents, while simultaneous delivery gives es-sentially none (Appendix Table E2). This pattern ties the speedup to overlap between reasoning and delivery. Appendix Table E3 re-ports when the shared search budget permits retrieval to begin. 
+
+## 6 Related Work 
+
+Evidence acquisition in search agents. Interactive search treats queries as evolving with acquired information [4]. Language-model search agents build on neural retrieval [18] and gener-ation conditioned on retrieved evidence [13, 22]. Adaptive re-trieval [2, 14, 15], browsing agents [23, 28], and learned tool-use policies [5, 16, 31] decide when and what to retrieve during reason-ing. Decomposition and interleaved reasoning guide subsequent queries [29, 36, 42]. GAIA, AgentBench, and BrowseComp eval-uate general-assistant tasks, interactive environments, and diffi-cult Web information seeking [25, 27, 38]. We complement these evaluations by examining evidence-path stability across delivery schedules. 
+
+Asynchronous execution and timing sensitivity. ReWOO sepa-rates planning, tool execution, and synthesis through evidence dependencies [39]. LLMCompiler dispatches dependency-ready tasks concurrently [20], and RAG-R1 learns multi-query paral-lelism [34]. AsyncLM incorporates tool returns into ongoing gen-eration [8], while Speculative Interaction Agents reason during outstanding calls and revise pending work [11]. Demonstration order [26], evidence position [24], and irrelevant context [33] influence reasoning. Multi-turn studies identify retained assump-tions [21] and divergent information-seeking paths [12]. Concur-rent work on ChronosAttack studies timing attacks on authentic tool responses [37]. Its causal barrier buffers a decision’s obser-vations for canonical presentation, sharing the complete-input waiting principle of our global-barrier control. We trace how tim-ing affects subsequent corpus access. CEA coordinates local evi-dence dependencies and shared search allocation while allowing independent branches to progress. 
+
+Confluence and dependency coordination. Concurrency theory characterizes when execution order can vary without changing results. Kahn networks establish determinism under a fixed com-munication discipline [17]; conflict-free replicated data types con-verge through structured updates and merges [32]. CALM links coordination-free consistency to monotonicity [1, 9], while invari-ant confluence characterizes coordination requirements for appli-cation invariants [3]. Recent work analyzes shared-state anomalies and concurrent external effects in multi-agent systems [19]. CEA 
+
+> 8
+
+The Scheduler Is a Hidden Retriever 
+
+addresses stochastic search, where retrieval supplies later reason-ing inputs and locally stable proposals can still compete for a shared budget. By coordinating local evidence and shared search, CEA preserves the joint distribution of decisions, acquisitions, and answers. 
+
+## 7 Conclusion 
+
+Delivery timing shapes which evidence search agents acquire from identical initial inputs, with differences that persist through in-put completion and a second search. Timing influences both the evidence available when queries are formed and which proposed query receives a shared search slot. Acquisition stability captures the reproducibility of the evidence behind an answer, complement-ing task accuracy. Our acquisition-regret bound explains why invariance at a fixed early arrival count can restrict the use of informative evidence already received. CEA instead coordinates local evidence com-pletion and shared search allocation. For a fixed plan and stable conditional response law, it guarantees joint invariance of deci-sions, acquisitions, and answers while allowing independent work to proceed. With question-only plans, CEA retains acquisition sta-bility and answer quality comparable to complete-input controls. Matched evaluations show lower context cost with private his-tories and earlier decisions and responses with local completion. Coordinating each decision’s evidence and resource dependencies supports useful, reproducible acquisition without a global barrier while independent branches progress. 
+
+## References 
+
+[1] Peter Alvaro, Neil Conway, Joseph M. Hellerstein, and William R. Marczak. 2011. Consistency Analysis in Bloom: a CALM and Collected Approach. In Pro-ceedings of the Fifth Biennial Conference on Innovative Data Systems Research .https://dsf.berkeley.edu/papers/cidr11-bloom.pdf [2] Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi. 2024. Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection. In International Conference on Learning Representations . https: //openreview.net/forum?id=hSyW5go0v8 [3] Peter Bailis, Alan Fekete, Michael J. Franklin, Ali Ghodsi, Joseph M. Hellerstein, and Ion Stoica. 2014. Coordination Avoidance in Database Systems. Proceedings of the VLDB Endowment 8, 3 (2014), 185–196. doi:10.14778/2735508.2735509 [4] Marcia J. Bates. 1989. The Design of Browsing and Berrypicking Techniques for the Online Search Interface. Online Review 13, 5 (1989), 407–424. doi:10.1108/ eb024320 [5] Mingyang Chen, Linzhuang Sun, Tianpeng Li, Haoze Sun, Yijie Zhou, Chen-zheng Zhu, Haofen Wang, Jeff Z. Pan, Wen Zhang, Huajun Chen, Fan Yang, Zenan Zhou, and Weipeng Chen. 2025. ReSearch: Learning to Reason with Search for LLMs via Reinforcement Learning. In Advances in Neural Informa-tion Processing Systems , Vol. 38. doi:10.52202/085713-2858 [6] Xi Chen, Adityanand Guntuboyina, and Yuchen Zhang. 2016. On Bayes Risk Lower Bounds. Journal of Machine Learning Research 17, 218 (2016), 1–58. https: //www.jmlr.org/papers/v17/16-185.html [7] Bradley Efron. 1979. Bootstrap Methods: Another Look at the Jackknife. The Annals of Statistics 7, 1 (1979), 1–26. doi:10.1214/aos/1176344552 [8] In Gim, Seung-seob Lee, and Lin Zhong. 2024. Asynchronous LLM Function Calling. arXiv:2412.07017 [cs.CL] [9] Joseph M. Hellerstein and Peter Alvaro. 2020. Keeping CALM: When Distributed Consistency Is Easy. Commun. ACM 63, 9 (2020), 72–81. doi:10.1145/3369736 [10] Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. 2020. Constructing A Multi-hop QA Dataset for Comprehensive Evaluation of Reason-ing Steps. In Proceedings of the 28th International Conference on Computational Linguistics . International Committee on Computational Linguistics, 6609–6625. doi:10.18653/v1/2020.coling-main.580 [11] Coleman Hooper, Minwoo Kang, Suhong Moon, Nicholas Lee, Eric Wen, John Wawrzynek, Michael W. Mahoney, Yakun Sophia Shao, Amir Gholami, and Kurt Keutzer. 2026. Speculative Interaction Agents: Building Real-Time Agents with Asynchronous I/O and Speculative Tool Calling. arXiv:2605.13360 [cs.LG] [12] Yepeng Huang, Jiawen Zhang, Michelle Dai, Xiaorui Su, Shanghua Gao, Zi Wang, and Marinka Zitnik. 2026. Do LLMs Know What to Ask and When? Evaluating Multi-Turn Information Seeking. arXiv:2608.14808 [cs.AI] [13] Gautier Izacard and Edouard Grave. 2021. Leveraging Passage Retrieval with Generative Models for Open Domain Question Answering. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume . Association for Computational Linguistics, 874–880. doi:10.18653/v1/2021.eacl-main.74 [14] Soyeong Jeong, Jinheon Baek, Sukmin Cho, Sung Ju Hwang, and Jong C. Park. 2024. Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Hu-man Language Technologies (Volume 1: Long Papers) . Association for Computa-tional Linguistics, 7036–7050. doi:10.18653/v1/2024.naacl-long.389 [15] Zhengbao Jiang, Frank Xu, Luyu Gao, Zhiqing Sun, Qian Liu, Jane Dwivedi-Yu, Yiming Yang, Jamie Callan, and Graham Neubig. 2023. Active Retrieval Aug-mented Generation. In Proceedings of the 2023 Conference on Empirical Meth-ods in Natural Language Processing . Association for Computational Linguistics, 7969–7992. doi:10.18653/v1/2023.emnlp-main.495 [16] Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon, Sercan Ö. Arık, Dong Wang, Hamed Zamani, and Jiawei Han. 2025. Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning. In Second Conference on Language Modeling . https://openreview.net/forum?id=Rwhi91ideu [17] Gilles Kahn. 1974. The Semantics of a Simple Language for Parallel Pro-gramming. In Information Processing 74: Proceedings of the IFIP Congress .North-Holland, 471–475. https://www.cs.columbia.edu/~sedwards/papers/ kahn1974semantics.pdf [18] Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense Passage Retrieval for Open-Domain Question Answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguis-tics, 6769–6781. doi:10.18653/v1/2020.emnlp-main.550 [19] Sajjad Khan. 2026. Verified Detection and Prevention of Concurrency Anomalies in Multi-Agent Large Language Model Systems. arXiv:2606.17182 [cs.LG] [20] Sehoon Kim, Suhong Moon, Ryan Tabrizi, Nicholas Lee, Michael W. Mahoney, Kurt Keutzer, and Amir Gholami. 2024. An LLM Compiler for Parallel Function Calling. In Proceedings of the 41st International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 235) . PMLR, 24370–24391. https: //proceedings.mlr.press/v235/kim24y.html [21] Philippe Laban, Hiroaki Hayashi, Yingbo Zhou, and Jennifer Neville. 2026. LLMs Get Lost In Multi-Turn Conversation. In International Conference on Learning Representations . https://openreview.net/forum?id=VKGTGGcwl6 [22] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. In Advances in Neural Infor-mation Processing Systems , Vol. 33. https://proceedings.neurips.cc/paper/2020/ hash/6b493230205f780e1bc26945df7481e5-Abstract.html [23] Xiaoxi Li, Guanting Dong, Jiajie Jin, Yuyao Zhang, Yujia Zhou, Yutao Zhu, Peitian Zhang, and Zhicheng Dou. 2025. Search-o1: Agentic Search-Enhanced Large Reasoning Models. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguis-tics, 5420–5438. doi:10.18653/v1/2025.emnlp-main.276 [24] Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2024. Lost in the Middle: How Language Models Use Long Contexts. Transactions of the Association for Computational Linguistics 
+
+12 (2024), 157–173. doi:10.1162/tacl_a_00638 [25] Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu Lei, Hanyu Lai, Yu Gu, Hangliang Ding, Kaiwen Men, Kejuan Yang, Shudan Zhang, Xiang Deng, Aohan Zeng, Zhengxiao Du, Chenhui Zhang, Sheng Shen, Tianjun Zhang, Yu Su, Huan Sun, Minlie Huang, Yuxiao Dong, and Jie Tang. 2024. AgentBench: Evaluating LLMs as Agents. In International Conference on Learning Representations . https: //openreview.net/forum?id=zAdUB0aCTQ [26] Yao Lu, Max Bartolo, Alastair Moore, Sebastian Riedel, and Pontus Stenetorp. 2022. Fantastically Ordered Prompts and Where to Find Them: Overcoming Few-Shot Prompt Order Sensitivity. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Association for Computational Linguistics, 8086–8098. doi:10.18653/v1/2022.acl-long.556 [27] Grégoire Mialon, Clémentine Fourrier, Craig Swift, Thomas Wolf, Yann LeCun, and Thomas Scialom. 2024. GAIA: A Benchmark for General AI Assistants. In 
+
+International Conference on Learning Representations . https://openreview.net/ forum?id=fibxvahvs3 [28] Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse, Shantanu Jain, Vineet Kosaraju, William Saunders, Xu Jiang, Karl Cobbe, Tyna Eloundou, Gretchen Krueger, Kevin Button, Matthew Knight, Benjamin Chess, and John Schulman. 2021. WebGPT: Browser-assisted question-answering with human feedback. arXiv:2112.09332 [cs.CL] 9Ren et al.                                                  
+
+> [29] Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah Smith, and Mike Lewis. 2023. Measuring and Narrowing the Compositionality Gap in Language Models. In Findings of the Association for Computational Linguistics: EMNLP 2023 .Association for Computational Linguistics, 5687–5711. doi:10.18653/v1/2023. findings-emnlp.378 [30] Stephen Robertson and Hugo Zaragoza. 2009. The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval
+> 3, 4 (2009), 333–389. doi:10.1561/1500000019 [31] Timo Schick, Jane Dwivedi-Yu, Roberto Dessi, Roberta Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023. Toolformer: Language Models Can Teach Themselves to Use Tools. In Advances in Neural Information Processing Systems , Vol. 36. 68539–68551. doi:10.52202/ 075280-2997 [32] Marc Shapiro, Nuno Preguiça, Carlos Baquero, and Marek Zawirski. 2011. Conflict-Free Replicated Data Types. In Stabilization, Safety, and Security of Dis-tributed Systems (Lecture Notes in Computer Science, Vol. 6976) . Springer, 386–400. doi:10.1007/978-3-642-24550-3_29 [33] Freda Shi, Xinyun Chen, Kanishka Misra, Nathan Scales, David Dohan, Ed H. Chi, Nathanael Schärli, and Denny Zhou. 2023. Large Language Models Can Be Easily Distracted by Irrelevant Context. In Proceedings of the 40th International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 202) . PMLR, 31210–31227. https://proceedings.mlr.press/v202/shi23a.html [34] Zhiwen Tan, Jiaming Huang, Qintong Wu, Hongxuan Zhang, Chenyi Zhuang, and Jinjie Gu. 2025. RAG-R1: Incentivizing the Search and Reasoning Capabili-ties of LLMs through Multi-query Parallelism. arXiv:2507.02962 [cs.CL] [35] Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabhar-wal. 2022. MuSiQue: Multihop Questions via Single-hop Question Composition.
+> Transactions of the Association for Computational Linguistics 10 (2022), 539–554. doi:10.1162/tacl_a_00475 [36] Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2023. Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Association for Computational Linguistics, 10014–10037. doi:10.18653/v1/2023.acl-long.557 [37] Arash Vashagh. 2026. ChronosAttack: Adversarial Tool Scheduling Attacks on LLM Agents. arXiv:2609.27857 [cs.CR] [38] Jason Wei, Zhiqing Sun, Spencer Papay, Scott McKinney, Jeffrey Han, Isa Fulford, Hyung Won Chung, Alex Tachard Passos, William Fedus, and Amelia Glaese. 2025. BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents. arXiv:2504.12516 [cs.CL] [39] Binfeng Xu, Zhiyuan Peng, Bowen Lei, Subhabrata Mukherjee, Yuchen Liu, and Dongkuan Xu. 2023. ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models. arXiv:2305.18323 [cs.CL] [40] Yilong Xu, Zhi Zheng, Xiang Long, Yujun Cai, and Yiwei Wang. 2026. Self-Manager: Parallel Agent Loop for Long-form Deep Research. arXiv:2601.17879 [cs.CL] [41] Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan Salakhutdinov, and Christopher D. Manning. 2018. HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguistics, Brussels, Belgium, 2369–2380. doi:10.18653/v1/D18-1259 [42] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2023. ReAct: Synergizing Reasoning and Acting in Language Models. In International Conference on Learning Representations .https:// openreview.net/forum?id=WE_vluYUL-X
+
+## A Measurement Protocol 
+
+Tasks and retrieval. Questions come from the 2Wiki and MuSiQue development sets and HotpotQA’s distractor validation set. Corpus sizes are 398,354 (2Wiki), 509,315 (HotpotQA), and 117,534 (MuSiQue) paragraphs. Eligibility requires top-five re-trieval of withheld support using its original title. The agent never receives this query. Non-supporting documents retrieved with the question fill the remaining slots. Duplicate excerpts, truncated support, and answer-exposing chains are excluded; distractors are not answer-filtered. SQLite FTS5 BM25 ( 𝑘 1 = 1.2 , 𝑏 = 0.75 , equal title/body weights, ties broken by identifier) combines sorted unique Unicode alphanumeric tokens with OR, without stemming or stopword removal. A frozen tokenizer caps excerpts at 200 tokens; notes allow 256 output tokens and decisions/answers 512. 
+
+Models and probes. DeepSeek-V4-Flash uses temperature 0, top-
+
+𝑝 1, and non-thinking mode. GPT-5.6 Luna uses low reasoning effort without temperature/top-𝑝 settings. Unused early search opportunities expire, but delivery continues after answering. The completed-input probe uses the decision prompt without a budget notification. Target-eligible 𝑛 is 195, 200, 75 in Figure 2(a)–(c), and 98, 100 in Figure E1(a)–(b). 
+
+Orders and estimation. We use eight orders (canonical, adjacent swaps, half-packet rotation, reversal), two repeats per order, and fixed identifiers and text. Equation 1 weights pairs equally within questions, then questions equally. Paired strategy intervals use 10,000 question-bootstrap resamples (seed root 20260914), retain-ing orders and repeats. Recovery per search uses cluster-ratio intervals. Missing acquisitions remain NULL; missing answers score zero. 
+
+Search-budget extensions. Each extension has 100 questions, eight orders, two repeats, and two policies (3,200 trajectories). The two-search extension retains both opportunities (Section 2). The allocation experiment uses the fragmented profile below and varies only the allocation rule. First-ready selects the earliest completed search proposal. The contention extension retains the same bridge-comparison cohort and both roots, removes both ter-minal supports, and adds the question query’s four highest-ranked non-supports. 
+
+Timed execution. Twenty DeepSeek and 100 GPT questions have two repeats per policy/profile. Profiles are simultaneous; priority-domain-first/last (canonical delivery over 0–4/10–20 seconds, sin-gletons at endpoints); and fragmented (0, 4, 8, 12, 16, 20 seconds). Elapsed time spans dispatch to response; resampling retains pro-files/repeats. Pseudorandom dispatch interleaves eight trajectories with at most sixteen concurrent requests. 
+
+Persistence. Table 1 subtracts same-order from cross-order dis-tance over eligible pairs, jointly resampling numerators and de-nominators. Demand requires valid actions; direction requires two search requests. NULL actions remain unknown and are separately checked as a category. Eligible pairs, not questions, receive equal weight. 
+
+Dependency-domain construction. Distractors are assigned by unique matches to branch entities in titles, then contents. Unas-signed items fill the smaller domain in evidence-identifier order, with ties broken by branch identifier. Partitions are fixed across schedules. 
+
+Question-only plans. Planning precedes retrieval of six unique documents, three per domain in two-domain plans. Retrieval dedu-plicates the top-64 candidates, using the original question for fall-back. Retrieval calls determine document ownership. Plans and packets remain fixed across policies and schedules. Two-domain counts are 38, 5, and 8 for 2Wiki, HotpotQA, and MuSiQue, re-spectively; other plans form one chain. Schema failures use single-chain fallbacks (29, 11, and 45, respectively). All questions and pre-defined strata are retained. Each question adds one planning call, averaging 171 input and 147 output tokens. 
+
+> 10 The Scheduler Is a Hidden Retriever
+
+Strategy Search Rec./S Rec./all Acc. Strict No alias 
+
+DeepSeek V4 / Bridge comparison 𝑛 = 200 
+
+native@2 93.91 14.04 13.19 59.53 49.09 59.53 
+
+native@6 83.84 94.93 79.59 89.84 77.53 89.84 
+
+wait_all@2 63.78 5.44 3.47 68.97 — —
+
+wait_all@6 0.03 100.0 † 0.03 66.44 — —CEA (Batch) 42.16 90.96 38.34 67.22 57.91 67.22 
+
+CEA 93.19 92.69 86.38 90.53 78.53 90.53 
+
+DeepSeek V4 / Compositional 𝑛 = 200 
+
+native@2 83.72 37.33 31.25 21.47 21.06 15.41 
+
+native@6 70.66 92.13 65.09 38.84 38.31 27.09 
+
+wait_all@2 70.03 25.26 17.69 15.72 — —
+
+wait_all@6 17.59 72.47 12.75 11.31 — —CEA 70.50 92.07 64.91 38.75 38.22 26.69 
+
+GPT-5.6 / Compositional 𝑛 = 100 
+
+native@2 89.31 37.93 33.88 22.38 — —
+
+native@6 79.75 91.54 73.00 40.56 — —
+
+wait_all@2 90.25 40.72 36.75 28.19 — —
+
+wait_all@6 84.69 90.33 76.50 44.81 — —CEA 78.81 90.64 71.44 40.56 — —
+
+Matched GPT bridge: answer contrasts (𝑛 = 100 )
+
+native@2 +6.6 [3.3, 9.9] pp 
+
+native@6 +0.3 [−2.0, 2.8] pp CEA −0.3 [−1.2, 0.8] pp Strategy Search Rec./S Rec./all Acc. Strict No alias 
+
+DeepSeek V4 / HotpotQA 𝑛 = 100 
+
+native@2 74.00 58.70 43.44 34.50 31.19 34.50 
+
+native@6 48.88 93.73 45.81 38.12 35.62 38.12 
+
+wait_all@2 57.63 47.61 27.44 29.19 — —
+
+wait_all@6 8.06 82.95 6.69 20.25 — —
+
+DeepSeek V4 / MuSiQue 𝑛 = 100 
+
+native@2 73.62 19.02 14.00 27.12 27.12 26.44 
+
+native@6 49.44 34.01 16.81 26.06 26.06 25.25 
+
+wait_all@2 71.19 14.22 10.12 18.81 — —
+
+wait_all@6 12.12 20.62 2.50 13.31 — —
+
+GPT-5.6 / Bridge comparison 𝑛 = 100 
+
+native@2 84.81 23.73 20.12 41.25 — —
+
+native@6 70.00 88.66 62.06 77.31 — —
+
+wait_all@2 76.06 19.47 14.81 61.25 — —
+
+wait_all@6 46.62 87.13 40.62 74.06 — —
+
+Answer disagreement with DeepSeek V4 (𝑛 = 200 )Strategy Same (%) Cross (%) Centered (pp) 
+
+Bridge comparison: two domains 
+
+native@2 32.62 35.17 +2.54 [0.68, 4.45] 
+
+native@6 9.56 9.50 −0.06 [−0.78, 0.68] 
+
+CEA 9.69 9.11 −0.58 [−1.53, 0.35] 
+
+Compositional: one domain 
+
+native@2 14.44 26.58 +12.14 [9.82, 14.54] 
+
+native@6 25.19 26.48 +1.29 [−0.21, 2.80] 
+
+CEA 23.81 24.77 +0.96 [−0.30, 2.29] 
+
+Table E1: Strategy outcomes (%) and answer disagreement. Rec./S and Rec./all report recovery per search and over all runs; 
+
+> †
+
+one search. Strict removes normalization; No alias removes aliases. Centered is cross-order minus same-order disagreement [95% CI], treating NULL as a category. Dashes mark unreported values. Matched GPT contrasts use the replication in Table E2. 
+
+DeepSeek V4 ( 𝑛 = 20 ) GPT-5.6 ( 𝑛 = 100 )Arrival profile Local (s) Barrier (s) Saved (s) Local (s) Barrier (s) Saved (s) Simultaneous 22.7 22.7 −0.1 [−1.4, 1.4] 12.4 12.4 0.0 [−0.2, 0.3] 
+
+Priority domain first 40.6 42.0 +1.5 [−0.5, 3.4] 30.9 32.3 +1.4 [0.9, 1.9] 
+
+Priority domain last 40.3 42.5 +2.2 [0.7, 3.6] 31.5 32.3 +0.8 [0.5, 1.2] 
+
+Fragmented 40.2 42.5 +2.3 [1.4, 3.2] 31.1 32.3 +1.2 [0.8, 1.6] 
+
+All profiles 36.0 37.4 +1.5 [0.7, 2.2] 26.5 27.3 +0.8 [0.6, 1.0] 
+
+Matched GPT replication ( 𝑛 = 100 )
+
+Policy Acq. (pp) Acc. (%) Recovery (%) 
+
+native@2 24.4 41.0 20.1 
+
+native@6 1.4 76.4 63.0 
+
+CEA −0.7 87.7 81.4 
+
+CEA − native@6 accuracy: 11.3 [6.7, 16.0] pp. 
+
+GPT reasoning controls ( 𝑛 = 100 )
+
+Policy Acq. (pp) Acc. (%) Calls Input tokens CEA 0.5 87.3 9.9 6877 
+
+CEA (Batch) 0.2 89.5 3.7 2535 
+
+Shared history −0.2 86.0 9.9 11505 
+
+CEA − Shared accuracy: 1.3 [ −1.8 , 4.6] pp. CEA − Batch accuracy: −2.3 [−4.7 , 0.2] pp. 
+
+Table E2: Same-program timing and matched GPT-5.6 controls. Saved time is barrier minus local [paired 95% CI]. Recovery is over all runs; calls and input tokens are means. Lower panels are separate matched comparisons. 
+
+Trajectory coverage. The original 60,200 trajectories (59,200 for-mal, 1,000 reference) include 108 violations. Replication adds 4,800 complete runs; timing adds 480 (seven violations, 160 matched pairs). Budget extensions add 6,400 with full acquisition cover-age; one missing first-ready answer scores zero. The 33,600 GPT expansion trajectories (12,800 cross-task, 4,800 reasoning, 1,600 timing, 14,400 automatic) include 33,291 complete runs, 307 viola-tions, and two failures. Contention adds 3,200 complete runs; GPT bridge batch controls add 3,200 with three violations. Failures are retained; 156 structural pilots, three pilot plans, and 16 contention pilots are excluded.        
+
+> 11 Ren et al. Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> 010 20 30
+> a2Wiki
+> Compositional
+> Complete Early Follow-up
+> Batch 6/6 Notes 6/6 Batch 2/6 Notes 2/6 Probe 6/6
+> b2Wiki
+> Bridge comparison
+> Complete Early Follow-up
+> Excess disagreement (pp)
+> What to search for Documents retrieved
+
+Figure E1: GPT-5.6 replication of Figure 2. Conditions, sym-bols, and scales are identical. Early decisions and their completed-input probes retain excess disagreement.      
+
+> Fixed-packet acquisition contrasts (pp)
+> Task Native@2 Native@6 Batch@2 Batch@6 HotpotQA
+
+12.7 3.3 12.5 1.2  
+
+> MuSiQue
+
+11.7 1.3 11.2 0.1   
+
+> Automatic plans: complete-input comparison (pp)
+> Task Shared acq.
+
+Δ acq. Δ acc. 2Wiki −1.3 +1.9 [−1.1, 5.0] +3.2 [−1.0, 7.6]  
+
+> HotpotQA
+
+0.0 −0.2 [−2.2, 1.8] +0.5 [−0.9, 1.9]  
+
+> MuSiQue
+
+1.3 −0.4 [−3.0, 2.2] +1.0 [−1.0, 3.0] 
+
+Table E3: GPT-5.6 acquisition and accuracy comparisons ( 𝑛 = 100 per task). Acq. denotes acquisition contrast, Acc. accuracy, and Batch wait_all . Δ is CEA minus Shared [paired 95% CI].  
+
+> Paired fixed-packet contrasts (Native@2
+
+− Native@6). 9.4 [5.9, 12.9] pp (HotpotQA) and 10.4 [6.7, 14.3] pp (MuSiQue).  
+
+> Search release (timed GPT). CEA: 732 searches/800 runs, mean position 5.7; 118 (16.1%) before completion. All 733 barrier searches start at position 6.
+
+## B Proofs and Input Checks 
+
+Prefix characterization. Exact decision invariance equates laws along every edge and hence every path. Conversely, a packet’s pre-fixes share a component. Thus invariance is equivalent to 𝜇 𝑆 = 𝜈 𝑐(𝑆) 
+
+for component 𝑐(𝑆) . If all 𝑛 -subsets are admissible, single-item re-placements connect the graph ( 𝑚 + 1 ≤ 𝑛 ), forcing a constant law. 
+
+Acquisition utility and capacity. For query or answer actions 𝑎 
+
+and utility 𝑢 𝐸 (𝑎) ∈ [0, 1] , set ℓ𝐸 (𝑎) = sup 𝑎 ′ 𝑢 𝐸 (𝑎 ′) − 𝑢 𝐸 (𝑎) . With support recovery as utility, each individually recoverable target has maximal utility one. Search capacity 𝑏 < 𝑘 means ∑𝑖 𝑢 𝐸 𝑖 (𝑎) ≤ 𝑏 
+
+for every action. Hence Γ ≥ 1 − 𝑏/𝑘 , giving average and maximum regret at least [1 − 𝑏/𝑘 − 𝜌 𝐺 𝜀] + over the selected pairs. 
+
+Matching construction. Let the admissible packets be 𝐸 𝑖 = 𝐵 ∪ 𝑈 𝑖 
+
+(𝑘 ≥ 2 ), with |𝐵| = 𝑚 , |𝑈 𝑖 | = 𝑛 − 𝑚 , and 𝐵, 𝑈 1, … , 𝑈 𝑘 pairwise disjoint. Their prefix cliques share only 𝐵 . Each selected 𝑆 𝑖 ≠ 𝐵 
+
+identifies packet 𝑖 through an item from 𝑈 𝑖 . Distances are one to 𝐵 
+
+and two to prefixes exclusive to other packets, giving 𝜌 𝐺 = 1 .Assign distinct targets to packets and one query to each 𝑏 -subset (1 ≤ 𝑏 < 𝑘 ), recovering exactly that subset; other actions recover none. Then Γ = 1 − 𝑏/𝑘 . Let 𝜈 be uniform over queries, with 
+
+𝜈 +𝑖 , 𝜈 −𝑖 conditioned on including/excluding target 𝑖 . Set 𝑝 = 𝑏/𝑘 ,
+
+𝛿 = min {𝜀, 1 − 𝑝} , and 
+
+𝜇 𝐵 = 𝜈, 𝜇 𝑉 = (𝑝 + 𝛿)𝜈 +𝑖 + (1 − 𝑝 − 𝛿)𝜈 −𝑖 
+
+for every prefix 𝑉 ≠ 𝐵 exclusive to packet 𝑖 . Disjoint conditional supports give TV (𝜇 𝑉 , 𝜈) = 𝛿 ≤ 𝜀 ; other edges join identical laws. Each selected prefix recovers its target with probability 𝑝 + 𝛿 , so 
+
+𝑟 𝐸 𝑖 (𝑆 𝑖 ) = 1 − 𝑝 − 𝛿 = [1 − 𝑏/𝑘 − 𝜀] +.
+
+This attains Equation 3 on informative prefixes for every 𝜀 ≥ 0 ,including 𝑛 = 6, 𝑚 = 2 .
+
+Contraction under scoring. Fix question, packet, settings, and nonce. Let 𝑃 𝜋 be the joint acquisition/decision/answer law, 𝑔 
+
+select the answer, and ℎ score binary correctness. Accuracy is 
+
+𝑎 𝜋 = 𝔼 𝑃 𝜋 [ℎ ∘ 𝑔] , giving 
+
+|𝑎 𝜋 − 𝑎 𝜎 | = TV ((ℎ ∘ 𝑔) #𝑃 𝜋 , (ℎ ∘ 𝑔) #𝑃 𝜎 )≤ TV (𝑔 #𝑃 𝜋 , 𝑔 #𝑃 𝜎 )≤ TV (𝑃 𝜋 , 𝑃 𝜎 ). 
+
+(6) Equality follows from Bernoulli total variation, and deterministic mappings give the inequalities. Distinct acquisitions can yield the same correct answer, with retrieval TV of one and answer TV of zero. Total variation here compares outcome distributions; Equa-tion 1 measures excess pairwise disagreement. 
+
+Fixed-priority release. Under fixed priority, an available search proposal from domain 𝑗 is eligible exactly when every 𝑖 < 𝑗 has declined. Pending predecessors can preempt 𝑗 ; successors cannot. Selecting no search requires all domains to decline. The winner becomes eligible at max 𝑖≤𝑗 ⋆ 𝜏 𝑖 (Equation 5). 
+
+Input checks. Canonical JSON checks confirm identical batch in-puts and incremental non-model messages across orders at fixed question, partition, repeat, domain, and call. All 300 planner inputs contain only questions and common instructions. 
+
+## C Repeat Controls and Interpretation 
+
+Repeats use distinct nonces shared across orders. Mixing same-repeat distance 𝑎 and different-repeat distance 𝑐 equally across orders, but using only 𝑐 within orders, gives contrast (𝑎 − 𝑐)/2 
+
+even for identical inputs. Equation 1 uses different-repeat pairs in both terms. For independent categorical draws with laws 𝑝 𝜋𝑟 , let 
+
+𝛿 𝑟 = 𝑝 𝜋𝑟 − 𝑝 𝜎𝑟 . Then 
+
+𝔼[̂Δ 𝜋𝜎 ] = 12 𝛿 T 
+
+> 0
+
+𝛿 1. (7) Invariance for each nonce implies zero expected contrast, but the converse fails because nonce-specific effects can cancel. We retain negative contrasts. 
+
+> 12 The Scheduler Is a Hidden Retriever
+
+## D Answer Scoring 
+
+Scoring case-folds Unicode, removes ASCII punctuation and whole-word a/an/the , and normalizes whitespace. Empty or miss-ing answers score zero. Exact matching uses answer-ID-linked 2Wiki aliases/demonyms, official MuSiQue aliases, and canonical HotpotQA answers, with string matching for numbers and dates. All 452 numerically parseable matches in the primary audit agreed in value. Oracle/closed-book reference accuracies (%, 𝑛 = 100 ) are 94/68 (bridge), 49/21 (compositional), 51/23 (HotpotQA), and 51/16 (MuSiQue) for DeepSeek; GPT compositional values are 45/31. 
+
+## E Additional Results 
+
+In the primary evaluation ( 𝑛 = 200 ), early commitment yields ex-cess disagreement in support recovery of 7.7 [5.9, 9.7] pp (bridge comparison) and 19.3 [16.9, 21.7] pp (compositional). With auto-matic plans, acquisition-contrast reductions (Early − CEA) are 19.8 [16.5, 23.1], 14.3 [10.3, 18.3], and 7.9 [4.8, 11.3] pp on 2Wiki, Hot-potQA, and MuSiQue, respectively. In Table 3a, fixed/first-ready recovery is 81.8/84.0%, with 0.91 searches for both. In (b), contention is 80.9/82.5%, either-target recovery 84.4/86.6%, and per-domain recovery 42.2/43.3%. First-ready − fixed differences are 0.0 [ −2.6 , 2.6] pp in query-target contrast, 24.0 [20.8, 27.2] pp in selected-branch contrast, and −0.4 
+
+[−4.0 , 3.4] pp in accuracy. Both-target recovery is 0/1,588 for fixed priority and 0/1,587 for first-ready searches.

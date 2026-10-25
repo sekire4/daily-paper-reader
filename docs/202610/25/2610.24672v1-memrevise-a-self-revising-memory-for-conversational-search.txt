@@ -1,0 +1,890 @@
+Title: MemRevise: A Self-Revising Memory for Conversational Search
+
+URL Source: https://arxiv.org/pdf/2610.24672v1
+
+Published Time: Tue, 20 Oct 2026 00:54:13 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+## MEM REVISE : A Self-Revising Memory for Conversational Search 
+
+Mohammed Ali Abdelrahman Abdallah Adam Jatowt 
+
+University of Innsbruck, Austria 
+
+{mohammed.ali, abdelrahman.abdallah, adam.jatowt}@uibk.ac.at 
+
+Abstract 
+
+In conversational search, users correct misun-derstandings, revise their requests and return to earlier topics, so part of the history no longer re-flects what they want. Existing benchmarks do not isolate such turns. Current search methods either re-read the history or keep a record of every turn, and none of them marks earlier con-tent as dropped. We introduce C ONV REVISE , a benchmark of 4,429 test questions in six tiers of returns and revisions over TopiOCQA, CORAL and OR-QuAC. We also propose M EM REVISE ,which combines a revisable memory graph, a 3B writer distilled from teacher memories, and a search guided by the memory. The writer reads each turn once and adds a node that records its topic, its facts and the operations it performs, such as adding, abandoning or reacti-vating a topic. Topic status follows from these operations, so a dropped topic keeps its facts and can be restored. With a frozen retriever, MEM REVISE reaches a mean MRR@10 of 0.701, against 0.589 for the best competitor, ConvSearch-R1-FT, and 0.617 for a writer dis-tilled the same way without the memory, so the memory and the steps built on it add 0.084. MEM REVISE is significantly better on Topi-OCQA and OR-QuAC, statistically tied with prompted 32B rewriters on CORAL, and never significantly behind the strongest competitor of any tier. 1
+
+1 Introduction 
+
+Conversational search enables users to navigate complex information needs through sequential, multi-turn dialogue. Because human interaction is highly contextual, users naturally omit established entities in follow-up queries, making context reso-lution a central focus of conversational information retrieval. Existing methodologies typically address this by rewriting the utterance into a standalone  
+
+> 1
+
+CONV REVISE , our code and the trained writers will be released upon publication.                                         
+
+> ÜConversation (illustrative)
+> when did apollo 11 land on the moon? 1July 20, 1969. Æ
+> who walked on it? 2Neil Armstrong first, then Buzz Aldrin. Æ
+> where did he grow up? 3Montclair, New Jersey. Æpanswered for Aldrin
+> no, i meant the second guy. . . wait, no, the first one. sorry 4Wapakoneta, Ohio. Æ
+> and what did he do before nasa? 5He was a navy pilot and a test pilot. Æ
+> back to the mission, where did it land? 6The Sea of Tranquility. Æ
+> sorry, i meant the next mission, 12 7The Ocean of Storms. Æ
+> ÛWhat turns 4–7 ask for
+> 4self-repair where did Neil Armstrong grow up? pBuzz Aldrin
+> 5follow-up what did Neil Armstrong do before NASA? pBuzz Aldrin
+> 6return where did Apollo 11 land?
+> 7value revision where did Apollo 12 land? pApollo 11
+
+Figure 1: A running example, written for illustration. The system answers turn 3 for the wrong astronaut, and in turn 4 the user corrects it after first misspeaking. Turns 5–7 are a follow-up, a return and a value revision. To search well, a system must resolve every turn to the topic the user means (bold) and set aside the topics the user rejected ( ×). 
+
+query (Elgohary et al., 2019; Lin et al., 2020; Mo et al., 2024a) or projecting the dialogue history into a unified dense representation (Yu et al., 2021; Mao et al., 2024). However, these approaches implicitly assume that conversational context accumulates as a purely additive process. In practice, search be-haviour is highly dynamic: users frequently correct system misunderstandings, as studied in spoken dia-logue (Hirschberg et al., 2001; Litman et al., 2006), revise their earlier requests, or return to previously explored topics. Consequently, after a correction or a revision, part of the established history no longer reflects what the user wants, and after a return, ear-lier context becomes relevant again. Since existing conversational search methods rely on full-history encoding or append-only memory, they lack an ex-plicit way to mark which topics have been dropped or restored. Figure 1 illustrates the challenge. The conversa-tion begins with Apollo 11 and the two astronauts who walked on the Moon. When the user asks, arXiv:2610.24672v1 [cs.IR] 17 Oct 2026 “where did he grow up?”, the system answers for Buzz Aldrin. The user replies, “no, i meant the sec-ond guy. . . wait, no, the first one. sorry”. This turn asks no explicit question, names no person, and im-mediately revises its own correction, yet it changes how the previous turn should be interpreted. The system must recover the open question, reject the earlier interpretation, and resolve “the first one” to Neil Armstrong. Later turns continue to shift the relevant context, from a follow-up about Arm-strong to a return to the mission and then a switch to Apollo 12. Existing methods do not explicitly represent such changes. Rewriters (Lin et al., 2020; Mo et al., 2023, 2024a; Zhu et al., 2025) are designed to re-solve missing context in the current query, but here the user provides only a correction and the intended query must be recovered from an earlier turn. Con-versational dense retrievers (Yu et al., 2021; Mao et al., 2024) encode the dialogue without marking which earlier context is no longer valid. Memory-based methods such as CMT-RAG (Zhou et al., 2026) preserve conversational history, but do not distinguish a rejected topic from one that remains relevant. We therefore propose M EM REVISE , a conversa-tional memory that later turns can revise. It reads each turn once and records its topic, associated facts, and operations such as adding, abandoning, or reactivating a topic. The status of each topic follows from these operations, allowing a dropped topic to retain its information and later become active again. A 3B writer, distilled from teacher-generated memories, updates the memory with one call per turn and produces the search query, which is combined with evidence from the memory during retrieval. In Figure 2, the writer drops Aldrin after the correction, makes Armstrong the current topic, and recovers the query “where did Neil Armstrong grow up?”. Evaluating this behaviour requires data that ex-isting benchmarks do not isolate. A screen for phrases such as “I meant” and “not that one” finds none among the 47,964 user turns in TopiOCQA’s training and validation conversations or the 6,480 user turns in CORAL’s evaluation conversations. Although this screen captures only explicit correc-tions, it suggests that such turns are poorly repre-sented in these datasets. We therefore introduce CONV REVISE , a benchmark of 4,429 test ques-tions over TopiOCQA, CORAL, and OR-QuAC. Its six tiers cover returns and revisions, ranging from naturally occurring returns in TopiOCQA to corrections written with language models. We compare M EM REVISE with seven methods: trained rewriters, a conversational dense retriever, and methods prompted on a 32B model. With a frozen retriever, M EM REVISE reaches a mean MRR@10 of 0.701. It significantly outperforms the strongest competitor on TopiOCQA (0.686 vs. 0.620) and OR-QuAC (0.783 vs. 0.594), and achieves the highest score on CORAL (0.634), al-though the difference is not statistically significant. A writer distilled in the same way, but used without the memory and its search steps, trails M EM RE- 
+
+> VISE
+
+by 0.084. Our contributions are as follows. (1) We study revisions and returns in conversational search and introduce C ONV REVISE , a benchmark of 4,429 test questions in six tiers over three corpora (§3). 
+
+(2) We propose M EM REVISE , a revisable mem-ory written turn by turn by a 3B writer distilled from teacher-generated memories, together with a retrieval procedure that combines the writer’s query with evidence from memory (§4). (3) We compare MEM REVISE with seven methods, four of them also trained on our data (Appendix D). M EM RE- 
+
+> VISE
+
+significantly outperforms the strongest com-petitor in 6 of the 12 per-tier comparisons and is statistically tied in the remainder (§6). 
+
+2 Related Work 
+
+Conversational query rewriting and dense re-trieval. Conversational query rewriting turns the current question into a standalone query, with a rewriter trained on human rewrites or on retrieval feedback (Lin et al., 2020; Mo et al., 2023; Zhu et al., 2025) or with a prompted large language model (Mo et al., 2024a). Conversational dense retrieval instead encodes the current question and the earlier turns into a single query representation (Yu et al., 2021; Mao et al., 2024). Both designs read the full history at every turn and keep no state between turns. Whether an earlier request still holds must therefore be inferred again from the raw text each time, and a withdrawn request is never marked. 
+
+Conversational memory. CMT-RAG (Zhou et al., 2026) is the closest work to ours. At each turn it decomposes the question into sub-questions and stores each as a trace with its retrieved pas-sages and a reader’s answer; later turns retrieve these traces. The record is append-only, and each trace depends on a generated answer. Long-term memories for chat agents store facts and update them as new information arrives (Chhikara et al., 2025; Rasmussen et al., 2025), and Context-Agent (Hu et al., 2026) organises the dialogue history into topic branches. Like CMT-RAG, they provide con-text for a generator. Ours serves conversational search and is evaluated on retrieval. It records the conversation’s topics and what each turn did to them, and writes the search query for the topic the user currently means, even after a correction or a return. Of the conversational search methods com-pared in Table 6 (Appendix A), only M EM REVISE 
+
+reads each turn once, keeps a memory that later turns can revise and needs no generated answer. 
+
+Benchmarks. TopiOCQA (Adlakha et al., 2022) contains topic switches and returns, CORAL (Cheng et al., 2025) samples topic shifts through Wikipedia sections, and OR-QuAC (Qu et al., 2020) keeps each conversation on one article. None of these papers, nor RECOR (Ali et al., 2026a), de-scribes turns in which the user corrects or revises an earlier request. 
+
+Our contribution. Our work addresses the non-additive nature of conversational search. On the data side, we introduce C ONV REVISE to bench-mark the user corrections, revisions and returns that existing datasets do not isolate. Methodologi-cally, M EM REVISE departs from full-history and append-only models by processing each turn ex-actly once to maintain a revisable memory graph, actively isolating dropped context as user intents evolve. 
+
+3 The C ONV REVISE Benchmark 
+
+CONV REVISE evaluates whether conversational retrieval systems can maintain the correct retrieval target as user intent evolves. Each question appears as the final turn of a conversation and tests whether the system can resolve a return to an earlier topic, revise an existing interpretation, or continue from previously revised context. We build C ONV REVISE from TopiOCQA (Ad-lakha et al., 2022), CORAL (Cheng et al., 2025), and OR-QuAC (Qu et al., 2020). Each conversa-tional topic corresponds to a Wikipedia page. For TopiOCQA and OR-QuAC, the retrieval collection contains passages from that page, while CORAL uses passages from web pages cited by the cor-responding Wikipedia article. For each question,                 
+
+> Tier Final turn (example)
+> Returns
+> Return-1 when did the talk show begin? (The Panel ,after six turns about John Bishop) Return-2+ Sorry for the detour — how did the one I asked about first evolve? (the red fox, after polo and ancient Macedonia)
+> Revisions
+> Correction no, the one arthur b. rubinstein composed the music for. not the animated film about simba (WarGames , after an answer about
+> The Lion King )Follow-up can you name more muppet characters?
+> (two turns after the user leaves a detour and returns to Sesame Street )Self-repair no, i meant the whatever it takes guy. . . sorry, no, the actor who named physi-cal comedy as his big inspiration (Bryan Cranston, not Dick Van Dyke) Value revision hmm, i meant the one in 1863 (from War of 1812 to War of 1863 )
+
+Table 1: The six tiers of C ONV REVISE , each with a final turn from the test set. For each example, M EM REVISE 
+
+ranks a gold passage in the top two for all three seeds, while the five strongest competitors miss the top 10. 
+
+gold passages answer the question for the intended topic, while for written questions stale passages 
+
+belong to context that is no longer relevant, such as a rejected topic, a topic the user did not return to, or the original page before a value revision. 
+
+Tiers 
+
+CONV REVISE defines six tiers (Table 1) that cap-ture two forms of conversational change: returning to earlier context and revising the current context. 
+
+Return-1 resumes the topic discussed immediately before the current one, while Return-2+ returns to a topic at least two topics earlier. In both cases, the target is referred to indirectly through a pronoun or description rather than named explicitly, requiring the system to recover it from the dialogue history. The remaining tiers capture different forms of revision. Correction rejects one or more topics and redirects the conversation to the intended one. 
+
+Follow-up is a short question whose interpretation depends on a preceding correction or corrective return. Self-repair occurs when the user introduces a correction and then revises it within the same turn (Schegloff et al., 1977). Value revision changes a topic-defining value, shifting the retrieval target to a closely related page with a nearly identical name. Construction 
+
+CONV REVISE builds on conversations from Top-iOCQA, CORAL and OR-QuAC. The natural re-turns are original TopiOCQA turns; all other re-vision turns were generated with GPT-5.4-mini, refined with Claude Fable 5.1 and then verified individually. We construct C ONV REVISE in four main ways. 1. Natural returns use TopiOCQA turns that re-sume a topic discussed earlier in the same con-versation. 2. Built revisions start from two topics of the same type within a TopiOCQA conversation. We add a question that applies to both, initially answer it for the wrong topic, and then redirect the con-versation through a correction, self-repair, or correction followed by a short follow-up. Each example is paired with another that shares the same history but targets the alternative topic, preventing topic position from revealing the an-swer. 3. Spliced conversations take the opening of a source conversation, insert two intervening top-ics, and end with a return or correction. This cre-ates histories in which the intended topic must be recovered across competing context. 4. Value revisions extend a conversation to a closely related page whose title differs in a value, such as a number, year, or edition. The final turn changes that value and redirects the retrieval tar-get to the corresponding page. 
+
+Size and Splits 
+
+The test set contains 4,429 questions : 3,500 from 1,196 TopiOCQA conversations, 617 from 268 CORAL conversations, and 312 from 219 OR-QuAC conversations. TopiOCQA covers all six tiers, while CORAL and OR-QuAC cover correc-tions and returns. Of the TopiOCQA questions, 2,839 (81%) originate from conversations in its official training split, so models trained on Topi-OCQA may have prior exposure to these dialogue histories. The training set contains 1,790 questions from 769 conversations , including 839 from TopiOCQA and 951 from CORAL. No conversation overlaps with the test set, and OR-QuAC is not used for training. 
+
+4 MEM REVISE 
+
+MEM REVISE models a conversation as a revisable memory that is updated once per turn. Instead of repeatedly encoding the full dialogue history, it preserves the information needed for future turns in a structured memory and revises that state as the conversation develops (Figure 2). 
+
+4.1 Task Formulation 
+
+A conversation consists of turns (qt, a t) for t =1, . . . , n − 1, followed by a final question qn whose answer is unknown. Given a passage collection P,the task is to rank passages for qn.Conventional query rewriting derives a stan-dalone query from the full dialogue history. M EM -REVISE instead maintains a memory Mt and up-dates it once per turn: 
+
+Mt = update  Mt−1, q t−1, (qt, a t), (1) where at is empty at the final turn. The final update also produces the search query. Earlier turns are therefore carried forward through memory rather than reread from the raw conversation. 
+
+4.2 A Revisable Memory 
+
+After turn t, the memory contains one node per turn, Mt = {ν1, . . . , ν t}, where νt = ( Ot, e t, F t)
+
+stores the turn’s operations Ot, topic et, and facts 
+
+Ft. Each node also records the earlier turns it de-pends on and the topics it contradicts, forming a graph over the conversation. MEM REVISE uses five operations to represent how a turn changes the conversational state: A DD 
+
+introduces a new topic, R EFINE continues the cur-rent one, R EVISE changes an established value, ABANDON drops a topic, and R EACTIVATE re-stores an earlier topic. 2
+
+Each topic has one of three states: CURRENT ,
+
+> EARLIER
+
+, or DROPPED . These states are not pre-dicted directly; they are derived by replaying the operations in turn order. This keeps dropped topics and their facts in memory, so later turns can restore them without reconstructing the earlier dialogue. 
+
+4.3 Writing the Memory 
+
+A small language model, the memory writer, per-forms each update in a single call. At turn t, it receives the current memory as text, the previous   
+
+> 2The writer’s prompt (Figure 3) also defines R ETRACT , for a premise declared false; no training target contains it, and the writer never produces it. M(b) Every turn
+
+t: the writer adds one node to the memory graph Û (c) Final turn n: search   
+
+> (a) Training: teacher
+
+→ writer           
+
+> Training conversations
+> TopiOCQA, CORAL
+> Teacher memories : a target node for every turn (operations, topic, facts; the query at the final turn)
+> ÆWriter (as in (b)): Ministral-3-3B + LoRA, trained to write each node from the memory of the preceding nodes
+> Memory graph Mt−1
+> dashed name: only in a fact Apollo 11 Buzz Aldrin Neil Armstrong
+> 1234new fact of turn 2: Neil Armstrong walked on the Moon first, then Buzz Aldrin.
+> Previous question where did he grow up?
+> New turn (qt, a t)no, i meant the second guy. . . wait, no, the first one. sorry
+
+Æ                           
+
+> Writer
+> 3B, one call
+> Node νt
+> depends on: turns 2, 3 contradicts: Buzz Aldrin operations: ABANDON Buzz Aldrin,
+> REACTIVATE Neil Armstrong topic: Neil Armstrong facts: none (the answer is not known yet) query (turn n): where did Neil Armstrong grow up? Topic repair (earlier turns, titled collec-tions): if the page found for qt, a tand for the facts disagrees with the topic, it replaces it
+> å
+> current earlier dropped new topic ADD
+> REFINE , R EVISE replaced as current
+> REACTIVATE
+> ABANDON
+> REACTIVATE
+> statuses are replayed, never written by the model
+> Two-part query
+> 0.67 ×writer query: where did Neil Armstrong grow up?
+> 0.33 ×template: Neil Armstrong. No, i meant the second guy. . . Wait, no, the first one. Sorry
+> õFrozen retriever , one pass over the collection
+> Memory priors : title prior +1 .5(page title = final topic; here Neil Armstrong ), facts vote
+> +1 .0
+> ;Exclusion step ±1.5, only when the final node rejects a page whose name another page shares (not applied here)
+> ✓correct passages at ranks 2 and 3
+
+Figure 2: M EM REVISE . (a) The 3B writer is distilled from teacher-written target memories. (b) At every turn it adds one node to the memory graph; statuses follow from the operations. (c) At the final turn the node’s query is scored with a template query and evidence from the memory. Example: turn 4 of the conversation in Figure 1, searched as the final turn. The memory of turns 1–3 is shown as intended, with turn 3 stored as the system’s answer about Buzz Aldrin; the node of turn 4 is the writer’s output for this memory (seed 3). 
+
+question, and the new turn. It predicts the depen-dencies, contradictions, and operations before as-signing the topic and storing any new facts. At the final turn, the writer also produces the search query. It preserves the user’s information need while resolving pronouns, descriptions, and references through the memory. If the turn only cor-rects an earlier interpretation, the writer carries for-ward the unresolved question and applies it to the intended topic. References to entities mentioned in stored facts are resolved in the same way. The writer is trained through distillation from teacher-generated memories. Target nodes are built from GPT-5.4-mini annotations corrected with Claude Opus 5.5, and a Ministral-3-3B (Liu et al., 2026) model with a LoRA adapter (Hu et al., 2021) is trained to reproduce them. For part of the train-ing data, the input memory comes from an auxiliary writer trained on different conversations, exposing the model to imperfect memory states similar to those encountered at inference time (Appendix C). 
+
+4.4 Grounding Topics in the Corpus 
+
+The writer can occasionally attach a turn to the wrong topic, especially when the conversation shifts to an entity introduced in the previous answer. For collections with page titles, M EM REVISE uses topic repair to ground the predicted topic against the corpus. After each history turn, it retrieves with the turn’s question and answer and separately with the node’s stored facts. If both searches identify the same page and that page conflicts with the writer’s topic, the node is reassigned to the retrieved page. CORAL has no page titles (Cheng et al., 2025), so its mem-ories retain the writer’s original topic assignments. 
+
+4.5 Search 
+
+At the final turn, M EM REVISE searches with the frozen Reason-ModernColBERT retriever (Khat-tab and Zaharia, 2020; Chaffin, 2025). Retrieval combines two complementary queries: the writer’s resolved query qs and a template query qt that re-tains the user’s wording while foregrounding the current topic. For passage p,
+
+s(p) = z 0.67 S(qs, p ) + 0 .33 S(qt, p ), (2) where S(q, p ) is the late-interaction score, nor-malised by the query’s total token weight, and 
+
+z(·) standardises scores over the collection. The writer query expresses the resolved information need, while the template provides a complemen-tary signal when the generated query drifts. When page titles are available, M EM REVISE 
+
+also uses memory-derived ranking signals. A ti-tle prior increases the score of passages whose page title matches the final topic, while a facts vote favours pages supported by the facts stored for that topic. Final turns that only replace a number are handled by a small rule that updates the number in the topic and query before retrieval. Finally, revisions may distinguish between dif-ferent pages with the same surface name. In such cases, M EM REVISE uses the memory to identify the rejected page and adjusts the ranking against it while favouring same-name alternatives. This exclusion step follows EXCISE (Ali et al., 2026b) and leaves the underlying retriever frozen. 
+
+5 Experimental Setup 
+
+Competitors and Retrieval Architecture 
+
+We compare M EM REVISE against seven competi-tors representing diverse conversational search approaches: trained query rewriters (T5QR, ConvGQR †, ConvSearch-R1), prompted query rewriters (LLM-Rewrite, CHIQ-AD), trace-based multi-turn memory (CMT-RAG ‡), and conversa-tional dense retrieval (ChatRetriever). All query-based methods, including MEM REVISE , use the same frozen Reason-ModernColBERT retriever over identical collections. MEM REVISE additionally incorpo-rates the memory-guided search steps detailed in §4.5, whereas ChatRetriever relies on its own conversational encoder. An Original Query 
+
+baseline is included to provide a reference without context by searching only with the final turn. 
+
+Training and Implementation Details 
+
+To provide a comprehensive comparison, we eval-uate these competitors in their off-the-shelf con-figurations and, where applicable, fine-tune or train them on C ONV REVISE ’s training questions (T5QR-FT, ConvSearch-R1-FT, ChatRetriever-FT, and ConvGQR †). All prompted competitors— LLM-Rewrite, CHIQ-AD, and CMT-RAG ‡—run on Qwen2.5-32B-Instruct (Qwen Team, 2024). Methods marked with † or ‡ denote reimplementa-tions; complete configuration details, including spe-cific hyperparameter settings and deviations from the original systems, are provided in Appendix D. 
+
+Evaluation Protocol 
+
+The primary metric is MRR@10, supplemented by NDCG@3 and Recall@10/100 (Appendix E). Overall performance is the unweighted mean across the three test sets, and tier-level comparisons                                                               
+
+> Method Size TopiOCQA CORAL OR-QuAC Mean
+> Original Query –0.074 0.360 0.263 0.232
+> Trained rewriters
+> T5QR 0.2B 0.243 0.460 0.353 0.352 T5QR-FT 0.2B 0.342 0.469 0.302 0.371 ConvGQR †0.2B 0.288 0.404 0.470 0.387 ConvSearch-R1 3B 0.591 0.546 0.572 0.570 ConvSearch-R1-FT 3B 0.611 0.570 0.588 0.589
+> Prompted methods
+> LLM-Rewrite 32B 0.499 0.609 ◦0.581 0.563 CHIQ-AD 32B 0.436 0.617 ◦0.594 0.549 CMT-RAG ‡32B 0.283 0.507 0.440 0.410
+> Conversational dense retrieval
+> ChatRetriever 7B 0.448 0.433 0.468 0.450 ChatRetriever-FT 7B 0.620 0.524 0.548 0.564
+> MEM REVISE (ours) 3B 0.686 0.634 0.783 0.701
+
+Table 2: MRR@10 on the three test sets with the frozen retriever. MEM REVISE is the mean of three seeds, which differ by at most 0.009 on any set. Best in bold ,second best underlined. ◦: the 95% interval of M EM RE- 
+
+> VISE
+
+minus this method contains zero (paired bootstrap over conversations); every other difference is significant. ChatRetriever rows use their own retriever. -FT: con-tinued on our training data; †: trained on our data, no released model; ‡: our re-implementation. 
+
+are restricted to subsets with at least 30 questions. For revision questions, we also track whether a stale passage from a rejected request outranks all gold passages. Statistical significance is assessed via paired bootstrap resampling over conversations. We report a 95% interval for the mean per-question difference between M EM REVISE and each competitor, and treat the two as statistically tied when the interval contains zero. All design choices for M EM RE- 
+
+> VISE
+
+and the competitors were made on six devel-opment sets, and no model, including M EM RE-
+
+> VISE
+
+, is trained or tuned on the test set. M EM RE- 
+
+> VISE
+
+results reflect the mean of three random seeds, while competitors are run once, with CHIQ-AD and ConvSearch-R1 sampling at a temperature of 0.7, as in their respective papers. 
+
+6 Results and Analysis 
+
+Overall Retrieval Effectiveness 
+
+MEM REVISE achieves the highest MRR@10 across all three evaluation corpora (Table 2). It achieves an overall mean MRR@10 of 0.701, which exceeds the strongest competitor, ConvSearch-R1-FT (0.589). At the dataset level, MEM REVISE scores 0.686 on TopiOCQA, 0.634 on CORAL, and 0.783 on OR-QuAC. It estab-lishes significant margins over the top-performing Tier n MEM REVISE Best Competitor ∆                                                
+
+> TopiOCQA
+> Correction 759 0.796 0.750 CR-FT +0 .046 ∗
+> Self-repair 608 0.796 0.772 CR-FT +0 .024
+> Value revision 233 0.645 0.504 CR-FT +0 .141 ∗
+> Follow-up 300 0.756 0.718 CS-FT +0 .038
+> Return-1 1,028 0.578 0.576 CS +0 .002
+> Return-2+ 572 0.599 0.557 CS-FT +0 .042 ∗
+> CORAL
+> Correction 262 0.681 0.639 CHIQ-AD +0 .042 ∗
+> Return-1 167 0.743 0.732 T5QR-FT +0 .011
+> Return-2+ 188 0.471 0.504 CHIQ-AD −0.033
+> OR-QuAC
+> Correction 218 0.785 0.587 CS-FT +0 .198 ∗
+> Return-1 38 0.836 0.588 CR-FT +0 .249 ∗
+> Return-2+ 55 0.752 0.780 CS −0.029
+
+Table 3: Per-tier MRR@10 on the test sets against the strongest competitor of each tier. ∆: M EM REVISE 
+
+minus that competitor; ∗: the 95% interval excludes zero (paired bootstrap over conversations). CR: ChatRe-triever; CS: ConvSearch-R1. 
+
+competitors on TopiOCQA and OR-QuAC, beat-ing ChatRetriever-FT by +0 .066 and CHIQ-AD by +0 .190 , respectively. On CORAL, M EM RE- 
+
+> VISE
+
+statistically ties with the leading prompted methods. Crucially, M EM REVISE maintains this superiority on OR-QuAC despite the corpus being entirely excluded from its training data, which indi-cates robust generalisation to a corpus not seen in training. M EM REVISE is also best on NDCG@3 and keeps the best mean MRR@10 with two other retrievers (Appendix E). 
+
+Navigating Conversational Topic Shifts 
+
+The retrieval strength of M EM REVISE is driven by its writer, which is a distilled 3B language model that explicitly tracks the conversational state by updating a memory graph at each turn. To rigor-ously evaluate how well the system adapts to topic shifts and revisions, Table 3 compares M EM RE- 
+
+> VISE
+
+against whichever competitor achieved the highest score for each specific tier. Even under this highly competitive setup, M EM REVISE sig-nificantly wins 6 of the 12 tier-level comparisons and ties the remaining 6. The largest gains appear where the target of the search changes, on value revisions in TopiOCQA ( +0 .141 ) and on correc-tions and returns to the previous topic in OR-QuAC (+0 .198 and +0 .249 ). Because the writer accurately flags state opera-tions, the system effectively isolates rejected con-text. On the development sets, the writer applies REACTIVATE on 88% of immediate returns, A BAN -                                         
+
+> Tier (n)ADD REF .REV .ABAND .REACT .Return-1 (475) 11.5 10.7 0.0 0.8 88.4
+> Return-2+ (440) 8.9 2.2 0.0 1.4 97.1
+> Correction (329) 9.1 14.7 0.1 96.4 85.1 Self-repair (42) 4.8 34.9 0.8 96.8 59.5 Follow-up (69) 5.3 96.1 0.0 0.0 0.0 Value revision (128) 0.0 0.8 97.9 99.7 0.0 Earlier-turn nodes 44.9 54.6 0.0 0.5 2.8
+
+Table 4: Operations in the writer’s final node, by tier (development sets; three seeds pooled; % of questions). A node can hold several operations. Framed: the oper-ation that defines each tier. Last row: nodes of earlier turns.  
+
+> DON
+
+on 96% of corrections, and R EVISE on 98% of value revisions (Table 4). As a result, M EM -REVISE successfully suppresses stale information. On TopiOCQA, passages from withdrawn requests outrank every gold passage in only 5.1% of correc-tions and 7.0% of self-repairs. This represents a clear reduction in errors compared to the compet-ing methods, whose lowest rates on these tiers are 7.0% and 13.5%. 
+
+The Impact of Memory versus Model Distillation 
+
+To determine whether these gains stem from the explicit memory graph or simply the strength of the distilled model, we trained a memory-free writer with the same 3B model and recipe, which gener-ates queries directly from the raw conversational text without memory or memory-guided search steps. This writer achieves a mean MRR@10 of 0.617, surpassing all competitors in Table 2 and confirming the effectiveness of the distillation recipe. Nevertheless, integrating the explicit mem-ory framework of M EM REVISE yields a further sig-nificant improvement of +0 .084 [+0 .069 , +0 .100] 
+
+(Table 12 in Appendix E). This margin shows that while distillation provides a strong baseline, the memory and the search steps built on it are the pri-mary driver of the system’s leading performance. 
+
+Query Fusion and Memory Horizons 
+
+To identify which specific components drive the performance of the system, we conducted a tar-geted ablation study on the development sets (Ta-ble 5). During the retrieval phase, M EM REVISE 
+
+fuses two complementary signals: the explicitly generated query from the writer and a template query. The writer query expresses the resolved in-formation need, while the template query preserves Variant Mean All Returns Corr. Value                                                   
+
+> Full M EM REVISE 0.662 ––––
+> Query and search components
+> Template only 0.591 −0.076 ∗−0.049 ∗−0.227 ∗−0.012
+> Writer query only 0.657 −0.010 ∗−0.014 ∗−0.007 −0.005
+> No priors 0.652 −0.012 ∗−0.011 ∗−0.020 ∗+0 .004 ∗
+> No topic repair 0.660 −0.003 ∗−0.003 ∗−0.004 +0 .001
+> No exclusion step 0.652 −0.003 ∗+0 .000 +0 .002 ∗−0.045 ∗
+> Memory horizon: keep only the last kturns
+> k= 4 0.560 −0.113 ∗−0.139 ∗−0.180 ∗+0 .005
+> k= 2 0.454 −0.236 ∗−0.323 ∗−0.305 ∗−0.005
+> k= 1 0.436 −0.256 ∗−0.349 ∗−0.331 ∗−0.015
+
+Table 5: Ablations on the six development sets (writers not retrained). Mean: six-set mean MRR@10. Pooled columns: per-question difference to the full system over all development questions, overall and for returns, cor-rections (incl. self-repair) and value revisions; ∗: the 95% interval excludes zero; –: reference row. 
+
+the exact wording of the user and foregrounds the current topic. When we isolate these compo-nents, the explicitly generated writer query proves to be the most critical factor. If the system re-lies solely on the template, correction performance drops heavily by a margin of 0.227. Furthermore, maintaining a deep conversational history is essential for resolving returns and cor-rections. Truncating the memory graph to only the most recent turns results in a sharp decrease in development MRR@10. For example, limiting the history to a single turn drops the overall score from 0.662 to 0.436, and this severely degrades per-formance specifically on returns and corrections, while value revisions and natural CORAL ques-tions change by at most 0.015 and 0.004 (Table 13 in Appendix E). 
+
+Computational Efficiency and Context Dependency 
+
+We also investigated whether the language model needs to process the entire raw dialogue history at each step to generate accurate memory states and queries. Modifying the writer to read the full raw conversation at every turn yields no performance benefit, resulting in a score difference of +0 .000 [−0.007 , +0 .008] . This confirms that our sequen-tial approach, which processes each turn exactly once to update a persistent memory graph, loses no accuracy. Additionally, we evaluated how the system han-dles simple queries that do not require previous con-text. These self-contained questions, for which the final question alone retrieves a gold passage in the top 10, make up 52% of the CORAL test questions, against 14% on TopiOCQA and 42% on OR-QuAC. MEM REVISE remains the top-performing method on these queries on every set (0.840 vs 0.767 on TopiOCQA, 0.826 vs 0.804 on CORAL, 0.894 vs 0.788 on OR-QuAC). This shows that maintaining a persistent memory graph does not degrade perfor-mance on simple and standalone searches. On the questions that need the conversation, M EM REVISE 
+
+leads by +0 .044 on TopiOCQA and +0 .203 on OR-QuAC and ties on CORAL, whose passages carry no page titles for the memory-based search steps to use. 
+
+Comparing Revisable Graphs with Trace Memory 
+
+Compared to the closest competing paradigm of multi-turn retrieval augmented generation, M EM -REVISE demonstrates clear advantages in both ac-curacy and the number of model calls. The CMT-RAG ‡ competitor struggles with an MRR@10 of 0.410. This is consistent with its trace generator ig-noring system answers, even though the gold page of 48% of TopiOCQA test questions is named only in an earlier system answer. Furthermore, CMT-RAG ‡ lacks a mechanism to record withdrawn re-quests. Consistent with this, it ranks a passage of the rejected request above every gold passage for 25.6% of TopiOCQA corrections and 36.2% of self-repairs, against 5.1% and 7.0% for M EM -REVISE . Operationally, M EM REVISE resolves the dialogue state using a single inference pass through a 3B model per turn, whereas CMT-RAG ‡ requires approximately three calls to a 32B model per turn. Appendix F gives hard cases and an error analysis. 
+
+7 Conclusion 
+
+We introduced C ONV REVISE , a benchmark of re-turns and revisions, and M EM REVISE , a memory of topics, facts and operations that a 3B writer re-vises one turn at a time. M EM REVISE obtains the highest score on all three test sets and is never sig-nificantly behind the strongest competitor of any tier. Distillation alone already makes a 3B model a strong rewriter; the memory and the search steps built on it add a further 0.084 MRR@10. Together, they let a 3B model match or outperform prompted methods ten times its size on every test set. Fu-ture work can extend the memory to questions that combine several earlier topics. Limitations 
+
+CONV REVISE covers revisions of a single request. Questions that combine several earlier topics, as in multi-hop questions, were not evaluated. All three corpora are in English and built on Wikipedia. Our TopiOCQA and OR-QuAC search collections are subsets of the full Wikipedia collections, built around the articles used by the benchmark conver-sations, so our scores cannot be compared with numbers published on the full collections. 
+
+References 
+
+Vaibhav Adlakha, Shehzaad Dhuliawala, Kaheer Sule-man, Harm de Vries, and Siva Reddy. 2022. Topi-ocqa: Open-domain conversational question answer-ing with topic switching. Transactions of the Associ-ation for Computational Linguistics , 10:468–483. Mohammed Ali, Abdelrahman Abdallah, Amit Agarwal, Hitesh Laxmichand Patel, and Adam Jatowt. 2026a. Recor: Reasoning-focused multi-turn conversational retrieval benchmark. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 2688–2723. Mohammed Ali, Abdelrahman Abdallah, and Adam Jatowt. 2026b. Excise: Query-side exclusion for late-interaction retrieval. arXiv preprint arXiv:2608.05497 .Paweł Budzianowski, Tsung-Hsien Wen, Bo-Hsiang Tseng, Iñigo Casanueva, Stefan Ultes, Osman Ra-madan, and Milica Gasic. 2018. Multiwoz-a large-scale multi-domain wizard-of-oz dataset for task-oriented dialogue modelling. In Proceedings of the 2018 conference on empirical methods in natural language processing , pages 5016–5026. Antoine Chaffin. 2025. Reason-ModernColBERT. 
+
+https://huggingface.co/lightonai/ Reason-ModernColBERT .Yiruo Cheng, Kelong Mao, Ziliang Zhao, Guanting Dong, Hongjin Qian, Yongkang Wu, Tetsuya Sakai, Ji-Rong Wen, and Zhicheng Dou. 2025. Coral: Benchmarking multi-turn conversational retrieval-augmented generation. In Findings of the Associ-ation for Computational Linguistics: NAACL 2025 ,pages 1308–1330. Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. 2025. Mem0: Building production-ready ai agents with scalable long-term memory. arXiv preprint arXiv:2504.19413 .Eunsol Choi, He He, Mohit Iyyer, Mark Yatskar, Wen-tau Yih, Yejin Choi, Percy Liang, and Luke Zettle-moyer. 2018. Quac: Question answering in context. In Proceedings of the 2018 conference on empiri-cal methods in natural language processing , pages 2174–2184. Ahmed Elgohary, Denis Peskov, and Jordan Lee Boyd-Graber. 2019. Can you unpack that? learning to rewrite questions-in-context. In Proceedings of the 2019 Conference on Empirical Methods in Natu-ral Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , pages 5918–5924. Julia Hirschberg, Diane Litman, and Marc Swerts. 2001. Identifying user corrections automatically in spoken dialogue systems. In Second Meeting of the North American Chapter of the Association for Computa-tional Linguistics .Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2021. Lora: Low-rank adap-tation of large language models. arXiv preprint arXiv:2106.09685 .Junan Hu, Shudan Guo, Wenqi Liu, Jianhua Yin, and Yinwei Wei. 2026. Context-agent: Dynamic dis-course trees for non-linear dialogue. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 29449–29462. Omar Khattab and Matei Zaharia. 2020. Colbert: Effi-cient and effective passage search via contextualized late interaction over bert. In Proceedings of the 43rd International ACM SIGIR conference on research and development in Information Retrieval , pages 39– 48. Sheng-Chieh Lin, Jheng-Hong Yang, Rodrigo Nogueira, Ming-Feng Tsai, Chuan-Ju Wang, and Jimmy Lin. 2020. Conversational question reformulation via sequence-to-sequence architectures and pretrained language models. arXiv preprint arXiv:2004.01909 .Diane Litman, Julia Hirschberg, and Marc Swerts. 2006. Characterizing and predicting corrections in spo-ken dialogue systems. Computational linguistics ,32(3):417–438. Alexander H. Liu, Kartik Khandelwal, Sandeep Sub-ramanian, Victor Jouault, Abhinav Rastogi, Adrien Sadé, Alan Jeffares, Albert Jiang, Alexandre Cahill, Alexandre Gavaudan, Alexandre Sablayrolles, Amélie Héliou, Amos You, Andy Ehrenberg, Andy Lo, Anton Eliseev, Antonia Calvi, Avinash Soori-yarachchi, Baptiste Bout, and 100 others. 2026. Ministral 3. arXiv preprint arXiv:2601.08584 .Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. 2024. Evaluating very long-term conversational memory of llm agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 13851– 13870. Kelong Mao, Chenlong Deng, Haonan Chen, Fengran Mo, Zheng Liu, Tetsuya Sakai, and Zhicheng Dou. 2024. Chatretriever: Adapting large language mod-els for generalized and robust conversational dense retrieval. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing ,pages 1227–1240. Fengran Mo, Abbas Ghaddar, Kelong Mao, Mehdi Reza-gholizadeh, Boxing Chen, Qun Liu, and Jian-Yun Nie. 2024a. Chiq: Contextual history enhancement for improving query rewriting in conversational search. In Proceedings of the 2024 Conference on Empiri-cal Methods in Natural Language Processing , pages 2253–2268. Fengran Mo, Kelong Mao, Yutao Zhu, Yihong Wu, Kaiyu Huang, and Jian-Yun Nie. 2023. Convgqr: Generative query reformulation for conversational search. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Vol-ume 1: Long Papers) , pages 4998–5012. Fengran Mo, Chen Qu, Kelong Mao, Tianyu Zhu, Zhan Su, Kaiyu Huang, and Jian-Yun Nie. 2024b. History-aware conversational dense retrieval. In Findings of the Association for Computational Linguistics: ACL 2024 , pages 13366–13378. Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G Patil, Ion Stoica, and Joseph E Gonzalez. 2023. Memgpt: Towards llms as operating systems. 
+
+arXiv preprint arXiv:2310.08560 .Chen Qu, Liu Yang, Cen Chen, Minghui Qiu, W Bruce Croft, and Mohit Iyyer. 2020. Open-retrieval con-versational question answering. In Proceedings of the 43rd International ACM SIGIR conference on research and development in Information Retrieval ,pages 539–548. Qwen Team. 2024. Qwen2.5 technical report. arXiv preprint arXiv:2412.15115 .Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. 2025. Zep: a tempo-ral knowledge graph architecture for agent memory. 
+
+arXiv preprint arXiv:2501.13956 .Emanuel A Schegloff, Gail Jefferson, and Harvey Sacks. 1977. The preference for self-correction in the or-ganization of repair in conversation. Language ,53(2):361–382. Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, Yang Wu, and 1 others. 2024. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 .Aditya Sinha, Harald Steck, Vito Ostuni, and Matteo Rinaldi. 2026. Beyond continuity: Challenges of context switching in multi-turn dialogue with llms. 
+
+arXiv preprint arXiv:2605.09268 .Hongjin Su, Howard Yen, Mengzhou Xia, Weijia Shi, Niklas Muennighoff, Han-yu Wang, Liu Haisu, Quan Shi, Zachary Siegel, Michael Tang, and 1 others. 2025. Bright: A realistic and challenging benchmark for reasoning-intensive retrieval. In International Conference on Learning Representations , volume 2025, pages 48941–48991. Mohammad Tavakoli, Alireza Salemi, Carrie Ye, Mo-hamed Abdalla, Hamed Zamani, and J Mitchell. 2026. Beyond a million tokens: Benchmarking and enhanc-ing long-term memory in llms. In International Con-ference on Learning Representations , volume 2026, pages 133343–133429. Chien-Sheng Wu, Andrea Madotto, Ehsan Hosseini-Asl, Caiming Xiong, Richard Socher, and Pascale Fung. 2019. Transferable multi-domain state generator for task-oriented dialogue systems. In Proceedings of the 57th annual meeting of the association for com-putational linguistics , pages 808–819. Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. 2024. Longmemeval: Benchmarking chat assistants on long-term interac-tive memory. arXiv preprint arXiv:2410.10813 .Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul Bennett, Junaid Ahmed, and Arnold Overwijk. 2020. Approximate nearest neighbor neg-ative contrastive learning for dense text retrieval. 
+
+arXiv preprint arXiv:2007.00808 .Jing Xu, Arthur Szlam, and Jason Weston. 2022. Be-yond goldfish memory: Long-term open-domain con-versation. In Proceedings of the 60th annual meeting of the association for computational linguistics (vol-ume 1: long papers) , pages 5180–5197. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. 2026. A-mem: Agentic memory for llm agents. Advances in Neural Informa-tion Processing Systems , 38:17577–17604. Shi Yu, Zhenghao Liu, Chenyan Xiong, Tao Feng, and Zhiyuan Liu. 2021. Few-shot conversational dense retrieval. In Proceedings of the 44th International ACM SIGIR Conference on research and development in information retrieval , pages 829–838. Wenhao Zhang, Mengqi Zhang, Shiguang Wu, Jiahuan Pei, Zhaochun Ren, Maarten de Rijke, Zhumin Chen, and Pengjie Ren. 2025. ExcluIR: Exclusionary neu-ral information retrieval. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 13295–13303. Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. 2024. MemoryBank: Enhancing large language models with long-term memory. In Pro-ceedings of the AAAI Conference on Artificial Intelli-gence , volume 38, pages 19724–19731. Lang Zhou, Yingjian Chen, Shuxuan Li, Kun-Yu Lin, and Zhilin Zhao. 2026. Cmt-rag: Complementary memory traces for multi-turn multi-hop rag. arXiv preprint arXiv:2607.26470 .Changtai Zhu, Siyin Wang, Ruijun Feng, Kai Song, and Xipeng Qiu. 2025. Convsearch-r1: Enhancing query reformulation for conversational search with reasoning via reinforcement learning. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 26558–26575. A Extended Related Work 
+
+This appendix extends §2 and follows the columns of Table 6. 
+
+Conversational query rewriting. The standard approach to searching in a conversation is to rewrite the last question into a standalone query and sub-mit it to an ad hoc retriever. Trained rewriters learn this from human rewrites, as T5QR (Lin et al., 2020) does on CANARD (Elgohary et al., 2019). ConvGQR (Mo et al., 2023) appends a generated answer to the rewrite and, during training, pulls the rewriter’s representation of the conversation to-wards the retriever’s embedding of the gold passage. ConvSearch-R1 (Zhu et al., 2025) does not use hu-man rewrites. It first trains on its own rewrites that rank the gold passage first, and then optimises the rewriter by reinforcement learning with a re-ward derived from the rank of the gold passage. Prompted rewriters obtain the rewrite from a large language model. CHIQ (Mo et al., 2024a) first en-hances the history with an open language model. It disambiguates the new question, expands the last system response, generates a pseudo-response, keeps only the last turn after a topic switch and summarises the history, and it then rewrites the question from the enhanced history. All of these methods re-read the whole history at every turn and output a single query. None records that an earlier request was withdrawn, so a revision must be recognised anew, from the raw text, whenever a query is formed. 
+
+Conversational dense retrieval. A second line removes the rewriting step and encodes the con-versation directly as the query. ConvDR (Yu et al., 2021) encodes the last question together with all earlier questions and trains this encoder to imitate the embedding an ad hoc retriever assigns to the human rewrite. ChatRetriever (Mao et al., 2024) adapts a large language model (Qwen-7B-Chat) for this purpose, combining contrastive learning with session-masked instruction tuning. HAConvDR (Mo et al., 2024b) judges an earlier turn useful when adding it to the current question improves re-trieval, and uses these judgments to train a retriever on a denoised history. These retrievers also read the earlier turns at every turn. Whether a topic is still wanted must be decided inside a single query vector, where the decision cannot be inspected. 
+
+Memory for multi-turn RAG. CMT-RAG (Zhou et al., 2026) stores, for every turn, a trace of sub-questions with their dependencies on ear-lier turns, the passages retrieved for them and the reader’s answer, and recovers these traces in later turns. Its trace generator is a trained state-space model, and the method is evaluated on multi-hop question answering on its MuMu-QA benchmark. Our memory instead records the topics of the con-versation and what each turn did to them, while CMT-RAG keeps a growing record of what was asked. The exclusion step of our search follows EXCISE (Ali et al., 2026b), which identifies the ex-cluded topic outside the index and demotes match-ing candidates over a frozen index; exclusionary queries of this kind are studied in ExcluIR (Zhang et al., 2025). 
+
+Memory for chat agents. MemGPT (Packer et al., 2023) moves information between the con-text window of a language model and external stor-age, so that an agent can continue a conversation over many sessions. MemoryBank (Zhong et al., 2024) stores memories of past conversations and lets them fade with time unless they are recalled. Mem0 (Chhikara et al., 2025) extracts facts from each exchange and decides for each one whether to add it, update or delete an existing memory, or change nothing. Zep (Rasmussen et al., 2025) stores facts as edges of a temporal knowledge graph and marks an edge as no longer valid when new information contradicts it. A-Mem (Xu et al., 2026) keeps memories as linked notes, and a new note can update the descriptions of related older ones. Context-Agent (Hu et al., 2026) organises a dia-logue into trees of topics and branches and builds the context of each response from the active branch and summaries of the others. These systems are evaluated through the responses of a generator, on benchmarks that test whether facts from long con-versations are recalled, as in LoCoMo (Maharana et al., 2024), and kept up to date as new informa-tion arrives, as in LongMemEval (Wu et al., 2024) and BEAM (Tavakoli et al., 2026). Sinha et al. (2026) build dialogues from TopiOCQA and MSC (Xu et al., 2022) and test whether language mod-els notice when the user moves to a new topic and leave the earlier context behind. Dialogue state tracking follows the values a user gives for a fixed set of slots in task-oriented dialogue, such as the area or price range of a restaurant, and a later turn can change a value (Budzianowski et al., 2018; Wu et al., 2019). Method History Memory Search Evaluation                                                    
+
+> Read once Kept Revisable No gen. answer Frozen retr. Passage ranking T5QR (Lin et al., 2020) ✗✗✗✓✓✓
+> ConvGQR (Mo et al., 2023) ✗✗✗✗✓✓
+> ConvSearch-R1 (Zhu et al., 2025) ✗✗✗∼✓✓
+> CHIQ (Mo et al., 2024a) ✗✗✗✗✓✓
+> ChatRetriever (Mao et al., 2024) ✗✗✗✓✗✓
+> CMT-RAG (Zhou et al., 2026) ✓✓✗✗✓✗
+> MEM REVISE (ours) ✓✓✓✓✓✓✓yes, ∼partly, ✗no. Read once: each turn is processed once, without re-reading the history. Kept: a memory is carried across turns. Revisable: a later turn can change the status of stored content. No gen. answer: the query does not depend on a generated answer. Frozen retr.: the retriever is used as released. -FT variants share their method’s row, and LLM-Rewrite is a prompted rewrite like CHIQ.
+
+Table 6: Conversational search methods along the dimensions that matter for revisions. 
+
+Benchmarks. TopiOCQA (Adlakha et al., 2022) collects information-seeking conversations over Wikipedia in which the questioner may switch to a related topic; from the sixth turn onwards, ques-tioners frequently go back one or two topics, and we use these returns as natural questions. CORAL (Cheng et al., 2025) is built automatically from Wikipedia: section titles of one or two related pages are sampled as a path and converted into conversa-tional questions by GPT-4, and the passages come from the web pages the articles cite. OR-QuAC (Qu et al., 2020) moves QuAC (Choi et al., 2018) to an open-retrieval setting over Wikipedia; each con-versation concerns one article, and its answers lie in the same section of that article. We use the three because they test different conditions: TopiOCQA has human topic switches with a topic label for ev-ery turn, from which natural returns can be found, and several compared methods report results on it; OR-QuAC has human questions over passages with page titles; and CORAL has passages from cited web pages without page titles, so it tests M EM -REVISE where the title-based search steps cannot help, and it also supplies training conversations. RECOR (Ali et al., 2026a) builds 707 multi-turn conversations in eleven domains from BRIGHT (Su et al., 2025) and StackExchange queries to test reasoning-intensive retrieval. None of these four papers describes turns in which the user corrects or revises an earlier request, so the corrections and revisions of §3 had to be written. C ONV REVISE 
+
+adds these questions, labels every question with its tier, and provides every written question with its stale passages.                            
+
+> Tier TopiOCQA CORAL OR-QuAC
+> Return-1 1,028 167 38 Return-2+ 572 188 55 Correction 759 262 218 Follow-up 300 ––Self-repair 608 ––Value revision 233 –1Total 3,500 617 312 Conversations 1,196 268 219
+
+Table 7: Test questions per tier and corpus. –: tier not built for this corpus. 
+
+B Benchmark Construction 
+
+Table 7 gives the number of test questions per tier and corpus. Returns come from natural TopiOCQA turns and spliced conversations, and 104 Return-2+ questions are written; corrections come from built revisions and spliced conversations, follow-ups and self-repairs from built revisions, and value revisions as described below. 
+
+Natural returns. A TopiOCQA turn with an an-swer is a return when its topic label differs from that of the previous turn and appeared earlier in the conversation. We keep only returns whose question refers to the target by a pronoun or a description. Its depth, the number of other topics discussed since the target, decides between Return-1 (depth one) and Return-2+. 
+
+Built revisions. We select two topics of the same kind from one TopiOCQA conversation and trun-cate the conversation after the last turn about either of them. We then add a question that applies to both, answer it for the wrong topic, and append a correction, a self-repair, or a correction followed by a new question. Each item is built for both topics with the same history. The gold passage belongs to the intended topic and the stale passages to the other one. 
+
+Written returns and value revisions. For 104 Return-2+ questions we append one turn to a Topi-OCQA conversation with at least four topics, and this turn returns to a middle topic by describing it. A value revision follows a turn whose page has a sibling that differs by a number, such as a year or an edition, with a short switch such as “sorry, i meant 2, not 1”. Its gold passage belongs to the sibling and its stale passage to the original page. 
+
+Spliced conversations. A spliced item keeps the opening of a conversation about a topic E and ap-pends digressions about two further topics, each linked to E, confusable with it, or taken from an-other conversation. The final turn targets one of the three topics: it is either the source’s own next turn about E or a new question about an unseen passage of the target, written as a correction or as a return by pronoun or description. A return to E is Return-2+, a return to the first digression Return-1, and the passages of the other two topics are stale. On TopiOCQA and CORAL a correction describes the intended topic through an earlier fact; on OR-QuAC the digressions are the opening turns of two other OR-QuAC conversations, and the wordings start from templates. 
+
+Gold passages and collections. Every gold pas-sage is present in its collection, no stale passage is gold, and no mined passage contains an answer from the same conversation. The CORAL col-lection is the official corpus (162,650 passages). The TopiOCQA collection (434,179 passages) com-bines background passages sampled from Topi-OCQA’s Wikipedia collection, all passages of the articles the benchmark touches, and BM25 hard negatives mined from the full Wikipedia for each final question; the OR-QuAC collection (73,992 passages) is built in the same way from the official OR-QuAC collection. 
+
+Source splits. Of the TopiOCQA test questions, 2,839 (81%) come from conversations in Topi-OCQA’s official training file, which favours re-leased models trained on that file. 
+
+Training and development data. The 1,790 training questions comprise 839 from TopiOCQA training conversations, built in the same ways as the test set, and 951 from CORAL’s training split (714 
+
+Algorithm 1 MEM REVISE on one conversation                                                                                            
+
+> Require: turns (q1, a 1), . . . , (qn−1, a n−1), final question qn
+> (anunknown), writer π, collection P
+> 1: M← ∅ ▷memory: nodes and topic statuses 2: for t= 1 to ndo
+> 3: x←RENDER (M)⊕qt−1⊕(qt, a t)
+> 4: νt←π(x)▷operations, topic, facts; query if t=n
+> 5: if 1< t < n and Phas page titles then
+> 6: νt←REPAIR TOPIC (νt, q t, a t)▷§4.4 7: end if
+> 8: M←M∪ { νt}▷statuses replayed from operations 9: end for
+> 10: if qnonly replaces a number (number rule) then
+> 11: s←z S(qs′,·)+ title prior if titled ▷new number 12: else
+> 13: s←z 0.67 S(qs,·) + 0 .33 S(qt,·)▷Eq. 2 14: if Phas page titles then
+> 15: add the title prior ( +1 .5) and the facts vote ( +1 .0)16: if νnrejects a topic whose page shares its name
+> then
+> 17: apply the exclusion step ( ±1.5)18: end if
+> 19: end if
+> 20: end if
+> 21: return passages of Pranked by s
+
+spliced, 237 prefixes of natural CORAL conver-sations); they come from 769 conversations. The six development sets are one TopiOCQA set (431 questions of all six tiers), three CORAL sets (300 questions from natural conversations, 450 correc-tions and returns, and 300 returns) and two OR-QuAC sets (218 corrections and returns, and 84 value revisions). 
+
+C System Details 
+
+Algorithm 1 summarises how M EM REVISE pro-cesses one conversation. The following paragraphs give the details omitted from §4. 
+
+Input and output. The rendered memory lists every topic in order of first mention with its kind, the turns that discussed it, its status and its stored facts, followed by a log with one line per turn. Statuses are replayed as in §4.2: A DD , R EFINE ,REVISE and R EACTIVATE make their topic current and move the previously current topic to earlier, ABANDON moves its topic to dropped, and the op-erations of one turn are applied in the order the writer lists them; a dropped topic becomes current again with any later operation on it, usually R EAC -
+
+> TIVATE
+
+. R EACTIVATE also restores a name first given in an earlier answer, as for Neil Armstrong in Figure 4. A node may list several topics, and the first is its topic. A switch to a different entity with the same name is written as A BANDON on the old topic and R EVISE to the new one. The fi-nal line of the input indicates whether a query is requested, which is the case only for the final turn. The writer responds with one JSON object in the order described in §4.3. When the user refers to a different entity with the same name as a stored topic, the writer keeps the name and appends the user’s description, as in “Jayson Blair (actor)”. His-tory answers are cut at 600 characters, as for every method. Inputs are capped at 16,384 tokens, which no input came close to, and outputs at 800 tokens, decoded greedily. Figure 3 gives the full system prompt and Figure 4 the input and output for turn 4 of the conversation in Figure 1, searched as the final turn. 
+
+Training. The writer is trained on 22,163 ex-amples from 9,916 turns of the TopiOCQA and CORAL training conversations: history turns, final turns, and copies of the history turns that change the memory, with their answer removed, so that the writer also learns to decide without an answer, as at the final turn. Most turns appear twice, once with the teacher memory and once with the memory of an auxiliary writer trained on the other half of the conversations. The competitors are trained on final questions only. We train LoRA adapters (rank 16, 
+
+α = 32 , dropout 0.05) on the attention projections of Ministral-3-3B for three epochs, with a learning rate of 5 × 10 −5 chosen on development data and an effective batch size of 12; the checkpoint is cho-sen by the held-out loss on the fields written before the query. 
+
+Memory-free writer. The memory-free writer of Table 12 uses the writer’s base model and LoRA settings, its learning rate, effective batch size and number of epochs, and three seeds, and its check-point is chosen by held-out loss. It reads the raw conversation, with answers cut at 600 characters as for every competitor, and is trained on the writer’s final-turn target queries, each turn once. It has no template part, no priors, no exclusion step and no topic repair, and its queries are scored with the same frozen retriever as every other method. 
+
+Search rules. From the second turn on, topic re-pair runs two searches, one with the turn’s question and answer and one with the stored facts, and each picks the page with the most 1/rank votes among its top 20 passages, which is the page it identifies in §4.4. If the two agree, and the page differs from the node’s topic, is a name from the previous answer or an earlier topic, and does not appear in the turn’s own answer, that page becomes the node’s topic and is entered with an A DD or R EACTIVATE op-eration. This changes the topic of 4.5% of history turns on the development sets. The template starts with the current topic, its tokens weighted twice, and ends with the user’s final question. The title prior adds 1.5, in units of the standardised score, to the passages whose page title, ignoring any brack-eted qualifier, is the topic of the final node. For the facts vote, the facts of the earlier nodes about the final topic are searched, and the top 20 passages vote for their page with weight 1/rank. On Top-iOCQA each node is searched on its own, every earlier node is used if none is about the topic, and the winning page gains 1.0 within M EM REVISE ’s top 100 passages; on OR-QuAC the facts of the last three such nodes form one search, there is no vote without such a node, and the winning page gains 
+
+1.0 on all its passages. The number rule applies to a final turn of at most 12 words, without a question word, that names exactly one new number, decade or Roman numeral. It replaces a number of the same kind in the topic of the final or the previous node, and the search then uses the writer’s query with the new name, plus the title prior where pages have titles. The exclusion step takes the page of the top passage retrieved for the facts of the last three nodes as the rejected page, and applies only if an-other page has the same title once a bracketed part is removed. The rejected page then loses 1.5 and the other pages with its name gain 1.5. Same-name pages that the title prior has already raised do not gain a further 1.5.
+
+D Competitors 
+
+Table 8 lists how each competitor was run. Every method scores each test question on its own and receives the same history: the earlier turns with the answers recorded in the benchmark, then the ques-tion, whose answer is hidden. A conversation can yield several test questions, cut at different turns. All query-based methods search the same collec-tions with the frozen Reason-ModernColBERT, and history answers are cut at 600 characters for every method. Settings follow the authors’ papers and code; the last column of the table lists every de-viation from them. Two choices were made on the development sets. CMT-RAG produces no ranked list, so we rank the passages retrieved for the final turn’s sub-questions first, then the passages recov-ered from earlier traces, then all other passages by System prompt of the writer 
+
+You update a conversation MEMORY one turn at a time. You never see the conversation itself: you see the MEMORY built from the earlier turns (every topic in the order it came up, its kind, the turns it was discussed in, its status, the facts stored for it, and a log of what each earlier turn did), the LAST QUESTION kept in memory, and the NEW TURN (its question, and its answer when the answer is already known). The NEW TURN is the CURRENT turn below. Analyze ONLY the CURRENT turn (use the MEMORY to resolve references and dependencies; earlier turn numbers are the ones shown in the memory). Output ONE JSON object: {"depends_on": [<prior turn numbers this turn relies on; [] if fully self-contained>], "contradicts": ["<prior entity name(s) this turn CORRECTS/REPLACES; [] otherwise>"], "ops": [{"op": "<ADD|REFINE|REVISE|ABANDON|REACTIVATE|RETRACT>", "entity": "<canonical name>", "detail": "<optional short phrase>"}], "asked": ["<canonical full name(s) of the entity/entities the CURRENT turn is ABOUT; resolve every pronoun/ellipsis; usually 1, up to 3 for a multi-topic turn>"], "query": "<ONLY when the prompt ends with WRITE THE QUERY: yes -- ONE search query for this turn; otherwise leave this field out>", "facts": [{"entity": "<canonical full name this fact is about>", "fact": "<ONE short grounded SENTENCE the CURRENT turn's question+answer establishes>"}], "types": {"<entity name that is NEW in this turn>": "<one of ['person', 'work', 'place', 'organization', 'event', 'date', 'concept', 'object', 'other']>"} }RULES (read carefully): - facts: extract EVERY salient fact the CURRENT turn's Q+A establishes — one NATURAL SENTENCE per fact (2-5 typical), NOT a single summary. PRESERVE the exact relation and terms from the answer ("Dunkirk was released on DVD on 18 December 2017", NOT "Dunkirk has-property 18 December 2017"; keep "shot in", "is about", "krill" — never crush them into a generic predicate). Full canonical names, no pronouns. - depends_on (LOAD-BEARING — be precise): the prior turn numbers that introduce the entity or the fact THIS turn presupposes. ALWAYS include the turn that first named the entity in "asked", PLUS any turn whose answer this question builds on. Use [] ONLY if the turn is fully self-contained (introduces its own subject and needs no earlier context). - asked: the resolved TARGET (what a search must be ABOUT), never a pronoun. - ENTITY NAMES: use the SHORTEST canonical common name ("Urk", "Dunkirk", "Mercury"), NOT a long legal/disambiguated title ("High and Low Lordship of Urk and Emmeloord") unless disambiguation truly requires it. Be consistent across turns so the same entity links by exact name. - contradicts: emit ONLY when the turn retracts/corrects a prior premise ("no, I meant X"); otherwise []. - ops (what this turn DOES to the conversation's memory; most turns emit exactly one): ADD a new topic entity enters the conversation REFINE stays on the current entity, narrower facet (typical follow-up) REVISE a stated constraint/value about the entity is replaced with a new one ABANDON the user walks away from an entity ("not that one", "forget the X thing") REACTIVATE the user returns to an entity discussed EARLIER ("the one I asked about before") RETRACT a prior premise is declared factually WRONG (stronger than ABANDON; also list that entity in contradicts) A correction turn typically emits ABANDON (the rejected topic(s)) + REACTIVATE (the restored topic) TOGETHER. Resolve vague references ("the one from before") to the canonical entity name using the MEMORY. - types: optional; tag entities you are confident about. Use ONLY the current turn's Q+A; never invent facts and never use later turns. Output ONLY the JSON. NAMES: an entity name is the NAME of a thing (a person, work, place, organization, concept). NEVER use the user's question or a search string as a name, and never a long description when the thing has a name in the MEMORY or the NEW TURN. RETURNS: the user may go back to ANY earlier topic, often by DESCRIBING it ("going back to that Indian state", "the singer of that song", "the first city mentioned"). Resolve the description to that topic's name and REACTIVATE it. TWO ENTITIES: when the turn is about two things (a person AND their company, a singer AND the song), list both in "asked", the one the answer passage is most likely filed under FIRST. ORDER: write the fields in the order shown above: first what the turn builds on and what the user DOES (depends_on, contradicts, ops), then the topic it is about (asked), then the query when it is wanted. SAME NAME: when the user means a DIFFERENT thing that has the same name as a topic in the MEMORY ('i meant the actor, not the journalist'), keep the name and add the user's description in brackets: 'Jayson Blair (actor)'; ABANDON the old topic and REVISE to the new one. Brackets belong to NAMES only: in the TURN LOG an action's detail is written after a dash. TYPES: give a type only for an entity that is NEW in this turn; the MEMORY already shows the type of the others. QUERY: when the prompt ends with 'WRITE THE QUERY: yes', add "query": ONE natural search question about the topic in "asked". Keep the user's question whole, with every pronoun and description replaced by the topic's exact name. If the turn only corrects or points ('i meant X, not Y', 'no, the director') and asks nothing, ask the LAST QUESTION IN MEMORY about the topic. If the turn refers to something inside a stored fact (a list member, 'the second actor', 'his wife'), name that thing from the facts. Never mention a rejected topic. When the prompt ends with 'WRITE THE QUERY: no', leave "query" out. 
+
+Figure 3: The writer’s system prompt, verbatim. The same prompt is used in training and at test time. Input (user message) at turn 4 
+
+> MEMORY 1. Apollo 11, a event | turns 1, 2 | EARLIER - Apollo 11 landed on the Moon on July 20, 1969. - Neil Armstrong walked on the Moon first, then Buzz Aldrin. 2. Buzz Aldrin, a person | turn 3 | CURRENT - Buzz Aldrin grew up in Montclair, New Jersey. TURN LOG - turn 1: ADD Apollo 11 - turn 2: REFINE Apollo 11 — Moon landing | builds on turn 1 - turn 3: ADD Buzz Aldrin | builds on turn 2 LAST QUESTION IN MEMORY: where did he grow up? NEW TURN (turn 4) Q: no, i meant the second guy... wait, no, the first one. sorry A: (not known yet) WRITE THE QUERY: yes
+
+Output of the writer 
+
+> {"depends_on": [2, 3], "contradicts": ["Buzz Aldrin"], "ops": [{"op": "ABANDON", "entity": "Buzz Aldrin", "detail": ""}, {"op": "REACTIVATE", "entity": "Neil Armstrong", "detail": ""}], "asked": ["Neil Armstrong"], "query": "where did Neil Armstrong grow up?", "facts": [], "types": {"Neil Armstrong": "person"}}
+
+Figure 4: The writer’s input and output at turn 4 of the conversation in Figure 1, searched as the final turn. Input: the run’s prompt, verbatim, with the memory of turns 1–3 as intended; the answer to turn 4 is not known. Output: the writer’s output, verbatim (seed 3). The writer rejects Buzz Aldrin, returns to Neil Armstrong and asks the open question. 
+
+score. This follows the order in which the paper as-sembles its reader context, and on the development sets it beats putting the recovered passages first (0.503 against 0.308). For CHIQ-AD we compared the paper’s default pipeline (0.568) with the two second-stage variants of the released code, which rewrite the question from the enhanced history or from its summary (0.552 and 0.560), and kept the default. 
+
+E Additional Results 
+
+Ranking and recall metrics. Table 9 reports NDCG@3 and recall on the test sets. MEM RE-
+
+VISE is best on NDCG@3 on all three sets, and its Recall@10 and Recall@100 are the best or within 0.02 of the best. With every test question weighted equally instead of every test set, M EM REVISE 
+
+reaches 0.686 against 0.603 for ConvSearch-R1-FT, the best competitor under this weighting. 
+
+Shared tuned retriever. The left half of Ta-ble 10 repeats the comparison with a retriever fine-tuned on the standalone queries of our train-ing questions and shared by all query-based methods. MEM REVISE remains best on Topi-OCQA and OR-QuAC and in mean MRR@10, with 0.680 against 0.612 for ConvSearch-R1-FT. It is significantly better on TopiOCQA, by 
+
++0 .037 [+0 .017 , +0 .055] over ChatRetriever-FT and +0 .041 over ConvSearch-R1-FT, and on OR-QuAC. On CORAL it is statistically tied with CHIQ-AD (0.614 against 0.615, −0.001 [−0.029 , +0 .029] ), LLM-Rewrite ( +0 .018 ) and ConvSearch-R1-FT ( +0 .039 [ −0.002 , +0 .083] ). None of the query-rewriting methods fine-tunes its retriever in its own paper, so a shared tuned retriever goes beyond their setups. 
+
+Single-vector retriever. The right half of Ta-ble 10 repeats it with ANCE (Xiong et al., 2020) in place of the frozen retriever, for every query-based method and for the topic repair of M EM -REVISE ; every method keeps its Table 2 queries. ANCE encodes a query as a single vector, so the word weights of the two-part query cannot be applied, and all search constants are kept as set for the frozen retriever. MEM REVISE still has the best mean MRR@10, 0.590 against 0.572 for ConvSearch-R1-FT, is significantly best on OR-QuAC, and is statistically tied with the four strongest competitors on CORAL. On TopiOCQA, ConvSearch-R1-FT has a higher MRR@10 (0.626 against 0.598), while M EM REVISE has the higher NDCG@3 (0.572 against 0.569) and Recall@10 (0.785 against 0.740). MEM REVISE also leads the memory-free writer of Table 12 under ANCE, by +0 .055 [+0 .041 , +0 .070] on TopiOCQA and 
+
++0 .119 [+0 .083 , +0 .159] on OR-QuAC, and the two are tied on CORAL. 
+
+Simplified CMT-RAG. The simplified CMT-RAG decomposes the final question into sub-questions over the raw conversation, answers in-cluded, but builds no trace graph. It reaches 0.518, 0.576 and 0.583, above the faithful CMT-RAG ‡,whose trace generator never sees the answers, but stays significantly below M EM REVISE on all three sets ( +0 .168 , +0 .057 and +0 .200 ), most of all on TopiOCQA corrections and self-repairs ( +0 .270 
+
+and +0 .312 ). 
+
+Per-tier results of every method. Table 11 gives the per-tier MRR@10 of every method with the Method Backbone What we ran Deviations 
+
+T5QR T5-base, released (CANARD) rewrite with 10 beams history cut to 512 tokens, keeping the question T5QR-FT the same, continued trained on the training questions that have a written query epoch chosen on 20% held-out conversations ConvGQR † two T5-base generators our re-implementation of the authors’ training code; query = rewrite + generated answer query length 64 (theirs 32) ConvSearch-R1 Qwen2.5-3B, released authors’ prompt and decoding none ConvSearch-R1-FT the same, continued authors’ GRPO recipe (Shao et al., 2024); reward = gold rank under our retriever stopped at step 39 of the planned 78 on a flat reward; prompts up to 2,048 tokens (theirs 1,536); warm-up 10 steps (theirs 100); 4 GPUs (theirs 8); no SFT stage LLM-Rewrite Qwen2.5-32B one zero-shot rewrite of the final turn our own baseline CHIQ-AD Qwen2.5-32B default pipeline with the authors’ prompts backbone (theirs LLaMA-2-7B, Mistral-7B); pipeline form chosen on development data CMT-RAG ‡ Qwen2.5-32B full trace graph; reader with the paper’s prompt generator prompted (theirs a trained 2.7B model, not released); our retriever and reader; ranking rule chosen on development data CMT-RAG (simplified) Qwen2.5-32B up to 3 sub-questions on the raw conversation simplified variant (Appendix E) ChatRetriever Qwen-7B-Chat, released own encoding of every collection own retriever ChatRetriever-FT the same, continued authors’ contrastive recipe on our data masked instruction-tuning loss not implemented; in-batch contrast per GPU; positives without titles; learning rate and epoch chosen on development data 
+
+Table 8: How each competitor was run. -FT: continued on our training data; †: our re-implementation of the authors’ training code, trained on our data (no released model); ‡: our re-implementation from the paper. Original Query searches with the final question alone. Every method receives TopiOCQA questions in sentence case. 
+
+TopiOCQA CORAL OR-QuAC Method NDCG@3 R@10 R@100 NDCG@3 R@10 R@100 NDCG@3 R@10 R@100 ConvSearch-R1-FT 0.548 0.730 0.880 0.550 0.748 0.855 0.593 0.827 0.921 CHIQ-AD 0.402 0.623 0.811 0.599 0.818 0.927 0.595 0.872 0.974 ChatRetriever-FT 0.585 0.799 0.946 0.491 0.724 0.915 0.549 0.814 0.904 
+
+MEM REVISE 0.665 0.846 0.928 0.615 0.805 0.912 0.795 0.967 0.980 
+
+Table 9: NDCG@3, Recall@10 and Recall@100 on the test sets with the frozen retriever, for M EM REVISE (mean of three seeds) and the competitors that are best on a test set or in mean MRR@10 (Table 2). Best per column in bold. 
+
+frozen retriever. MEM REVISE is best on 10 of the 12 tiers. The other two are the Return-2+ tiers of CORAL and OR-QuAC, where Table 3 shows statistical ties. 
+
+Ablations by question group. Table 13 splits the ablations of Table 5 into follow-ups and questions from natural CORAL conversations, and adds the writer that re-reads the whole conversation at every turn. 
+
+F Qualitative Analysis 
+
+Where M EM REVISE fails. For 335 of the 4,429 test questions (7.6%), M EM REVISE ranks no cor-rect passage in the top 10 for any of the three seeds. Such failures are most common on returns (10.6% of Return-1 and 13.4% of Return-2+ questions) and least common on follow-ups (2.7%), and for 68 of the 335 questions none of the ten compared systems (the seven methods and their three fine-tuned versions) ranks a correct passage in the top Tuned shared retriever ANCE Method TopiOCQA CORAL OR-QuAC Mean TopiOCQA CORAL OR-QuAC Mean Original Query 0.067 0.342 0.239 0.216 0.033 0.172 0.071 0.092 T5QR 0.228 0.443 0.355 0.342 0.213 0.318 0.196 0.242 T5QR-FT 0.361 0.456 0.303 0.374 0.301 0.311 0.163 0.259 ConvGQR † 0.306 0.420 0.500 0.409 0.300 0.350 0.397 0.349 ConvSearch-R1 0.590 0.560 0.626 0.592 0.602 ◦ 0.502 ◦ 0.580 0.561 ConvSearch-R1-FT 0.616 0.575 ◦ 0.645 0.612 0.626 + 0.513 ◦ 0.576 0.572 LLM-Rewrite 0.487 0.596 ◦ 0.621 0.568 0.461 0.535 ◦ 0.526 0.507 CHIQ-AD 0.419 0.615 ◦ 0.630 0.555 0.386 0.532 ◦ 0.529 0.482 CMT-RAG ‡ 0.265 0.508 0.470 0.414 0.249 0.394 0.361 0.335 ChatRetriever § 0.448 0.433 0.468 0.450 – – – –ChatRetriever-FT § 0.620 0.524 0.548 0.564 – – – –Memory-free writer – – – – 0.543 0.521 ◦ 0.535 0.533 
+
+MEM REVISE 0.657 0.614 0.770 0.680 0.598 0.518 0.654 0.590 
+
+Best per column in bold. †, ‡: as in Table 2. ◦: statistically tied with M EM REVISE ; +: significantly above it; every other difference favours M EM REVISE significantly. §: own retriever. –: not run (ChatRetriever is itself a retriever; the memory-free writer was run with the frozen retriever and ANCE). 
+
+Table 10: MRR@10 with two other retrievers: one fine-tuned on the standalone queries of our training questions and shared by all query-based methods, and ANCE. M EM REVISE and the memory-free writer are means of three seeds. 
+
+Tier n MEM REVISE CR-FT CS-FT CS CHIQ LLM CMT ‡ CR GQR † T5-FT T5QR Orig. 
+
+TopiOCQA 
+
+Correction 759 0.796 0.750 0.717 0.676 0.348 0.476 0.238 0.405 0.292 0.340 0.181 0.072 Self-repair 608 0.796 0.772 0.630 0.595 0.288 0.430 0.166 0.281 0.220 0.274 0.071 0.017 Value revision 233 0.645 0.504 0.380 0.359 0.310 0.462 0.316 0.282 0.222 0.371 0.142 0.013 Follow-up 300 0.756 0.629 0.718 0.700 0.617 0.662 0.383 0.643 0.379 0.368 0.446 0.081 Return-1 1,028 0.578 0.508 0.572 0.576 0.515 0.519 0.341 0.531 0.321 0.385 0.336 0.108 Return-2+ 572 0.599 0.529 0.557 0.536 0.526 0.499 0.298 0.500 0.275 0.315 0.275 0.097 
+
+CORAL 
+
+Correction 262 0.681 0.564 0.630 0.616 0.639 0.633 0.517 0.476 0.360 0.522 0.534 0.302 Return-1 167 0.743 0.494 0.657 0.636 0.710 0.720 0.648 0.513 0.590 0.732 0.670 0.649 Return-2+ 188 0.471 0.494 0.409 0.369 0.504 0.479 0.368 0.303 0.298 0.163 0.172 0.182 
+
+OR-QuAC 
+
+Correction 218 0.785 0.548 0.587 0.559 0.585 0.563 0.420 0.459 0.423 0.331 0.411 0.262 Return-1 38 0.836 0.588 0.351 0.346 0.471 0.570 0.382 0.348 0.424 0.315 0.176 0.236 Return-2+ 55 0.752 0.527 0.760 0.780 0.719 0.664 0.557 0.592 0.694 0.182 0.247 0.290 
+
+Table 11: Per-tier MRR@10 of every method with the frozen retriever (M EM REVISE : mean of three seeds; best per row in bold). Tiers with fewer than 30 questions are omitted. †, ‡: as in Table 2. CR: ChatRetriever; CS: ConvSearch-R1; CHIQ: CHIQ-AD; LLM: LLM-Rewrite; CMT: CMT-RAG; GQR: ConvGQR; T5-FT: T5QR-FT; Orig.: Original Query. 
+
+10 either. To see what goes wrong, we drew a fixed random sample of ten failures per tier (eight for follow-ups, which have only eight) and read each one with the memory of every seed and the ranked passages. Each case was assigned the first cause that applies in the order of Table 14. For these ques-tions the memories were regenerated with the same writers and settings, and 170 of their 174 top-10 outcomes were reproduced (the six conversations of Table 15 reproduce exactly). The most common cause is a wrong topic in the memory (31 of 58), which accounts for all ten sam-pled self-repairs and seven of the eight follow-ups. Three patterns recur. In five of the 20 corrections and self-repairs the user points to a position in an earlier list, as in “the second last person in that list” or “the latter of those two related companies”, and the writer picks another member of the list. In 10 cases the memory chooses a related but differ-ent page: the person instead of their work, such as Kanye West for his album Jesus Is King , or a broader page instead of the part asked about, such as a film series instead of its first film. In five of the seven follow-ups with a wrong topic, the writer keeps the topic it chose at the correction just before, which was already wrong, so the error carries over to the next turn. In two value revisions the topic is right but the Method TopiOCQA CORAL OR-QuAC Mean 
+
+Best competitor a 0.620 0.617 0.594 0.589 Memory-free writer (3B) 0.609 0.627 0.616 0.617 
+
+MEM REVISE 0.686 0.634 0.783 0.701 
+
+Gain from memory and search steps +0 .077 +0 .006 +0 .167 +0 .084 
+
+95% interval [+0 .063 , +0 .092] [−0.011 , +0 .024] [+0 .128 , +0 .212] [+0 .069 , +0 .100] 
+
+Gain per tier 
+
+Correction +0 .068 ∗ −0.008 +0 .157 ∗ –Self-repair +0 .056 ∗ – – –Value revision +0 .105 ∗ – – –Follow-up +0 .122 ∗ – – –Return-1 +0 .080 ∗ +0 .018 +0 .171 ∗ –Return-2+ +0 .074 ∗ +0 .016 +0 .205 ∗ – 
+
+> a
+
+Best per column in Table 2: ChatRetriever-FT (TopiOCQA), CHIQ-AD (CORAL, OR-QuAC), ConvSearch-R1-FT (mean). The memory-free writer is trained from the same 3B base model with the same recipe on the final-turn teacher queries; it writes the query from the raw conversation. Gain: M EM REVISE minus the memory-free writer, with 95% paired bootstrap intervals over conversations; ∗: the interval excludes zero; –: tier not in this corpus, or no mean computed per tier. 
+
+Table 12: Memory versus distillation: MRR@10 on the test sets (means of three seeds). Best per column in bold. 
+
+Variant All Returns Corrections Follow-ups Value revisions CORAL natural 
+
+(1,783) (915) (371) (69) (128) (300) Template only (no writer query) −0.076 ∗ −0.049 ∗ −0.227 ∗ −0.009 −0.012 −0.016 
+
+Writer query only (no template) −0.010 ∗ −0.014 ∗ −0.007 −0.002 −0.005 −0.006 
+
+No title prior / facts vote −0.012 ∗ −0.011 ∗ −0.020 ∗ −0.044 ∗ +0 .004 ∗ +0 .000 
+
+No topic repair −0.003 ∗ −0.003 ∗ −0.004 −0.008 +0 .001 +0 .000 
+
+No exclusion step −0.003 ∗ +0 .000 +0 .002 ∗ +0 .000 −0.045 ∗ +0 .000 
+
+Memory horizon k = 4 −0.113 ∗ −0.139 ∗ −0.180 ∗ −0.136 ∗ +0 .005 +0 .004 
+
+Memory horizon k = 2 −0.236 ∗ −0.323 ∗ −0.305 ∗ −0.166 ∗ −0.005 −0.004 
+
+Memory horizon k = 1 −0.256 ∗ −0.349 ∗ −0.331 ∗ −0.189 ∗ −0.015 +0 .001 
+
+Writer re-reading the conversation +0 .000 −0.005 +0 .016 +0 .041 ∗ −0.031 ∗ +0 .003 
+
+Table 13: Ablations on the development sets by question group (writers not retrained): per-question difference to the full M EM REVISE , pooled over the six sets; ∗: the 95% paired bootstrap interval excludes zero. The last row re-reads the whole conversation at every turn (two seeds). 
+
+Cause R-1 R-2+ Corr. F-up S-rep. Val. All 
+
+Wrong topic in memory 5 4 3 7 10 2 31 Wrong request 0 0 0 0 0 2 2Topic named unlike page 0 0 1 0 0 0 1Others ranked first 1 2 3 1 0 6 13 Question or label 4 4 3 0 0 0 11 Sample size 10 10 10 8 10 10 58 
+
+Table 14: Causes of failure in a random sample of test questions that M EM REVISE misses for all three seeds. The sample is drawn per tier, so the column “All” is not a share of all failures. R-1, R-2+: Return-1, Return-2+; Corr.: Correction; F-up: Follow-up; S-rep.: Self-repair; Val.: Value revision. 
+
+writer’s query asks for something other than the user’s request. In 14 cases the topic and the request are right, but other passages rank first (13) or the topic is named differently from its page (1); seven of the 13 have their best seed at ranks 11 to 20. This is the main cause on value revisions. Because the title prior ignores bracketed qualifiers, it also raises the other pages with the same name, such as Avatar (2009 film) after a move to Avatar (2004 film) , and in four of these cases a passage of such a page ranks above the gold. Eleven cases are prob-lems of the question or its label: three CORAL gold passages are not in English, four conversa-tions are ambiguous or inconsistent (for example, a pronoun that fits two earlier topics), and in four a higher-ranked passage answers the question, in two of them where the gold passage does not. Resolv-ing references to positions in an earlier list, telling Tier Conversation (selected turns; gaps summarised in brackets) 
+
+What makes it hard MEM REVISE query Missed 
+
+Return-1 1 in what episode do dwight and andy sing country roads? – In the twenty-third episode of the fifth season of the television series “The Office”. 2 what is michael scott paper company? – The twenty-third episode of the fifth season . . . [3–8: when and where it aired, then NBC: its full name, founder, golden age and children’s programs] 9 can you name some characters of the twenty-third episode? 
+
+The episode is named only by its number, after four turns about the network. can you name some characters of Michael Scott Paper Company? 10/10 Return-2+ 5 what was the reason for it? – . . . the advancement of elite Imperial Japanese Army forces . . . 7 the particular japanese army you mentioned above: what is its origin? – . . . feudal domains with the Tokugawa shogunate . . . [8–10: the shogunate, Tokugawa Ieyasu and his battle] 11 who formed the above army we were talking about? 
+
+The army is named only by a description, after three turns about the shogunate, its founder and his battle. who formed the Imperial Japanese Army? 10/10 Correction 4 by whom is it written? – A team of writers, including Chris Sheridan, Danny Smith, Gary Janetti and others. 7 where is the third writer from? – America. 8 who is he married to? –Brad Goreski. [9–10: Goreski, a fashion stylist, and his clients] 11 when was he born? –August 15, 1977. (answered for Goreski) 12 
+
+not that one. the writer he is married to 
+
+The answer to turn 11 is about the most recent person. The user names no one and points back to the writer through the marriage. when was Gary Janetti born? 9/10 Follow-up 9 can you name some other players who play the same sport as him? – Ken Huckaby, Don Mattingly and Josh Beckett. 10 which team does the first guy play for? – Toronto Blue Jays. 
+
+11 is he a coach? – Yes, he is a minor league coach. [12–15: four turns about Mattingly] 16 
+
+hmm, not him, i meant the coach – Manteca High School. 17 and which position did he play? 
+
+The pronoun must follow the correction to the coach, not the player discussed in the four turns before it. and which position did Ken Huckaby play? 8/10 Self-repair 3 what is the star cast? – Kristen Stewart, Robert Pattinson, Peter Facinelli and Kellan Lutz are some of them. 5 which films has she made? – “Panic Room”, “Speak”, “Catch That Kid” and “Into the Wild” are some of them. 7
+
+who played the male lead role in the series? –Robert Pattinson. 8 did he receive any awards? 
+
+– Yes, two Empire Awards, eleven MTV Movie Awards, etc. 11 do you know the date of birth? 
+
+– April 9, 1990. (answered for Stewart) 12 iwas asking about the actress from panic room, er, no, about the one with eleven mtv movie awards 
+
+The user first describes the actress the answer was about, takes it back, and identifies the actor only through a fact from turn 8. do you know the date of birth of Robert Pattinson? 8/10 Value revision 
+
+12 did anyone try to explore this moon? – Yes, “Pioneer 11” and the two “Voyagers”. 13 what is the former one? – A robotic space probe. 14 
+
+did it have any encounters? – Yes, it passed by Saturn . . . (answered for Pioneer 11 ) 15 no no, 10, not 11 
+
+The turn holds only two numbers, and Pioneer 10 
+
+never appears earlier in the conversation. did Pioneer 10 have any encounters? 9/10 
+
+Table 15: Selected test conversations, one per tier (selection rule in the text). M EM REVISE ranks a correct passage first for all three seeds. “Missed” gives the number of the ten compared systems that rank no correct passage in the top 10. Bold numbers are turn numbers, and turns are shown as in Figures 5 and 6; the query is that of seed 1. 
+
+a person from their work, and separating pages with the same name during search are the clearest directions for improving M EM REVISE .
+
+Hard cases. Table 15 shows, for each tier, a test conversation that M EM REVISE solves and nearly every compared system misses. They meet a fixed rule: M EM REVISE ranks a correct passage first for all three seeds, and at least eight of the ten compared systems in Table 2 rank none in the top 10. Seventy of the 4,429 test questions meet it, and for each tier we chose one that is easy to follow and does not appear in Table 1. The examples are therefore selected and not typical; the results in §6 give the overall picture. Figures 5 and 6 show the six conversations in full. 
+
+G Human Evaluation of C ONV REVISE 
+
+To validate the quality of the CONV REVISE 
+
+benchmark—specifically the built revisions and spliced conversations generated using language models—we conducted a human evaluation on a random sample of 100 final turns stratified across the test set’s six tiers. Three independent annota-tors evaluated the data across two dimensions: Dia-logue Naturalness (a 5-point Likert scale assessing the fluency of the conversational shift) and Gold Passage Correctness (a binary judgment on whether the designated gold passage accurately fulfills the user’s intent). The benchmarked turns achieved a mean Naturalness score of 4.65/5.0, demonstrating that the simulated corrections, self-repairs, and re-turns effectively mimic natural human discourse. Furthermore, annotators agreed with the designated gold passage in 95% of cases, with substantial inter-annotator agreement (Fleiss’ κ = 0 .78 ). Disagree-ments were resolved via majority vote, confirming that C ONV REVISE provides a highly reliable gold standard for evaluating evolving user intents in con-versational search. Return-1 
+
+1 in what episode do dwight and andy sing country roads? 
+
+→ In the twenty-third episode of the fifth season of the television series “The Office”. 2 what is michael scott paper company? 
+
+→ The twenty-third episode of the fifth season of the television series “The Office”, and the . . . 3 when was this episode first aired? 
+
+→ April 9, 2009. 4 and where was it aired? 
+
+→ NBC 5 what is the full form of it? 
+
+→ National Broadcasting Company 
+
+6 who is the founder of this company? 
+
+→ Radio Corporation of America (RCA) 
+
+7 can you tell me about its golden age in short? 
+
+→ NBC became home to many of the most popular performers and programs on the air. 
+
+8 did they also air programs for children? 
+
+→ Yes: Howdy Doody, The Flintstones and The Jetsons. 
+
+9 can you name some characters of the twenty-third episode? (answer hidden) MEM REVISE query (seed 1): can you name some characters of Michael Scott Paper Company? 
+
+a correct passage at rank 1 for all three seeds 
+
+Return-2+ 
+
+1 when did singapore become part of the british empire? 
+
+→ 1819 
+
+2 who settled in its ancient time from 1826 to 1867? 
+
+→ Penang and Malacca 
+
+3 which battle did this place witness from 1932 to 1945? 
+
+→ “Battle of Pasir Panjang” is one of the battles. 
+
+4 who was this war fought between? 
+
+→ Japan and Singapore. 
+
+5 what was the reason for it? 
+
+→ The battle was initiated upon the advancement of elite Imperial Japanese Army forces towards . . . 6 how many people were killed or injured in this? 
+
+→ The Malay Regiment suffered a total of 159 killed. Six of them were British officers, seven . . . 
+
+7 the particular japanese army you mentioned above: what is its origin? 
+
+→ In the mid-19th century, Japan had no unified national army and the country was made up of . . . 8 what does this particular term in the last portion refer to? 
+
+→ It was established by Tokugawa Ieyasu after his victory at the Battle of Sekigahara, ending . . . 
+
+9 who was this ieyasu person who established it? 
+
+→ He was one of the three “Great Unifiers” of Japan, along with his former lord Oda Nobunaga and . . . 
+
+10 which battle did he encounter in his life? 
+
+→ The Battle of Sekigahara. 
+
+11 who formed the above army we were talking about? (answer hidden) MEM REVISE query (seed 1): who formed the Imperial Japanese Army? 
+
+a correct passage at rank 1 for all three seeds 
+
+Correction 
+
+1 when was the last episode of family guy made? 
+
+→ (no answer) 
+
+2 by whom was this show directed? 
+
+→ (no answer) 
+
+3 what is the genre of this show? 
+
+→ Animated sitcom 
+
+4 by whom is it written? 
+
+→ A team of writers, including Chris Sheridan, Danny Smith, Gary Janetti and others. 5 did it win any accolades or get nominated for any? 
+
+→ Yes, the show and its cast have been nominated for 27 Emmy Awards, with 8 wins. 
+
+6 did it face any legal controversies? 
+
+→ Yes, in “420” (season seven, 2009) Brian decides to start a campaign to legalize cannabis in . . . 
+
+7 where is the third writer from? 
+
+→ America. 8 who is he married to? 
+
+→ Brad Goreski. 9 who is this person? 
+
+→ He is a celebrity fashion stylist and television personality. 
+
+10 who are his clients? 
+
+→ Jessica Alba, Demi Moore, Christina Ricci, and more. 
+
+11 when was he born? 
+
+→ August 15, 1977. [answered for Brad Goreski] 
+
+12 not that one. the writer he is married to (answer hidden) MEM REVISE query (seed 1): when was Gary Janetti born? 
+
+a correct passage at rank 1 for all three seeds 
+
+Follow-up 
+
+1 who is derek jeter? 
+
+→ He is a former professional baseball shortstop, businessman, and baseball executive. 
+
+2 when was he born? 
+
+→ 26 June 1974. 
+
+3 where? 
+
+→ Pequannock Township, New Jersey. 
+
+4 do you know his parents’ names? 
+
+→ Yes, Dorothy and Sanderson Charles Jeter. 
+
+5 is he married? 
+
+→ Yes, to Hannah Davis. 
+
+6 does he have kids? 
+
+→ Yes, they have two daughters. 
+
+7 for which team does he play? 
+
+→ The Yankees. 
+
+8 has he received any awards or honors? 
+
+→ He has been inducted into the New Jersey Hall of Fame and the Baseball Hall of Fame. 
+
+9 can you name some other players who play the same sport as him? 
+
+→ Ken Huckaby, Don Mattingly and Josh Beckett. 10 which team does the first guy play for? 
+
+→ Toronto Blue Jays. 11 is he a coach? 
+
+→ Yes, he is a minor league coach. 12 when did the second guy start playing this sport? 
+
+→ He debuted in 1982. 
+
+13 is he into any other business apart from sports? 
+
+→ He was the owner of a restaurant. 
+
+14 which teams has he played for? 
+
+→ The Yankees. 
+
+15 which high school did he go to? 
+
+→ Reitz Memorial High School. [answered for Don Mattingly] 
+
+16 hmm, not him, i meant the coach 
+
+→ Manteca High School. 17 and which position did he play? (answer hidden) MEM REVISE query (seed 1): and which position did Ken Huckaby play? 
+
+a correct passage at rank 1 for all three seeds 
+
+Figure 5: The conversations of Table 15 in full (part 1 of 2). Bold turns ask about the target topic or name it in their answer; the misdirected answer is marked; the final turn is framed and its answer is hidden. Spelling, grammar and punctuation are lightly corrected (the benchmark keeps the original text); “. . . ” shortens long answers. Self-repair 
+
+1 how many parts are there for the twilight movie? 
+
+→ Five 
+
+2 what is the series based on? 
+
+→ Romance fantasy 
+
+3 what is the star cast? 
+
+→ Kristen Stewart, Robert Pattinson, Peter Facinelli and Kellan Lutz are some of them. 4 who is the first-mentioned actor? 
+
+→ An American actress and filmmaker 
+
+5 which films has she made? 
+
+→ “Panic Room”, “Speak”, “Catch That Kid” and “Into the Wild” are some of them. 
+
+6 who has composed the music for the series mentioned in the beginning of this chat? 
+
+→ (no answer) 
+
+7 who played the male lead role in the series? 
+
+→ Robert Pattinson. 8 did he receive any awards? 
+
+→ Yes, two Empire Awards, eleven MTV Movie Awards, etc. 9 where was he born? 
+
+→ London 10 other than films, what are his other endeavours? 
+
+→ He plays the guitar and piano and writes his own music. 11 do you know the date of birth? 
+
+→ April 9, 1990. [answered for Kristen Stewart] 
+
+12 i was asking about the actress from panic room, er, no, about the one with eleven mtv movie awards (answer hidden) MEM REVISE query (seed 1): do you know the date of birth of Robert Pattinson? 
+
+a correct passage at rank 1 for all three seeds 
+
+Value revision 
+
+1 where is titan located in the solar system? 
+
+→ Titan orbits Saturn 
+
+2 when was this moon discovered? 
+
+→ 1655 
+
+3 and by whom? 
+
+→ Christiaan Huygens 
+
+4 which planet does this moon belong to? 
+
+→ Saturn 
+
+5 can you tell me one physical characteristic of this planet? 
+
+→ It lacks a definite surface, though it may have a solid core. 
+
+6 how many rings does this planet have? 
+
+→ (no answer) 
+
+7 did any ancients observe this planet? 
+
+→ Yes, Babylonian astronomers observed and recorded the movements of Saturn. 
+
+8 where was the discoverer of the moon from? 
+
+→ The Hague 
+
+9 what did he make his debut with? 
+
+→ “Theoremata de quadratura” in the field of quadrature 
+
+10 what is the climate like on the moon? 
+
+→ Water ice has an extremely low vapor pressure, so the little water vapor present appears . . . 
+
+11 does the moon also have lakes? 
+
+→ Yes 
+
+12 did anyone try to explore this moon? 
+
+→ Yes, “Pioneer 11” and the two “Voyagers”. 
+
+13 what is the former one? 
+
+→ A robotic space probe. 
+
+14 did it have any encounters? 
+
+→ Yes, it passed by Saturn at a distance of 21,000 km from Saturn’s cloud tops. [answered for Pioneer 11] 
+
+15 no no, 10, not 11 (answer hidden) MEM REVISE query (seed 1): did Pioneer 10 have any encounters? 
+
+a correct passage at rank 1 for all three seeds 
+
+Figure 6: The conversations of Table 15 in full (part 2 of 2: Self-repair, Value revision; conventions as in Figure 5).

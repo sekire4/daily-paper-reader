@@ -1,0 +1,610 @@
+Title: FLINT: Fixed-budget Late Interaction
+
+URL Source: https://arxiv.org/pdf/2610.27273v1
+
+Published Time: Wed, 21 Oct 2026 00:27:37 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# FLINT: Fixed-budget Late Interaction 
+
+Himank Handa 1 Negar Arabzadeh 2 Matei Zaharia 21University of Illinois Urbana-Champaign 
+
+> 2
+
+University of California, Berkeley 
+
+himankh2@illinois.edu , {negara, matei}@berkeley.edu 
+
+Abstract 
+
+Multi-vector retrieval models such as ColBERT often outperform single-vector models of com-parable scale by matching queries and doc-uments at the token level. However, retain-ing a vector for every token substantially in-creases storage requirements and slows re-trieval compared to single-vector bi-encoders, limiting their scalability. We introduce FLINT (Fixed-budget Late INTeraction), an architec-ture that uses attention-based pooling to rep-resent each query and document with a fixed number of embedding vectors. Unlike architec-tures that pool only document representations while retaining token-level queries, FLINT ap-plies pooling symmetrically to both sides, limit-ing document storage and the number of vector comparisons needed during retrieval. FLINT achieves comparable ranking effectiveness to the closest baselines on BEIR and outperforms them on several benchmarks with longer and more complex queries, including BrowseC-omp+, CRUMB, and TREC Tip-of-the-Tongue 2025. We demonstrate that FLINT’s effective-ness–efficiency benefits extend across encoder architectures, testing it on two separate back-bones (BERT and ModernBERT). On long-query corpora, FLINT delivers 1.5–2.8× faster end-to-end retrieval than ConstBERT, the clos-est baseline. FLINT also reduces index size by 5.3–9.3× relative to token-level late-interaction models such as ColBERTv2. 
+
+1 Introduction 
+
+Multi-vector retrieval models such as ColBERT often outperform bi-encoders (Reimers and Gurevych, 2019) of comparable scale because they preserve token-level representations and enable fine-grained matching between query and docu-ment tokens (Khattab and Zaharia, 2020). How-ever, this effectiveness comes at a substantial cost in latency and storage. While a standard bi-encoder stores a single vector for each document, ColBERT-style models store one vector for every document to-ken . Consequently, their index size grows with doc-ument length, substantially increasing storage re-quirements and retrieval-time computation, which leads to higher latency and limits scalability. ColBERTv2 (Santhanam et al., 2022b) substan-tially reduces ColBERT’s storage footprint through residual compression and improves retrieval ef-fectiveness while retaining token-level representa-tions. The PLAID index (Santhanam et al., 2022a; MacAvaney and Tonellotto, 2024) further improves retrieval efficiency through centroid-based candi-date filtering and pruning. XTR (Lee et al., 2023) scores documents using retrieved tokens and esti-mates missing token similarities. WARP (Scheerer et al., 2025) accelerates XTR-style retrieval by computing scores directly from compressed token embeddings. MUVERA (Dhulipala et al., 2024) uses fixed-dimensional encodings for single-vector MIPS search, followed by multi-vector reranking. Despite these advances, storage requirements re-main large and tied to document length through token-level representations retained for ranking. 
+
+MacAvaney et al. (2025) address these efficiency limitations by proposing ConstBERT, in which they pool each document into a fixed set of 32 embed-ding vectors. This fixed representation substan-tially reduces index sizes relative to ColBERTv2 while preserving effectiveness on MS MARCO and BEIR. However, ConstBERT retains one em-bedding vector per query token, so the number of query vectors and the associated search cost still grow with longer and more complex queries, where latency also increases. This motivates the ques-tion: Can we design a fixed-budget late-interaction architecture that preserves effectiveness on long, complex, out-of-distribution queries while reducing both document storage and query-side search cost? 
+
+We give a more detailed comparison with related work in Appendix A. To retain the storage efficiency of fixed-budget representations without sacrificing effectiveness, arXiv:2610.27273v1 [cs.IR] 19 Oct 2026 and to further reduce retrieval latency, we intro-duce FLINT (Fixed-budget Late INTeraction). The key idea is to retain multiple representations for matching without tying each representation to a single input token. As illustrated in Figure 1, learned latent vectors attend over the full token sequence, each aggregating information from mul-tiple tokens into an output embedding. Thus, longer inputs can change the information captured by these embeddings without increasing their number. The pooling module converts each variable-length token sequence into a fixed number of embedding vectors for multi-vector retrieval and replaces the single-vector mean-pooling operation commonly used in bi-encoders. Figure 2 compares FLINT’s architecture with prior models. Unlike ConstBERT, FLINT applies attention-based pooling symmetri-cally to both documents and queries. As a result, 
+
+FLINT’s storage cost per document is indepen-dent of document length, and its fixed query-vector budget keeps late-interaction search la-tency nearly constant as query length increases .We evaluate FLINT on standard general-domain retrieval benchmarks, as well as out-of-domain benchmarks featuring substantially longer and more complex queries. On BEIR (Thakur et al., 2021), FLINT outperforms the single-vector base-line and remains competitive with existing late-interaction models, while requiring substantially less storage than token-level retrieval. On more complex benchmarks, including CRUMB (Killing-back and Zamani, 2025), TREC Tip-of-the-Tongue 2025 (Arguello et al., 2026), and BrowseComp+ (Chen et al., 2026), FLINT generally provides stronger retrieval effectiveness than ConstBERT. These results show that FLINT fixed-budget repre-sentations on both the query and document sides can retain strong retrieval effectiveness even for long, out-of-distribution queries. FLINT combines these effectiveness results with substantial savings in storage and retrieval time. 
+
+FLINT reduces index size by 5.3–9.3× relative to token-level late-interaction models. Beyond reducing storage, FLINT substantially improves retrieval-time efficiency. Because it produces a fixed number of vectors for both documents and queries, its search cost remains nearly constant as query length increases. On the evaluated long-query corpora, FLINT achieves 1.5–2.8 × faster end-to-end retrieval and 2.5–4.8× faster search time than ConstBERT. We note that FLINT is or-thogonal to other existing efficiency techniques, including dimensionality reduction and PLAID indexing (Santhanam et al., 2022a), which can provide complementary improvements in storage and retrieval speed. We evaluate FLINT with ModernBERT-large (Warner et al., 2025) as an al-ternative backbone and show that its effectiveness– efficiency benefits remain robust. Our main contributions are: • We introduce FLINT 1, a fixed-budget late-interaction architecture that applies symmetric attention-based pooling to both document and query representations, decoupling storage and retrieval cost from input length. • We show that FLINT outperforms a single-vector baseline, remains competitive with existing late-interaction models on standard benchmarks and better preserves effectiveness on longer, out-of-distribution queries, while achieving lower re-trieval latency than ConstBERT. • We demonstrate that FLINT generalizes across backbones and exposes the vector budget V as a tunable effectiveness–efficiency trade-off. 
+
+2 FLINT: Fixed-Budget Late Interaction 
+
+2.1 Fixed-Budget Representations 
+
+Given a query q and a document d, a shared trans-former backbone (Vaswani et al., 2017) indepen-dently encodes each input into a sequence of con-textualized, h-dimensional representations. Let 
+
+Xq ∈ R|q|× h and Xd ∈ R|d|× h denote the resulting query and document representations, respectively, where |q| and |d| are the numbers of query and doc-ument tokens, and h is the hidden dimensionality of the transformer. In standard late-interaction models such as Col-BERT, all token representations are retained for scoring. Consequently, the number of stored doc-ument vectors grows with document length, while the cost of query–document matching grows with the number of query and document vectors. To address this limitation, FLINT inserts an attention-based pooling module between the transformer and the late-interaction scoring layer. The module maps the variable-length query and document representa-tions, Xq and Xd, to fixed-budget pooled represen-tations Zq, Z d ∈ RV ×h, where V denotes the fixed number of vectors allocated to each query and doc-ument. Thus, FLINT stores exactly V vectors per           
+
+> 1Our code is available at https://github.com/ hmk55555/FLINT ,and model checkpoints at https: //huggingface.co/collections/himankhanda/flint .
+
+document or query, regardless of document length 
+
+|d| or query length |q|.
+
+2.2 Symmetric Attention-Based Pooling 
+
+FLINT builds on the cross-attention pooling mech-anism used in the Perceiver Resampler architecture (Alayrac et al., 2022; Jaegle et al., 2021), which we adapt to fixed-budget late-interaction retrieval. For each input side s ∈ { q, d }, a fixed set of V learned latent vectors Ls ∈ RV ×h attends over the corre-sponding backbone representations Xs. The latent vectors act as attention queries, while the token rep-resentations act as keys and values. This operation summarizes the full variable-length token sequence into exactly V output vectors. For an input representation X ∈ Rn×h, where 
+
+n ∈ {| q|, |d|} and learned latents L ∈ RV ×h, the pooling operation is     
+
+> Pool( L, X ) = softmax
+> (LW Q)( XW K)⊤
+> √ha
+> 
+> XW V,(1)
+
+where WQ, WK , and WV are learned projection matrices, and ha = h/H is the per-head dimen-sionality for H attention heads. The module uses multi-head attention followed by an output projec-tion. Its output contains exactly V vectors in RV ×h,regardless of the input length n.Each cross-attention output is then refined by a position-wise feed-forward network applied iden-tically and independently to each of the V latent vectors. The feed-forward network consists of an up-projection from h to rh dimensions, a GELU nonlinearity, and a down-projection from rh back to h. Figure 1 illustrates our pooling module 2. The number of heads, the ratio r, and the projection dimension are given in Appendix B. Document and query encoders share the same transformer backbone, pooling module, and lin-ear projection parameters. Only the learned latent sets, Lq and Ld, are specific to the query and docu-ment sides, respectively. After pooling, the result-ing representations Zq, Z d are projected into the retrieval embedding space and scored using Col-BERT’s standard late-interaction operator. Let zqi
+
+and zdj denote the i-th and j-th rows of the pro-jected Zq and Zd, i.e. the i-th projected query vec-tor and the j-th projected document vector, respec-tively. FLINT computes                 
+
+> 2We experimented with modules containing various depth self-attention stacks, but found those to lead to complete doc-ument vectors and score collapse, documented in the Ap-pendix D.
+> Learned latents
+> L∈RV×h
+> Backbone tokens
+> X∈Rn×h
+> LayerNorm LayerNorm Multi-Head Cross-Attention
+> +
+> LayerNorm Linear h→rh
+> GELU Linear rh →h
+> Dropout
+> +
+> Pooled latents Z∈RV×h
+> QK, V
+> Cross-Attention Feed-Forward
+
+Figure 1: FLINT pooling module.       
+
+> S(q, d ) =
+> VX
+> i=1
+> max
+> j∈{ 1,...,V }(zqi)⊤zdj.(2)
+
+This is the same MaxSim scoring function used by ColBERTv2 and ConstBERT, but it is computed over exactly V query and V document vectors rather than over a variable number of token-level representations. Figure 2 shows FLINT architec-ture relative to baselines: • (a) ColBERT (Khattab and Zaharia, 2020) re-tains one vector for every query and document token. The resulting token-level representations are projected and compared using MaxSim. Con-sequently, the document index grows with doc-ument length, and matching cost increases with the numbers of query and document tokens. • (b) ColBERTv2 (Santhanam et al., 2022b) uses the same token-level late-interaction architecture but applies dimensionality reduction to reduce the storage cost of its index. However, it still re-tains one representation per token, so index size and matching cost remain dependent on docu-ment and query length. • (c) ConstBERT reduces the document-side cost by pooling each document into a fixed set of V
+
+vectors ( V = 32 ), but it retains one representa-tion per query token, so retrieval cost can still increase for longer queries. • (d) FLINT applies the shared cross-attention and FFN pooling module to both queries and docu-ments. The pooling parameters are shared, while the query and document latent vectors are learned separately. FLINT therefore produces exactly V
+
+vectors on both sides, keeping the index size fixed per document and limiting the number of query vectors used during late-interaction scoring. (a) ColBERT                                 
+
+> Document Query BERT Encoder
+> |d|Vecs |q|Vecs Max Sim
+> [|d|, h ][|q|, h ]
+> (b) ColBERTv2
+> Document Query BERT Encoder Linear Projection ( h→h′)
+> |d|Vecs |q|Vecs Max Sim
+> [|d|, h ][|q|, h ][|d|, h ′][|q|, h ′]
+> (c) ConstBERT
+> Document Query BERT Encoder Linear Pool
+> |d| → V
+> Linear Projection ( h→h′)
+> VVecs |q|Vecs Max Sim
+> [|d|, h ][V, h ][|q|, h ][V, h ′][|q|, h ′]
+> (d) FLINT Symmetric
+> Document Query BERT Encoder Cross-Attention Doc Latents Query Latents FFN
+> [V, h ][V, h ]
+> Linear Projection ( h→h′)
+> VVecs VVecs Max Sim
+> [|d|, h ][|q|, h ][V, h ][V, h ][V, h ][V, h ][V, h ′][V, h ′]
+
+Figure 2: Architecture comparison across ColBERT, ColBERTv2, ConstBERT, and Symmetric FLINT. Tensor shapes [seq , h ] track the sequence dimension through each pipeline. 
+
+3 Experiments 
+
+3.1 Datasets 
+
+We evaluate FLINT across four complementary re-trieval suites spanning diverse tasks, queries, and corpus sizes. BEIR (Thakur et al., 2021) represents conventional zero-shot retrieval across heteroge-neous domains, including question answering, fact verification, and biomedical search, with predom-inantly short and keyword-like queries. CRUMB 
+
+(Killingback and Zamani, 2025), in contrast, cov-ers multi-aspect and reasoning-intensive retrieval tasks whose queries express multiple constraints, use domain-specific terminology, and often have limited lexical overlap with relevant documents. We additionally evaluate two retrieval settings that differ substantially from standard passage re-trieval. TREC Tip-of-the-Tongue 2025 (Arguello et al., 2026) evaluates known-item re-finding from long, conversational descriptions that may include vague details, comparisons, and incorrect recollec-tions. BrowseComp+ (Chen et al., 2026) evaluates deep-research retrieval, where systems must iden-tify human-verified supporting evidence among challenging distractor documents. Together, these suites cover both short, conventional information needs and longer, out-of-distribution queries. This long and complex query regime is particularly im-portant for evaluating FLINT because the retrieval cost of token-level late-interaction models grows with the number of query representations. Details of dataset statistics are reported in Appendix C. 
+
+3.2 Baselines 
+
+Our primary goal is to isolate the effectiveness and efficiency trade-offs introduced by the retrieval ar-chitecture, rather than compare independently opti-mized retrieval systems. We therefore focus on con-trolled comparisons with single-vector, token-level late-interaction, and document-only fixed-budget architectures, using matched backbones and train-ing settings where possible. Methods such as XTR (Lee et al., 2023; Scheerer et al., 2025), token prun-ing (Acquavia et al., 2023), and other indexing or compression techniques address related efficiency challenges but modify different components of the retrieval pipeline. We discuss these approaches in Appendix A. Here, we compare the results of our FLINT BERT model against ColBERTv2 (San-thanam et al., 2022b) and ConstBERT (MacA-vaney et al., 2025). On ModernBERT, we com-pare against ColBERTv2, ConstBERT, and single-vector-based architectures. 
+
+3.3 Training Setup & Implementation Training. We train FLINT on the same MS MARCO (Bajaj et al., 2016) training set used in ColBERTv2 (Santhanam et al., 2022b) and Con-stBERT (MacAvaney et al., 2025) so that any ef-fectiveness gap between the three models reflects the pooling architecture rather than a difference in training data. We evaluate the trained models for ColBERT and ConstBERT on our exact setup to ensure fair comparison. In testing an alternate back-bone, we replace BERT with ModernBERT while keeping FLINT’s symmetric attention-based pool-ing architecture unchanged. Since the exact multi-vector ModernBERT checkpoint used in prior work is not publicly available, we train the ColBERTv2 architecture on ModernBERT using the same train-ing regimen as in Warner et al. (2025). We train FLINT under the same setup, enabling a controlled (a) BEIR Architecture C-FEVER                                                                                                                          
+
+> ¯q: 27
+> SciFact
+> ¯q: 23
+> HotpotQA
+> ¯q: 22
+> T-COVID
+> ¯q: 18
+> FiQA
+> ¯q: 16
+> SciDocs
+> ¯q: 15
+> Quora
+> ¯q: 14
+> FEVER
+> ¯q: 13
+> NQ
+> ¯q: 12
+> Touché
+> ¯q: 10
+> DBPedia
+> ¯q: 9
+> NFCorpus
+> ¯q: 7
+> Avg
+> ¯q: 16
+> BERT  FLINT ( V=32 )0.140 0.647 0.581 0.686 0.291 0.148 0.848 0.656 0.496 0.232 0.393 0.308 0.452 ConstBERT 0.140 0.618 0.620 0.738 0.318 0.159 0.817 0.683 0.535 0.253 0.425 0.319 0.469 ColBERTv2 0.179 0.688 0.678 0.733 0.355 0.158 0.855 0.779 0.561 0.244 0.454 0.334 0.502 Single-Vector 0.208 0.604 0.502 0.794 0.335 0.156 0.859 0.621 0.507 0.224 0.294 0.285 0.449 FLINT ( V=16 )0.215 0.704 0.612 0.803 0.380 0.164 0.872 0.765 0.555 0.320 0.396 0.337 0.510 FLINT ( V=32 )0.231 0.716 0.655 0.840 0.403 0.166 0.877 0.782 0.576 0.358 0.409 0.346 0.530 FLINT ( V=64 )0.223 0.716 0.682 0.813 0.410 0.171 0.871 0.797 0.584 0.339 0.420 0.346 0.531 ConstBERT 0.224 0.702 0.659 0.816 0.400 0.171 0.875 0.781 0.551 0.322 0.378 0.340 0.518 ModernBERT ColBERTv2 0.203 0.722 0.720 0.808 0.397 0.164 0.869 0.829 0.592 0.342 0.419 0.343 0.534
+
+(b) Complex Query Benchmarks CRUMB TREC ToT 2025 BrowseComp+ Architecture Code 
+
+> ¯q: 229
+
+StackEx 
+
+> ¯q: 226
+
+Clinical 
+
+> ¯q: 183
+
+Paper 
+
+> ¯q: 180
+
+ToT 
+
+> ¯q: 168
+
+Theorem 
+
+> ¯q: 97
+
+Avg 
+
+> ¯q: 180
+
+Avg 
+
+> ¯q: 204
+
+Avg 
+
+> ¯q: 117
+> BERT
+
+FLINT ( V =32 ) 0.045 0.139 0.264 0.310 0.078 0.035 0.145 0.065 0.063 ConstBERT 0.049 0.140 0.225 0.296 0.075 0.027 0.136 0.047 0.055 ColBERTv2 0.025 0.146 0.213 0.386 0.059 0.029 0.143 0.046 0.057 Single-Vector 0.055 0.208 0.297 0.313 0.043 0.030 0.158 0.042 0.022 FLINT ( V =16 ) 0.087 0.243 0.279 0.372 0.103 0.055 0.190 0.092 0.083 FLINT ( V =32 ) 0.108 0.235 0.285 0.393 0.138 0.073 0.205 0.147 0.105 FLINT ( V =64 ) 0.112 0.214 0.327 0.404 0.184 0.058 0.217 0.164 0.108 ConstBERT 0.088 0.207 0.293 0.330 0.102 0.061 0.180 0.070 0.067 ModernBERT ColBERTv2 0.062 0.213 0.229 0.363 0.197 0.039 0.184 0.155 0.135 
+
+Table 1: Retrieval effectiveness measured using NDCG@10. Bold indicates the best result in each column and underline the second best. 
+
+comparison between token-level and fixed-budget late interaction. We additionally train ConstBERT on ModernBERT under the same regimen, and train FLINT with budgets V ∈ { 16 , 32 , 64 }; unless noted, FLINT results use V =32 . As a single-vector baseline, we use an existing ModernBERT-large bi-encoder. Additional training, sequence lengths, query padding, and indexing details are described in Appendix B. 
+
+4 Retrieval Effectiveness 
+
+We first evaluate whether FLINT’s fixed-budget representations preserve retrieval effectiveness rela-tive to fixed-budget and token-level late-interaction baselines. Storage and retrieval-time efficiency are explored separately in Section 5. 
+
+4.1 Overall Retrieval Effectiveness 
+
+Table 1 reports NDCG@10 on BEIR and the three complex-query benchmarks; additional Re-call@1000 results are reported separately in Ap-pendix Table 6. FLINT remains competitive with ConstBERT on BEIR, showing that symmetric attention-based pooling preserves effectiveness on conventional, predominantly short-query retrieval tasks. For example, on Quora, FLINT achieves an NDCG@10 of 0.848, outperforming ConstBERT at 0.817 and closely approaching ColBERTv2 at 0.855. ColBERTv2 nevertheless performs better on many BEIR collections and has the highest BERT-based average, which illustrates the effectiveness advantage that full token-level representations can retain in the short-query domain. FLINT’s advantage becomes clearer on the complex-query benchmarks. Among the BERT-based models, FLINT achieves the highest average NDCG@10 on CRUMB, TREC-ToT 2025, and BrowseComp+. For example, on TREC-ToT 2025, FLINT improves NDCG@10 from 0.047 with Con-stBERT to 0.065 and also exceeds ColBERTv2 at 0.046. Although the absolute scores on these bench-marks are lower than on BEIR, this reflects the substantially greater difficulty of the tasks, which involve long, out-of-distribution queries, limited lexical overlap, uncertain recollections, and chal-lenging distractor documents. Overall, FLINT preserves competitive effective-ness on conventional retrieval tasks while provid-ing stronger ranking effectiveness on longer and more complex information needs. Although token-level ColBERTv2 remains more effective on some datasets, FLINT’s ability to retain competitive ef-fectiveness with compact representations is valu-able in light of the substantial storage and latency reductions examined in Section 5. 
+
+4.2 Impact of the Backbone Encoder 
+
+We next examine how the backbone encoder affects FLINT’s retrieval effectiveness. As shown in Table 1, replacing BERT with Mod-ernBERT consistently improves FLINT across all benchmark suites. Average NDCG@10 increases FLINT ConstBERT      
+
+> 020 40 60 80 Mean Response Time (ms)
+> 13 13
+> NFCorpus 3,633 docs
+> FLINT ConstBERT
+> 16 38
+> CRUMB Clinical 914,628 docs
+> FLINT ConstBERT
+> 26 42
+> CRUMB Paper 363,133 docs
+> FLINT ConstBERT
+> 26 74
+> TREC-ToT 2025 6,407,814 docs Query encoding PLAID search
+
+Figure 3: Mean Response Time decomposed into query-encode and PLAID-search time (BERT backbone), FLINT vs. ConstBERT, per corpus. Bars stack encoding (purple) and search (orange) time.                                                                                                                                     
+
+> NFCorpus
+> 3.6K docs, ¯q: 7
+> CRUMB Paper
+> 363K docs, ¯q: 180
+> CRUMB Clinical
+> 915K docs, ¯q: 183
+> TREC-ToT 2025
+> 6.4M docs, ¯q: 204
+> Architecture Enc. Srch. MRT ↓Enc. Srch. MRT ↓Enc. Srch. MRT ↓Enc. Srch. MRT ↓
+> BERT  FLINT ( V=32 )8.5 4.1 12.6 13.8 12.1 25.9 9.2 6.9 16.1 12.6 13.5 26.1
+> ConstBERT 8.3 4.3 12.6 12.1 30.3 42.4 8.7 29.5 38.2 11.9 62.4 74.3 ColBERTv2 8.4 6.8 15.2 11.8 259.0 270.8 8.4 574.3 582.7 11.8 763.1 774.9 ModernBERT  Single-Vector 16.9 1.0 17.9 22.0 1.1 23.1 17.2 1.0 18.2 22.7 1.4 24.1
+> FLINT ( V=16 )19.1 4.4 23.5 26.0 7.7 33.7 20.5 6.7 27.2 27.6 12.1 39.7 FLINT ( V=32 )19.1 4.6 23.7 26.6 11.3 37.9 20.4 9.3 29.7 27.7 23.6 51.3 FLINT ( V=64 )18.9 5.5 24.4 26.7 31.4 58.1 20.6 45.2 65.8 27.3 75.1 102.4 ConstBERT 18.5 4.3 22.8 27.1 28.3 55.4 20.1 34.7 54.8 26.8 114.1 140.9 ColBERTv2 16.0 10.4 26.4 21.7 842.0 863.7 16.4 2118.1 2134.5 22.1 8685.8 8707.9
+
+Table 2: Mean response time (ms). Query encoding (Enc.) plus search (Srch.) gives the mean response time (MRT). For each backbone and corpus, bold marks the lowest MRT and underline the second lowest. ¯q is the mean query length in tokens, and V is the number of vectors per query and document. 
+
+from 0.452 to 0.530 on BEIR and from 0.145 to 0.205 on CRUMB. The gains are particularly pronounced on the complex-query benchmarks. FLINT improves from 0.065 to 0.147 on TREC-ToT 2025 and from 0.063 to 0.105 on BrowseC-omp+. These results show that FLINT benefits sub-stantially from a stronger backbone, especially on longer and out-of-distribution information needs. With the backbone and training held fixed, FLINT outperforms ConstBERT on every suite on ModernBERT. The gap is largest on TREC-ToT 2025, whose queries are the longest and most conversational, where ConstBERT reaches less than half of FLINT’s score. Compared with Mod-ernBERT ColBERTv2, FLINT is nearly tied on BEIR (0.530 vs. 0.534) and outperforms it on CRUMB (0.205 vs. 0.184). ModernBERT Col-BERTv2 remains ahead on TREC-ToT 2025 and BrowseComp+. FLINT is stronger than the single-vector baseline, particularly on long queries, where NDCG@10 rises from 0.042 to 0.147 on TREC-ToT 2025 and from 0.022 to 0.105 on BrowseC-omp+. This indicates that retaining multiple pooled vectors, rather than pooling to a single vector, is central to its effectiveness. 
+
+4.3 Impact of the Budget V
+
+We examine how the number of vectors per query and document, V , affects FLINT’s effectiveness with the ModernBERT backbone. Reducing the budget from V =32 to V =16 lowers effectiveness across all benchmark suites. Nevertheless, FLINT with V =16 still outperforms the single-vector base-line on every suite and ModernBERT ConstBERT on all three complex-query suites, while requiring approximately half of ConstBERT’s index size. Increasing the budget from V =32 to V =64 
+
+leaves average BEIR effectiveness nearly un-changed (0.531 vs. 0.530) but improves perfor-mance on complex queries. These results sug-gest that longer, multi-constraint queries benefit from a larger vector budget, whereas the predom-inantly short queries in BEIR gain little beyond 
+
+V =32 . The budget thus provides a direct way to trade additional storage and computation for improved effectiveness on complex queries. 
+
+5 Efficiency Analysis 
+
+We next evaluate FLINT’s storage and retrieval-time efficiency relative to baselines on NFCorpus, CRUMB Paper, CRUMB Clinical, and TREC-ToT 0 100 200 300 400 500                 
+
+> Query length (tokens)
+> 11.0 11.5 12.0 12.5 13.0 13.5 14.0
+> Time (ms)
+> Encode time
+> FLINT (+0.005 ms/tok) ConstBERT (+0.005 ms/tok)
+> 0100 200 300 400 500
+> Query length (tokens)
+> 025 50 75 100 125 150 175
+> Time (ms)
+> Search time
+> FLINT (+0.004 ms/tok) ConstBERT (+0.31 ms/tok)
+> 10
+> 0100 200 300 400 500
+> Query length (tokens)
+> 025 50 75 100 125 150 175 200
+> Time (ms)
+> Total MRT (enc.+srch.)
+> FLINT (+0.008 ms/tok) ConstBERT (+0.31 ms/tok)
+> 13
+
+Figure 4: Response-time decomposition on TREC-ToT 2025 (BERT backbone). Query-encode (left), PLAID-search (middle), and total MRT (right) against query length for FLINT and ConstBERT, with linear fits (slopes in the legend); dashed drops mark where the fits cross. 
+
+2025. We select these corpora to examine how efficiency varies with both corpus size and query length. They span 3.6K to 6.4M documents and mean query lengths of 7 to 204 tokens. The index-ing and timing setup is described in Appendix B. 
+
+5.1 Retrieval Latency 
+
+Table 2 reports retrieval mean response time (MRT), decomposed into query-encoding and search time, for both BERT and ModernBERT backbones. Here, unless otherwise stated, FLINT uses V =32 . On the three long-query corpora, FLINT achieves 1.6–2.8× faster retrieval than Con-stBERT with BERT and 1.5–2.7× with Modern-BERT. The largest gains occur on TREC-ToT 2025, where MRT falls from 74.3 to 26.1 ms with BERT and from 140.9 to 51.3 ms with ModernBERT. Relative to ColBERTv2, FLINT is 10 .5–36 .2×
+
+faster with BERT and 23 –170 × faster with Mod-ernBERT on these corpora. On NFCorpus, whose queries average only seven tokens, FLINT and Con-stBERT have very similar MRT. FLINT’s latency advantage over the late-interaction baselines is strongest on long queries. 
+
+Figure 3 illustrates where these latency gains arise, whether from query encoding or search. As shown in the figure, FLINT and ConstBERT differ in how their MRT is distributed between encod-ing and search. With the same backbone, FLINT and ConstBERT have similar query-encoding costs. Their search times, however, diverge sharply as search time accounts for most of ConstBERT’s MRT on the long-query corpora. For exam-ple, FLINT searches 2.5–4.6× faster with BERT and 2.5–4.8× faster with ModernBERT. FLINT’s lower MRT comes primarily from faster search, while its query-encoding time remains similar to that of the baselines. 
+
+The ModernBERT rows of Table 2 extend this comparison to the single-vector baseline and FLINT with V ∈ { 16 , 32 , 64 }. Single-Vector is the fastest ModernBERT system, since its search takes about 1 ms, but it is far less effective (Section 4.2). Section 4.3 showed how the budget V affects effectiveness; here, we report its latency cost. Com-pared with the single-vector baseline, FLINT with 
+
+V =16 adds 6–16 ms of MRT while improving ef-fectiveness across all benchmarks. Increasing V
+
+further raises search cost. For example, V =16 
+
+searches in at most 12.1 ms and V =32 in at most 23.6 ms, whereas V =64 takes 31.4–75.1 ms on the long-query corpora, 2.8–4.9× the search time of 
+
+V =32 . FLINT’s budget provides a controllable trade-off between effectiveness and latency, with the additional effectiveness gains from larger budgets coming at higher search cost. 5.2 Latency Scaling with Query Length 
+
+FLINT’s latency advantage increases with query length because it always produces a constant num-ber of V (here V =32) query vectors and thus its search cost remains nearly constant, whereas Con-stBERT retains one representation per query token and therefore becomes increasingly expensive on longer queries. As shown in Figure 4, on TREC-ToT 2025 with BERT, the encoding time for longer queries increases at the same rate for both FLINT and ConstBERT models (left). However, their search times diverge sharply (middle). FLINT’s search time remains nearly constant relative to num-ber of vectors in the query, with a fitted slope of 
+
+0.004 ms per token, compared with 0.31 ms for ConstBERT. Consequently, FLINT’s total MRT grows only slightly with query length, while Const-BERT’s increases much more steeply (right). The same pattern holds with ModernBERT. Truncat-ing ConstBERT’s queries to 32 tokens would also cap its query-vector count, but reduces average 0 300 600    
+
+> Paper Clinical TREC-ToT Paper Clinical TREC-ToT
+> 120 466 138 570 113 440 167 392 174 503 155 480
+> BERT ModernBERT
+> Activated cells
+> 0300K 600K 33K 127K 42K 194K 100K 386K 48K 112K 61K 178K 195K 605K
+> Candidate documents FLINT ConstBERT
+
+Figure 5: Mean activated PLAID cells and candidate documents per query for FLINT and ConstBERT on long-query corpora. 
+
+NDCG@10 on every complex-query suite with both backbones (Appendix F). 
+
+5.3 PLAID Cell Activation 
+
+PLAID does not score every document in the cor-pus. Each query vector probes its nearest centroids, activating the corresponding cells and contributing documents to the candidate pool. The union of the corresponding cells determines the candidate doc-uments that are then scored with MaxSim. There-fore, activating more cells broadens the search and generally increases the number of candidates; ac-tivating fewer cells reduces search work. How-ever, fewer activated cells are useful only insofar as the resulting candidate pool is still effective. Fig-ure 5 shows that FLINT consistently activates fewer cells than ConstBERT on the three long-query cor-pora. This translates into fewer candidate docu-ments, as ConstBERT scores 2.3–4.6× more can-didates across the two backbones. It also compares each candidate against 5–7× more query vectors. 
+
+FLINT therefore reduces search work by scor-ing fewer candidates and performing fewer vec-tor comparisons per candidate. 
+
+The reduction in activated cells is larger on BERT, where FLINT’s pooled vectors are also more concentrated in direction and probe fewer dis-tinct cells (Appendix D). These savings accompany competitive effectiveness relative to ConstBERT on conventional retrieval and stronger results on the complex-query suites, showing that FLINT can search a smaller candidate pool without sacrificing overall retrieval effectiveness. 
+
+5.4 Index Size 
+
+Table 3 reports on-disk index sizes. Because FLINT and ConstBERT both store 32 vectors per                                          
+
+> Architecture NFCorpus
+> 3.6K docs
+> CRUMB Paper
+> 363K docs
+> CRUMB Clinical
+> 915K docs
+> TREC-ToT 2025
+> 6.4M docs
+> BERT FLINT ( V=32 )5.3M 440M 1.1G 7.3G ConstBERT 5.3M 444M 1.1G 7.4G ColBERTv2 29M 2.5G 6.4G 39G ModernBERT Single-Vector 5.5M 38M 84M 477M
+> FLINT ( V=16 )2.7M 228M 563M 3.8G FLINT ( V=32 )5.4M 444M 1.1G 7.5G FLINT ( V=64 )9.6M 885M 2.2G 15G ConstBERT 5.3M 440M 1.1G 7.5G ColBERTv2 41M 3.0G 10.0G 70G
+
+Table 3: On-disk index size per corpus ( ↓ lower is better). 
+
+Bold marks the smallest index per corpus and underline the second smallest. 
+
+document, their BERT indices are nearly identical, so FLINT’s latency reductions do not come at the cost of a larger index. The same holds on Mod-ernBERT. Compared with token-level ColBERTv2, FLINT’s indices are 5.3–5.8× smaller with BERT and 6.8–9.3× smaller with ModernBERT. The fixed document-vector budget makes stor-age per document independent of document length, with index size scaling with V instead. This provides direct control over storage requirements. Single-vector retrieval yields even smaller indices on the three larger corpora, but at a substantial cost in effectiveness (Section 4). These results show that 
+
+FLINT’s fixed document-vector budget prevents the index from growing with document length. 
+
+Combined with the response-time results above, FLINT provides the storage efficiency of Const-BERT while achieving markedly lower latency than both ConstBERT and token-level retrieval on the larger, long-query corpora. 
+
+6 Conclusion 
+
+We introduced FLINT, a fixed-budget late-interaction architecture that addresses two central scaling challenges: document storage and query-side search cost. Shared attention-based pooling maps both queries and documents to a fixed num-ber of vectors, preserving multi-vector matching without retaining one vector per token. FLINT achieves 5.3–9.3× smaller indices than token-level models and, on the long-query corpora, 
+
+1.5–2.8× faster end-to-end retrieval than Const-BERT. Its search latency remains nearly constant as queries grow longer. With the vector budget 
+
+V controlling the effectiveness–efficiency trade-off, FLINT makes storage and search computation explicit architectural choices, supporting efficient retrieval for long and complex queries. Limitations 
+
+Training distribution. Our BERT FLINT model is supervised on the same MS MARCO pas-sage triples as ColBERTv2 and ConstBERT. We adopt this deliberately, so that differences between FLINT, ConstBERT, and ColBERTv2 reflect the pooling architecture rather than the training data, but it means the only query distribution the pool-ing module ever observes during training is MS MARCO’s short, keyword-like queries. Our cen-tral claims concern long, complex queries, so those results are entirely zero-shot generalization. To our knowledge, there is no comparable MS MARCO-scale dataset of high-quality long queries. More-over, multi-vector retrievers are known to be sen-sitive to both the scale and quality of training data. We therefore leave long-query-specific training to future work. 
+
+Limited budget sweep. On BERT we fix the bud-get at V =32 , matching ConstBERT’s setting so the two fixed-budget systems are directly comparable. We vary V ∈ { 16 , 32 , 64 } only on ModernBERT, so it remains open whether symmetric pooling de-grades more or less gracefully than document-only pooling at smaller budgets, and whether a larger budget would close FLINT’s remaining gap to Col-BERTv2 on BEIR. We also tie the query and docu-ment budgets to the same value. Decoupling them, for instance a smaller query budget paired with a larger document budget, is unexplored. 
+
+Scope of the evaluation. On BERT, absolute ef-fectiveness on the complex-query suites is low for every system we evaluate, with the best NDCG@10 on TREC Tip-of-the-Tongue 2025 reaching only 
+
+0.065 . FLINT’s improvements in this regime are consistent across suites, but they are improvements within a band where all late-interaction models we test perform poorly, and the small absolute margins should be read with that in mind. Our evaluation also covers two encoder-only backbones of modest scale, so behavior under substantially larger back-bones remains untested. 
+
+GenAI Usage Disclosure 
+
+We used large language models to edit the grammar and wording of this paper, to assist with coding, and to help clean up the code repository for release. The research design, analysis, interpretation of results, and conclusions are entirely our own. 
+
+References 
+
+Antonio Acquavia, Craig Macdonald, and Nicola Tonel-lotto. 2023. Static pruning for multi-representation dense retrieval. In Proceedings of the ACM Sympo-sium on Document Engineering 2023 , pages 1–10. Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Mensch, Katherine Millican, Mal-colm Reynolds, Roman Ring, Eliza Rutherford, Serkan Cabi, Tengda Han, Zhitao Gong, Sina Saman-gooei, Marianne Monteiro, Jacob Menick, Sebastian Borgeaud, and 8 others. 2022. Flamingo: a visual lan-guage model for few-shot learning. In Advances in Neural Information Processing Systems 35 (NeurIPS 2022) .Jaime Arguello, Fernando Diaz, Maik Fröbe, To Eun Kim, and Bhaskar Mitra. 2026. Overview of the TREC 2025 tip-of-the-tongue track. arXiv preprint arXiv:2601.20671 .Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng, Jianfeng Gao, Xiaodong Liu, Rangan Majumder, An-drew McNamara, Bhaskar Mitra, Tri Nguyen, Mir Rosenberg, Xia Song, Alina Stoica, Saurabh Tiwary, and Tong Wang. 2016. MS MARCO: A human gener-ated machine reading comprehension dataset. arXiv preprint arXiv:1611.09268 .Zijian Chen, Xueguang Ma, Shengyao Zhuang, Ping Nie, Kai Zou, Sahel Sharifymoghaddam, Andrew Liu, Joshua Green, Kshama Patel, Ruoxi Meng, Mingyi Su, Yanxi Li, Haoran Hong, Xinyu Shi, Xuye Liu, Hosna Oyarhoseini, Nandan Thakur, Crystina Zhang, Luyu Gao, and 2 others. 2026. BrowseComp-Plus: A fair and disentangled evaluation benchmark for deep search agents. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 22349– 22370. Association for Computational Linguistics. Benjamin Clavié, Antoine Chaffin, and Griffin Adams. 2024. Reducing the footprint of multi-vector retrieval with minimal performance impact via token pooling. 
+
+arXiv preprint arXiv:2409.14683 .Laxman Dhulipala, Majid Hadian, Rajesh Jayaram, Ja-son Lee, and Vahab Mirrokni. 2024. MUVERA: Multi-vector retrieval via fixed dimensional encod-ings. In Advances in Neural Information Processing Systems , volume 37, pages 101042–101073. Peiran Gao, Eric Trautmann, Byron Yu, Gopal San-thanam, Stephen Ryu, Krishna Shenoy, and Surya Ganguli. 2017. A theory of multineuronal dimen-sionality, dynamics and measurement. BioRxiv , page 214262. Samuel Humeau, Kurt Shuster, Marie-Anne Lachaux, and Jason Weston. 2020. Poly-encoders: Architec-tures and pre-training strategies for fast and accurate multi-sentence scoring. In International Conference on Learning Representations .Andrew Jaegle, Felix Gimeno, Andy Brock, Oriol Vinyals, Andrew Zisserman, and João Carreira. 2021. Perceiver: General perception with iterative attention. In Proceedings of the 38th International Conference on Machine Learning , volume 139 of Proceedings of Machine Learning Research , pages 4651–4664. PMLR. Hervé Jégou, Matthijs Douze, and Cordelia Schmid. 2011. Product quantization for nearest neighbor search. IEEE Transactions on Pattern Analysis and Machine Intelligence , 33(1):117–128. Hyukkyu Kang, Injung Kim, and Wook-Shin Han. 2025. TRIAL: Token relations and importance aware late-interaction for accurate text retrieval. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 16864–16877, Suzhou, China. Association for Computational Lin-guistics. Omar Khattab and Matei Zaharia. 2020. ColBERT: Effi-cient and effective passage search via contextualized late interaction over BERT. In Proceedings of the 43rd International ACM SIGIR Conference on Re-search and Development in Information Retrieval ,pages 39–48. Julian Killingback and Hamed Zamani. 2025. Bench-marking information retrieval models on complex retrieval tasks. arXiv preprint arXiv:2509.07253 .Jinhyuk Lee, Zhuyun Dai, Sai Meher Karthik Duddu, Tao Lei, Iftekhar Naim, Ming-Wei Chang, and Vin-cent Zhao. 2023. Rethinking the role of token re-trieval in multi-vector retrieval. In Advances in Neural Information Processing Systems , volume 36, pages 15384–15405. Xueguang Ma, Liang Wang, Nan Yang, Furu Wei, and Jimmy Lin. 2024. Fine-tuning LLaMA for multi-stage text retrieval. In Proceedings of the 47th Inter-national ACM SIGIR Conference on Research and Development in Information Retrieval , pages 2421– 2425. Sean MacAvaney, Antonio Mallia, and Nicola Tonel-lotto. 2025. Efficient constant-space multi-vector retrieval. In Advances in Information Retrieval: 47th European Conference on Information Retrieval, ECIR 2025 , pages 237–245. Springer. Sean MacAvaney and Nicola Tonellotto. 2024. A re-producibility study of PLAID. In Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval ,pages 1411–1419. Cheoneum Park, Seohyeong Jeong, Minsang Kim, KyungTae Lim, and Yong-Hun Lee. 2025. SCV: Light and effective multi-vector retrieval with se-quence compressive vectors. In Proceedings of the 31st International Conference on Computational Lin-guistics: Industry Track , pages 760–770, Abu Dhabi, UAE. Association for Computational Linguistics. Nils Reimers and Iryna Gurevych. 2019. Sentence-BERT: Sentence embeddings using Siamese BERT-networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natu-ral Language Processing (EMNLP-IJCNLP) , pages 3982–3992, Hong Kong, China. Association for Com-putational Linguistics. Keshav Santhanam, Omar Khattab, Christopher Potts, and Matei Zaharia. 2022a. PLAID: An efficient en-gine for late interaction retrieval. In Proceedings of the 31st ACM International Conference on Informa-tion & Knowledge Management , pages 1747–1756. Keshav Santhanam, Omar Khattab, Jon Saad-Falcon, Christopher Potts, and Matei Zaharia. 2022b. Col-BERTv2: Effective and efficient retrieval via lightweight late interaction. In Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Hu-man Language Technologies , pages 3715–3734, Seat-tle, United States. Association for Computational Linguistics. Jan Luca Scheerer, Matei Zaharia, Christopher Potts, Gustavo Alonso, and Omar Khattab. 2025. Warp: An efficient engine for multi-vector retrieval. In Proceed-ings of the 48th international ACM SIGIR conference on research and development in information retrieval ,pages 2504–2512. Nandan Thakur, Nils Reimers, Andreas Rücklé, Ab-hishek Srivastava, and Iryna Gurevych. 2021. BEIR: A heterogeneous benchmark for zero-shot evaluation of information retrieval models. In Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks .Nicola Tonellotto and Craig Macdonald. 2021. Query embedding pruning for dense retrieval. In Proceed-ings of the 30th ACM International Conference on In-formation and Knowledge Management , pages 3453– 3457. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in Neural Information Pro-cessing Systems 30 (NeurIPS 2017) .Benjamin Warner, Antoine Chaffin, Benjamin Clavié, Orion Weller, Oskar Hallström, Said Taghadouini, Alexis Gallagher, Raja Biswas, Faisal Ladhak, Tom Aarsen, Griffin Thomas Adams, Jeremy Howard, and Iacopo Poli. 2025. Smarter, better, faster, longer: A modern bidirectional encoder for fast, memory efficient, and long context finetuning and inference. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 2526–2547, Vienna, Austria. Association for Computational Linguistics. Zilin Xiao, Qi Ma, Mengting Gu, Chun-cheng Chen, Xintao Chen, Vicente Ordonez, and Vijai Mohan. 2026. MetaEmbed: Scaling multimodal retrieval at test-time with flexible late interaction. In Interna-tional Conference on Learning Representations .Yuxuan Zong and Benjamin Piwowarski. 2025. To-wards lossless token pruning in late-interaction re-trieval models. In Proceedings of the 48th Inter-national ACM SIGIR Conference on Research and Development in Information Retrieval , pages 2407– 2417. 
+
+A Related Work 
+
+Fixed-size multi-vector representations. 
+
+MetaEmbed (Xiao et al., 2026) appends learnable tokens to the input of a vision-language model and uses their final hidden states as multi-vector embeddings for multimodal retrieval, trained with Matryoshka-style nested groups so the number of vectors can be chosen at test time. FLINT instead targets long-query text retrieval and pools the encoder outputs with a separate cross-attention module rather than adding tokens to the input. It uses a fixed budget V per model instead of nested groups, and projects each vector to a low dimension, whereas MetaEmbed keeps the full hidden dimension, creating much larger indices. They also focus primarily on multi-modal benchmarks rather than on long and complex textual datasets. Poly-encoders (Humeau et al., 2020) use learned codes that attend over the query tokens to produce several query vectors, while each document re-mains a single vector compared through attention. FLINT pools both queries and documents into mul-tiple vectors and scores them with MaxSim. ConstBERT (MacAvaney et al., 2025) pools each document into a fixed number of vectors with a learned linear layer and keeps queries token-level without compression. FLINT pools both sides with cross-attention, so query cost does not grow with query length. 
+
+Reducing token vectors. Token pooling (Clavié et al., 2024) clusters document token vectors post-hoc, and static pruning (Acquavia et al., 2023) re-moves low-impact document vectors. As presented in both papers, however, the number of vectors still grows with document length and queries are un-changed, whereas FLINT learns a fixed number of vectors for both sides. Query embedding pruning (Tonellotto and Mac-donald, 2021) keeps the query token vectors of the rarest terms for candidate generation. FLINT instead learns to summarize all query tokens into 
+
+V vectors and also fixes the document side vector count. 
+
+Efficient multi-vector search. XTR (Lee et al., 2023) trains the model so that its first-stage token retrieval finds the relevant document tokens, then scores documents using only those retrieved to-kens. This skips loading every candidate’s full set of vectors, but it keeps one vector per token for queries and documents, so its index is as large as ColBERT’s. WARP (Scheerer et al., 2025) is a faster search engine for XTR-style retrieval, but its index still stores one vector per token. MUVERA (Dhulipala et al., 2024) is a latency-focused pre-filter: it compresses each multi-vector set into one fixed-dimensional encoding (FDE) for fast single-vector candidate search, then reranks candidates with the full token-level vectors. Because the FDE index sits on top of the full multi-vector index, its storage exceeds that of the multi-vector index alone, whereas FLINT reduces storage. 
+
+Single-vector retrieval. With V =32 vectors of dimension 128, FLINT represents each input with 4096 values. Single-vector models that produce vector embeddings with the same amount of floats, such as RepLLaMA (Ma et al., 2024), rely on much larger backbones: it fine-tunes LLaMA-7B as a bi-encoder producing one 4096-dimensional vec-tor scored by dot product. To our knowledge, no single-vector model with a similarly sized and per-forming backbone produces embeddings of this size. A size-matched comparison would thus alter the backbone’s strength, and we therefore leave it out of scope. We instead compare against a single-vector model with the same backbone and training data (Section 4.2). 
+
+Other approaches. TRIAL (Kang et al., 2025) improves the scoring function rather than compress-ing representations; SCV (Park et al., 2025) com-presses only documents via span pooling with a single-vector prefilter, so query-side cost still scales with query length; Zong & Piwowarski (Zong and Piwowarski, 2025) dynamically prune document tokens, with pruning ratio varying per document and query tokens left uncompressed. FLINT com-presses queries and documents to a fixed, input-length-independent budget. 
+
+B Experimental Settings 
+
+Training. On BERT, FLINT is trained on MS MARCO passage-ranking triples with 64 candi-dates per query, in fp16 with a global batch size of 48, a learning rate of 10 −5, and a linear schedule over 267K steps. On ModernBERT-large, we train the FLINT ( V ∈ { 16 , 32 , 64 }), ConstBERT ( 32 
+
+document vectors), and ColBERTv2 architectures ourselves (ModernBERT FLINT, ModernBERT ConstBERT, and ModernBERT ColBERTv2) un-der the multi-vector training regimen of Warner et al. (2025), on MS MARCO with 32 candidates per query, for one epoch in bf16 with a global batch size of 16, a learning rate of 3 × 10 −5, and 5% warmup. The FLINT pooling module uses a learn-ing rate of 10 −4. Training queries are truncated to 84 tokens. The single-vector baseline is a publicly available ModernBERT-large bi-encoder, 3 trained identically to the single-vector retriever introduced in (Warner et al., 2025). 
+
+Pooling module. The pooling module uses 
+
+H=8 attention heads and a feed-forward expan-sion ratio of r=4 on BERT ( h=768 ) and r=2 on ModernBERT ( h=1024 ), with dropout 0.1. Pooled vectors are projected to h′=128 dimensions. On BERT, the query and document sides use separate projections; on ModernBERT, they share one. 
+
+Sequence lengths. At evaluation, queries are truncated to M =512 tokens for every model. The evaluation document length N differs between backbones because of ConstBERT: its learned pool-ing maps a fixed number of token positions to its 32 document vectors, so N is fixed when ConstBERT is trained. The released BERT ConstBERT check-point uses N =250 , so we truncate documents to 
+
+N =250 for all BERT models. On ModernBERT, we train ConstBERT with N =512 and truncate documents to N =512 for all ModernBERT mod-els. Within each backbone, every model therefore sees the same document context. 
+
+Query padding. BERT ConstBERT and Col-BERTv2 pad queries shorter than 32 tokens up to 32, matching ColBERTv2’s default and the setting they were trained with. All ModernBERT models are trained without query padding and are evalu-ated the same way. BERT FLINT queries are not padded during training or evaluation, and FLINT always produces V query vectors. 
+
+Indexing and retrieval. Multi-vector models are indexed with PLAID (Santhanam et al., 2022a; MacAvaney and Tonellotto, 2024) using 2-bit resid-ual compression. For the efficiency results, every 
+
+> 3https://huggingface.co/joe32140/ ModernBERT-large-msmarco
+
+multi-vector model uses PLAID with ncells = 8 
+
+and k = 1000 retrieved candidates, and the single-vector model uses a FAISS OPQ-IVFPQ index (Jé-gou et al., 2011). 
+
+Latency measurement. All latency experiments run on a single NVIDIA A100 80GB GPU. All sys-tems for a corpus are timed on the same machine. After a global warm-up, we take the median of three timed runs per query. Query-encoding time covers the model forward pass, and search time covers candidate retrieval and scoring. 
+
+C Dataset Details 
+
+Table 8 provides detailed statistics for the four eval-uation suites, including corpus and query counts, mean document and query lengths, task focus, and query characteristics. Lengths are measured using the ColBERT tokenizer. For suites containing mul-tiple corpora or tasks, we report the range across the evaluated collections. We exclude CRUMB Le-gal and SetOps from our tables since queries are short (148 and 47 characters, respectively vs. 415 for Theorem, the next shortest). They did not fit in our curation of long query benchmarks. We report their results, along with MS MARCO, in Table 4. 
+
+D Query Geometry and Effective Rank 
+
+Section 5.3 shows that FLINT activates fewer PLAID cells than ConstBERT. Beyond the num-ber of query vectors, the cells a query activates also depend on how spread out its vectors are: vec-tors pointing in similar directions tend to probe the same centroids. We quantify this spread using ef-fective rank, or the participation ratio (Gao et al., 2017): 
+
+erank( Q) = (P 
+
+> i
+
+λi)2
+
+P 
+
+> i
+
+λ2
+
+> i
+
+, λi = σ2 
+
+> i
+
+(Q), (3) where lower effective rank indicates that the query vectors are concentrated along fewer directions. 
+
+Spread of the query vectors. Figure 6 di-vides ConstBERT’s participation ratio by FLINT’s at each query length. On BERT, the two are nearly equal on the shortest queries ( 0.96 –1.01 at 8 tokens), and ConstBERT’s ratio grows faster as queries get longer, reaching 1.78 × FLINT’s on CRUMB Clinical, 1.45 × on CRUMB Paper, and 
+
+1.26 × on TREC-ToT 2025. FLINT’s pooled vec-tors therefore stay more concentrated than Const-BERT’s token vectors. On ModernBERT, the ratio stays between 0.87 and 1.19 at every length, so the two models’ query vectors are about equally spread out. 
+
+Spread and cell activation on BERT. Figure 7 connects this spread to PLAID search on BERT. Across 3,248 queries, the participation ratio is strongly associated with the number of activated cells ( ρ = 0 .87 ), and cell activation closely tracks the number of candidate documents scored (within-corpus r = 0 .99 ). The participation ratio also correlates with PLAID-search latency on CRUMB Paper ( ρ = 0 .84 , n = 1 ,008 ), although this pooled correlation also reflects ConstBERT’s query length. 
+
+Cells at the same number of query vectors. 
+
+Both the number of query vectors and their spread affect how many cells a query activates. To sepa-rate the two, we give ConstBERT the same number of vectors as FLINT by randomly sampling 32 of its token vectors per query (Figure 8). On BERT, FLINT’s 32 vectors still activate fewer cells than ConstBERT’s 32 (120 vs. 174 on CRUMB Paper, 138 vs. 190 on CRUMB Clinical), which matches their lower spread. On ModernBERT, the two acti-vate the same number of cells (167 vs. 163 and 174 vs. 177), which matches their equal spread. With all of its token vectors, ConstBERT activates 2.3–
+
+4.1× more cells than FLINT on both backbones. Most of FLINT’s reduction in activated cells there-fore comes from using fewer query vectors, and on BERT the lower spread of its pooled vectors adds to it. 
+
+Pooling variants. Table 5 reports mean query and document effective ranks for Col-BERTv2, ConstBERT, and FLINT-symmetric, and for BERT-FLINT architecture variants. Primary FLINT-symmetric shares the perceiver across both sides; unless marked query-side, the variant block changes only the document-side pooler. Deep and iterative-shallow doc-side variants sit near 
+
+erank ≈ 1, indicating near-total directional col-lapse of the latent set, whereas no-SA and the query-side perceiver retain higher ranks closer to ConstBERT and ColBERTv2. FLINT-symmetric sits below ConstBERT on query rank, consistent with the BERT results above. 
+
+E Recall Statistics for Complex Query Benchmarks 
+
+Table 6 reports Recall@1000 on the three complex-query suites, complementing the NDCG@10 re-sults of Table 1. With the BERT backbone, FLINT recalls more than ConstBERT on Clinical (0.351 vs. 0.306 ) and TREC-ToT ( 0.323 vs. 0.277 ), while ConstBERT recalls more on Paper ( 0.443 vs. 
+
+0.400 ) and Theorem ( 0.382 vs. 0.246 ); the two models are close on CRUMB overall ( 0.372 vs. 
+
+0.395 ) and on BrowseComp+ ( 0.391 vs. 0.401 ). With ModernBERT, FLINT ( V =32 ) recalls more than ConstBERT on every collection, with the largest gaps on TREC-ToT ( 0.458 vs. 0.272 ) and BrowseComp+ ( 0.555 vs. 0.466 ). It also recalls more than ModernBERT ColBERTv2 on every col-lection except CRUMB ToT ( 0.526 vs. 0.578 ), in-cluding CRUMB overall ( 0.508 vs. 0.441 ), TREC-ToT ( 0.458 vs. 0.402 ), and BrowseComp+ ( 0.555 
+
+vs. 0.526 ). Raising the budget to V =64 further improves recall (CRUMB 0.525 , BrowseComp+ 
+
+0.576 ), while the single-vector model trails every FLINT variant on CRUMB and BrowseComp+. 
+
+F Query Truncation for ConstBERT 
+
+Table 7 reports ConstBERT’s effectiveness when its queries are truncated to 32 tokens, which gives it at most as many query vectors as FLINT. Trun-cation lowers average NDCG@10 on CRUMB from 0.136 to 0.095 , on TREC-ToT 2025 from 
+
+0.047 to 0.018 , and on BrowseComp+ from 0.055 
+
+to 0.037 . StackExchange is the only collection where it helps ( 0.170 vs. 0.140 ). ModernBERT ConstBERT shows the same pattern: truncation lowers average NDCG@10 from 0.180 to 0.127 on CRUMB, from 0.070 to 0.032 on TREC-ToT 2025, and from 0.067 to 0.036 on BrowseComp+, and StackExchange is essentially unchanged ( 0.209 vs. 
+
+0.207 ). Truncating the query is therefore very lossy on both backbones, and it does not substitute for learned compression of the query into a fixed bud-get.                                       
+
+> MS MARCO CRUMB Architecture MRR@10 Legal SetOps BERT  FLINT ( V=32 )0.380 0.138 0.184 ConstBERT 0.387 0.136 0.232 ColBERTv2 0.395 0.158 0.290
+> ModernBERT  Single-Vector 0.363 0.138 0.044 FLINT ( V=16 )0.395 0.154 0.177 FLINT ( V=32 )0.405 0.175 0.208 FLINT ( V=64 )0.405 0.159 0.227 ConstBERT 0.386 0.182 0.187 ColBERTv2 0.366 0.123 0.252
+> Table 4: Results on MS MARCO (dev, MRR@10) and the CRUMB Legal and SetOps tasks (NDCG@10), which are not included in Table 1. Bold indicates the best result in each column and underline the second best.
+
+8 16 32 64 128 256 512 Query length (tokens) 1.0 1.2 1.4 1.6 1.8 Participation ratio ConstBERT ÷ FLINT 
+
+BERT 
+
+CRUMB Clinical CRUMB Paper TREC-ToT 
+
+8 16 32 64 128 256 512 Query length (tokens) 
+
+ModernBERT Figure 6: Ratio of ConstBERT’s to FLINT’s query-vector participation ratio vs. query length, one line per corpus. Above the dotted line, ConstBERT’s query vectors are more spread out than FLINT’s. 2 4 6 8 10 12 
+
+Participation ratio of query vectors 
+
+> 25 50 100 200 400 800
+> PLAID cells activated
+> = 0.87
+
+(a)      
+
+> FLINT ConstBERT
+> 25 50 100 200 400 800
+
+PLAID cells activated 
+
+> 10 4
+> 10 5
+> Candidate docs scored
+
+(b)        
+
+> FLINT ConstBERT corpus (Pearson r)Paper ( r= 0.99) Clinical ( r= 0.99) TREC-ToT ( r= 0.99)
+> 2468
+
+Participation ratio of query vectors 
+
+> 10 20 40
+> PLAID search time (ms)
+> = 0.84
+
+(c) 
+
+> FLINT ConstBERT
+
+Figure 7: Query spread and PLAID search on BERT. (a) Participation ratio vs. PLAID cells activated. (b) Cells activated vs. candidate documents scored. (c) Participation ratio vs. PLAID search time (CRUMB Paper). One point per query ( n=3 ,248 in (a)–(b), 1,008 in (c)); all axes are log except participation ratio. ρ is pooled Spearman, r is within-corpus Pearson. CRUMB Paper CRUMB Clinical 0100 200 300 400 500 600 PLAID cells activated 
+
+> 120 174 466 138 190 570
+
+BERT 
+
+CRUMB Paper CRUMB Clinical   
+
+> 167 163 392 174 177 503
+
+ModernBERT   
+
+> FLINT (32 vectors) ConstBERT (32 sampled token vectors) ConstBERT (all token vectors)
+
+Figure 8: PLAID cells activated at an equal number of query vectors. FLINT’s 32 pooled vectors compared with 32 of ConstBERT’s token vectors sampled at random per query, and with all of ConstBERT’s token vectors. CRUMB Paper TREC-ToT Architecture Pooling Qeff Deff Qeff Deff 
+
+Reference systems 
+
+ColBERTv2 token-level 4.28 4.17 3.92 4.02 ConstBERT doc-side only 4.24 3.52 3.54 2.75 FLINT-symmetric (primary) both sides 3.54 3.83 3.23 3.72 
+
+BERT-FLINT variants 
+
+FLINT, no SA doc-side 3.91 3.69 3.53 3.35 FLINT (1 SA) doc-side 2.71 1.79 2.50 1.93 FLINT, query-side perceiver query-side 5.28 3.58 4.66 4.06 Deep FLINT (1CA+6SA) doc-side 1.55 1.07 1.44 1.08 Iterative shallow FLINT (1CA+2SA) ×3 doc-side 1.53 1.08 1.47 1.09 Table 5: Mean query and document effective rank. Participation-ratio effective ranks averaged over a fixed sample of 5,000 documents and all available queries (CRUMB Paper: 72; TREC-ToT train: 143). Lower values indicate more redundant multi-vector sets. FLINT-symmetric applies the shared perceiver to both sides (primary configuration). Variant rows below are 
+
+document-side pooling changes unless marked query-side; CA = cross-attention and SA = self-attention in the pooling module; 
+
+(1CA+2SA) ×3 denotes three stacked (1 CA+2 SA) stages. 
+
+CRUMB TREC ToT 2025 BrowseComp+ Backbone Architecture Code 
+
+> ¯q: 229
+
+StackEx 
+
+> ¯q: 226
+
+Clinical 
+
+> ¯q: 183
+
+Paper 
+
+> ¯q: 180
+
+ToT 
+
+> ¯q: 168
+
+Theorem 
+
+> ¯q: 97
+
+Avg 
+
+> ¯q: 180
+
+Avg 
+
+> ¯q: 204
+
+Avg 
+
+> ¯q: 117
+
+Recall@1000 
+
+BERT FLINT 0.093 0.756 0.351 0.400 0.385 0.246 0.372 0.323 0.391 BERT ConstBERT 0.096 0.797 0.306 0.443 0.348 0.382 0.395 0.277 0.401 BERT ColBERTv2 0.070 0.791 0.277 0.520 0.437 0.409 0.417 0.348 0.407 ModernBERT Single-Vector 0.085 0.820 0.358 0.409 0.326 0.340 0.389 0.327 0.339 ModernBERT FLINT ( V =16 ) 0.161 0.908 0.451 0.479 0.467 0.370 0.472 0.312 0.502 ModernBERT FLINT ( V =32 ) 0.193 0.915 0.428 0.533 0.526 0.451 0.508 0.458 0.555 ModernBERT FLINT ( V =64 ) 0.199 0.930 0.440 0.532 0.556 0.494 0.525 0.529 0.576 
+
+ModernBERT ConstBERT 0.155 0.909 0.386 0.382 0.422 0.443 0.449 0.272 0.466 ModernBERT ColBERTv2 0.137 0.889 0.228 0.416 0.578 0.397 0.441 0.402 0.526 Table 6: Retrieval coverage on the complex-query benchmarks, measured using Recall@1000. Shaded rows use ModernBERT, while unshaded rows use BERT. V is the number of fixed vectors per query/document emitted by the FLINT perceiver. Bold 
+
+indicates the best result. 
+
+CRUMB TREC ToT 2025 BrowseComp+ Backbone Query length Code StackEx Clinical Paper ToT Theorem Avg Avg Avg 
+
+BERT M =32 0.027 0.170 0.167 0.166 0.025 0.015 0.095 0.018 0.037 BERT M =512 0.049 0.140 0.225 0.296 0.075 0.027 0.136 0.047 0.055 
+
+ModernBERT M =32 0.059 0.209 0.191 0.220 0.055 0.025 0.127 0.032 0.036 ModernBERT M =512 0.088 0.207 0.293 0.330 0.102 0.061 0.180 0.070 0.067 
+
+Table 7: ConstBERT NDCG@10 with queries truncated to M tokens. Queries longer than M tokens are truncated, and on BERT queries shorter than M are padded up to 32. M =512 is the setting used throughout the paper (Table 1). Shaded rows use ModernBERT. Bold marks the better query length per backbone.                     
+
+> Suite DQ¯d¯qTask focus Query characteristics
+> BEIR 12 corpora set 3.6K– 5.4M 49–10K 14–384 7–27 Zero-shot heterogeneous retrieval across tasks including QA, fact-checking, and biomedical search. Mostly short, keyword-like queries that evaluate transfer across heterogeneous in-domain and out-of-domain collections. BrowseComp+ 100K 830 3810 117 Deep-research web-agent evaluation with human-verified supporting evidence. Elaborate, multi-step information needs with hard distractors; much of the difficulty arises from identifying relevant evidence within long documents. CRUMB 6 long task subset 24K– 1.1M 69–3.7K 180– 575 97–229 Unified multi-task suite for multi-aspect and reasoning-intensive retrieval. Complex natural-language queries containing multiple explicit and implicit constraints, domain-specific terminology, and limited lexical overlap with relevant documents. TREC-ToT 2025 6.4M 1.6K 654 204 Known-item entity re-finding from vague natural-language descriptions. Very long, conversational, and unconstrained queries that may contain false memories, relative comparisons, and minimal direct lexical overlap with the target entity.
+
+Table 8: Evaluation benchmarks details. D and Q denote the numbers of documents and queries, while ¯d and ¯q denote their mean lengths in ColBERT tokens. Ranges indicate the minimum and maximum values across each dataset.

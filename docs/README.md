@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-24</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-25</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 20 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 19 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>8</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-24 21:50:20 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-25 21:31:33 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精读8篇、速读12篇共20篇，重点集中在检索增强生成与自适应智能体两个方向。最值得关注的是9.0分的RAG技术系统梳理，以及Darwin-Claw面向递归自进化智能体的环境自适应经验整合；速读中记忆驱动的智能体协作与检索诱导树也值得跟进。普通读者可先读RAG综述打底，再结合记忆与检索效率方向按需深入。</p>
+<p>今天精读7篇、速读12篇，共扫描19篇论文，重点追踪多模态智能体记忆与无需训练的智能体自进化。最值得看的是PACE-Mem如何用前缀感知补全多模态证据，以及Hippo借海马体回放实现零训练自进化，两者均获9.0分。普通读者可先读这两篇精读，再结合VitaBench和记忆遗忘基准，理解智能体记忆从“检索”走向“生命周期管理”的趋势。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">8 篇</strong>
+    <strong class="dpr-home-dashboard-count">7 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Characterising and Analysing Retrieval-Augmented Generation Techniques">Characterising and Analysing Retrieval-Augmented Generation Techniques</span></li><li><span class="dpr-home-dashboard-paper-title" title="Darwin-Claw: Environment-Adaptive Experience Consolidation for Recursively Self-Evolving Agents">Darwin-Claw: Environment-Adaptive Experience Consolidation for Recursively Self-Evolving Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="HABIT-Bench: Evaluating Habit Induction from Longitudinal Weak Evidence in Agent Memory">HABIT-Bench: Evaluating Habit Induction from Longitudinal Weak Evidence in Agent Memory</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents">PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Hippo: Training-Free Agent Self-Evolution via Hippocampal Replay">Hippo: Training-Free Agent Self-Evolution via Hippocampal Replay</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemRevise: A Self-Revising Memory for Conversational Search">MemRevise: A Self-Revising Memory for Conversational Search</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>6</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>7</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -94,9 +94,9 @@
     <strong class="dpr-home-dashboard-count">12 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Have I Scene This Before? Spatially Grounded Conversational Memory for Complex Queries in Egocentric Assistants">Have I Scene This Before? Spatially Grounded Conversational Memory for Complex Queries in Egocentric Assistants</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemCo: Memory-Centric Collaboration for Generalizing LLM Agents to Unseen Environments">MemCo: Memory-Centric Collaboration for Generalizing LLM Agents to Unseen Environments</span></li><li><span class="dpr-home-dashboard-paper-title" title="RIT-RAG: Navigating Document Corpora with Retrieval-Induced Trees">RIT-RAG: Navigating Document Corpora with Retrieval-Induced Trees</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="VitaBench: Memory Lifecycles Beyond Retrieval">VitaBench: Memory Lifecycles Beyond Retrieval</span></li><li><span class="dpr-home-dashboard-paper-title" title="Retrieving Complementary Evidence for Multi-Hop RAG with Semantic Gain Graphs">Retrieving Complementary Evidence for Multi-Hop RAG with Semantic Gain Graphs</span></li><li><span class="dpr-home-dashboard-paper-title" title="Can Agents Forget When Asked? A Benchmark for Memory Unlearning in LLM Agents">Can Agents Forget When Asked? A Benchmark for Memory Unlearning in LLM Agents</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>7</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>5</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>6</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>6</strong></span></div>
 </section>
 </div>
 

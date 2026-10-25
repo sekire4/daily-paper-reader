@@ -1,0 +1,559 @@
+Title: PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents
+
+URL Source: https://arxiv.org/pdf/2610.24378v1
+
+Published Time: Tue, 20 Oct 2026 00:37:13 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+> 1
+
+# PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents 
+
+Shidu Ren, Rong-cheng Tu, Hang Zhou, and Xiao Luo 
+
+Abstract —As multimodal agents accumulate experience, their long-term memories contain many similar observations of recur-ring scenes, actions, and entities. Answer quality depends on the evidence retrieved from these memories into the model’s context. However, query-relevant memories may contain overlapping information, and a fixed retrieval depth may return too little or too much evidence for a given question. To address these challenges, we propose PACE-Mem, Prefix-Aware Complementary Evidence, which constructs a complementary evidence sequence and determines its length from the same selection trajectory. For structured memories, query-guided pooling combines records within each clip to obtain relevance scores and representations. Using these relevance scores and representations, maximal marginal relevance (MMR) selection balances query relevance against overlap with previously selected evidence. From the resulting score trajectory, a prefix-length selection algorithm determines retrieval depth by comparing length-normalized adjacent declines, accounting for both score changes and the amount of evidence accumulated. PACE-Mem is a training-free, plug-in retrieval method for clip-based agent memory systems, leaving memory construction and answer generation unchanged. Across three long-video benchmarks and two agent frameworks, PACE-Mem improves question-answering accuracy by an average of 1.6% over Adaptive-k, the strongest baseline at comparable mean retrieval depths. Further analysis reveals that jointly adding and removing evidence is associated with larger net accuracy gains than either change alone. 
+
+Index Terms —Long-term memory, memory retrieval, multi-modal agents, retrieval depth, video question answering. 
+
+I. I NTRODUCTION 
+
+# MULTIMODAL agents use long-term memory to answer questions about visual events and speech encountered in past experiences [1], [2], [3]. As interactions accumulate, this memory preserves information beyond the agent’s current observation. Retrieval brings relevant experiences into the model’s context [4], [5], making the evidence available at answering time depend on which parts of the stored history are returned. Agent memory retrieval operates over an accumulated stream of experience, where relevant records can be strongly correlated. 
+
+Code: https://github.com/Shidu-Ren/PACE-Mem. Corresponding author: Rong-cheng Tu. Shidu Ren is with the Edward S. Rogers Sr. Department of Electrical and Computer Engineering, University of Toronto, Toronto, ON M5S 3G4, Canada (e-mail: ryan.ren@mail.utoronto.ca). Rong-cheng Tu is with the College of Computing and Data Sci-ence, Nanyang Technological University, Singapore 639798 (e-mail: rongcheng.tu@ntu.edu.sg). Hang Zhou is with the Department of Statistics and Operations Research and the School of Data and Information Science, The University of North Carolina at Chapel Hill, Chapel Hill, NC 27599 USA (e-mail: hzh@unc.edu). Xiao Luo is with the Department of Statistics, University of Wisconsin– Madison, Madison, WI 53706 USA (e-mail: xiao.luo@wisc.edu). 1 2 3 4 Missed     
+
+> Key
+> 123
+> Key
+> 12
+> Key
+> 34
+> Noise
+> 5
+> Noise
+> Similar views Too short Too long
+> Retrieved memories Retrieved memories Retrieved memories
+> Key evidence omitted Irrelevant evidence included
+> 5Missed
+
+Fig. 1. Evidence selection in long-video memory, illustrated with VideoMME-Long frames. Top: retrieved views repeat nearby activity around a pole-vault attempt while omitting the view that reveals contact with the bar. Middle: a short prefix misses the check handoff. Bottom: a long prefix includes unrelated artwork after the key view. PACE-Mem chooses prefix length from the scores obtained while selecting complementary clips. 
+
+This overlap within a shared history distinguishes memory re-trieval from search over heterogeneous document collections [6]. In multimodal memory, adjacent video intervals often depict the same scene, people, or ongoing action. An event may appear in both visual descriptions and speech transcripts, and structured memory may associate multiple episodic and semantic records with one interval. Ranking records independently by relevance can therefore return repeated content while overlooking a decisive detail. In the top example of Fig. 1, relevance-only retrieval returns similar pole-vault views but misses the view revealing contact with the bar. Evidence needs also vary by question: a short context may omit necessary facts, while a long one can make relevant information difficult to use [7]. The middle and bottom examples of Fig. 1 illustrate a missed check handoff and the inclusion of visually salient but unrelated artwork, respectively. These examples show why retrieval must determine both which records to return and how many. A longer context can preserve existing evidence while adding new clips, whereas changing its composition can introduce a missing fact and remove competing information without increasing its size. 
+
+Preprint arXiv:2610.24378v1 [cs.CV] 17 Oct 2026 2
+
+Existing work addresses agent memory through memory-system design and retrieval-time evidence selection. xMemory builds a revisable hierarchy of memory components and groups, then retrieves through this hierarchy with uncertainty-guided evidence expansion [6]. A-MEM organizes memories as interconnected notes and updates their links and contextual attributes as new experiences arrive [8]. A complementary direction develops retrieval methods that control which evidence enters the answer context. Adaptive-RAG uses a question-complexity classifier to choose among no retrieval, single-step retrieval, and iterative retrieval [9]. Adaptive-k locates the largest gap in ranked query–document relevance scores and extends the resulting cutoff with a fixed buffer [10]. Redundancy-aware selection has also been combined with quantity control, using relative declines between consecutive maximal marginal relevance (MMR) scores or gaps between utilities that account for redundancy [11], [12]. Improved memory organization alone does not ensure complementary evidence or a suitable retrieval depth. Even structured memories can retain overlapping observations of the same scene from similar viewpoints. Fixed-depth retrieval cannot adapt to varying evidence needs, while question-based routing and initial relevance-gap cutoffs do not track overlap with subsequently selected evidence. Redundancy-aware selection accounts for this overlap, but adjacent score declines alone do not explicitly reflect the amount of evidence already selected. The remaining question is how to compare candidate stopping points that correspond to different prefix lengths. To address this problem, we propose PACE-Mem, Prefix-Aware Complementary Evidence , which determines evidence composition and retrieval depth from a shared selection trajec-tory. For structured memories, query-guided pooling combines related records within each clip to obtain relevance scores and representations for ranking and redundancy assessment. Flat memories use their existing clip representations. MMR [13] then constructs an evidence sequence by balancing query relevance against overlap with earlier selections. From the recorded scores, our prefix-length selection algorithm chooses the initial portion of this sequence to return. It compares adjacent score declines after length normalization, accounting for both local score changes and the amount of evidence accu-mulated. PACE-Mem is training-free and can be plugged into these memory interfaces without changing memory construction or answer generation. Evidence selection requires no additional foundation-model calls. We evaluate PACE-Mem with M3-Agent and a retrieval-based SiLVR configuration on M3Bench Robot, M3Bench Web, and VideoMME-Long. Average accuracy rises from 44.2% with Original M3-Agent to 52.2% with PACE-Mem, an 8.0% gain. Across the two frameworks and three benchmarks, PACE-Mem improves accuracy by an average of 1.6% over Adaptive-k, the strongest baseline at comparable mean retrieval depths. Further evidence-set analysis shows that similar retrieval depths can correspond to different evidence compositions. In SiLVR’s single-retrieval setting, questions for which PACE-Mem both adds and removes clips relative to Fixed-7 exhibit larger within-group net accuracy gains than those involving only additions or only removals. This finding highlights the importance of evidence composition: retrieval must determine not only how much evidence to return, but also which evidence to retain, introduce, and remove. Our contributions are as follows:  
+
+> •
+
+We formulate memory retrieval as the joint selection of evidence composition and retrieval depth, where the returned amount depends on the complementary evidence accumulated for each question.  
+
+> •
+
+We propose PACE-Mem, a training-free, plug-in method that combines complementary sequence construction with length-normalized prefix-length selection. For structured memories, query-guided pooling supplies relevance scores and representations for both candidate ranking and redun-dancy assessment.  
+
+> •
+
+We evaluate PACE-Mem in two agent frameworks across three long-video benchmarks, covering structured and flat memory interfaces. Paired evidence-set analysis relates membership changes to answer corrections and regres-sions, complementing aggregate accuracy and retrieval-depth comparisons. II. R ELATED WORK 
+
+A. Agent Memory 
+
+Agent memory systems organize, update, and retrieve accu-mulated experience to support later interactions [14]. Generative Agents and MemoryBank retain observations or conversational information, while Reflexion stores feedback to guide sub-sequent attempts [4], [5], [15]. MemGPT and MemoryOS manage growing histories across memory tiers [16], [17]. To update content, Mem0 reconciles extracted conversational facts with existing memories, while A-MEM links new notes to prior records and revises their contextual attributes [8], [18]. xMemory addresses correlated records through hierarchical organization and uncertainty-guided expansion [6]. For mul-timodal experience, M3-Agent links episodic and semantic records around entities and retrieves them during iterative reasoning [1]. SiLVR [2] provides video descriptions that form the flat evidence store in our retrieval-based configuration. Mem-ory organization alone does not determine which overlapping records to return for a particular question. PACE-Mem selects complementary evidence and its quantity over these structured and flat interfaces without changing memory construction. 
+
+B. Long-Video Reasoning 
+
+Long-video reasoning requires identifying and integrating relevant evidence across time under limited input capacity [19]. M3Bench, Video-MME, and related benchmarks evaluate reasoning over video content and long-term multimodal experi-ence [1], [3], [20]. Visual–language models provide alignment and video interaction capabilities [21], [22], [23], while MovieChat, Flash-VStream, and LongVU extend temporal coverage through memory or token compression [24], [25], [26]. Language-based approaches include concept-based video captioning [27], [28], and LLoVi reasons over descriptions of local intervals [29]. For evidence selection, Video Précis favors 31 Query-guided pooling 2 Complementary evidence sequence 3 Prefix-length selection                 
+
+> Long video
+> Clip 1 Clip 2 Clip 3 …
+> Encoder
+> Within-clip grouping Pool top clusters
+> Query q
+> Relevance ri
+> Top-N by relevance Clip 3 Clip 1 Clip 7 Clip 2 Clip 8 Clip N …
+> MMR order Clip 3 Clip 7 Clip 8 Clip 4 Clip 6 Clip K …
+
+g1 g2 g3 g4 g5 
+
+> K*= 4
+
+ak = [(g k − g k+1 ) / g 1]1/k        
+
+> MMR scores Length-normalized
+> g1
+> 1
+> g2
+> 2
+> g3
+> 3
+> g4
+> 4
+> g5
+> 5
+> gk+1
+> …123456
+
+K*             
+
+> Answer generation
+> Question q
+> What part hit the bar?
+> Chronological order
+> He prepares for his next attempt. 3
+> His chest brushes the bar. 4
+> He begins his final run-up. 7
+> He places third at 5.90 m. 8
+> Answer model
+> The athlete's chest hit the bar. Representation zi
+> Group representations
+> ui1 ui2 ui3
+> Select Update
+> 128…37378
+
+gt(i) = λ¯ri − (1 − λ) max j∈St−1 cos( zi, z j )     
+
+> Fig. 2. Retrieval with PACE-Mem. The host encodes video into textual memory. For structured memories, similar records within each clip are grouped before query-guided pooling produces relevance scores and evidence representations. Consistent blue shades track clip identities across the relevance ranking and MMR sequence. The largest raw decline occurs at k= 2 , while the length-normalized criterion selects K∗= 4 . The answer model receives the selected prefix in chronological order. The question, answer, and memory excerpts are adapted from VideoMME-Long question 769-2; clip IDs and scores are schematic.
+
+diverse content under a summary-length constraint, and multi-view summarization combines joint embeddings with sparse optimization [30], [31]. For question answering and localization, spatiotemporal or event graphs model relevant relations [32], [33], [34], while language hierarchies and caption-assisted retrieval identify target moments [35], [36]. R-VLM learns to retrieve a prescribed number of video chunks [37]. UniVid revises the evidence set using evaluator feedback and MMR within Pyramid Reflection to expand or prune frames [38]. A prescribed retrieval size cannot adapt to varying evidence needs, while feedback-driven revision requires evaluating intermediate selections. PACE-Mem selects complementary clips and their quantity from stored memories using a shared score trajectory, without additional foundation-model calls. 
+
+C. Adaptive Retrieval 
+
+Adaptive retrieval controls evidence access in retrieval-augmented generation [39], [40], [41], [42], [43] using query characteristics, model feedback, or retrieval scores. Query and corpus features predict document counts [44], and Adaptive-RAG routes questions by complexity [9]. FLARE, Self-RAG, and CRAG use generation confidence, learned self-assessment, or evidence evaluation to guide retrieval [45], [46], [47]. Score-based control includes Adaptive-k’s relevance-gap cutoff with a buffer and EviRerank’s threshold relative to the top-scoring block [10], [48]. A cutoff derived from the initial relevance ranking does not reflect how a candidate’s novelty changes as evidence is selected. This motivates coupling quantity control to a redundancy-aware selection sequence. MMR penalizes overlap with earlier selections [13], and DF-RAG adjusts its geometric variant’s diversity weight through model-based planning and evaluation [49]. Extending redundancy-aware selection to quantity control, MMR-based microblog retrieval uses relative score declines between consecutive results as a stopping criterion [11]. AdaGReS selects evidence with positive redundancy-aware gains under a token budget [50], whereas AdaGATE sets capacity from the largest gap in utilities incorporating redundancy and information-gap coverage [12]. Relative score declines capture local changes but do not explicitly include the length of the preceding evidence prefix. PACE-Mem incorporates this length through a prefix-dependent power transformation of declines normalized by the initial score. This adjusts the comparison of candidate stopping positions according to the amount of evidence already selected. III. P REFIX -A WARE COMPLEMENTARY EVIDENCE 
+
+A. Overview 
+
+PACE-Mem couples complementary evidence selection with adaptive retrieval depth through three connected stages (Fig. 2). For structured memories, query-guided pooling groups related records within each clip and aggregates query-relevant groups into a relevance score and representation. MMR uses these outputs to construct an evidence sequence, balancing query relevance against overlap with previously selected clips. Prefix-length selection uses the same MMR score trajectory to determine how many clips to return by comparing length-normalized score declines. Records from the selected prefix are supplied chronologically to the answer model. Algorithm 1 summarizes the procedure. 
+
+B. Problem Setup 
+
+Memory retrieval determines which evidence to return and how much to include for a question. These decisions are 4
+
+coupled because the usefulness of additional evidence depends on what is already selected. Given a query q and accumulated memory M, the host provides T temporal evidence units 
+
+X = {xi}Ti=1 , each associated with stored records and a temporal identifier. In our video setting, an evidence unit is a clip, which can contain multiple memory records. For each unit xi, we compute query relevance ri and use an 
+
+ℓ2-normalized representation zi to assess overlap. Retrieval selects an ordered sequence of unit indices (i1, . . . , i K ), with 
+
+SK = {i1, . . . , i K } denoting its index set and K its returned length. The corresponding records are supplied chronologically to the answer model F , which predicts ˆy.
+
+C. Query-Guided Pooling 
+
+PACE-Mem obtains clip-level relevance scores and represen-tations through query-guided pooling for structured memories or directly from flat memories. In M3-Agent, multiple episodic and semantic records, stored as memory nodes, describe one interval [1]. Pooling combines their most query-relevant groups into a clip-level score and representation, carrying information from related records forward to the subsequent selection stage. In our retrieval-based SiLVR configuration [2], each 30-s interval is represented by one document containing a visual description and automatic speech recognition (ASR) transcripts. Its stored ℓ2-normalized embedding supplies zi, and cosine similarity to the query supplies ri.Within-clip grouping clusters similar query-relevant records. For clip i with ni records, vij , sij , and cij denote record 
+
+j’s normalized embedding, query score, and memory type. The score sij follows the host’s node retrieval: the maximum cosine similarity over query variants and the record’s stored embeddings. We cluster up to H highest-scoring records in descending score order. Each joins the most similar existing cluster if its cosine similarity to the centroid exceeds τ , or starts a new cluster otherwise. For cluster index set Giℓ , we use weights wij = max( sij , η ) with a positive floor η > 0 to form the centroid 
+
+μiℓ = norm 
+
+ X
+
+> j∈Giℓ
+
+wij vij 
+
+ , (1) where norm denotes ℓ2 normalization. The centroid is updated after each record joins the cluster. Query-guided aggregation combines the leading clusters into a clip-level relevance score and representation. We rank the mi
+
+clusters by their strongest query scores uiℓ = max j∈Giℓ sij 
+
+and pool the leading Li = min( L, m i) clusters: 
+
+ri =
+
+> Li
+
+X
+
+> ℓ=1
+
+αℓuiℓ + βtype btype  
+
+> i
+
++ βcov min( mi − 1, C ),zi = norm 
+
+> Li
+
+X
+
+> ℓ=1
+
+αℓ max( uiℓ , η )μiℓ 
+
+!
+
+. (2) Here L caps the pooled clusters, and decreasing rank weights 
+
+αℓ reduce weaker matches’ contributions. The indicator btype  
+
+> i
+
+∈{0, 1} is one when records in the leading min( P, m i) clusters contain both episodic and semantic types. Thus, P controls the type check, while C caps the additional clusters rewarded. The coefficients βtype and βcov weight these bonuses. With cluster membership fixed, lower-scoring records cannot increase the maximum score, but their embeddings contribute to the centroid used for overlap assessment. Candidate admission retains the top-scoring clips and normal-izes their relevance for complementary selection. We recompute pooling from stored embeddings, retaining node order for score ties and the earliest cluster for similarity ties. We keep at most 
+
+N clips, with candidate index set Cq = TopN i∈{ 1,...,T } ri.An empty pool returns no evidence. Otherwise, we rescale relevance as 
+
+¯ri = ri − rmin 
+
+max( rmax − rmin , 10 −12 ) , (3) where rmin and rmax are the pool’s minimum and maximum scores. This preserves ranking and places relevance in [0 , 1] 
+
+for combination with cosine similarity in [−1, 1] .
+
+D. Complementary Evidence Sequence 
+
+Complementary sequence construction produces an evidence ordering and a score trajectory for subsequent depth selection. Selection balances query relevance against overlap with earlier selections. Starting from S0 = ∅, step t selects the index 
+
+it = arg max i∈C q \St−1 gt(i) using 
+
+gt(i) = 
+
+
+
+¯ri, t = 1 ,λ¯ri − (1 − λ) max 
+
+> j∈St−1
+
+cos( zi, z j ), t > 1. (4) The first clip is chosen by relevance alone. Subsequent steps use classical MMR [13], where λ ∈ [0 , 1] balances relevance against maximum similarity to an earlier selection. We update 
+
+St = St−1 ∪ { it} and retain the selected score gt = gt(it).Each gt is thus conditioned on the preceding selections. The maximum-similarity penalty accounts for overlap with any previously selected clip. Averaging similarities over the selected set could dilute a strong match to one clip when the other selected clips are unrelated, making repeated content less visible in the resulting penalty. Within-clip grouping summarizes related records within each interval, while this cross-clip penalty discourages selecting similar evidence from different intervals. From the second selection onward, the scores are non-increasing. Relevance scores, representations, and λ remain fixed during sequence construction. As St−1 expands to St,each remaining candidate’s maximum similarity can only increase or stay unchanged. Since 1−λ ≥ 0, its score therefore satisfies gt+1 (i) ≤ gt(i) for t ≥ 2. The next selected candidate was also available at step t, giving gt+1 = gt+1 (it+1 ) ≤
+
+gt(it+1 ) ≤ gt. The first transition follows separately when min-max scaling gives g1 = 1 . With ¯ri ≤ 1 and cos( zi, z j ) ≥ − 1,we have g2 ≤ λ + (1 − λ) = 1 = g1.
+
+E. Prefix-Length Selection 
+
+Prefix-length selection uses a length-normalized score de-cline to choose a boundary on the complementary sequence. Adaptive-k compares gaps between independently ranked 5
+
+Algorithm 1 PACE-Mem evidence selection 
+
+Require: Query q, memory M, N , Kmin , Kmax , λ
+
+Ensure: Selected memory records in chronological order  
+
+> 1:
+
+Form clip candidates X (Section III-C)  
+
+> 2:
+
+Cq ← TopN i∈{ 1,...,T } ri 
+
+> 3:
+
+if Cq = ∅ then return ∅ 
+
+> 4:
+
+Rescale relevance as in Section III-C  
+
+> 5:
+
+Kret ← min( Kmax , |C q |) 
+
+> 6:
+
+Kobs ← min( Kret , |C q | − 1) S0 ← ∅ 
+
+> 7:
+
+for t = 1 , . . . , K obs + 1 do  
+
+> 8:
+
+it ← arg max i∈C q \St−1 gt(i) using (4)  
+
+> 9:
+
+gt ← gt(it) St ← St−1 ∪ { it} 
+
+> 10:
+
+end for  
+
+> 11:
+
+K+ ← { k ∈ { 1, . . . , K obs } : gk > g k+1 } 
+
+> 12:
+
+eK ← Kret  
+
+> 13:
+
+if g1 > 0 and K+̸ = ∅ then  
+
+> 14:
+
+eK ← arg max k∈K + [( gk − gk+1 )/g 1]1/k  
+
+> 15:
+
+end if  
+
+> 16:
+
+K∗ ← min( Kret , max( Kmin , eK))  
+
+> 17:
+
+return First K∗ MMR-selected clips in temporal order 
+
+relevance scores and adds a fixed buffer [10]. Evaluating boundaries on the MMR trajectory instead couples depth selection to evidence composition: an earlier near-duplicate can change a candidate’s score, position, and adjacent declines. For a positive, non-increasing trajectory, the adjacent-score ratio 
+
+pk = gk+1 /g k measures how much retrieval value the next clip retains relative to the current selection. A ratio near one supports continuation because the next clip remains similarly valuable under the relevance–overlap criterion, whereas a small ratio indicates a sharp decline and supports truncation. This relative measure is invariant to a common positive rescaling of the score trajectory and lies in (0 , 1] , motivating its use as a local continuation probability. Stopping after clip k requires 
+
+k − 1 continuations followed by a stop, yielding the probability 
+
+Pr( K = k) and its length-normalized score ak:
+
+Pr( K = k) = 
+
+> k−1
+
+Y
+
+> i=1
+
+pi
+
+!
+
+(1 − pk) = gk − gk+1 
+
+g1
+
+,ak = Pr( K = k)1/k =
+
+ gk − gk+1 
+
+g1
+
+1/k 
+
+. (5) Length normalization accounts for the different numbers of factors underlying candidate stopping positions. A prefix of length k involves k − 1 continuation factors and one stopping factor. Multiplying additional continuation factors in (0 , 1] reduces or preserves their cumulative product, which can disadvantage longer prefixes when stopping factors are comparable. The full boundary probability also depends on the stopping factor, so its ranking reflects both effects. Taking the kth root converts the product of k factors into their geometric mean: log ak = k−1[Pk−1 
+
+> i=1
+
+log pi + log(1 − pk)] 
+
+for positive boundary probabilities. This compares the average log score per decision across candidate lengths, a motivation related to length normalization in sequence generation [51]. Without the root, maximizing Pr( K = k) simply maximizes 
+
+gk − gk+1 because g1 > 0 is shared across boundaries; on a relevance-ranked trajectory, this recovers Adaptive-k’s largest-gap criterion before its buffer is added. For an equal normalized decline in (0 , 1) , it favors a longer prefix: a decline of 0.16 gives 
+
+a2 = 0 .40 and a4 ≈ 0.63 (Fig. 2). More generally, writing 
+
+δk = ( gk − gk+1 )/g 1 for an eligible boundary, comparison of two positive normalized declines gives 
+
+aℓ > a k ⇐⇒ log δℓ
+
+ℓ > log δk
+
+k ⇐⇒ δℓ > δ ℓ/k k . (6) For ℓ > k and 0 < δ k < 1, the threshold is smaller than δk,allowing a later boundary to win with a smaller decline. Unlike a fixed buffer, this preference depends on both the decline and the relative prefix lengths. Final selection applies the boundary score within the host’s depth bounds and available candidates. The decline-based score remains well-defined whenever g1 > 0 and gk > g k+1 ,including when later scores are nonpositive. We therefore compute it directly from the normalized decline, extending the selection rule beyond the positive trajectories used in the probability derivation. Each observable boundary requires a successor, so the host’s bounds Kmin and Kmax give 
+
+Kret = min( Kmax , |C q |),Kobs = min( Kret , |C q | − 1) . (7) We compare boundaries from the first position onward, defining 
+
+K+ = {k ∈ { 1, . . . , K obs } : gk > g k+1 }. If g1 > 0 and 
+
+K+̸ = ∅, we select eK = arg max k∈K + ak; otherwise, eK =
+
+Kret . This fallback handles equal relevance scores, which yield g1 = 0 under min-max scaling, and trajectories without a strictly decreasing boundary. The lower bound preserves the host’s minimum context size, while the upper bound limits the returned evidence to its budget and available candidates. The final length is 
+
+K∗ = min 
+
+
+
+Kret , max( Kmin , eK)
+
+
+
+. (8) If fewer than Kmin candidates exist, all are returned. The bounded trajectory is constructed before prefix selection, including a successor when needed to evaluate Kmax . Although evaluating a boundary requires inspecting the following clip, that successor supplies only its comparison score and is excluded from the returned prefix at that boundary. The answer is ˆy = F (q, order time (SK∗ )) , where temporal sorting changes only presentation order, not the selected members or boundary scores. IV. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Datasets. We evaluate PACE-Mem on M3Bench Robot, M3Bench Web [1], and the long-video subset of Video-MME, referred to as VideoMME-Long [20]. Robot comprises 1,276 open-ended questions from 100 embodied indoor videos, while Web comprises 3,214 questions from 920 YouTube videos. VideoMME-Long contains 900 multiple-choice questions from 300 videos. M3-Agent uses the released questions and mem-ories, whereas SiLVR memories are reconstructed from the source videos. Since 14 Web videos were unavailable, SiLVR is evaluated on a fixed subset of 906 videos and 3,171 questions. Within each host configuration, all methods use the same questions. 6                                                                                           
+
+> TABLE I QUESTION -ANSWERING ACCURACY AND MEAN RETRIEVAL DEPTH IN TWO AGENT FRAMEWORKS . C LIPS REPORTS THE MEAN EVIDENCE COUNT PER NONEMPTY ORDINARY RETRIEVAL CALL . R ESULTS ARE COMPARED WITHIN EACH HOST BLOCK ,WITH SILVR W EB EVALUATED ON A FIXED SUBSET OF
+> 3,171 QUESTIONS
+> M3Bench Robot M3Bench Web VideoMME-Long Method Acc. (%) Clips Acc. (%) Clips Acc. (%) Clips Avg. Acc. M3-Agent Answer model: M3-Agent-Control (Qwen3-32B)
+> Original 30.7 1.7 48.9 1.8 53.0 1.8 44.2 Fixed-4 38.4 3.9 56.4 4.0 56.9 4.0 50.6 Fixed-5 38.9 ↑0.5 4.8 56.7 ↑0.3 5.0 57.6 ↑0.7 5.0 51.1 ↑0.5
+> Adaptive-k38.8 ↑0.4 4.0 55.3 ↓1.1 4.1 57.9 ↑1.0 4.1 50.7 ↑0.1
+> Adaptive-RAG 38.3 ↓0.1 4.0 55.1 ↓1.3 4.2 56.8 ↓0.1 4.1 50.1 ↓0.5
+> PACE-Mem (ours) 40.3 ↑1.9 3.9 57.6 ↑1.2 4.1 58.7 ↑1.8 4.3 52.2 ↑1.6
+> SiLVR Answer model: Qwen3-VL-8B-Instruct
+> Fixed-7 40.8 7.0 55.9 7.0 56.9 7.0 51.2 Fixed-8 41.3 ↑0.5 8.0 57.6 ↑1.7 8.0 58.0 ↑1.1 8.0 52.3 ↑1.1
+> Adaptive-k41.4 ↑0.6 6.8 56.1 ↑0.2 6.8 56.2 ↓0.7 6.9 51.2 →0.0
+> Adaptive-RAG 41.0 ↑0.2 7.0 56.3 ↑0.4 7.2 57.2 ↑0.3 7.1 51.5 ↑0.3
+> PACE-Mem (ours) 42.4 ↑1.6 7.1 57.2 ↑1.3 7.0 59.0 ↑2.1 7.2 52.9 ↑1.7 Accuracy changes (percentage points) are relative to Fixed-4 for M3-Agent and Fixed-7 for SiLVR ( →: unchanged). Bold marks the best accuracy per framework.
+
+Baselines. We compare PACE-Mem with fixed-depth re-trieval and two adaptive context controllers within each host framework, alongside Original M3-Agent. M3-Agent retrieves during ordinary memory searches under its existing control policy, whereas the SiLVR configuration retrieves once from flat caption and ASR memory. Original M3-Agent retains its released relevance threshold and chain-of-retrieval behavior. The other M3-Agent variants remove this threshold and backfill candidates to share a common candidate-admission policy. Fixed-k returns the highest-ranked clips by dense relevance. Fixed-4 in M3-Agent and Fixed-7 in SiLVR provide comparisons at similar mean retrieval depths, while Fixed-5 and Fixed-8 provide additional comparisons with larger returned contexts. Adaptive-k selects a relevance-gap boundary and appends a buffer [10]. Adaptive-RAG uses its released T5-large complexity classifier without retraining [9]; we map its three retrieval-strategy classes to context depths while retaining each host’s reasoning loop. The buffers and class mappings approximate PACE-Mem’s mean returned depth within each host and remain fixed across benchmarks. 
+
+Metrics. We evaluate answer quality using accuracy and returned evidence quantity using Clips. Accuracy is determined by exact option matching on VideoMME-Long and GPT-4o correctness judgments on M3Bench [52]. All methods use the same judging prompt, containing the question, reference answer, and generated answer; method identities and retrieval budgets are omitted. Avg. Acc. is the unweighted mean accuracy across the three benchmarks, rounded to one decimal place. For the overall comparison, we select the single baseline with the highest mean accuracy across both frameworks and all three benchmarks among those at comparable mean retrieval depths. Overall gains are averaged across these six evaluations before rounding. Clips is the mean number of evidence clips returned per nonempty ordinary retrieval call, excluding M3-Agent’s entity lookups and other searches. It measures evidence quantity at the retrieval-call level, where record lengths and the number of calls per question can vary. The realized depth can fall below the requested depth when candidates are exhausted. 
+
+Implementation details. We retain each host’s model configuration and use fixed retrieval parameters across bench-marks. M3-Agent uses the released M3-Agent-Control (DAPO-trained Qwen3-32B) with its official decoding settings and 
+
+text-embedding-3-large for query encoding [1]. To construct SiLVR memories, we divide source videos into nonoverlapping 30-s intervals. Qwen3-VL-8B-Instruct [53] generates descriptions from each interval and its times-tamped transcript, and Qwen3-Embedding-4B [54] encodes the caption and ASR records. SiLVR uses Qwen3-VL-8B-Instruct with the official task-specific answer prompts [2] and greedy decoding. Within each host, methods share the evidence store, clip boundaries, query representations, dense search, answer model, prompts, and decoding settings. The answer model receives the question together with the selected records ordered chronologically. Both hosts use N = 200 ,
+
+λ = 0.85 , and Kmin = 2. We set Kmax = 5 for M3-Agent, which can request further evidence in subsequent calls, and Kmax = 8 for SiLVR’s single returned context. Query-guided pooling in M3-Agent uses H = 8 , L = 4 ,
+
+P = 3 , τ = 0 .85 , η = 10 −3, α = (1 , 0.35 , 0.15 , 0.05) ,
+
+βtype = 0.05 , βcov = 0.03 , and C = 3. Original M3-Agent uses its released relevance threshold of 0.5. Adaptive-
+
+k appends two clips in M3-Agent and five in SiLVR. Adaptive-RAG’s classes for no retrieval, single retrieval, and iterative retrieval map to depths 2/4/5 in M3-Agent and 2/7/8 in SiLVR. Its classifier receives only the question, whereas multiple-choice retrieval queries include all answer options. 
+
+B. Main Results 
+
+PACE-Mem achieves the best average accuracy. It leads the evaluated methods in both host configurations (Table I). These two configurations expose different memory 7                                               
+
+> TABLE II COMPONENT ABLATIONS IN SILVR ON VIDEO MME-L ONG . C HECKS INDICATE ENABLED COMPONENTS . R EMOVING MMR USES RELEVANCE ORDER ,AND REMOVING DEPTH SELECTION FIXES K= 7 . C LIPS IS THE MEAN RETURNED DEPTH
+> Variant MMR Depth selection Acc. (%) Clips
+> PACE-Mem ✓✓59.0 7.2 w/o MMR –✓58.1 7.4 w/o depth selection ✓–57.6 7.0 w/o both ––56.9 7.0 TABLE III COMPLEMENTARY EVIDENCE SELECTION ABLATION IN SILVR AT FIXED DEPTH K= 7 . B OTH VARIANTS DISABLE DEPTH SELECTION ,AND W /OBOTH ALSO REMOVES MMR. E NTRIES ARE ACCURACIES (%)
+> Variant Robot Web VideoMME-Long Avg. Acc.
+> w/o depth selection 41.1 56.7 57.6 51.8
+> w/o both 40.8 55.9 56.9 51.2
+
+interfaces: M3-Agent uses structured memories containing multiple records per clip, whereas SiLVR retrieves from a flat store of interval-level documents. Relative to Adaptive-k,the strongest baseline at comparable mean retrieval depths, PACE-Mem improves accuracy in all six evaluations, with an average increase of 1.6%. Compared with Original M3-Agent, average accuracy rises from 44.2% to 52.2%. 
+
+Gains over fixed-depth retrieval span all three bench-marks. At approximately four clips per call in M3-Agent, PACE-Mem improves over Fixed-4 by 1.9, 1.2, and 1.8 percentage points on Robot, Web, and VideoMME-Long, respectively. At approximately seven clips per call in SiLVR, the corresponding gains over Fixed-7 are 1.6, 1.3, and 2.1 percentage points. These consistent gains at similar mean depths indicate that evidence selection matters beyond the number of returned clips, across both multi-round and single-retrieval settings. 
+
+Larger fixed contexts do not close the average accuracy gap. PACE-Mem achieves average accuracies of 52.2% and 52.9% with approximately 4.1 and 7.1 clips, compared with 51.1% at 4.9 clips for Fixed-5 and 52.3% at eight clips for Fixed-8. Increasing fixed depth improves baseline accuracy, but uniformly adding more relevance-ranked clips remains less effective on average than adapting evidence composition and depth to the question. Fixed-8 scores higher on Web (57.6% versus 57.2%), while PACE-Mem leads on Robot and VideoMME-Long. 
+
+C. Ablation Studies 
+
+Complementary ordering and depth selection both improve accuracy. We remove each selection component in SiLVR on VideoMME-Long (Table II). Removing MMR applies the same depth rule to relevance order, while removing depth selection fixes the returned length at K = 7 . Accuracy decreases from 59.0% for the full method to 58.1% without MMR and 57.6% without depth selection, and removing both yields 56.9%. Depth selection improves accuracy by 1.2 percentage points under relevance ordering and 1.4 under MMR, showing that it benefits                    
+
+> TABLE IV QUERY -GUIDED POOLING ABLATION IN M3-A GENT . T HE W /O POOLING VARIANT USES EACH CLIP ’S STRONGEST QUERY -MATCHED NODE FOR RELEVANCE AND REPRESENTATION . MMR AND DEPTH SELECTION ARE RETAINED
+> Benchmark PACE-Mem w/o pooling
+> Acc. (%) Clips Acc. (%) Clips M3Bench Robot 40.3 3.9 38.7 3.9 M3Bench Web 57.6 4.1 56.7 4.1 VideoMME-Long 58.7 4.3 57.6 4.3
+
+both ordering rules. Removing MMR increases mean returned depth from 7.2 to 7.4 even as accuracy falls, motivating a separate comparison of the ordering rules at a common depth. Complementary ordering remains beneficial at fixed depth. Table III holds K = 7 and disables depth selection across all three SiLVR benchmarks. Retaining MMR raises average accuracy from 51.2% to 51.8%, with gains of 0.3 percentage points on Robot, 0.8 on Web, and 0.7 on VideoMME-Long. With the clip count held fixed, these results show that changing evidence composition improves accuracy across the three benchmarks. Query-guided pooling outperforms the strongest-node al-ternative. We replace pooled relevance and representa-tions in M3-Agent with those of each clip’s strongest query-matched node, retaining MMR and depth selec-tion (Table IV). Accuracy falls on all three benchmarks, with the average decreasing from 52.2% to 51.0% at the same reported mean depths. This result supports ag-gregating information beyond the strongest query match when constructing clip-level relevance scores and represen-tations. 
+
+D. Retrieval Analysis 
+
+Evidence changes reveal the value of jointly adding and removing clips. Fig. 3 compares Fixed-7 and PACE-Mem in SiLVR’s single-retrieval setting. Across Robot, Web, and VideoMME-Long, the methods share an average of 6.46–6.62 clips, while PACE-Mem adds 0.51–0.56 and removes 0.38–0.54. Thus, similar returned depths can contain different evidence: additions minus removals gives the net depth change, whereas their sum measures membership turnover. Add-only returns retain all Fixed-7 clips, remove-only returns are strict subsets, and mixed changes replace members through both operations. Add-only changes are most frequent, and identical sets account for approximately one quarter of questions (Fig. 3(b)). To relate these patterns to answer quality, Fig. 3(c) pools questions across benchmarks within each group. Correction and regression rates use initially wrong and initially correct Fixed-7 answers as their respective denominators; net accuracy gain divides corrections minus regressions by all questions in the group. Mixed changes have the largest within-group net gain, at 5.31 percentage points, compared with 1.91 for add-only and 1.55 for remove-only changes. They also have the highest correction rate (14.88%) and lowest regression rate (4.0%), although they occur in only 4.2–5.3% of questions per benchmark. Removal-only changes correct a slightly larger fraction of errors than add-8(a) Evidence composition            
+
+> Shared Removed Added
+> Robot 0.47 6.53 0.53
+> Web 0.54 6.46 0.51
+> VideoMME Long 0.38 6.62 0.56
+> Mean clips per question
+> Set shapes are schematic
+
+(b) Set-change patterns                
+
+> Same Add only Remove only Add + remove
+> 025 50 75 100
+> 25.7% 46.1% 23.0% 5.3%
+> 25.4% 45.4% 25.1% 4.2%
+> 24.1% 48.2% 22.7% 5.0%
+> Share of questions (%)
+
+(c) Correction and regression             
+
+> Correction Regression Δ Acc. (pp) 0% 5% 10% 15% 20%
+> Add only 8.88% 4.5% +1.91
+> Remove only 9.27% 5.5% +1.55
+> Add + remove 14.88% 4.0% +5.31
+
+Fig. 3. Evidence changes and answer outcomes in SiLVR relative to Fixed-7. (a) Mean clip counts in schematic sets. (b) Set-change frequencies; rows follow (a). (c) Rates pooled across benchmarks by change pattern. Correction and regression condition on initially wrong and initially correct answers, respectively. 
+
+∆Acc. is corrections minus regressions divided by all questions in the group, in percentage points. Set comparisons disregard retrieval order. 56 6.0 57 6.5 58 7.0 59 7.5 60 8.0          
+
+> Accuracy (%) Mean clips / call MMR weight λ
+> default
+> 0.70 0.73 0.76 0.79 0.82 0.85 0.88 0.91
+> Accuracy Mean clips
+
+(a) Returned depth K            
+
+> 2345678025 50 75 100
+> PACE-Mem Adaptive-k PACE-Mem Adaptive-k PACE-Mem Adaptive-k
+> Robot Web
+> VideoMME-Long
+> Share of questions (%)
+
+(b) Fig. 4. Retrieval analysis in SiLVR. (a) Sensitivity to λ on VideoMME-Long. Teal circles show accuracy (left axis), and copper squares show mean clip count (right axis). The dashed marker indicates λ = 0 .85 . (b) Returned-depth distributions by benchmark and method. Adaptive-k includes the five-clip buffer. 
+
+only changes, but also lose more initially correct answers, yielding a smaller net gain. One possible explanation for the mixed group’s advantage is that replacement introduces missing cues while excluding repeated or competing event in-formation. Adding alone retains potential distractions, whereas removing alone cannot supply a missing fact. This association makes evidence replacement a useful focus alongside context expansion and pruning. Across all 5,347 paired questions, PACE-Mem corrects 180 errors and introduces 100 regressions, yielding 80 additional correct answers; 2,707 questions are correct under both methods and 2,360 are incorrect under both. These pooled counts summarize question-level outcomes, while Table I reports averages with equal benchmark weights. 
+
+Performance is stable across the tested relevance weights. 
+
+We vary the MMR relevance weight λ from 0.70 to 0.91 on SiLVR VideoMME-Long while keeping the other retrieval settings fixed. Larger values emphasize query relevance, while smaller values give more weight to avoiding overlap with selected clips. In Fig. 4(a), accuracy varies nonmonotonically between 58.4% and 59.0%, and mean depth ranges from 7.17 to 7.25. The default λ = 0 .85 matches the highest accuracy at λ = 0 .79 . The narrow accuracy and depth ranges indicate that the observed performance is maintained across several relevance–overlap balances within this interval, rather than depending on a single sharply tuned weight. 
+
+PACE-Mem varies retrieval depth across questions. 
+
+Similar mean depths can conceal different evidence allocations, as shown in Fig. 4(b). PACE-Mem returns two to eight clips, with fewer than eight returned for 52.2% of Robot questions, 53.1% of Web questions, and 49.4% of VideoMME-Long questions. Eight is the most frequent depth and equals the configured cap Kmax . Prefixes of at most five clips account for 10.6%, 11.6%, and 7.3% of questions, respectively, so shorter contexts serve a minority while most questions receive six to eight clips. Adaptive-k mainly returns six to eight clips after its five-clip buffer, with six accounting for 47.0%–49.6% of questions. Adaptive-RAG returns seven clips for 804 of the 900 VideoMME-Long questions. Compared with these more concentrated allocations, PACE-Mem uses a broader range of depths while preserving longer contexts for most questions. Together with its higher average accuracy at similar mean depths (Table I), this distribution supports adapting the returned prefix to the question-specific evidence trajectory rather than applying a nearly uniform context length. 
+
+E. Case Studies 
+
+Fig. 5 compares Fixed-5 and PACE-Mem on three VideoMME-Long questions under M3-Agent, illustrating re-covered evidence, a shorter context, and event confusion. For each question, both methods issue the same single search request, and shared clips contain identical memory text. Clip IDs distinguish retained, omitted, and newly selected evidence. 
+
+Replacing one clip recovers a missing result without increasing retrieval depth. Question 890-2 asks whether the parents shown before the marathon participated and what results they achieved. Both methods return five clips and 9Evidence recovered 890-2 
+
+What were the parents’ marathon results?   
+
+> Clip 58
+> Clip 15 →58
+
+Father: full marathon Mother: 38 km       
+
+> Fixed-5 32 21 48 15 52
+
+Not mentioned ✗      
+
+> PACE-Mem 32 21 52 48 58
+
+Full / 38 km ✓  
+
+> 5→5 clips · Missing result recovered
+
+Shorter context 867-3 
+
+What was the initial budget per person? 
+
+> Clip 1
+> Clips 56, 11 removed
+
+Initial budget: £69 per person       
+
+> Fixed-5 1256 91 11
+
+£69 ✓    
+
+> PACE-Mem 1291
+
+£69 ✓  
+
+> 5→3 clips · Same correct answer
+
+Failure case · Event confusion Who wins the women’s A final? 780-2      
+
+> Other race
+> Clip 30 · Caitlin Pelkey wins
+> Target final
+> Clip 39 · Hee Won Son wins
+> Men’s final
+> Clip 66 · Different event
+> Fixed-5 35 18 22 39 30
+
+Hee Won Son ✓     
+
+> PACE-Mem 18 35 22 30 66
+
+Caitlin Pelkey ✗   
+
+> Clip 39 →66 · Similar content does not imply redundant evidence.
+> Fig. 5. VideoMME-Long cases with M3-Agent under identical single search requests. Top left: Clip 58 recovers both parents’ results at the same five-clip depth. Top right: retaining the explicit budget fact allows a correct answer with three clips instead of five. Bottom: omitting Clip 39 removes the target-final result, and PACE-Mem predicts the winner of another race. Frames and brief descriptions illustrate text-memory records. Rows show returned clip IDs and shortened predictions, with supporting evidence in green and replaced or omitted clips in peach.
+
+share four members. PACE-Mem replaces Clip 15, which describes support from the coach, companions, and parents without their race results, with Clip 58. The latter explicitly states that the father completed the full marathon and the mother reached 38 km. Fixed-5 predicts that the results were not mentioned, whereas PACE-Mem answers correctly. The replacement supplies the outcome asked for in the question, moving beyond related background about the parents’ presence and support. 
+
+Preserving an explicit answer fact allows a shorter context to retain the correct response. Question 867-3 asks for the initial budget per person. Fixed-5 returns Clips 1, 2, 56, 91, and 11, while PACE-Mem returns the subset 1, 2, and 91. Both methods answer correctly because the retained context includes Clip 1’s explicit £69 budget. The omitted clips describe a later challenge (Clip 56) and an updated group budget (Clip 11), which also repeats the initial amount. Clip 11 therefore provides an additional mention of the answer, while Clip 1 alone already states the requested amount explicitly. The question’s temporal qualifier distinguishes the requested initial amount from subsequent budget updates. The selected subset retains that direct support with three clips instead of five. 
+
+Similar content does not necessarily provide redundant evidence. Question 780-2 asks who wins the women’s A final. Both methods return five clips and share four members, including Clip 30, which names Caitlin Pelkey as the winner of a different race. Fixed-5 also retains Clip 39, which explicitly identifies Hee Won Son as the winner of the target final, and answers correctly. PACE-Mem replaces Clip 39 with Clip 66, which introduces the men’s 1000 m A final. It therefore loses the explicit result for the target race while retaining the competing winner from Clip 30, and incorrectly answers Caitlin Pelkey. Although these memories share race terminology and similar settings, they describe different events and their results are not interchangeable. This case illustrates why evidence selection must preserve facts that distinguish the target event from similar events, rather than treating topical similarity alone as evidence redundancy. V. C ONCLUSION 
+
+We presented PACE-Mem, a training-free, plug-in retrieval method that jointly determines which memories to return and how much evidence to provide. A shared score trajectory con-nects complementary evidence selection with query-dependent retrieval depth. Across three benchmarks and two agent frame-works, PACE-Mem improves answer accuracy by an average of 1.6% over Adaptive-k, the strongest baseline at comparable mean retrieval depths, without additional foundation-model calls for evidence selection. Results across structured and flat memories, together with fixed-depth ablations, support the importance of evidence composition alongside context length. Similar memories can nevertheless contain distinct event-specific facts required for an answer. Future work will explore preserving these distinctions during redundancy assessment and extending prefix selection to account for evidence accumulated across retrieval rounds. 10 
+
+REFERENCES [1] L. Long et al. , “Seeing, listening, remembering, and reasoning: A multimodal agent with long-term memory,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2026. [2] C. Zhang, Y.-B. Lin, Z. Wang, M. Bansal, and G. Bertasius, “SiLVR: A simple language-based video reasoning framework,” Trans. Mach. Learn. Res. , 2026. [3] S. Ren, Y. Liu, X. Liu, C.-H. Wu, E. Zhou, and J. Shen, “ICM-Bench: Person-level identity reasoning in multimodal agents with long-term memory,” 2026, arXiv:2609.04438. [4] J. S. Park, J. C. O’Brien, C. J. Cai, M. R. Morris, P. Liang, and M. S. Bernstein, “Generative agents: Interactive simulacra of human behavior,” in Proc. ACM Symp. User Interface Softw. Technol. (UIST) , 2023, pp. 1–22. [5] W. Zhong, L. Guo, Q. Gao, H. Ye, and Y. Wang, “MemoryBank: Enhancing large language models with long-term memory,” in Proc. AAAI Conf. Artif. Intell. , vol. 38, no. 17, 2024, pp. 19 724–19 731. [6] Z. Hu et al. , “Beyond RAG for agent memory: Retrieval by decoupling and aggregation,” 2026, arXiv:2602.02007v4. [7] N. F. Liu et al. , “Lost in the middle: How language models use long contexts,” Trans. Assoc. Comput. Linguistics , vol. 12, pp. 157–173, 2024. [8] W. Xu, Z. Liang, K. Mei, H. Gao, J. Tan, and Y. Zhang, “A-Mem: Agentic memory for LLM agents,” in Adv. Neural Inf. Process. Syst. ,vol. 38, 2025, pp. 17 577–17 604. [9] S. Jeong, J. Baek, S. Cho, S. J. Hwang, and J. C. Park, “Adaptive-RAG: Learning to adapt retrieval-augmented large language models through question complexity,” in Proc. Conf. North Amer. Chapter Assoc. Comput. Linguistics (NAACL) , 2024, pp. 7036–7050. [10] C. Taguchi, S. Maekawa, and N. Bhutani, “Efficient context selection for long-context QA: No tuning, no iteration, just adaptive-k,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2025, pp. 20 105–20 130. [11] K. Lu, D. Roa, and H. Fang, “Concept based tie-breaking and maximal marginal relevance retrieval in microblog retrieval,” in Proc. Text REtrieval Conf. (TREC) , 2014. [12] Y. Guo, Y. Wang, and Y. Wang, “AdaGATE: Adaptive gap-aware token-efficient evidence assembly for multi-hop retrieval-augmented generation,” 2026, arXiv:2605.05245v1. [13] J. G. Carbonell and J. Goldstein, “The use of MMR, diversity-based reranking for reordering documents and producing summaries,” in Proc. ACM SIGIR Conf. Res. Develop. Inf. Retr. , 1998, pp. 335–336. [14] B. J. Gutiérrez, Y. Shu, Y. Gu, M. Yasunaga, and Y. Su, “HippoRAG: Neurobiologically inspired long-term memory for large language models,” in Adv. Neural Inf. Process. Syst. , vol. 37, 2024, pp. 59 532–59 569. [15] N. Shinn, F. Cassano, A. Gopinath, K. Narasimhan, and S. Yao, “Reflexion: Language agents with verbal reinforcement learning,” in 
+
+Adv. Neural Inf. Process. Syst. , vol. 36, 2023, pp. 8634–8652. [16] C. Packer et al. , “MemGPT: Towards LLMs as operating systems,” 2023, arXiv:2310.08560. [17] J. Kang, M. Ji, Z. Zhao, and T. Bai, “Memory OS of AI agent,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2025, pp. 25 961–25 970. [18] P. Chhikara, D. Khant, S. Aryan, T. Singh, and D. Yadav, “Mem0: Building production-ready AI agents with scalable long-term memory,” in Proc. Eur. Conf. Artif. Intell. (ECAI) , 2025, pp. 2993–3000. [19] T. Qian, R. Cui, J. Chen, P. Peng, X. Guo, and Y.-G. Jiang, “Locate before answering: Answer guided question localization for video question answering,” IEEE Trans. Multimedia , vol. 26, pp. 4554–4563, 2024. [20] C. Fu et al. , “Video-MME: The first-ever comprehensive evaluation benchmark of multi-modal LLMs in video analysis,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2025, pp. 24 108–24 118. [21] A. Radford et al. , “Learning transferable visual models from natural language supervision,” in Proc. ICML , 2021, pp. 8748–8763. [22] J. Li, D. Li, S. Savarese, and S. Hoi, “BLIP-2: Bootstrapping language-image pre-training with frozen image encoders and large language models,” in Proc. ICML , 2023, pp. 19 730–19 742. [23] H. Zhang, X. Li, and L. Bing, “Video-LLaMA: An instruction-tuned audio-visual language model for video understanding,” in Proc. EMNLP Syst. Demonstr. , 2023, pp. 543–553. [24] E. Song et al. , “MovieChat: From dense token to sparse memory for long video understanding,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2024, pp. 18 221–18 232. [25] H. Zhang, Y. Wang, Y. Tang, Y. Liu, J. Feng, and X. Jin, “Flash-VStream: Efficient real-time understanding for long video streams,” in 
+
+Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV) , 2025, pp. 21 059–21 069. [26] X. Shen et al. , “LongVU: Spatiotemporal adaptive compression for long video-language understanding,” in Proc. ICML , 2025, pp. 54 582–54 599. [27] H. Wang, G. Lin, S. C. H. Hoi, and C. Miao, “Cross-modal graph with meta concepts for video captioning,” IEEE Trans. Image Process. , vol. 31, pp. 5150–5162, 2022. [28] B. Yang, M. Cao, and Y. Zou, “Concept-aware video captioning: Describing videos with effective prior information,” IEEE Trans. Image Process. , vol. 32, pp. 5366–5378, 2023. [29] C. Zhang et al. , “A simple LLM framework for long-range video question-answering,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2024, pp. 21 715–21 737. [30] N. Shroff, P. Turaga, and R. Chellappa, “Video précis: Highlighting diverse aspects of videos,” IEEE Trans. Multimedia , vol. 12, no. 8, pp. 853–868, Dec. 2010. [31] R. Panda and A. K. Roy-Chowdhury, “Multi-view surveillance video summarization via joint embedding and sparse optimization,” IEEE Trans. Multimedia , vol. 19, no. 9, pp. 2010–2021, Sep. 2017. [32] Y. Cheng, H. Fan, D. Lin, Y. Sun, M. Kankanhalli, and J.-H. Lim, “Keyword-aware relative spatio-temporal graph networks for video question answering,” IEEE Trans. Multimedia , vol. 26, pp. 6131–6141, 2024. [33] Z. Bai, R. Wang, D. Gao, and X. Chen, “Event graph guided composi-tional spatial–temporal reasoning for video question answering,” IEEE Trans. Image Process. , vol. 33, pp. 1109–1121, 2024. [34] R. Wang, Y. Luo, F. Zhang, M. Liu, and X. Luo, “HSSHG: Heuristic semantics-constrained spatio-temporal heterogeneous graph for VideoQA,” 
+
+IEEE Trans. Multimedia , vol. 26, pp. 11 176–11 190, 2024. [35] X. Ding et al. , “Exploring language hierarchy for video grounding,” IEEE Trans. Image Process. , vol. 31, pp. 4693–4706, 2022. [36] P. Xie, J. Li, G. Lu, Y. Xu, and D. Zhang, “Caption assisted multimodal large language model for video moment retrieval,” IEEE Trans. Image Process. , vol. 34, pp. 6755–6766, 2025. [37] J. Xu, C. Lan, W. Xie, X. Chen, and Y. Lu, “Long video understand-ing with learnable retrieval in video-language models,” IEEE Trans. Multimedia , vol. 28, pp. 5254–5261, 2026. [38] J. Luo et al. , “UniVid: The open-source unified video model,” 2025, arXiv:2509.24200v2. [39] P. Lewis et al. , “Retrieval-augmented generation for knowledge-intensive NLP tasks,” in Adv. Neural Inf. Process. Syst. , vol. 33, 2020, pp. 9459– 9474. [40] V. Karpukhin et al. , “Dense passage retrieval for open-domain question answering,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2020, pp. 6769–6781. [41] G. Izacard et al. , “Unsupervised dense information retrieval with contrastive learning,” Trans. Mach. Learn. Res. , 2022. [42] O. Khattab and M. Zaharia, “ColBERT: Efficient and effective passage search via contextualized late interaction over BERT,” in Proc. ACM SIGIR Conf. Res. Develop. Inf. Retr. , 2020, pp. 39–48. [43] G. Izacard and E. Grave, “Leveraging passage retrieval with generative models for open domain question answering,” in Proc. Conf. Eur. Chapter Assoc. Comput. Linguistics (EACL) , 2021, pp. 874–880. [44] B. Kratzwald and S. Feuerriegel, “Adaptive document retrieval for deep question answering,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2018, pp. 576–581. [45] Z. Jiang et al. , “Active retrieval augmented generation,” in Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP) , 2023, pp. 7969– 7992. [46] A. Asai, Z. Wu, Y. Wang, A. Sil, and H. Hajishirzi, “Self-RAG: Learning to retrieve, generate, and critique through self-reflection,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2024, pp. 9112–9141. [47] S.-Q. Yan, J.-C. Gu, Y. Zhu, and Z.-H. Ling, “Corrective retrieval augmented generation,” 2024, arXiv:2401.15884. [48] M. Li, E. Gaussier, J. Li, and G. Zhou, “EviRerank: Adaptive evidence construction for long-document LLM reranking,” 2026, arXiv:2411.06254v6. [49] S. H. Khan et al. , “DF-RAG: Query-aware diversity for retrieval-augmented generation,” in Findings Assoc. Comput. Linguistics: EACL ,2026, pp. 2873–2894. [50] C. Peng, B. Wang, Z. Long, and J. Sheng, “AdaGReS: Adaptive greedy context selection via redundancy-aware scoring for token-budgeted RAG,” 2025, arXiv:2512.25052v1. [51] K. Murray and D. Chiang, “Correcting length bias in neural machine translation,” in Proc. Conf. Mach. Transl. (WMT) , 2018, pp. 212–223. [52] OpenAI, “GPT-4o system card,” 2024, arXiv:2410.21276. [53] S. Bai et al. , “Qwen3-VL technical report,” 2025, arXiv:2511.21631. [54] Y. Zhang et al. , “Qwen3 embedding: Advancing text embedding and reranking through foundation models,” 2025, arXiv:2506.05176.

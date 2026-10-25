@@ -1,0 +1,463 @@
+Title: VitaBench: Memory Lifecycles Beyond Retrieval
+
+URL Source: https://arxiv.org/pdf/2610.14731v1
+
+Published Time: Wed, 14 Oct 2026 00:48:14 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# VitaBench: Memory Lifecycles Beyond Retrieval 
+
+Muquan Yu †1,2 Dihan Hu 31University of Hong Kong 2Chinese University of Hong Kong 3Cornell University 
+
+> †
+
+Corresponding author: muquan.yu@connect.hku.hk dh798@cornell.edu 
+
+## Abstract 
+
+Long-term memory benchmarks for language agents primarily evaluate whether information from earlier interactions can be retrieved and used when it becomes relevant. Persistent memory systems, however, face an additional problem before future use is known: deciding how a memory should persist over time—whether it should remain exact, be compressed, consolidated, or deleted. Existing benchmarks capture long-range retrieval, temporal reasoning, evidence reuse, and incremental interaction, but generally do not directly evaluate the quality of these earlier rep-resentation decisions. We formalize this problem as memory lifecycle evaluation 
+
+and introduce V ITA BENCH , a benchmark that makes lifecycle decisions measur-able through repeated memory reviews and full-horizon counterfactual evaluation. VITA BENCH contains a controlled Diagnostic tier that isolates distinct future-use patterns and a Naturalistic tier that composes them into generated customer-service-style interaction streams. We characterize lifecycle decision structure with three diagnostics: lifecycle headroom , which measures the advantage of adaptive repre-sentation choices over the best fixed strategy; horizon reversal , which measures when short-horizon decisions change under delayed consequences; and optimal-action diversity , which measures whether different memory states favor different lifecycle operations. Across both tiers, V ITA BENCH exhibits substantial lifecycle structure: lifecycle headroom is 1.364 in Diagnostic and 1.405 in Naturalistic, and 60.2% and 56.5% of states, respectively, change their preferred action between short and full horizons. A learned delayed lifecycle policy further improves over the best fixed strategy on V ITA BENCH -Naturalistic, reaching 101.5 versus 83.4 joint utility. These results show that retrieving past information and deciding how it should persist are distinct evaluation problems, and that lifecycle management requires evaluation of the delayed consequences of representation decisions. 
+
+## 1 Introduction 
+
+Persistent memory is becoming a central component of language agents that operate over long interaction histories. Existing long-memory benchmarks ask whether information observed many interactions earlier can still be recovered and used when it becomes relevant [Wu et al., 2025, Maharana et al., 2024, Hu et al., 2025, He et al., 2026]. This is an important capability: an agent that cannot recover relevant past information cannot maintain useful long-term memory. However, such retrieval ability is only part of the problem. A persistent memory system must also decide what information should continue to exist and in what form, often long before its future use is known. A memory may remain as exact episodic evidence, be compressed into a shorter representation, be consolidated with repeated observations, or be deleted when it appears obsolete. These choices can have consequences much later. An exact detail that seems unimportant today may be required by a future historical query; repeated observations may be better represented as a compact stable preference; a superseded fact may no longer describe the present while still being relevant to the past. Thus, the same memory can require different representations over its lifetime.                         
+
+> 40th Conference on Neural Information Processing Systems (NeurIPS 2026). Workshop: Continual Learning in the Era of Foundation Models and Embodied Agents. arXiv:2610.14731v1 [cs.LG] 10 Oct 2026 2. Candidate lifecycle actions
+> KEEP-EXACT
+> retain current representation
+> COMPRESS
+> replace w. a shorter representation
+> CONSOLIDATE
+> merge evidence into abstraction
+> DELETE
+> remove from persistent memory Lifecycle headroom
+> Hlife =Ū(π*) − Ū (πfix )
+> adaptive vs. best fixed
+> 1. Pre-decision memory state
+> Memory 𝒎
+> current representation 𝑟ₘ
+> observable state 𝑠ₘ
+> • past interactions
+> • current representation (exact / compressed / consolidated /...)
+> • metadata (e.g., timestamp, entity, type)
+> • no future use is known
+> 3. Shared future interaction stream
+> same future event for every action
+> future events are used for evaluation but hidden from the policy.
+> update delayed reuse query time
+> • • • • • • • • • • • •
+> Benchmark-level diagnostics
+> Decision-level result
+> Preferred lifecycle action
+> a* (s) = argmax aQ(s,a)
+> Horizon reversal
+> RH= Pr(a short ≠ a long )
+> short vs. full horizon
+> Optimal-action diversity
+> p(a) = Pr(a = argmax a'Q(s,a′))
+> which action is optimal?
+> 4. Full-horizon utility comparison
+> 𝑄(𝑠, 𝐾𝐸𝐸𝑃 − 𝐸𝑋𝐴𝐶𝑇) 𝑄(𝑠, 𝐶𝑂𝑀𝑃𝑅𝐸𝑆𝑆) 𝑄(𝑠, 𝐶𝑂𝑁𝑆𝑂𝐿𝐼𝐷𝐴𝑇𝐸) 𝑄(𝑠, 𝐷𝐸𝐿𝐸𝑇𝐸)
+
+Figure 1: V ITA BENCH evaluates memory lifecycle decisions. At each review point, a policy must choose how a memory should persist before its future use is known. V ITA BENCH branches from the same pre-decision memory state, applies each candidate lifecycle action, and replays the same future interaction stream for every branch. The resulting full-horizon utilities identify the preferred lifecycle action and quantify the benchmark’s lifecycle decision structure. This creates a distinction between two evaluation problems. Retrieval evaluation asks whether relevant past information can be recovered when a later task arrives. Lifecycle evaluation asks whether the representation decisions made before that task arrived were appropriate. A system can succeed at the first problem while avoiding the second—for example, by storing everything exactly and postponing all decisions until retrieval time. Conversely, a lifecycle policy may save storage or reduce interference by transforming memory, but those decisions can only be judged by their downstream consequences. Existing long-memory benchmarks were not designed to provide this supervision. LongMemEval [Wu et al., 2025], LoCoMo [Maharana et al., 2024], MemoryAgentBench [Hu et al., 2025], and related evaluations such as MemoryArena [He et al., 2026] contain important phenomena including long-range retrieval, evidence reuse, temporal reasoning, updates, and incremental interaction. Their released evaluation interfaces, however, generally specify which past information supports a later answer rather than what would have happened under alternative representation decisions made earlier. Table 1 summarizes this structural distinction. We therefore formalize memory lifecycle evaluation : sequential evaluation of representation choices whose value may depend on future events. We characterize the resulting decision structure with three quantities. Lifecycle headroom measures how much can be gained by choosing representations according to the current memory state rather than applying the same fixed strategy everywhere. 
+
+Horizon reversal measures how often the preferred action changes when short-term consequences are replaced by the full future trajectory. Optimal-action diversity measures whether different memory states genuinely favor different lifecycle operations. Together, these diagnostics answer a prerequisite question for any lifecycle benchmark: does representation choice actually matter in this environment? 
+
+Therefore, we introduce V ITA BENCH , a benchmark designed to make these decisions directly mea-surable, as shown in Figure 1. At each review point, a lifecycle policy observes the current memory state and selects among K EEP -E XACT , C OMPRESS , C ONSOLIDATE , and D ELETE . V ITA BENCH 
+
+then branches from the same pre-decision state, applies each candidate action, and replays the same future interaction stream. Because the alternative futures differ only in the representation decision being evaluated, the benchmark can compute the full-horizon consequence of each action and iden-tify which decisions were beneficial or harmful. V ITA BENCH contains two complementary tiers. VITA BENCH -Diagnostic isolates four fundamental future-use patterns: delayed exact reuse, recurrent semantic reuse, transient information, and conflicting evidence. V ITA BENCH -Naturalistic composes these phenomena into generated customer-service-style interaction streams containing evolving entity 2Table 1: Structural comparison of representative long-memory benchmark interfaces with respect to lifecycle-relevant capabilities.                              
+
+> Property LongMemEval LoCoMo MemoryAgentBench VITA BENCH (ours) Long-range memory use yes yes yes yes Evidence reuse yes yes yes yes Updates / conflicts yes partial yes yes Incremental interaction no no yes yes Repeated lifecycle decisions no no no yes Counterfactual lifecycle evaluation no no no yes
+
+facts, stable preferences, obsolete information, superseding updates, historical dependencies, and delayed reuse. The Diagnostic tier makes individual lifecycle phenomena easy to inspect, while the Naturalistic tier tests their interaction within a more structured multi-episode setting. The resulting environments exhibit substantial lifecycle decision structure. Lifecycle headroom is 1.364 utility per decision in Diagnostic and 1.405 in Naturalistic. The preferred action changes between short and full evaluation horizons in 60.2% of Diagnostic states and 56.5% of Naturalistic states. Keeping, compressing, consolidating, and deleting are each optimal for meaningful subsets of states, showing that lifecycle decisions vary systematically across memory states and future-use patterns. We further evaluate V ITA MEM , a delayed-counterfactual lifecycle policy trained to predict the long-horizon value of each lifecycle action from observable pre-decision memory features, together with fixed, heuristic, and short-horizon baselines. The policy is refined through policy iteration so that later lifecycle decisions are incorporated into its training targets. On V ITA BENCH -Naturalistic, repeated delayed control reaches 101.5 joint utility compared with 83.4 for the best fixed strategy. This separation shows that V ITA BENCH distinguishes lifecycle policies with different temporal credit and adaptation strategies. Our contributions are threefold. First, we formulate memory lifecycle evaluation as a problem distinct from long-term retrieval and introduce lifecycle headroom, horizon reversal, and optimal-action diversity to characterize whether an environment meaningfully exercises representation decisions. Second, we introduce V ITA BENCH , a two-tier benchmark with repeated lifecycle decisions and full-horizon counterfactual evaluation, enabling memory policies to be scored for decisions made before future use is known. Third, we show that both V ITA BENCH tiers contain substantial lifecycle structure and empirically distinguish fixed, short-horizon, and delayed lifecycle policies, providing a testbed for memory-management methods beyond retrieval alone. 
+
+## 2 Related Work 
+
+Persistent memory for language agents. Long-term memory systems extend language agents beyond the immediate context through external stores, structured memories, hierarchical represen-tations, and evolving memory graphs. Representative systems include MemGPT, Mem0, A-MEM, MemOS, H-MEM, HeLa-Mem, and All-Mem [Packer et al., 2023, Chhikara et al., 2025, Xu et al., 2025, Li et al., 2025, Sun and Zeng, 2025, Zhu et al., 2026, Lv et al., 2026]. 
+
+Learned memory management. Recent work treats memory maintenance as a decision problem. Pensieve, ContextPilot, Memory-R1, Agentic Memory, and MemCon learn when or how to manage context and persistent memory [Liu et al., 2026, Pan et al., 2026, Yan et al., 2025, Yu et al., 2026b, Jiang et al., 2026], while complementary approaches study compression, consolidation, selective retention, stale-memory removal, and recovery from harmful updates [Dai et al., 2026, Kang et al., 2026, Chen et al., 2026, Kim et al., 2026, Zhang et al., 2026, Zhou et al., 2026, Yu et al., 2026a]. 
+
+Long-term memory benchmarks. LongMemEval, LoCoMo, MemoryAgentBench, Memor-yArena, LongMemEval-V2, and LoCoMo-Plus evaluate long-range retrieval, reuse, temporal rea-soning, updates, conflicts, and incremental interaction [Wu et al., 2025, Maharana et al., 2024, Hu et al., 2025, He et al., 2026, Wu et al., 2026, Li et al., 2026]. These benchmarks ultimately score whether past information supports a later task. MemOps [Hao et al., 2026] provides operation-level supervision for memory creation, updating, deletion, and reflection, but not delayed counterfactual evaluation of which representation action should be chosen before future use is known. 3H = 5 H = 10 H = 25 H = 120           
+
+> evaluation horizon
+> 020 40 60 80
+> oracle-optimal share (%)
+> (a) Diagnostic horizon profile
+> KEEP COMPRESS CONSOLIDATE DELETE
+> H= 5 H= 10 H= 25 H= 120
+> evaluation horizon
+> 020 40 60 80
+> oracle-optimal share (%)
+> (b) Naturalistic horizon profile
+> KEEP COMPRESS CONSOLIDATE DELETE
+> 020 40 60
+> Horizon reversal (%)
+> Stream 1 Stream 2 Stream 3 Stream 4 Stream 5 Stream 6
+> Mean = 56.5%
+> (c) Naturalistic stream reversal
+
+Figure 2: V ITA BENCH exhibits heterogeneous and horizon-dependent lifecycle decisions. (a) Diag-nostic and (b) Naturalistic oracle-optimal action shares across H = 5 , 10 , 25 , 120 ; (c) Naturalistic stream-level H = 5 → 120 reversal rates, with the dashed line marking the 56.5% mean. 
+
+## 3 Memory Lifecycle Evaluation 
+
+We model persistent memory management as sequential choices over memory representations. 
+
+3.1 Lifecycle decisions 
+
+An agent interacts over episodes t = 1 , . . . , T . A persistent memory m has a representation state 
+
+st(m) that records the information currently retained about that memory together with observable metadata such as age, size, usage, and update history. At a lifecycle review point, the policy selects an action from 
+
+A = {KEEP -E XACT , COMPRESS , CONSOLIDATE , DELETE }.
+
+KEEP -E XACT preserves the current evidence without further transformation. C OMPRESS replaces it with a shorter representation. C ONSOLIDATE combines repeated or related evidence into a more compact semantic representation. D ELETE removes the memory from the active persistent store. The decision is made using only information available at the review point, but its value can depend on events much later in the interaction. For a continuation policy π, we define the full-horizon value of taking action a in state st as 
+
+Qπ (st, a ) = Eπ
+
+" TX
+
+> t′=t
+
+Rt′ st, a 
+
+#
+
+,
+
+where Rt′ combines downstream task reward with memory costs such as persistent storage, retrieved context, and interference. When the continuation policy is fixed by the evaluation protocol, we abbreviate Qπ (st, a ) as Q(st, a ).This formulation makes delayed consequences explicit: compression can reduce immediate cost while losing a later exact detail, consolidation can improve semantic reuse, and deletion can be beneficial unless obsolete information is unexpectedly needed again. 
+
+3.2 When does an environment exercise lifecycle management? 
+
+A long interaction history does not by itself imply a meaningful lifecycle problem. If the same representation action is optimal for nearly every state, then a fixed strategy is sufficient even when retrieval remains difficult. We therefore characterize lifecycle decision structure with three benchmark-level diagnostics. 
+
+Lifecycle headroom. Let ¯U (π) denote the expected joint utility of lifecycle policy π, normalized per lifecycle decision. Let π⋆ denote the oracle lifecycle policy that selects the full-horizon optimal action at each decision point, and let πfix denote the best policy that applies one fixed lifecycle action throughout the environment. We define 
+
+Hlife = ¯U (π⋆) − ¯U (πfix ).
+
+4Table 2: V ITA BENCH structural diagnostics on held-out streams. Action shares are fractions of states for which each action is full-horizon oracle-optimal.                   
+
+> Tier Hlife RHKEEP COMPRESS CONSOLIDATE DELETE Diagnostic 1.364 0.602 0.429 0.153 0.172 0.246 Naturalistic 1.405 0.565 0.388 0.214 0.111 0.287
+
+Larger headroom indicates greater potential benefit from adapting the representation to the current memory state at each review point. 
+
+Horizon reversal. Lifecycle actions can have different rankings depending on how far into the future they are evaluated. Let a⋆H (s) denote the action with highest utility when consequences are evaluated over horizon H. For a short horizon Hs and a longer horizon Hℓ, we define 
+
+RH = Pr 
+
+> s
+
+a⋆Hs (s)̸ = a⋆Hℓ (s) .
+
+A high reversal rate indicates that short-term evaluation frequently gives a different decision from full-horizon evaluation, making delayed credit assignment important. 
+
+Optimal-action diversity. Finally, we utilize optimal-action diversity to measure how oracle-optimal actions are distributed across decision states: 
+
+p(a) = Pr 
+
+> s
+
+
+
+a = arg max  
+
+> a′∈A
+
+Q(s, a ′)
+
+
+
+.
+
+If one action dominates almost all states, the benchmark offers little reason for state-dependent lifecycle control. A heterogeneous distribution instead indicates that different memory states and future-use patterns favor different representation choices. Together, lifecycle headroom, horizon reversal, and optimal-action diversity describe complementary aspects of the benchmark: whether adaptive decisions can improve utility, whether those decisions depend on delayed consequences, and whether multiple lifecycle operations are genuinely useful. 
+
+3.3 Evaluating lifecycle policies 
+
+Once an environment is characterized, individual lifecycle policies are evaluated by the consequences of the actions they select. 
+
+Joint utility. We evaluate the overall task–memory trade-off using joint utility, 
+
+U (π) = 
+
+> T
+
+X
+
+> t=1
+
+ rtask  
+
+> t
+
+− λactive cactive  
+
+> t
+
+− λstorage cstorage  
+
+> t
+
+− λretrieval cretrieval  
+
+> t
+
+− λinterference cinterference 
+
+> t
+
+ ,
+
+where rtask  
+
+> t
+
+is the downstream task reward at episode t, and the λ terms weight the costs of active memory, persistent storage, retrieved context, and interference, respectively. Their precise definitions and coefficients are reported in Appendix A.3. 
+
+Persistent storage. We separately report the mean size of the maintained persistent memory store, 
+
+S(π) = 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+|M πt |,
+
+measured in persistent tokens per episode. Reporting storage separately makes the memory footprint directly interpretable even though storage cost also contributes to joint utility. 
+
+Policy regret. For the common held-out decision states s1, . . . , s N with full-horizon counterfactual values Qi(a), the regret of policy π is 
+
+Regret( π) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+
+
+max  
+
+> a∈A
+
+Qi(a) − Qi(π(si)) 
+
+
+
+.
+
+5Table 3: Policy evaluation on held-out V ITA BENCH tiers. Entries report joint utility, mean persistent storage in tokens per episode, and full-horizon policy regret.                                                         
+
+> Diagnostic Naturalistic Policy Joint utility ↑Storage ↓Regret ↓Joint utility ↑Storage ↓Regret ↓
+> always K EEP -E XACT 52.4 9,722 1.50 29.3 7,028 1.41 always C OMPRESS 170.1 629 1.40 83.4 413 2.53 always C ONSOLIDATE 125.4 4,418 1.50 40.5 2,776 2.61 myopic ( H= 1 )55.5 878 1.90 10.6 613 2.78 one-shot delayed 171.4 3,026 1.50 64.1 5,668 1.32 repeated V ITA MEM 200.4 1,539 1.10 101.5 2,616 0.86
+> oracle 231.0 2,718 0.00 142.6 2,468 0.00
+
+Regret measures how much full-horizon utility is lost by the actions selected by a policy relative to the best action available at each state. The implementation averages this quantity over the same held-out review-point set for every policy. The three structural diagnostics characterize the lifecycle decision problem itself, while joint utility, storage, and regret characterize the policies evaluated on that problem. 
+
+## 4 VITA BENCH 
+
+VITA BENCH evaluates how persistent memories are represented over time and is organized into two complementary tiers: V ITA BENCH -Diagnostic and V ITA BENCH -Naturalistic. At each lifecycle review point, a policy observes the current memory state and selects one of four representation actions: KEEP -E XACT , C OMPRESS , C ONSOLIDATE , or D ELETE . The benchmark specifies the interaction stream, memory operators, downstream tasks, and memory costs, so that policies are compared under the same environment and action semantics. The central feature of V ITA BENCH is counterfactual lifecycle evaluation. For a given review state, the benchmark independently applies each valid action and then replays the same subsequent interaction stream. The resulting trajectories differ only in the representation decision made at that review point, allowing the full-horizon utility of alternative actions to be measured directly. As illustrated in Figure 1, the resulting full-horizon utilities identify the preferred action and support the structural diagnostics defined in Section 3. 
+
+4.1 VITA BENCH -Diagnostic 
+
+The V ITA BENCH -Diagnostic tier isolates four recurring lifecycle patterns in controlled interaction streams. Each stream contains 60 persistent memory threads evolving over 120 episodes. Exact 
+
+memories contain details that may be required after a long delay, favoring preservation when precise information remains important. Recurrent memories are reused repeatedly and can benefit from more compact semantic representations. Transient memories often become irrelevant but may occasionally be reused, creating a tradeoff between deletion and future availability. Conflict memories receive incompatible updates whose later resolution makes premature consolidation costly. These processes account for 30%, 25%, 25%, and 20% of memory threads, respectively. At each review point, the selected representation determines subsequent task performance and memory cost. The evaluator accounts for persistent storage, retrieved context, active-memory cost, and interference while scoring future queries from the same underlying stream. Because every candidate action can be evaluated from the same state, the Diagnostic tier provides full-horizon action values computed exactly under the specified operator model, from which lifecycle headroom, horizon reversal, and optimal-action diversity are computed, and against which policies are scored. The tier isolates delayed exact reuse, recurrent semantic reuse, transient information, and conflicting evidence, making the sources of lifecycle difficulty directly inspectable. 60 2 4 6 8 10     
+
+> persistent storage (thousand tokens / episode)
+> 0100 200
+> joint utility
+> Keep Compress Consolidate Myopic 1-shot
+> VitaMem oracle 231.0
+> (a)
+> 0246
+> persistent storage (thousand tokens / episode)
+> 050 100 150
+> joint utility
+> Keep Compress Consolidate Myopic 1-shot
+> VitaMem
+> oracle 142.6
+> (b)
+
+Figure 3: Repeated V ITA MEM improves the storage–utility trade-off over fixed and myopic policies. Results are shown on held-out V ITA BENCH tiers: (a) Diagnostic and (b) Naturalistic. The star marks repeated V ITA MEM , and dashed lines indicate oracle joint utility. 
+
+4.2 VITA BENCH -Naturalistic 
+
+The V ITA BENCH -Naturalistic tier composes these lifecycle phenomena into generated customer-service-style interaction streams. Each stream contains 40 persistent entities evolving over 120 episodes. Memories correspond to entity attributes, preferences, transactions, and updates, while later requests may depend on current facts, earlier historical states, or multiple memories jointly. The streams combine delayed exact reuse, recurring preferences, temporary information, obsoles-cence, superseding updates, historical queries, and conflicting evidence. A later request may refer to an earlier transaction while repeated preferences favor consolidation and one-time instructions can safely disappear. Thus preservation, abstraction, and removal have different consequences depending on memory history. Naturalistic uses the same lifecycle actions and counterfactual evaluation principle as Diagnostic. The distinction between the two tiers is one of task structure rather than evaluation semantics: Diagnostic isolates individual future-use patterns, whereas Naturalistic combines them within multi-episode entity histories and composite tasks. Both tiers use disjoint training and held-out evaluation streams; generator parameters, operator fidelities, costs, and random seeds are provided in Appendix A. 
+
+## 5 A Reference Lifecycle Policy: V ITA MEM 
+
+We evaluate V ITA MEM , a lifecycle policy trained from the counterfactual outcomes provided by VITA BENCH . At each review point, the policy observes only information available at that time, including the memory’s age, size, usage statistics, exact-detail indicators, update or conflict state, and current memory costs. It predicts the relative value of the valid lifecycle actions and selects the highest-valued action. For a continuation policy π, the training target for taking action a in state st is chosen to be the full-horizon value introduced in Section 3, 
+
+Qπ (st, a ) = Eπ
+
+" TX
+
+> t′=t
+
+Rt′ | st, a 
+
+#
+
+.
+
+VITA BENCH constructs these targets by applying each candidate action to the same pre-decision state and replaying the same future interaction stream. Future events enter the offline counterfactual target construction but are never available to the policy at decision time, and V ITA MEM receives only pre-decision features. We fit a two-hidden-layer MLP with 48 and 24 hidden units to predict the relative full-horizon values of the valid lifecycle actions. Because the value of one representation decision depends on decisions made later in the same memory lifecycle, we refine the targets through policy iteration. At iteration k, each candidate action is evaluated at the current review point while subsequent reviews follow the current policy πk. The resulting counterfactual values are then used to train the next policy. We evaluate both one-shot 
+
+control, where each memory is transformed at most once, and repeated control, where the same memory can be reconsidered as its history evolves. Additional credit-assignment and training details are provided in Appendices C–D. 76 Experiments 
+
+We evaluate V ITA BENCH in three steps. We first ask whether its two tiers exhibit the lifecycle decision structure defined in Section 3.2. We then test whether this structure produces meaningful separation among lifecycle policies. Finally, we compare the evaluation interface of V ITA BENCH 
+
+with representative long-memory benchmarks. 
+
+6.1 Does V ITA BENCH expose lifecycle decision structure? 
+
+Table 2 reports lifecycle headroom, horizon reversal, and the distribution of full-horizon optimal actions. For horizon reversal, we compare the preferred action at H = 5 with that under the full 
+
+H = 120 trajectory. Both tiers exhibit substantial lifecycle headroom: adapting representation choices to individual memory states improves over the strongest fixed action by 1.364 utility per decision in Diagnostic and 1.405 in Naturalistic. The preferred action also depends strongly on delayed consequences. In 60.2% of Diagnostic states and 56.5% of Naturalistic states, the action preferred at H = 5 differs from the action preferred over the full H = 120 trajectory. Optimal actions are likewise heterogeneous. In Diagnostic, K EEP -E XACT , C OMPRESS , C ONSOL -
+
+> IDATE
+
+, and D ELETE are preferred in 42.9%, 15.3%, 17.2%, and 24.6% of states, respectively. Naturalistic exhibits a similarly broad distribution: 38.8%, 21.4%, 11.1%, and 28.7%. Thus, lifecycle decisions vary both across memory states and across evaluation horizons. Figure 2 further shows that lifecycle-optimal decisions depend strongly on evaluation horizon. Action preferences shift substantially as delayed consequences become visible, with 60 .2% of Diagnostic states and 56 .5% of Naturalistic states reversing between H = 5 and H = 120 , while multiple lifecycle operations remain useful across states. These results indicate that lifecycle decisions should be evaluated beyond their immediate consequences. 
+
+6.2 Can V ITA BENCH distinguish lifecycle policies? 
+
+We next evaluate policies that differ in how they use state information and future credit. All methods operate on identical interaction streams with the same lifecycle actions, memory operators, costs, and evaluator. We compare three fixed representations, myopic control, one-shot delayed V ITA MEM ,repeated delayed V ITA MEM , and the full-horizon oracle. Fixed representations already differ substantially: joint utility ranges from 52.4 to 170.1 on Diagnostic and from 29.3 to 83.4 on Naturalistic. Repeated delayed V ITA MEM improves over the strongest fixed strategy, reaching 200.4 versus 170.1 on Diagnostic and 101.5 versus 83.4 on Naturalistic. The Naturalistic gain is +18 .1 (paired 95% bootstrap interval [5 .7, 31 .2] ). Figure 3 shows the corresponding storage–utility trade-off: repeated V ITA MEM lies above the fixed-policy points while retaining substantially less storage than always K EEP -E XACT . Myopic control reaches only 55.5 on Diagnostic and 10.6 on Naturalistic; repeated control reaches 101.5 versus 64.1 for one-shot delayed control on Naturalistic. The remaining oracle gaps are 30.6 on Diagnostic and 41.1 on Naturalistic. 
+
+6.3 Relationship to existing long-memory benchmarks 
+
+We compare the lifecycle-evaluation interfaces of V ITA BENCH , LongMemEval [Wu et al., 2025], LoCoMo [Maharana et al., 2024], and MemoryAgentBench [Hu et al., 2025] in Table 1. These benchmarks support retrieval, reuse, and updates, but their released evaluation interfaces do not specify counterfactual outcomes for earlier representation choices. 
+
+## 7 Discussion 
+
+VITA BENCH separates retrieval from lifecycle management by evaluating representation decisions before future use is known. Both the Diagnostic and Naturalistic tiers exhibit lifecycle headroom, horizon reversal, and optimal-action diversity, while the separation among fixed, myopic, and delayed policies shows that these structural properties translate into meaningful differences in lifecycle control. These results establish memory lifecycle management as a distinct evaluation axis for persistent-memory language agents alongside long-term retrieval. 8References 
+
+Zhuoen Chen, Dongfang Li, Meishan Zhang, Baotian Hu, and Min Zhang. Dynamic long context reasoning over compressed memory via end-to-end reinforcement learning, 2026. URL https://arxiv.org/abs/2602. 08382 .Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready ai agents with scalable long-term memory, 2025. URL https://arxiv.org/abs/2504.19413 .Zijie Dai, Shiyuan Deng, Sheng Guan, Yizhou Tian, Xin Yao, Xiao Yan, and James Cheng. Recmem: Recurrence-based memory consolidation for efficient and effective long-running llm agents, 2026. URL https://arxiv. org/abs/2605.16045 .Xixuan Hao, Zeyu Zhang, Zehao Lin, Yihang Sun, Ziliang Guo, Xichong Zhang, Yuxuan Liang, Feiyu Xiong, and Zhiyu Li. Memops: Benchmarking lifecycle memory operations in long-horizon conversations, 2026. URL https://arxiv.org/abs/2607.12893 .Zexue He, Yu Wang, Churan Zhi, Yuanzhe Hu, Tzu-Ping Chen, Lang Yin, Ze Chen, Tong Arthur Wu, Siru Ouyang, Zihan Wang, Jiaxin Pei, Julian McAuley, Yejin Choi, and Alex Pentland. Memoryarena: Bench-marking agent memory in interdependent multi-session agentic tasks, 2026. URL https://arxiv.org/ abs/2602.16313 .Yuanzhe Hu, Yu Wang, and Julian McAuley. Evaluating memory in llm agents via incremental multi-turn interactions, 2025. URL https://arxiv.org/abs/2507.05257 .Eric Hanchen Jiang, Zhi Zhang, Yuchen Wu, Levina Li, Dong Liu, Xiao Liang, Rui Sun, Yubei Li, Edward Sun, Haozheng Luo, Zhaolu Kang, Aylin Caliskan, Kai-Wei Chang, and Ying Nian Wu. Memory as a controlled process: Learned adaptive memory management for llm agents, 2026. URL https://arxiv.org/abs/ 2607.13591 .Qingcan Kang, Mingyang Liu, Shixiong Kai, Kaichao Liang, Zhentao Tang, Yuqi Cui, Tao Zhong, and Mingxuan Yuan. Retain or consolidate? budget-dependent operator selection for language agent memory, 2026. URL 
+
+https://arxiv.org/abs/2607.17545 .Minjae Kim, Jinheon Baek, Soyeong Jeong, and Sung Ju Hwang. Memrefine: Llm-guided compression for long-term agent memory, 2026. URL https://arxiv.org/abs/2606.13177 .Yifei Li, Weidong Guo, Lingling Zhang, Rongman Xu, Muye Huang, Hui Liu, Lijiao Xu, Yu Xu, and Jun Liu. Locomo-plus: Beyond-factual cognitive memory evaluation framework for llm agents, 2026. URL 
+
+https://arxiv.org/abs/2602.10715 .Zhiyu Li, Shichao Song, Hanyu Wang, Simin Niu, Ding Chen, Jiawei Yang, Chenyang Xi, Huayi Lai, Jihao Zhao, Yezhaohui Wang, Junpeng Ren, Zehao Lin, Jiahao Huo, Tianyi Chen, Kai Chen, Kehang Li, Zhiqiang Yin, Qingchen Yu, Bo Tang, Hongkang Yang, Zhi-Qin John Xu, and Feiyu Xiong. Memos: An operating system for memory-augmented generation (mag) in large language models, 2025. URL https://arxiv. org/abs/2505.22101 .Xiaoyuan Liu, Tian Liang, Dongyang Ma, Deyu Zhou, Haitao Mi, Pinjia He, and Yan Wang. The pensieve paradigm: Stateful language models mastering their own context, 2026. URL https://arxiv.org/abs/ 2602.12108 .Can Lv, Heng Chang, Shengyu Tao, Mingju Chen, Zhaoxin Fan, Ziwei Zhang, Yuchen Guo, and Shiji Zhou. All-mem: Agentic lifelong memory via dynamic topology evolution, 2026. URL https://arxiv.org/ abs/2603.19595 .Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. Evaluating very long-term conversational memory of llm agents, 2024. URL https://arxiv.org/abs/ 2402.17753 .Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. Memgpt: Towards llms as operating systems, 2023. URL https://arxiv.org/abs/2310.08560 .Zhuoshi Pan, Qizhi Pei, Junru Lu, Honglin Lin, H. Vicky Zhao, Di Yin, and Xing Sun. Contextpilot: Teaching agents for proactive context management via fine-grained rl, 2026. URL https://arxiv.org/abs/2608. 28476 .Haoran Sun and Shaoning Zeng. Hierarchical memory for high-efficiency long-term reasoning in llm agents, 2025. URL https://arxiv.org/abs/2507.22925 .
+
+9Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. Longmemeval: Benchmarking chat assistants on long-term interactive memory. In International Conference on Learning Representations (ICLR) , 2025. Di Wu, Zixiang Ji, Asmi Kawatkar, Bryan Kwan, Jia-Chen Gu, Nanyun Peng, and Kai-Wei Chang. Longmemeval-v2: Evaluating long-term agent memory toward experienced colleagues, 2026. URL https://arxiv.org/ abs/2605.12493 .Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-mem: Agentic memory for llm agents, 2025. URL https://arxiv.org/abs/2502.12110 .Sikuan Yan, Xiufeng Yang, Zuchao Huang, Ercong Nie, Zifeng Ding, Zonggen Li, Xiaowen Ma, Jinhe Bi, Kristian Kersting, Jeff Z. Pan, Hinrich Schütze, Volker Tresp, and Yunpu Ma. Memory-r1: Enhancing large language model agents to manage and utilize memories via reinforcement learning, 2025. URL 
+
+https://arxiv.org/abs/2508.19828 .Caili Yu, Yiqi Wang, Jiaqi Zhang, Yiqun Duan, Mingkai Zheng, Zhangkai Wu, Kaize Shi, and Taotao Cai. From faulty memories to corrected actions: Dependency-guided rollback repair for memory-augmented agents, 2026a. URL https://arxiv.org/abs/2608.10502 .Yi Yu, Liuyi Yao, Yuexiang Xie, Qingquan Tan, Jiaqi Feng, Yaliang Li, and Libing Wu. Agentic memory: Learning unified long-term and short-term memory management for large language model agents, 2026b. URL https://arxiv.org/abs/2601.01885 .Dylan Zhang, Yanshan Lin, Zhengkun Wu, Yihang Sun, Bingxuan Li, Dianqi Li, and Hao Peng. Useful memories become faulty when continuously updated by llms, 2026. URL https://arxiv.org/abs/2605.12978 .Yan Zhou, Yue Ouyang, Kaiyang Zheng, and Suncheng Xiang. Tepa: Revoking stale memories for conflict-robust language agents, 2026. URL https://arxiv.org/abs/2608.07429 .Jinchang Zhu, Jindong Li, Cheng Zhang, Jiahong Liu, and Menglin Yang. Hela-mem: Hebbian learning and associative memory for llm agents, 2026. URL https://arxiv.org/abs/2604.16839 .
+
+10 Appendices A Benchmark Generation and Environment Details 
+
+Both V ITA BENCH tiers use the lifecycle action space and counterfactual evaluation protocol described in Sections 3 and 4. V ITA BENCH is designed as a controlled evaluation environment: its purpose is to isolate the consequences of representation decisions while holding the future interaction stream fixed, rather than to reproduce the behavior of any particular deployed memory system. Generator parameters and lifecycle operators therefore define interpretable representation trade-offs under which counterfactual action values can be evaluated exactly. Appendix E separately tests whether the main qualitative assumptions underlying these controlled operators are consistent with transformations observed on natural long-memory text. This appendix specifies the generation process, operator semantics, utility terms, and disjoint design, training, and evaluation splits used in the experiments. 
+
+A.1 VITA BENCH -Diagnostic 
+
+Each Diagnostic stream contains 60 persistent memory threads evolving over 120 episodes. Threads are assigned to four future-use processes: Exact (30%), Recurrent (25%), Transient (25%), and Conflict (20%). Exact memories contain information whose precise value is queried 10–66 episodes after creation. Recurrent memories contain 3–5 related observations and 3–5 future uses; 25% of these queries require exact detail, while the remainder depend on recurring semantic content. Transient memories are usually obsolete after their initial role but have a 12% probability of unexpected future reuse. Conflict memories contain contradictory observations and are resolved later with probability 30%. Training uses eight streams with seeds 0–7. Final evaluation uses six disjoint streams with seeds 1000–1005. 
+
+A.2 VITA BENCH -Naturalistic 
+
+The Naturalistic tier contains customer-service-style histories for 40 persistent entities evolving over 120 episodes. Each entity accumulates facts, preferences, temporary instructions, updates, and conflicting evidence that may later be reused by downstream tasks. The generator mixes Exact, Recurrent, Transient, and Conflict future-use processes with probabilities 0.20, 0.25, 0.30, and 0.25, respectively. Exact details are reused after delays of 24–60 episodes. Recurrent memories model stable preferences and repeated attributes with both semantic and exact reuse. Transient memories represent one-time or obsolete information with occasional surprise reuse, while Conflict memories contain incompatible updates that are resolved with probability 0.45. These processes are composed into entity histories containing delayed exact reuse, stable preferences, temporary exceptions, superseding updates, historical queries, and conflicting evidence. Queries may depend on the current value of an attribute, an earlier historical value, or several memories jointly. The Naturalistic generator was finalized using separate design streams before any learned-policy evaluation. We considered six interpretable configurations that varied the prevalence and timing of the four future-use processes. Lifecycle headroom, horizon reversal, and optimal-action diversity were used as design diagnostics to avoid configurations in which representation choice was effectively degenerate; learned-policy performance was not used for configuration selection. All subsequent policy training and final evaluation use disjoint streams. Training uses seeds 0–7, final evaluation uses seeds 6000–6005, and the design sweep uses separate seeds 5000 and 5001. Robustness across alternative generator regimes is reported in Appendix K. 
+
+A.3 Lifecycle operators and utility 
+
+All policies within a tier use the same lifecycle operators. These operators are intentionally abstract and controlled: their fidelity parameters are not intended as universal empirical estimates of LLM compression or consolidation quality. Instead, they encode qualitatively distinct representation 11 trade-offs needed to evaluate lifecycle decisions. Exact retention preserves detail at higher storage cost, compression trades detail for compactness, consolidation favors recurring semantic information over instance-specific detail, and deletion removes both retained information and future storage cost. The same operator definitions are used for every compared policy. The canonical parameters define a fixed evaluation environment. K EEP -E XACT retains the current representation without information loss. C OMPRESS reduces the representation to 35% of its original token count, with success probability 0.40 for exact-detail queries and 0.70 for semantic-rule queries. CONSOLIDATE combines k related observations into a representation of size 40 + 5 k tokens, succeeds with probability 0.90 on rule-level queries and 0.05 on exact-detail queries, and can be harmful when unresolved conflicting evidence is merged. D ELETE removes the active representation and incurs no subsequent storage cost, but cannot answer queries that require the deleted information. These canonical values are held fixed across the main experiments rather than fit to the evaluated policies. Appendix E provides an independent construct check using transformations measured on natural long-memory text, while Appendix K examines the stability of the benchmark’s structural conclusions across alternative generator regimes. Task rewards and memory costs are fixed before policy evaluation and shared by all methods. The canonical setting assigns reward 8 to exact-detail queries and reward 2 to semantic-rule queries. Together with the memory-cost terms, these fixed weights define the joint-utility trade-off used in the main experiments: 
+
+λactive = 0 .002 , λstorage = 0 .00025 , λretrieval = 0 .01 , λinterference = 0 .5.
+
+These coefficients define the canonical balanced-cost regime and should be interpreted as benchmark trade-off parameters rather than deployment-specific economic costs. 
+
+A.4 Counterfactual evaluation 
+
+At each review point, the evaluator saves the complete pre-decision state. Each valid lifecycle action is then applied independently to that same state, after which every branch is replayed through the identical subsequent interaction stream. Consequently, the branches differ only in the representation decision under evaluation rather than in future events. The full-horizon oracle action is 
+
+a⋆(st) = arg max  
+
+> a∈A
+
+Q(st, a ),
+
+where Q(st, a ) accumulates utility over the remainder of the trajectory. Short-horizon values use the same starting state and future stream truncated to the specified horizon; the main horizon-reversal analysis compares H = 5 with the full H = 120 trajectory. Because the lifecycle operators have explicit probabilistic semantics, the evaluator can compute ex-pected query utility analytically while replaying the shared future stream. Thus, “exact counterfactual evaluation” refers to exact expected utility under the specified benchmark model, not to a claim that the operator model itself exactly reproduces real-world memory transformations. The reported action values are therefore free of Monte Carlo variation from sampled operator outcomes. 
+
+## B Full Policy Results 
+
+The main text reports a two-tier comparison of fixed, myopic, delayed, and oracle policies. Tables 4 and 5 provide the full held-out results. All policies within each tier use the same interaction streams, lifecycle operators, costs, and evaluator. Repeated V ITA MEM improves over always-C OMPRESS , the strongest fixed Diagnostic policy, by 
+
++30 .3 joint utility with a paired 95% interval of [18 .0, 48 .2] across the six held-out streams. Repeated V ITA MEM exceeds the strongest fixed Naturalistic policy by +18 .1 joint utility, with a paired 95% bootstrap interval of [5 .7, 31 .2] . Relative to the myopic controller, the improvement is 
+
++90 .9 [73 .0, 111 .1] . The oracle exceeds repeated control by 41 .1 [31 .1, 51 .4] .12 Table 4: Full held-out policy evaluation on V ITA BENCH -Diagnostic. Storage is mean persistent tokens per episode; regret is the mean full-horizon oracle-minus-selected-action value per review point over the common held-out decision-point set.                                   
+
+> Policy Joint utility ↑Storage ↓Regret ↓
+> recency delete −57 .62,986 2.5 always K EEP -E XACT 52.4 9,722 1.5 myopic ( H= 1 )55.5 878 1.9 always C ONSOLIDATE 125.4 4,418 1.5 tuned exact-aware heuristic 130.3 6,506 1.1
+> always C OMPRESS 170.1 629 1.4 one-shot delayed 171.4 3,026 1.5 repeated V ITA MEM 200.4 1,539 1.1
+> oracle 231.0 2,718 0.0
+
+Table 5: Full held-out policy evaluation on V ITA BENCH -Naturalistic over six evaluation streams. Storage is mean persistent tokens per episode; regret is averaged over the common held-out decision-point set.                                      
+
+> Policy Joint utility ↑Storage ↓Regret ↓
+> always K EEP -E XACT 29.3 7,028 1.41 always C OMPRESS 83.4 413 2.53 always C ONSOLIDATE 40.5 2,776 2.61 always D ELETE −2.688 4.42 recency heuristic −5.3219 3.36 tuned heuristic 78.0 4,782 1.24 myopic ( H= 1 )10.6 613 2.78 one-shot delayed 64.1 5,668 1.32 repeated V ITA MEM 101.5 2,616 0.86
+> oracle 142.6 2,468 0.00
+
+## C Delayed Credit Assignment 
+
+We test whether lifecycle learning requires exhaustive counterfactual branching or primarily requires sufficiently long credit assignment. Using the same Q-advantage architecture, we compare full counterfactual targets with two reduced-branching variants and immediate next-episode supervision. This is the delayed-credit ablation configuration; its utilities are separate from the canonical joint-aware repeated-policy result reported in Table 3. Full counterfactual supervision obtains 208.2 held-out joint utility. MC10, which branches over all decision points using ten sampled continuations, obtains 209.2. MC3, which branches over the 50% most sensitive decision points using three continuations, obtains 216.3. In contrast, supervision restricted to the next episode ( H = 1 ) reaches only 55.5. Table 6: Delayed-credit ablation configuration on held-out Diagnostic streams; these values are separate from the canonical joint-aware repeated-policy result in Table 3.        
+
+> Training target Joint utility ↑
+> full-horizon counterfactual 208.2 MC10 reduced branching 209.2 MC3 sensitive-state branching 216.3 immediate ( H= 1 )55.5
+
+The limited-branch variants are comparable to full counterfactual supervision at the stream level, whereas immediate supervision fails sharply. The primary requirement is therefore long-horizon credit rather than exhaustive branching of every future. 13 D Joint-Aware Counterfactual Credit 
+
+The value of a lifecycle action depends on the decisions made at later review points. Counterfactual labels generated against a fixed K EEP -E XACT -everywhere continuation can therefore overvalue destructive actions: after one memory is compressed or deleted, later decisions made by the learned policy may change as well. We address this dependence through policy iteration. At iteration k, states are generated under the current policy πk. At each review point, one candidate action is substituted while both the factual and counterfactual branches subsequently continue under πk. These joint-aware targets are then used to obtain the next policy. After three iterations, joint-aware training reaches the canonical paired held-out mean of 200.4 across six streams, compared with 170.1 for always-C OMPRESS . The paired difference is +30 .3 [18 .0, 48 .2] 
+
+and is positive on all six held-out streams. In a cost-sensitive regime, joint-aware credit reaches 112.0, compared with 65.5 for single-deviation training and 108.1 for always-C OMPRESS .
+
+## E Real-Text Construct Checks 
+
+The canonical benchmark uses controlled operators so that alternative lifecycle actions can be evaluated exactly. We additionally test two assumptions underlying these operators on natural long-memory text. 
+
+Representation transformations are lossy. Using Qwen2.5-0.5B-Instruct on LongMemEval sessions, C OMPRESS retains 0.21 of identifiable exact-value tokens and C ONSOLIDATE retains 0.27. A consolidation prompt that explicitly preserves both sides of conflicting evidence reduces measured overgeneralization to 8%. Replacing the controlled operator fidelities with these empirically measured values preserves the policy separation on the six held-out Diagnostic streams in the real-text-calibrated operator regime: VITA MEM reaches 213.0 joint utility compared with 111.6 for always-C OMPRESS , a paired difference of +101 .4 [83 .4, 122 .6] across six streams. In the cost-sensitive setting, the corresponding difference is +4 .7 [0 .9, 8.7] .
+
+Useful evidence is not determined by recency alone. On LongMemEval, retaining the newest 16 sessions preserves 0.392 of answer evidence, compared with 0.828 for a learned lexical selector and 0.937 for a semantic selector. On LoCoMo, leave-one-conversation-out semantic selection reaches 0.723 evidence recall, exceeding keep-newest-16 by +0 .115 [0 .088 , 0.142] .
+
+## F Rollback and Version Preservation 
+
+The canonical benchmark uses the four actions K EEP -E XACT , C OMPRESS , C ONSOLIDATE , and DELETE . We separately evaluate an extension in which earlier representations are archived and can be restored through R OLLBACK .A learned controller with reversible representations and R OLLBACK reaches 185.8 joint utility, compared with 159.2 for the matched rollback-extension controller without rollback, an improvement of +26 .6 [21 .0, 34 .4] . The average number of harmful consolidation actions falls from 14.8 to 4.5 per stream. A fixed rollback-on-resolution heuristic reaches only 100.2, below the destructive consolidation base-line of 125.4. Version preservation is therefore most useful when restoration is selected conditionally rather than applied as a fixed rule. 
+
+## G Low-Headroom Customer-Service Control 
+
+We evaluate an alternative customer-service generator as a negative control for the lifecycle-structure diagnostics. It uses the same 40-entity, 120-episode setting and lifecycle action interface as the Naturalistic tier, but contains substantially less opportunity for representation-dependent decisions. 14 At balanced costs, its full-horizon oracle-optimal actions are distributed as 17% K EEP -E XACT , 23% COMPRESS , 13% C ONSOLIDATE , and 48% D ELETE . Its lifecycle headroom is 0.49 utility per decision, substantially below the 1.405 measured for the Naturalistic benchmark used in the main experiments, and its delayed deletion reversal rate is 19.4%. This control shows that exposing the same lifecycle action space does not by itself produce strong lifecycle decision structure. The proposed diagnostics therefore distinguish environments in which adaptive representation choice has substantial potential value from those in which a largely fixed strategy is sufficient. 
+
+## H Policy Behavior Across Memory Regimes 
+
+The oracle preferences in Diagnostic vary systematically with the future-use process. Exact memories place high value on preserving precise information because later queries may require details that lossy representations cannot recover. Recurrent memories more often favor compression or consolidation, which reduce repeated storage while preserving semantic information. Transient memories frequently favor compression or deletion, while Conflict memories penalize irreversible consolidation when competing historical evidence remains relevant. These regime-specific preferences explain why no single representation action dominates the bench-mark. They also connect the aggregate action-diversity statistics to distinct forms of future memory use rather than to random variation across states. 
+
+## I Public-Benchmark Audit and Construct-Check Protocol 
+
+The structural comparison in Section 6.3 uses LongMemEval-S [Wu et al., 2025], LoCoMo [Maharana et al., 2024], and MemoryAgentBench [Hu et al., 2025]. LongMemEval-S contains 500 instances with approximately 48 haystack sessions per instance; 74% of annotated evidence occurs more than ten session positions before the end of the haystack, while knowledge-update and temporal-reasoning questions account for 15.6% and 26.6% of instances, respectively. LoCoMo contains substantial evidence reuse: 78% of evidence references support multiple questions, and 21% of questions require multiple evidence passages. MemoryAgentBench presents experience incrementally and includes explicit conflict-resolution tasks. These properties make the benchmarks suitable for evaluating long-range and continually reused memory, but their released interfaces do not directly assign counterfactual values to alternative representation decisions made earlier in the interaction. For the real-text construct checks in Appendix E, we use a question-instance-level 80/20 split of LongMemEval-S with seed 0, producing 400 training and 100 test question IDs. Test questions, answers, and evidence labels are excluded from training. Because LongMemEval draws haystack sessions from a shared conversation pool, some session overlap across instances is unavoidable; only 16 of 948 evidence sessions are shared across the train/test split. A minimized-overlap rerun yields semantic and lexical evidence recall of 0.901 and 0.800, respectively, compared with 0.381 for keep-newest-16. LoCoMo selection experiments use leave-one-conversation-out evaluation over its ten conversations. In all construct checks, deployment-time features exclude question answers, gold evidence labels, and future-event information. 
+
+## J More Detailed Discussion on the Relationship to Existing Memory Benchmarks 
+
+VITA BENCH is intended to complement, rather than replace, existing long-term memory benchmarks. The main distinction is the object being evaluated . Existing benchmarks primarily evaluate whether an agent can use information from an interaction history when it becomes relevant, whereas V ITA BENCH 
+
+evaluates whether an earlier decision about how that information should persist was appropriate under its subsequently realized future. Table 7 makes this distinction explicit. The comparison concerns the released evaluation interfaces rather than whether a benchmark contains phenomena such as updates, conflicts, or long-range depen-dencies. Such phenomena can occur in several existing benchmarks without providing counterfactual supervision over earlier representation choices. 15 Table 7: Comparison of memory-benchmark evaluation interfaces. “Action scored” means that an earlier memory-management decision is itself an evaluation target. “Same-state alternatives” means that multiple candidate actions are evaluated from the same pre-decision state. “Shared-future CF” means that these alternatives are evaluated under the same subsequent interaction stream.                          
+
+> Benchmark Long-range use Action scored Same-state alternatives Shared-future CF Full-horizon value LongMemEval yes no no no no LoCoMo yes no no no no MemoryAgentBench yes no no no no MemOps yes yes no no no VITA BENCH yes yes yes yes yes
+
+LongMemEval, LoCoMo, and MemoryAgentBench evaluate complementary aspects of long-term agent memory, including long-range retrieval, evidence reuse, temporal reasoning, updates, conflicts, and incremental interaction [Wu et al., 2025, Maharana et al., 2024, Hu et al., 2025]. Their evaluation targets ultimately concern successful use of past information in a later task. Even when an instance contains updates or conflicting evidence, the released interface does not assign values to alternative representation decisions that could have been made at an earlier time. Consequently, a system can generally retain the available history and defer representation choice until retrieval without being directly evaluated for that earlier lifecycle decision. MemOps also explicitly evaluates memory operations such as creation, updating, deletion, and reflection [Hao et al., 2026]. It therefore moves beyond evaluating retrieval alone and makes memory-management behavior itself an evaluation target. The distinction from V ITA BENCH is not whether lifecycle operations exist, but how their consequences are evaluated. At a V ITA BENCH review point, the evaluator begins from one shared pre-decision state, applies each candidate representation action independently, and replays the same subsequent interaction stream for every branch. This constructs a vector of action values 
+
+{Q(s, a ) : a ∈ A} 
+
+for the same state and realized future. The benchmark can therefore ask not only whether a policy selected a plausible memory operation, but what would have happened had it selected each alternative operation instead. Because the future trajectory is shared across branches, differences in full-horizon utility can be attributed to the representation decision being evaluated. This counterfactual structure additionally permits quantities that are not defined by operation labels alone. Lifecycle headroom measures the advantage of state-dependent representation choice over the best fixed action; horizon reversal measures whether the preferred action changes when delayed consequences become visible; and policy regret measures the full-horizon value lost by the action selected at a particular review state. Thus, MemOps and V ITA BENCH address related but comple-mentary questions: MemOps evaluates whether agents can perform appropriate memory operations, while V ITA BENCH evaluates the delayed consequences of alternative representation decisions made before future use is known. We do not claim that counterfactual lifecycle evaluation subsumes retrieval, temporal reasoning, conflict resolution, or operation-level memory benchmarks. Instead, V ITA BENCH introduces an additional evaluation axis: counterfactual evaluation of earlier representation choices under a shared future trajectory . Existing benchmarks remain useful for determining whether an agent ultimately remembers and uses information correctly; V ITA BENCH is designed to determine whether the agent made appropriate decisions about how that information should persist before its future use was revealed. 
+
+## K Robustness Across Diagnostic Regimes 
+
+We evaluate the Diagnostic construction across 30 additional parameter regimes varying exact-reuse delay, conflict-resolution probability, recurrent-exact probability, and answer fidelity while retaining the same 60-thread streams, 120-episode horizon, action space, and balanced cost accounting. 16 Across these regimes, lifecycle headroom averages 1.026 ± 0.284 and horizon reversal averages 
+
+0.573 ± 0.032 . Their weak correlation (Pearson r = 0 .015 ) further indicates that the two diagnostics capture complementary aspects of lifecycle decision structure. 
+
+## L Reproducibility 
+
+All experiments in this paper are reproducible from the reported benchmark configurations, data-generation procedures, random seeds, policy settings, and evaluation protocols. Training, design, and held-out evaluation streams are kept disjoint where applicable, and lifecycle policies use only information available at the corresponding decision point. 17
