@@ -1,0 +1,618 @@
+Title: CRIM: Composable and Reusable Item Memory for Efficient Personalized Retrieval
+
+URL Source: https://arxiv.org/pdf/2610.35323v1
+
+Published Time: Tue, 27 Oct 2026 02:31:01 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# CRIM: Composable and Reusable Item Memory for Efficient Personalized Retrieval 
+
+# Haolin Li ∗
+
+Tsinghua University Beijing, China Alibaba International Digital Commerce Group Beijing, China hl-li23@mails.tsinghua.edu.cn 
+
+# Haipeng Zhang ∗
+
+Alibaba International Digital Commerce Group Beijing, China 
+
+# Mang Li 
+
+Alibaba International Digital Commerce Group Beijing, China 
+
+# Zhaohui Xia 
+
+Alibaba International Digital Commerce Group Beijing, China 
+
+# Xun Zhu 
+
+Tsinghua University Beijing, China 
+
+# Miao Li 
+
+Tsinghua University Beijing, China 
+
+# Yu Zhang †
+
+Alibaba International Digital Commerce Group Beijing, China 
+
+# Ji Wu †
+
+Tsinghua University Beijing, China 
+
+## Abstract 
+
+Large language models incur substantial training and inference costs in personalized search and recommendation, as growing in-teraction histories lengthen request inputs and repeatedly expose the same item text to the model. We propose Composable and 
+
+Reusable Item Memory (CRIM), a framework that separates item-level semantic encoding from request-level history modeling. A small set of learnable summary tokens compresses each item into compact continuous memories, while segment-level readout to-kens (REC tokens) introduce predictive supervision within the interaction history. These memories are independent of users and queries and can therefore be reused across requests. At inference time, CRIM composes cached memories in interaction order and incorporates an optional query to produce a personalized retrieval representation, reducing repeated item-text encoding while retain-ing request-dependent contextual modeling. We further introduce a joint training mechanism that combines cached memories with sampled live re-encoding. Re-encoding only a few history items per request allows the retrieval objective to jointly optimize the item and request encoders at limited computational cost, while periodic cache refreshes maintain consistency. Extensive evaluation and cost analysis on MovieLens-1M, Qilin, and our new LazSeq dataset show that CRIM achieves state-of-the-art retrieval performance with sub-stantially lower inference costs at the same backbone scale, while limiting item re-encoding during joint training. We will publicly release our code and dataset. 
+
+## CCS Concepts 
+
+• Information systems → Recommender systems ; Retrieval efficiency .
+
+> ∗Haolin Li and Haipeng Zhang contributed equally to this work.
+> †Corresponding authors: Yu Zhang and Ji Wu.
+
+Figure 1: Recall@100 versus mean request latency on LazSeq (single A100, histories up to 500 interactions). The inset re-ports mean serving input lengths, including memory slots, REC tokens, queries, and special tokens. 
+
+## Keywords 
+
+Recommender systems, large language models, token efficiency, personalized retrieval 
+
+## 1 Introduction 
+
+Personalized Web search and recommendation retrieve relevant items from large catalogs using a user’s ordered interaction his-tory and, when available, a current query. Large language models provide rich semantic representations of items and queries, but growing histories increase both training and inference costs. Re-peatedly encoding the same items across users and requests adds further overhead. Efficient personalized retrieval therefore requires addressing three challenges: reusing item semantics while retaining request-dependent contextual modeling; preserving both semantic information and interaction patterns in compressed representations; 
+
+> 1arXiv:2610.35323v1 [cs.IR] 26 Oct 2026 Li et al.
+
+and jointly optimizing item and retrieval encoders when cached representations reduce the amount of differentiable computation. Existing methods address different aspects of these challenges. Recformer [24] jointly models item text and interaction sequences, while processing history text for each request. Token Factory [5] converts heterogeneous features into soft tokens and compresses recommendation inputs, and ICAE [13] learns compact memories through autoencoding and language modeling. These approaches demonstrate the value of compression. For personalized retrieval, however, an item representation must also remain useful when composed into different histories, and text reconstruction alone does not directly supervise interaction patterns. Representation caching offers a complementary way to reduce repeated computa-tion. GNNAutoScale [11], for example, reuses historical embeddings in graph neural networks. Applying caching to language-model-based item encoding requires coordinating encoder updates with the gradient paths available through cached representations, with-out allowing full-history re-encoding to consume the savings from reuse. Our central idea is to separate stable item semantics from dy-namic request context. We propose Composable and Reusable Item 
+
+Memory (CRIM). An item memory encoder (IME) independently maps each item to a compact block of continuous memories shared across users and requests. A request encoder (RE) composes these blocks in interaction order and incorporates an optional query to generate a personalized retrieval representation. This design moves repeated item-text encoding offline while preserving contextual modeling of the current history and information need. Preserving item-text semantics allows retrieval to use the LLM’s pretrained semantic knowledge alongside learned interaction patterns. To support semantic compression and sequence learning to-gether, CRIM combines learnable summary tokens with segment-level readout tokens, termed REC tokens. Summary tokens en-code each item’s semantics into a small number of continuous vectors. REC tokens read out intermediate history prefixes to pre-dict subsequent interactions, introducing supervision throughout the sequence. We further develop a joint training mechanism that combines cached memories with sampled live re-encoding. Only a few history positions are re-encoded for each request, allowing retrieval gradients to update the IME through those positions. The remaining positions reuse cached memories and participate in RE training. Periodic refreshes keep the memory cache aligned with the evolving encoder. This mechanism allows item memories to adapt to the retrieval objective while limiting the cost of re-encoding long histories. We introduce LazSeq, a benchmark for query-conditioned re-trieval with approximately 30,000 requests, a shared catalog of 49,993 distinct items, and histories of up to 500 interactions. To-gether with MovieLens-1M (ML1M) [14] and Qilin [4], it supports an extensive evaluation across retrieval methods and task set-tings. CRIM achieves state-of-the-art retrieval performance. Com-pared with the Qwen3-Embedding-4B baseline [37], it improves Re-call@100 by 2.49% on LazSeq and 33.61% on ML1M, and NDCG@100 by 5.64% on Qilin, all measured as relative improvements. As shown in Figure 1, CRIM combines strong retrieval quality with lower la-tency and fewer serving tokens on LazSeq at the same backbone scale. Our cost analysis relates offline investment and request com-putation to the volume of requests that reuse item memories. Our contributions are fourfold: 
+
+• Composable and reusable item memory. We propose a novel framework that separates item-level semantic en-coding from request-level history modeling, enabling reuse across requests while retaining personalized contextual modeling. 
+
+• Semantic compression with sequence supervision. We combine summary tokens for compact item representa-tions with REC tokens that introduce predictive supervision within interaction histories. 
+
+• Efficient joint training. We combine cached memories with sampled live re-encoding, allowing item memories to adapt to the retrieval objective while controlling re-encoding costs. 
+
+• LazSeq and comprehensive evaluation. We introduce a long-history retrieval dataset and evaluate retrieval quality and computational efficiency across three datasets, sup-ported by a cost analysis of memory reuse. 
+
+## 2 Related Work 
+
+Language models for personalized retrieval. Recformer [24] orga-nizes item attributes as text sequences and jointly learns language representations and interaction patterns. TIGER [29] maps items to semantic identifiers and autoregressively predicts the next item. GEMS [38] unifies search and recommendation through gradient subspace decomposition that coordinates task-specific optimization signals. Related adaptation methods include LiRA [22], which aligns low-resource languages in a shared semantic space for multilingual retrieval, and AgentDet [21], which coordinates detection agents through a shared blackboard and knowledge base for zero-/few-shot object detection. CRIM focuses on repeated item encoding in long histories, using shared item memories to support request-dependent composition and integrate history with an optional query in a dense retrieval framework. 
+
+Context compression and reusable item representations. Prefix-tuning [25] and prompt tuning [19] learn continuous task prompts. Context compression instead encodes input content: LLMLin-gua [17] prunes prompt tokens, while continuous compressors retain information from long text in a small set of vectors. ICAE [13] learns compact memory slots through autoencoding and language modeling, while EBMC [6] pretrains a decoupled compressor using text reconstruction and completion. For industrial recommendation, Token Factory [5] maps heterogeneous features to soft tokens and compresses behavioral inputs. Dual-purpose Semantic IDs [20] combine discrete encoding with on-demand vector reconstruction to reduce item representation storage and transfer costs. CRIM uses individual items as the unit of reuse: summary tokens retain item semantics, and REC tokens introduce prediction objectives within interaction histories so that compact memories support composition and retrieval across users. 
+
+Efficient training with cached representations. Caching reduces re-peated computation, but its effectiveness depends on gradient paths and representation refresh frequency. Graph Segment Training [3]   
+
+> 2CRIM: Composable and Reusable Item Memory Shared 𝑊
+> Shared 𝑊
+
+Items Variable-length tokens        
+
+> Headphones Camera Mug
+> ID Text 𝑆1 𝑆2 𝑆3 𝑆4
+> Per item Summary
+
+IME Item memory encoder 
+
+LoRA 𝜑 𝑍 𝑖 4 slots / item 
+
+Item memory cache 
+
+> I17 I24 I31 Reuse across requests Compose in order
+> Frozen backbone
+
+LLM 
+
+Catalog 
+
+> …
+> Text + EOS
+> RE
+> Adapt + norm
+
+Candidate cache  
+
+> 𝑣 𝑖
+
+Request A          
+
+> I17 I24 I17 I31 I24 I17 I31 I24
+> REC REC
+> Wireless EOS
+
+Request B          
+
+> I31 I17 I24 I17 I17 I31 I24 I17
+> REC REC
+> Photos EOS
+> Memory inject
+
+RE Request encoder LoRA 𝜃   
+
+> AEOS
+> BEOS
+> REC
+> Adapt + norm
+
+𝑢 A
+
+𝑢 B
+
+> Cosine
+
+··
+
+Top-𝐾     
+
+> 123123
+> Sampled re-encoding
+> Task gradients
+
+ℒ seg Next segment first item Shared weights Sampled memory Gradient (training) 
+
+Figure 2: Overview of CRIM. The IME encodes each item into reusable continuous memories. The RE composes cached memory blocks in interaction order, incorporates an optional query, and produces a representation for retrieval against separately encoded catalog candidates. 
+
+backpropagates through sampled graph segments while reusing his-torical embeddings for the remaining segments. REST [35] reduces representation staleness by separating forward refreshes from pa-rameter updates. CRIM applies partial differentiable computation and caching to language-model-based item memory. Each request re-encodes only a small sample of history positions, allowing the retrieval objective to jointly optimize the IME and RE; periodic refreshes maintain cache consistency. 
+
+## 3 Method 3.1 Task Definition and Framework 
+
+We study personalized retrieval from user interaction histories. Let 
+
+I be an item catalog, where each item 𝑖 has a textual description 
+
+𝑥 𝑖 . A request consists of a chronologically ordered history 𝐻 =
+
+(𝑖 1, . . . , 𝑖 𝑁 ) and an optional query 𝑞 . The objective is to retrieve a relevant target item 𝑦 from the full catalog. Setting 𝑞 = ∅ yields history-based recommendation without an explicit query. The same item can appear in the histories of multiple users and requests. Its textual semantics can be reused, whereas user interests depend on the interaction order and current query. CRIM therefore separates item-level semantic encoding from request-level history modeling through two modules. The IME compresses an item’s text and identity into a fixed number of continuous vectors. The RE composes these memories in interaction order and incorporates the optional query: 
+
+𝑍 𝑖 = 𝐶 𝜙 (𝑥 𝑖 , 𝑒 𝑖 ) ∈ R𝐾 ×𝑑 ,𝑢 = 𝑓 𝜃 (𝑍 𝑖 1 , . . . , 𝑍 𝑖 𝑁 , 𝑞 ),𝑠 (𝐻, 𝑞, 𝑖 ) = 𝑢 ⊤𝑣 𝑖 
+
+∥𝑢 ∥2 ∥𝑣 𝑖 ∥2
+
+.
+
+(1) Here, 𝑒 𝑖 is an item identity prefix, 𝐾 is the number of memory vectors per item, 𝑑 is the hidden dimension, and 𝑣 𝑖 is the candidate representation. Candidates are ranked by 𝑠 (𝐻, 𝑞, 𝑖 ).Item memories are encoded independently of users, histories, and queries, so they can be precomputed and cached. At inference time, CRIM retrieves the corresponding memory blocks in history order, retaining repeated interactions, and models the request context with the RE. Candidate vectors are constructed and cached separately for full-catalog retrieval. Figure 2 illustrates the framework. 
+
+## 3.2 Item Memory Encoding and Semantic Pretraining 
+
+To summarize item text, we append a shared set of 𝐾 learnable summary tokens with embeddings 𝑆 = (𝑠 1, . . . , 𝑠 𝐾 ) to every item input. Let 𝐸 𝑖 denote the embedded item identity prefix and 𝑇 (𝑥 𝑖 )
+
+the embedded text template. Encoding yields 
+
+𝑍 𝑖 = 𝐹 𝜙 (𝐸 𝑖 ⊕ 𝑇 (𝑥 𝑖 ) ⊕ 𝑆 ) 
+
+> sum
+
+, (2) where ⊕ denotes concatenation and 𝐹 𝜙 is a causal language model. The operator [·] sum extracts the summary-position hidden states after the final normalization layer. Causal attention allows these positions to read the preceding identity prefix and item text. All                              
+
+> 3Li et al. Item 𝑋 Shared summary Reconstruct 𝑇
+> ID Title 𝑥 𝑖 𝑆 1𝑆 2𝑆 3𝑆 4𝑡 1𝑡 2𝑡 3𝑡 4
+> Masked reconstruction
+> 𝑋 𝑆 1𝑆 2𝑆 3𝑆 4𝑇 𝑋 𝑆 1
+> 𝑆 2
+> 𝑆 3
+> 𝑆 4
+> 𝑇
+> Full-context reference
+> 𝑋 𝑆 1𝑆 2𝑆 3𝑆 4𝑇 𝑋 𝑆 1
+> 𝑆 2
+> 𝑆 3
+> 𝑆 4
+> 𝑇
+> Frozen LLM Frozen LLM
+> 𝑊
+> Memory 𝑍 𝑖 𝑝 S𝑝 F
+> stop-grad
+> 𝑥 𝑖
+
+ℒCE ℒKL     
+
+> Allowed Causal Blocked Trainable Gradient
+
+Figure 3: Semantic pretraining: summary tokens compress item identity and text under restricted-attention reconstruc-tion and full-context distillation with a frozen backbone. 
+
+items share these 𝐾 learned embeddings, adding only 𝐾𝑑 summary-token parameters regardless of catalog size. The resulting memory vectors depend on item content. We first perform semantic pretraining on the item catalog through reconstruction. A decoding sequence is appended after the summary tokens, with the item title as the reconstruction target. A restricted attention mask allows decoding positions to access only the summary positions and preceding decoding tokens, blocking direct access to the source text and identity prefix. Consequently, source information must pass through the summary tokens to support reconstruction. Alongside reconstruction cross-entropy, we use the predictive distribution under full context as a distillation target. The same frozen language model produces this reference distribution with direct access to the source text. Let T contain the supervised de-coding positions in a batch, 𝑎 𝑖,𝑡 be the target token, and 𝑝 mem  
+
+> 𝑖,𝑡
+
+and 
+
+𝑝 full  
+
+> 𝑖,𝑡
+
+be the distributions under restricted and full attention. The pretraining objective is 
+
+Lpre = 1
+
+|T | ∑︁ (𝑖,𝑡 ) ∈ T 
+
+h
+
+− log 𝑝 mem  
+
+> 𝑖,𝑡
+
+(𝑎 𝑖,𝑡 )+ 𝜆 KL 𝐷 KL 
+
+
+
+sg [𝑝 full  
+
+> 𝑖,𝑡
+
+] 𝑝 mem 
+
+> 𝑖,𝑡
+
+i 
+
+,
+
+(3) where sg stops gradients and 𝜆 KL controls the distillation weight. Cross-entropy directly supervises title reconstruction; the KL term aligns predictions under the two context conditions. Semantic pretraining updates only summary-token embeddings, item identity embeddings, and their projection parameters. The language model backbone remains frozen, and no user interaction sequences are required. Figure 3 illustrates this stage. These pa-rameters provide a semantic initialization for the item memories, which are subsequently adapted to personalized retrieval through downstream supervision. 
+
+## 3.3 Sequence-Aware Memory Composition 
+
+Independent item memories retain item semantics, while personal-ized retrieval additionally requires modeling interaction order and evolving interests. The RE therefore composes memories chronolog-ically and uses segment-level supervision to learn representations of different history prefixes. The memory vectors enter the RE as continuous input embed-dings through a learnable residual mapping. For the 𝑘 -th memory vector 𝑧 𝑖,𝑘 of item 𝑖 ,¯𝑧 𝑖,𝑘 = 𝑧 𝑖,𝑘 + 𝑊 in 𝑧 𝑖,𝑘 + 𝑎 𝑘 , (4) where 𝑊 in is a residual projection and 𝑎 𝑘 is a learnable within-item memory-position embedding. Both are initialized to zero, so the RE initially receives the original memories and gradually learns an input representation suited to history modeling. We divide the history into 𝐽 = ⌈𝑁 /𝑏 ⌉ contiguous segments of at most 𝑏 items. A shared set of learnable segment readout tokens, termed REC tokens, is inserted after each segment. History memo-ries use causal attention. The REC tokens of segment 𝑗 can attend to all memories up to that segment and earlier REC tokens within the same readout block. Subsequent history memories, query tokens, and the final retrieval position do not attend to REC hidden states. This provides additional supervision positions while preserving direct interactions among history memories. For query-conditioned retrieval, query tokens follow the history and can attend to all history memories. The final EOS hidden state passes through a representation adapter and normalization to pro-duce 𝑢 . Inserting REC tokens does not advance the position indices of subsequent memories and query tokens, preserving their original positional relationships. The candidate branch reuses the RE’s lan-guage model to encode item text followed by EOS; a candidate-side representation adapter and normalization produce 𝑣 𝑖 .To supervise the history internally, each segment readout pre-dicts the first item in the next segment. Let 𝑟 𝑗 be obtained by averag-ing segment 𝑗 ’s REC hidden states, then applying a shared readout adapter and normalization. For a representation ℎ, positive item 𝑦 ,and negative set N, define 
+
+ℓ (ℎ, 𝑦 ; N) = − log exp (cos (ℎ, 𝑣 𝑦 )/ 𝜏 )
+
+exp (cos (ℎ, 𝑣 𝑦 )/ 𝜏 ) + Í𝑛 ∈ N exp (cos (ℎ, 𝑣 𝑛 )/ 𝜏 ) ,
+
+(5) where 𝜏 is a temperature. The segment objective is 
+
+Lseg = 1
+
+𝐽 − 1 
+
+> 𝐽 −1
+
+∑︁ 
+
+> 𝑗 =1
+
+ℓ (𝑟 𝑗 , 𝑖 𝑗𝑏 +1; N𝑗 ). (6) Here, 𝑖 𝑗𝑏 +1 is the first item of the next segment. Negatives are sampled uniformly from the catalog, excluding the positive item identity, and candidate representations are cached. We set Lseg = 0when 𝐽 ≤ 1. These intermediate prediction positions directly super-vise the relationship between each history prefix and subsequent interactions. 
+
+## 3.4 Joint Training with Cached and Sampled Memories 
+
+Item memories must adapt to the retrieval objective, but live encod-ing of every history item makes training cost grow with history length. During joint training, we combine cached memories with                            
+
+> 4CRIM: Composable and Reusable Item Memory Sampled titles
+> clean ultimate perfume inspired eau de parfum oil rich perfume for men and women by scentiments
+> ID
+> Summary
+> IME Frozen LLM LoRA
+> Memory cache Sampled
+> Replace
+> Inject 1234
+> IME Masked
+> shared
+> Reconstruction
+> ℒsem
+> Request
+> History 1 REC History 2 REC …Query EOS
+> Next item
+> RE (Request Encoder) Frozen LLM LoRA
+> REC + EOS RE
+> Candidate cache
+> Next item ℒseg
+> EOS Batch items
+> + EOS RE
+> Retrieval ℒret
+> Attention mask
+> 1122EOS
+> History 1 REC 1 History 2 REC 2 Query EOS Allowed Causal Blocked REC blocked
+> Sampled Trainable Gradient Epoch refresh
+
+Figure 4: Joint training: sampled positions use live IME out-puts; the others reuse cached memories. Retrieval, segment prediction, and reconstruction provide supervision. 
+
+sampled live re-encoding. The complete history participates in re-quest modeling, while differentiable item encoding is limited to a small set of history positions. For a request with 𝑁 interactions, we sample a set S of min (𝜅, 𝑁 ) positions uniformly without replacement, where 𝜅 is the per-request re-encoding budget. Sampled positions use the current IME; the others read from the cache: 
+
+e𝑍 𝑡 =
+
+(
+
+𝐶 𝜙 (𝑥 𝑖 𝑡 , 𝑒 𝑖 𝑡 ), 𝑡 ∈ S ,
+
+sg [𝑍 cache  
+
+> 𝑖 𝑡
+
+], 𝑡 ∉ S. (7) Live memories replace cached blocks at their original positions, preserving history order and length. Retrieval gradients reach the IME through the live blocks. Cached blocks still participate in RE computation and update request-side parameters and the memory input mapping. Figure 4 illustrates the gradient paths. The two encoders share a frozen language model backbone with separate LoRA adapters [16]. The IME starts from semantic pretraining and updates its summary embeddings and LoRA parameters while fixing the item identity embeddings and projection. The request side jointly learns its LoRA adapter, memory input mapping, REC tokens, and representation adapters. The joint objective combines final retrieval, segment prediction, and semantic preservation: 
+
+Ljoint = Lret + 𝜆 seg Lseg + 𝜆 sem Lsem ,
+
+Lret = ℓ (𝑢, 𝑦 ; Nbatch ). (8) The set Nbatch contains target items from other requests in the same training group, excluding identities matching the positive. These candidates are encoded live, so the loss optimizes both re-quest and candidate representations. The segment loss is defined in Equation (6). The semantic term uses the restricted-attention reconstruction cross-entropy from Section 3.2, evaluated only on sampled, re-encoded items. Its weight and 𝜆 seg control semantic and sequential supervision. Encoder updates gradually make cached representations stale. At the end of each training epoch, we re-encode the catalog with the current parameters to refresh both the item memory cache and the trainable candidate cache. Refreshes do not retain a computation graph and use the same item inputs and encoding paths as live computation. Before evaluation, caches are rebuilt from the selected checkpoint. Dataset-specific training and readout settings are given in Sec-tion 4.1. 
+
+## 3.5 Computational Savings and Cost Amortization 
+
+CRIM invests offline computation in memory learning and cache maintenance to reduce repeated online computation. The reference uses the same backbone and encodes full history text per request. Both precompute candidate vectors and retrieve from the same catalog. 
+
+Per-request savings. For 𝑁 history items averaging 𝐿 text tokens each, direct encoding uses 𝑁 𝐿 + 𝐿 0 positions, where 𝐿 0 is the query and template length. CRIM uses 𝐾 vectors per item and 𝑅 REC tokens per segment, giving 
+
+𝛾 = 𝑁 𝐾 + 𝐽 𝑅 + 𝐿 0
+
+𝑁 𝐿 + 𝐿 0
+
+. (9) For long histories, 𝛾 approaches (𝐾 +𝑅 /𝑏 )/ 𝐿 . Let 𝑐 lin and 𝑐 attn denote the reference costs of linear projections/feed-forward computation and attention. Compression scales them approximately by 𝛾 and 𝛾 2.With additional memory-input operations costing 𝑐 add , per-request savings are 
+
+Δ𝑐 ≈ ( 1 − 𝛾 )𝑐 lin + ( 1 − 𝛾 2)𝑐 attn − 𝑐 add . (10) The common candidate-matching cost cancels. Longer item text and fewer memory vectors increase request-encoding savings; total savings also depend on the share of candidate matching and input adaptation. 
+
+Cumulative savings. For a given serving horizon and refresh schedule, let Δ𝐶 off denote CRIM’s additional offline cost, including pretraining, joint training, initial cache construction, and mainte-nance. Net savings after 𝑄 requests and the break-even volume, for 
+
+> 5Li et al.
+
+Δ𝐶 off > 0 and Δ𝑐 > 0, are 
+
+𝑆 (𝑄 ) = 𝑄 Δ𝑐 − Δ𝐶 off , (11) 
+
+𝑄 ∗ =
+
+ Δ𝐶 off 
+
+Δ𝑐 
+
+
+
+. (12) For 𝑄 ≥ 𝑄 ∗, inference savings cover the additional offline invest-ment; each further request saves Δ𝑐 . The benefit depends on com-pression gains and memory reuse within an update cycle. Section 4.4 measures these costs on LazSeq. 
+
+## 4 Experiments 4.1 Experimental Setup 
+
+Datasets. We evaluate on LazSeq, Qilin, and MovieLens-1M (ML1M). LazSeq and Qilin support query-conditioned personalized retrieval, where a model combines the user history and current query to predict a target item. ML1M supports sequential recom-mendation without an explicit query. Each request contains one target. History lengths are capped at 500 for LazSeq and 100 for Qilin and ML1M. All ML1M methods use the same request-level data protocol, without expanding history prefixes into additional training examples. Appendix A.2 gives dataset statistics, loading details, and checkpoint-selection protocols. 
+
+Baselines. All baseline results are obtained from our own re-productions, and we will release the corresponding code. We compare three groups of methods. The ID-based group con-tains GRU4Rec [15], NARM [23], STAMP [26], SASRec [18], BERT4Rec [32], S3Rec [39], LightSANs [10], SINE [33], and FEARec [7]. Generative retrieval and language-model recommen-dation methods include TIGER [29], LlamaRec [36], GenSAR [30], and GEMS [38]. The dense text encoders include GTE-1.5B [2], E5-Mistral-7B [34], Gemma3-4B (pretrained and instruction-tuned), Llama3.1-8B, Ministral-8B-Instruct, Phi-4-14B, Qwen3-4B, and Qwen3-Embedding-0.6B and -4B. Qwen3-Embedding-4B shares CRIM’s backbone and is the main reference for examining memory compression and computational cost. ID-based methods use history item IDs. CRIM and query-aware dense encoders receive history item text and the query on LazSeq and Qilin. TIGER, LlamaRec, GenSAR, and GEMS use implementa-tions adapted to the current retrieval tasks. Dense results use the corresponding LoRA-trained checkpoints. 
+
+Evaluation. We evaluate retrieval over the complete valid item catalog, retaining items that already occur in the user history. Recall@ 𝐾 and NDCG@ 𝐾 measure target retrieval and ranking quality. Results are averaged across test requests. We additionally report MRR@100, assigning zero to targets ranked below 100, and full-catalog MRR where available. Beam-limited runs without com-plete ranks do not report full-catalog MRR. 
+
+Implementation. We train with eight NVIDIA A100-80GB GPUs. CRIM uses Qwen3-Embedding-4B in BF16 with LoRA rank 16 for both encoders. A shared set of 𝐾 = 4 summary tokens produces four memory vectors per item. Each history segment contains 𝑏 = 4items followed by 𝑅 = 4 REC tokens. The re-encoding budget is 𝜅 =
+
+8 on LazSeq and 𝜅 = 4 on Qilin and ML1M, and item memories and trainable candidate caches are refreshed after each epoch. Semantic pretraining uses a KL weight of 0.1. Joint training uses a learning rate of 10 −4, temperature 0.05, segment loss weight 1, and semantic reconstruction weight 0.1. On LazSeq and Qilin, joint training runs for at most three epochs with a global batch size of 64. The retrieval loss is computed within logical groups of at most eight target items. ML1M uses at most ten epochs with batch size eight, a mean readout from the final REC block, fixed pooled candidate encodings, and an additional title-generation loss. Its retrieval negatives also include catalog-sampled items. Table 5 in Appendix A.2 gives the full configurations. 
+
+## 4.2 The LazSeq Dataset 
+
+We construct LazSeq for personalized search with long interaction histories. Each request contains an ordered history, a current query, and a target item; history and target items have shared IDs and titles. Repeated interactions are retained. A shared item catalog supports the study of semantic reuse across requests. 
+
+Scale and characteristics. LazSeq contains approximately 30,000 requests with up to 500 history interactions each. Its shared catalog comprises 49,993 distinct items from history and target positions. CRIM uses 23,999 training requests, 3,000 validation requests, and 2,999 test requests. Fixed request splits and a title catalog support reproducible comparisons. Figure 6 in Appendix A.1 illustrates query–history filtering and catalog construction; the appendix also details the request splits. 
+
+## 4.3 Retrieval Results and Comparative Analysis 
+
+Tables 1–3 compare CRIM with sequential, generative, and dense retrieval methods. We report Recall, NDCG, MRR@100, and full-catalog MRR, with cutoffs shown in the tables. Relative improve-ments use unrounded results. Appendix A.4 compares method groups and additional ranking cutoffs. 
+
+Long-history retrieval on LazSeq. CRIM achieves the highest Re-call@50, Recall@100, and Recall@1000, reaching 0.5835, 0.6969, and 0.9330, respectively. These values improve over the strongest base-line at each cutoff by 0.49%, 2.43%, and 0.83%: Qwen3-Embedding-4B at 50, GTE-1.5B at 100, and Phi-4 at 1000. CRIM ranks second at NDCG@50 and NDCG@100, reaching 0.2430 and 0.2614. At Re-call@3000, it ranks second with 0.9737, following Phi-4 at 0.9750. Compared with Qwen3-Embedding-4B, CRIM improves Recall@50, @100, @1000, and @3000 by 0.49%, 2.49%, 1.67%, and 1.11%, respec-tively. These results show that four memory vectors per history item preserve the information needed for strong candidate retrieval over long histories. 
+
+Query-conditioned retrieval on Qilin. CRIM achieves the best NDCG@10, NDCG@100, MRR@100, and full-catalog MRR. Rel-ative to Qwen3-Embedding-4B, NDCG@10 rises from 0.4126 to 0.4434, NDCG@100 from 0.4518 to 0.4772, and full-catalog MRR from 0.3682 to 0.4059, corresponding to gains of 7.48%, 5.64%, and 10.23%. CRIM also exceeds GTE-1.5B, the strongest baseline for these three metrics, by 0.70%, 0.71%, and 1.96%. 
+
+Sequential recommendation on ML1M.. Without an explicit query, CRIM leads all six reported metrics. Its Recall@10 of 0.1183 exceeds the strongest baseline, Ministral-8B-Instruct at 0.0719, by 64.52%. 
+
+> 6CRIM: Composable and Reusable Item Memory
+
+Table 1: Full-catalog retrieval on LazSeq (histories up to 500 items). Bold/underlined values mark the best/second-best results; dashes denote metrics unavailable from beam-limited outputs. 
+
+Recall NDCG MRR Method Year @10 @50 @100 @1000 @3000 @10 @50 @100 @100 All GRU4Rec 2016 0.0300 0.0670 0.0944 0.2598 0.3951 0.0164 0.0246 0.0290 0.0144 0.0151 NARM 2017 0.0223 0.0634 0.0894 0.2544 0.3941 0.0119 0.0207 0.0250 0.0109 0.0116 SASRec 2018 0.0313 0.0697 0.0937 0.2487 0.3765 0.0170 0.0253 0.0292 0.0147 0.0154 STAMP 2018 0.0290 0.0620 0.0794 0.2274 0.3588 0.0153 0.0225 0.0253 0.0128 0.0135 BERT4Rec 2019 0.0250 0.0600 0.0860 0.2661 0.4201 0.0127 0.0204 0.0246 0.0109 0.0117 S3Rec 2020 0.0340 0.0794 0.1097 0.3331 0.4965 0.0174 0.0272 0.0321 0.0148 0.0157 LightSANs 2021 0.0317 0.0730 0.0960 0.2511 0.3815 0.0163 0.0255 0.0292 0.0139 0.0146 SINE 2021 0.0357 0.0784 0.1030 0.2761 0.3998 0.0199 0.0293 0.0333 0.0174 0.0182 FEARec 2023 0.0333 0.0677 0.0950 0.2324 0.3738 0.0177 0.0253 0.0297 0.0150 0.0156 TIGER 2023 0.0317 0.0737 0.0927 — — 0.0159 0.0251 0.0282 0.0133 —LlamaRec 2023 0.0290 0.0637 0.0827 0.2381 0.3745 0.0160 0.0233 0.0263 0.0137 0.0144 GenSAR 2025 0.2121 0.3768 0.4308 — — 0.1241 0.1608 0.1696 0.1060 —GEMS 2026 0.0100 0.0333 0.0487 0.1627 0.3131 0.0066 0.0116 0.0141 0.0068 0.0073 GTE-1.5B 2024 0.3317 0.5783 0.6803 0.9097 0.9630 0.1890 0.2427 0.2593 0.1583 0.1594 Gemma3-4B-PT 2025 0.3030 0.5627 0.6657 0.9150 0.9667 0.1744 0.2319 0.2486 0.1489 0.1500 Gemma3-4B-IT 2025 0.2897 0.5500 0.6643 0.9140 0.9647 0.1617 0.2191 0.2377 0.1366 0.1377 Llama3.1-8B 2024 0.2983 0.5627 0.6787 0.9227 0.9693 0.1701 0.2285 0.2474 0.1454 0.1466 Ministral-8B-IT 2024 0.3057 0.5647 0.6757 0.9197 0.9693 0.1721 0.2295 0.2475 0.1452 0.1463 Phi-4-14B 2024 0.3153 0.5733 0.6800 0.9253 0.9750 0.1790 0.2357 0.2530 0.1510 0.1521 Qwen3-Emb.-0.6B 2025 0.2953 0.5467 0.6447 0.8953 0.9580 0.1745 0.2301 0.2460 0.1508 0.1520 Qwen3-Emb.-4B 2025 0.3390 0.5807 0.6800 0.9177 0.9630 0.1923 0.2458 0.2620 0.1604 0.1615 CRIM Ours 0.3204 0.5835 0.6969 0.9330 0.9737 0.1850 0.2430 0.2614 0.1576 0.1587 Recall@100 reaches 0.3782, improving over GTE-1.5B’s 0.2900 by 30.40% and over Qwen3-Embedding-4B by 33.61%. NDCG@100 reaches 0.1139, a 47.67% gain over the strongest baseline, Qwen3-Embedding-4B. NDCG@10, MRR@100, and full-catalog MRR are 0.0629, 0.0548, and 0.0564, respectively. These results demonstrate improvements in both candidate retrieval and ranking quality for history-only recommendation under the ML1M configuration. 
+
+## 4.4 Efficiency and Cost Analysis 
+
+Online inference. Figure 1 measures end-to-end, batch-one la-tency on a single A100-SXM4-80GB over 200 shared LazSeq requests. Timing covers input preparation, request encoding, full-catalog re-trieval, and returned IDs, with prebuilt caches. Appendix A.3 details warm-ups, repetitions, and cost calibration. CRIM reduces mean latency to 90.76 ms from the dense refer-ence’s 367.45 ms, a 4 .05 × speedup. The 95th-percentile latency falls from 818.03 to 173.39 ms. Mean serving input length decreases from 5,020.36 to 966.62 positions, including REC tokens, the query, and template tokens, a reduction of 80.75%. CRIM is also faster than the 0.6B embedding baseline at 117.17 ms while achieving higher Recall@100. Independent item encoding therefore shifts substantial work out of the online request path. 
+
+Cost amortization. Figure 5 combines estimated A100 optimiza-tion and initial cache costs with serial warm-cache inference. The estimated upfront costs are 46.44 GPU-hours for CRIM and 44.02 for Qwen3-Embedding-4B. The online savings recover this differ-ence after approximately 31,500 requests. At one million requests, 0 250k 500k 750k 1M      
+
+> Requests served
+> 050 100 150 200
+> Cumulative A100 compute (GPU-hours)
+> 146.3 71.6
+> 51.1% saved
+> Break-even 31.5k requests Qwen3-Embedding-4B CRIM 4B
+> 30M 100M 1B 10B
+> Daily request equivalents (log)
+> Search Pixie* *
+
+Figure 5: Cumulative A100 compute on LazSeq: optimization, initial cache, and warm-cache inference. Inset: published service volumes [1, 8, 9, 12, 28, 31]; the two P logos denote Pinterest Search and Pixie recommendations. Lazada: 30M searches/day (2020) [27]. Stars mark conversions from re-quests/s to requests/day (Appendix A.3). 
+
+cumulative compute reaches 71.63 and 146.33 GPU-hours, respec-tively, yielding a 51.05% saving. At ten million requests, the saving increases to 72.05%. This scenario holds the deployed model and 
+
+> 7Li et al.
+
+Table 2: Full-catalog retrieval on Qilin (histories up to 100 items). Bold/underlined values mark the best/second-best re-sults; dashes denote metrics unavailable from beam-limited outputs. 
+
+Recall NDCG MRR Method Year @10 @100 @10 @100 @100 All GRU4Rec 2016 0.0000 0.0000 0.0000 0.0000 0.0000 0.0001 NARM 2017 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 SASRec 2018 0.0000 0.0000 0.0000 0.0000 0.0000 0.0001 STAMP 2018 0.0034 0.0034 0.0028 0.0028 0.0026 0.0026 BERT4Rec 2019 0.0000 0.0011 0.0000 0.0002 0.0000 0.0001 S3Rec 2020 0.0000 0.0000 0.0000 0.0000 0.0000 0.0000 LightSANs 2021 0.0000 0.0011 0.0000 0.0002 0.0000 0.0002 SINE 2021 0.0011 0.0022 0.0005 0.0007 0.0003 0.0004 FEARec 2023 0.0000 0.0000 0.0000 0.0000 0.0000 0.0001 TIGER 2023 0.0022 0.0022 0.0022 0.0022 0.0022 —LlamaRec 2023 0.0011 0.0034 0.0004 0.0008 0.0002 0.0004 GenSAR 2025 0.0101 0.0246 0.0054 0.0084 0.0046 —GEMS 2026 0.0000 0.0000 0.0000 0.0000 0.0000 0.0001 GTE-1.5B 2024 0.5969 0.7548 0.4404 0.4739 0.3977 0.3981 E5-Mistral-7B 2023 0.5039 0.6887 0.3542 0.3927 0.3146 0.3151 Gemma3-4B-PT 2025 0.5151 0.7021 0.3694 0.4085 0.3319 0.3324 Gemma3-4B-IT 2025 0.5017 0.6943 0.3636 0.4042 0.3286 0.3291 Llama3.1-8B 2024 0.5297 0.7044 0.3806 0.4187 0.3419 0.3424 Ministral-8B-IT 2024 0.5364 0.7055 0.3901 0.4252 0.3506 0.3512 Phi-4-14B 2024 0.5409 0.7100 0.3991 0.4355 0.3619 0.3625 Qwen3-4B 2025 0.5733 0.7301 0.4052 0.4373 0.3582 0.3587 Qwen3-Emb.-0.6B 2025 0.5465 0.7167 0.3984 0.4339 0.3585 0.3590 Qwen3-Emb.-4B 2025 0.5801 0.7592 0.4126 0.4518 0.3678 0.3682 
+
+CRIM Ours 0.5845 0.7458 0.4434 0.4772 0.4054 0.4059 
+
+catalog fixed. Training-time cache refreshes and later updates add to Δ𝐶 off (Appendix A.3). 
+
+## 4.5 Ablation Studies 
+
+We conduct ablations on held-out LazSeq requests with a 49,993-item catalog. Each run selects its checkpoint by validation Re-call@3000. Table 4 reports Recall, NDCG, and MRR at 100. 
+
+Sequence supervision. CRIM exceeds the variant without segment prediction by 3.70 percentage points in Recall@100, 1.94 points in NDCG@100, and 1.53 points in MRR@100. Retrieval loss alone gives 65.66% Recall@100; removing REC tokens together with segment supervision gives 66.29%. Across three seeds, segment supervision improves Recall@100 by 2.53–3.97 percentage points. The variant without semantic reconstruction trails CRIM by 0.27, 0.45, and 0.36 points in these metrics (Appendix B.1). 
+
+Semantic pretraining. CRIM exceeds the variant without seman-tic pretraining by 1.03 percentage points in Recall@100, 0.77 points in NDCG@100, and 0.71 points in MRR@100. Initializing item mem-ories through text reconstruction therefore benefits subsequent joint training. 
+
+Cache-based joint optimization. Training-time re-encoding bud-gets 𝜅 = 1, 4, 8 give Recall@100 between 69.56% and 69.69% (Ap-pendix B.2, Table 7). CRIM exceeds the fixed-cache variant by 3.07 
+
+Table 3: Full-catalog retrieval on ML1M (histories up to 100 items). Bold/underlined values mark the best/second-best re-sults; dashes denote metrics unavailable from beam-limited outputs. 
+
+Recall NDCG MRR Method Year @10 @100 @10 @100 @100 All GRU4Rec 2016 0.0510 0.1555 0.0269 0.0465 0.0227 0.0244 NARM 2017 0.0510 0.1671 0.0302 0.0523 0.0273 0.0290 SASRec 2018 0.0534 0.1740 0.0300 0.0531 0.0263 0.0279 STAMP 2018 0.0534 0.1647 0.0314 0.0531 0.0282 0.0298 BERT4Rec 2019 0.0487 0.2019 0.0279 0.0565 0.0259 0.0276 S3Rec 2020 0.0696 0.2065 0.0367 0.0629 0.0310 0.0330 LightSANs 2021 0.0534 0.1601 0.0273 0.0475 0.0221 0.0238 SINE 2021 0.0580 0.1671 0.0346 0.0548 0.0302 0.0318 FEARec 2023 0.0510 0.1717 0.0268 0.0508 0.0238 0.0254 TIGER 2023 0.0371 0.1647 0.0215 0.0463 0.0207 —LlamaRec 2023 0.0557 0.1856 0.0322 0.0565 0.0287 0.0303 GenSAR 2025 0.0673 0.2251 0.0403 0.0689 0.0360 —GEMS 2026 0.0046 0.0650 0.0017 0.0126 0.0023 0.0041 GTE-1.5B 2024 0.0580 0.2900 0.0273 0.0698 0.0243 0.0259 E5-Mistral-7B 2023 0.0487 0.2529 0.0231 0.0619 0.0215 0.0232 Gemma3-4B-PT 2025 0.0487 0.2135 0.0223 0.0529 0.0187 0.0204 Gemma3-4B-IT 2025 0.0464 0.2088 0.0211 0.0523 0.0181 0.0197 Llama3.1-8B 2024 0.0487 0.1949 0.0272 0.0556 0.0255 0.0272 Ministral-8B-IT 2024 0.0719 0.2807 0.0315 0.0723 0.0263 0.0282 Phi-4-14B 2024 0.0696 0.2854 0.0320 0.0742 0.0279 0.0297 Qwen3-4B 2025 0.0557 0.2390 0.0254 0.0608 0.0222 0.0238 Qwen3-Emb.-0.6B 2025 0.0255 0.2251 0.0130 0.0508 0.0151 0.0166 Qwen3-Emb.-4B 2025 0.0580 0.2831 0.0328 0.0771 0.0327 0.0344 
+
+CRIM Ours 0.1183 0.3782 0.0629 0.1139 0.0548 0.0564 Table 4: LazSeq supervision and pretraining ablations (%). R, N, and M denote Recall, NDCG, and MRR. Best retrieval metrics are bold.                         
+
+> Variant R@100 N@100 M@100
+> CRIM 69.69 26.14 15.76
+> w/o Lseg 65.99 24.19 14.23 w/o Lsem 69.42 25.69 15.40 Retrieval loss only 65.66 24.15 14.23 w/o REC and Lseg 66.29 24.39 14.39 w/o semantic pretraining 68.66 25.36 15.05
+
+percentage points in Recall@100; refreshing every two epochs gives 68.49% recall. 
+
+Memory capacity. We vary 𝐾 over 1, 4, 8, 16, and 32. Four vectors give the highest Recall@100 and NDCG@100 while using a 2.560 GB serving cache, compared with 8.703 GB at 𝐾 = 16 and 16.894 GB at 
+
+𝐾 = 32 (Appendix B.3). 
+
+Additional analyses. Appendix B.4 compares sampled and full-history training costs; Appendix B.5 reports history and query inter-ventions with paired confidence intervals; Appendix B.6 analyzes history-length and item-frequency groups. 
+
+> 8
+
+CRIM: Composable and Reusable Item Memory 
+
+## 5 Conclusion 
+
+We presented CRIM, a personalized retrieval framework that sep-arates reusable item semantics from request-dependent history modeling. Summary tokens compress items into continuous memo-ries, and REC tokens provide predictive supervision within ordered histories. Cached memories and sampled live re-encoding jointly train the IME and RE with a small differentiable item-encoding budget. Across LazSeq, Qilin, and ML1M, CRIM achieves strong candidate recall and ranking quality. On LazSeq, it reduces serving input length by 80.75% and delivers a 4 .05 × latency speedup over the same-scale dense reference. 
+
+## References 
+
+[1] Algolia. 2025. Algolia Launches Breakthrough Trifecta of AI-Powered Ranking Capabilities. 4 March 2025; accessed 22 October 2026. https://www.algolia.com/about/news/algolia-launches-breakthrough-trifecta-of-ai-powered-ranking-capabilities [2] Alibaba-NLP. 2024. gte-Qwen2-1.5B-instruct: Model Card. Accessed 22 October 2026. https://huggingface.co/Alibaba-NLP/gte-Qwen2-1.5B-instruct [3] Kaidi Cao, Mangpo Phothilimthana, Sami Abu-El-Haija, Dustin Zelle, Yanqi Zhou, Charith Mendis, Jure Leskovec, and Bryan Perozzi. 2023. Learning Large Graph Property Prediction via Graph Segment Training. In Advances in Neural Infor-mation Processing Systems , Vol. 36. https://papers.neurips.cc/paper_files/paper/ 2023/hash/48f8143cebe113f4596e1781771578cd-Abstract-Conference.html [4] Jia Chen, Qian Dong, Haitao Li, Xiaohui He, Yan Gao, Shaosheng Cao, Yi Wu, Ping Yang, Chen Xu, Yao Hu, Qingyao Ai, and Yiqun Liu. 2025. Qilin: A Multimodal Information Retrieval Dataset with APP-level User Sessions. In Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR ’25) . ACM, 3670–3680. doi:10.1145/3726302.3730279 [5] Xilun Chen, Shao-Chuan Wang, Baykal Cakici, Lukasz Heldt, Lichan Hong, Raghu Keshavan, Aniruddh Nath, Li Wei, and Xinyang Yi. 2026. Token Factory: Efficiently Integrating Diverse Signals into Large Recommendation Models. arXiv preprint arXiv:2606.19635 (2026). https://arxiv.org/abs/2606.19635 [6] Yuhong Dai, Jianxun Lian, Yitian Huang, Wei Zhang, Mingyang Zhou, Mingqi Wu, Xing Xie, and Hao Liao. 2025. Pretraining Context Compressor for Large Lan-guage Models with Embedding-Based Memory. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,Wanxiang Che, Joyce Nabende, Ekaterina Shutova, and Mohammad Taher Pile-hvar (Eds.). Association for Computational Linguistics, Vienna, Austria, 28715– 28732. doi:10.18653/v1/2025.acl-long.1394 [7] Xinyu Du, Huanhuan Yuan, Pengpeng Zhao, Jianfeng Qu, Fuzhen Zhuang, Guan-feng Liu, Yanchi Liu, and Victor S. Sheng. 2023. Frequency Enhanced Hybrid Attention Network for Sequential Recommendation. In Proceedings of the 46th International ACM SIGIR Conference on Research and Development in Information Retrieval . 78–88. doi:10.1145/3539618.3591689 [8] DuckDuckGo. n.d.. DuckDuckGo Press Page. Accessed 22 October 2026. https: //duckduckgo.com/press [9] Chantat Eksombatchai, Pranav Jindal, Jerry Zitao Liu, Yuchen Liu, Rahul Sharma, Charles Sugnet, Mark Ulrich, and Jure Leskovec. 2018. Pixie: A System for Rec-ommending 3+ Billion Items to 200+ Million Users in Real-Time. In Proceedings of the 2018 World Wide Web Conference on World Wide Web - WWW ’18 . 1775–1784. doi:10.1145/3178876.3186183 [10] Xinyan Fan, Zheng Liu, Jianxun Lian, Wayne Xin Zhao, Xing Xie, and Ji-Rong Wen. 2021. Lighter and Better: Low-Rank Decomposed Self-Attention Networks for Next-Item Recommendation. In SIGIR ’21: The 44th International ACM SIGIR Conference on Research and Development in Information Retrieval, Virtual Event, Canada, July 11-15, 2021 . ACM, 1733–1737. doi:10.1145/3404835.3462978 [11] Matthias Fey, Jan E. Lenssen, Frank Weichert, and Jure Leskovec. 2021. GN-NAutoScale: Scalable and Expressive Graph Neural Networks via Historical Embeddings. In Proceedings of the 38th International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 139) . PMLR, 3294–3304. https://proceedings.mlr.press/v139/fey21a.html [12] Kairui Fu, Changfa Wu, Kun Yuan, Binbin Cao, Dunxian Huang, Yuliang Yan, Junjun Zheng, Jianning Zhang, Silu Zhou, Jian Wu, and Kun Kuang. 2026. RankGR: Rank-Enhanced Generative Retrieval with Listwise Direct Prefer-ence Optimization in Recommendation. arXiv preprint arXiv:2602.08575 (2026). https://arxiv.org/abs/2602.08575 [13] Tao Ge, Jing Hu, Lei Wang, Xun Wang, Si-Qing Chen, and Furu Wei. 2024. In-context Autoencoder for Context Compression in a Large Language Model. In The Twelfth International Conference on Learning Representations . https: //arxiv.org/abs/2307.06945 [14] F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM Transactions on Interactive Intelligent Systems 5, 4, Article 19 (2015), 19 pages. doi:10.1145/2827872 [15] Balázs Hidasi, Alexandros Karatzoglou, Linas Baltrunas, and Domonkos Tikk. 2016. Session-based Recommendations with Recurrent Neural Networks. In 
+
+International Conference on Learning Representations . https://arxiv.org/abs/1511. 06939 [16] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-Rank Adaptation of Large Language Models. In International Conference on Learning Representations .https://openreview.net/forum?id=nZeVKeeFYf9 [17] Huiqiang Jiang, Qianhui Wu, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2023. LLMLingua: Compressing Prompts for Accelerated Inference of Large Language Models. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguistics, 13358–13376. doi:10.18653/v1/2023.emnlp-main.825 [18] Wang-Cheng Kang and Julian McAuley. 2018. Self-Attentive Sequential Rec-ommendation. In 2018 IEEE International Conference on Data Mining . https: //arxiv.org/abs/1808.09781 [19] Brian Lester, Rami Al-Rfou, and Noah Constant. 2021. The Power of Scale for Parameter-Efficient Prompt Tuning. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguistics, 3045–3059. doi:10.18653/v1/2021.emnlp-main.243 [20] Baolei Li, Yiping Yuan, Yilin Zheng, Likang Yin, Ling Liu, Fabio Soldo, Romer Ros-ales, Xinyang Yi, and Lichan Hong. 2026. Tokens are All You Need: Dual-purpose Semantic IDs for Achieving LLM-Level I/O Efficiency in recommendation sys-tems. arXiv preprint arXiv:2607.24865 (2026). https://arxiv.org/abs/2607.24865 [21] Haolin Li, Yaohua Wang, Ze Yan, Lijie Wen, and Biqing Huang. 2026. AgentDet: A Shared-Blackboard Multi-Agent Framework for Zero-/Few-Shot Object Detec-tion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . 41626–41635. [22] Haolin Li, Haipeng Zhang, Mang Li, Yaohua Wang, Lijie Wen, Zhang Yu, and Biqing Huang. 2026. Toward Robust Multilingual Adaptation of LLMs for Low-Resource Languages. In Proceedings of the 43rd International Conference on Ma-chine Learning (Proceedings of Machine Learning Research, Vol. 306) . PMLR, 72401– 72427. https://proceedings.mlr.press/v306/li26jh.html [23] Jing Li, Pengjie Ren, Zhumin Chen, Zhaochun Ren, Tao Lian, and Jun Ma. 2017. Neural Attentive Session-based Recommendation. In Proceedings of the 2017 ACM on Conference on Information and Knowledge Management . 1419–1428. doi:10.1145/3132847.3132926 [24] Jiacheng Li, Ming Wang, Jin Li, Jinmiao Fu, Xin Shen, Jingbo Shang, and Julian McAuley. 2023. Text Is All You Need: Learning Language Representations for Se-quential Recommendation. In Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining . 1258–1267. doi:10.1145/3580305.3599519 [25] Xiang Lisa Li and Percy Liang. 2021. Prefix-Tuning: Optimizing Continuous Prompts for Generation. In Proceedings of the 59th Annual Meeting of the Associ-ation for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) . Association for Computa-tional Linguistics, 4582–4597. doi:10.18653/v1/2021.acl-long.353 [26] Qiao Liu, Yifu Zeng, Refuoe Mokhosi, and Haibin Zhang. 2018. STAMP: Short-Term Attention/Memory Priority Model for Session-based Recommendation. In Proceedings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining (London, United Kingdom). 1831–1839. [27] MARKETECH APAC. 2020. Lazada PH introduces new solutions to help brands and online sellers. MARKETECH APAC. Published July 1, 2020. Accessed October 26, 2026. https://marketech-apac.com/lazada-ph-introduces-new-solutions-to-help-brands-and-online-sellers/ [28] Pinterest. 2026. Pinterest Unveils Visual Search Ads and New Performance Tools. 17 September 2026; accessed 22 October 2026. https://newsroom.pinterest.com/ en-gb/news/new-pinterest-visual-search-performance-ads/ [29] Shashank Rajput, Nikhil Mehta, Anima Singh, Raghunandan Hulikal Keshavan, Trung Vu, Lukasz Heldt, Lichan Hong, Yi Tay, Vinh Tran, Jonah Samost, Maciej Kula, Ed Chi, and Maheswaran Sathiamoorthy. 2023. Recommender Systems with Generative Retrieval. In Advances in Neural Information Processing Systems ,A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine (Eds.), Vol. 36. Curran Associates, Inc., 10299–10315. doi:10.52202/075280-0452 [30] Teng Shi, Jun Xu, Xiao Zhang, Xiaoxue Zang, Kai Zheng, Yang Song, and Enyun Yu. 2025. GenSAR: Unifying Balanced Search and Recommendation with Genera-tive Retrieval. In Proceedings of the Nineteenth ACM Conference on Recommender Systems . 124–134. doi:10.1145/3705328.3748071 [31] Vidhya Srinivasan. 2025. AI, Personalization and the Future of Shopping. 3 March 2025; accessed 22 October 2026. https://blog.google/products/ads-commerce/ai-personalization-and-the-future-of-shopping/ [32] Fei Sun, Jun Liu, Jian Wu, Changhua Pei, Xiao Lin, Wenwu Ou, and Peng Jiang. 2019. BERT4Rec: Sequential Recommendation with Bidirectional En-coder Representations from Transformer. In Proceedings of the 28th ACM In-ternational Conference on Information and Knowledge Management . https: //arxiv.org/abs/1904.06690 9Li et al.                     
+
+> [33] Qiaoyu Tan, Jianwei Zhang, Jiangchao Yao, Ninghao Liu, Jingren Zhou, Hongxia Yang, and Xia Hu. 2021. Sparse-interest network for sequential recommendation. In Proceedings of the 14th ACM International Conference on Web Search and Data Mining . 598–606. [34] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and Furu Wei. 2024. Improving Text Embeddings with Large Language Models. arXiv preprint arXiv:2401.00368 (2024). https://arxiv.org/abs/2401.00368 [35] Rui Xue, Tong Zhao, Neil Shah, and Xiaorui Liu. 2025. Haste Makes Waste: A Simple Approach for Scaling Graph Neural Networks. In Proceedings of the 42nd International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 267) . PMLR, 70160–70182. https://proceedings.mlr.press/v267/ xue25e.html [36] Zhenrui Yue, Sara Rabhi, Gabriel de Souza Pereira Moreira, Dong Wang, and Even Oldridge. 2023. LlamaRec: Two-Stage Recommendation using Large Language Models for Ranking. arXiv preprint arXiv:2311.02089 (2023). [37] Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, Fei Huang, and Jingren Zhou. 2025. Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models. arXiv preprint arXiv:2506.05176 (2025). https: //arxiv.org/abs/2506.05176 [38] Jujia Zhao, Zihan Wang, Shuaiqun Pan, Suzan Verberne, and Zhaochun Ren. 2026. Unifying Search and Recommendation in LLMs via Gradient Multi-Subspace Tuning. In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval .https://arxiv.org/abs/2601.09496 [39] Kun Zhou, Hui Wang, Wayne Xin Zhao, Yutao Zhu, Sirui Wang, Fuzheng Zhang, Zhongyuan Wang, and Ji-Rong Wen. 2020. S3-Rec: Self-Supervised Learning for Sequential Recommendation with Mutual Information Maximization. In
+> CIKM ’20: The 29th ACM International Conference on Information and Knowledge Management, Virtual Event, Ireland, October 19-23, 2020 . ACM, 1893–1902.
+
+## A Implementation and Evaluation Details A.1 LazSeq Construction 
+
+Figure 6 summarizes the filtering and catalog construction steps. 
+
+Request filtering. We retain requests with at least 100 original interactions and a lexical query–history overlap of at least 0.5, keeping the most recent 500 history items. To compute overlap, the query is lowercased and split on whitespace, discarding tokens of length one. The score is the fraction of retained query tokens appearing in the concatenated recent history titles. Requests may target either an item already present in the history or a previously unseen item. 
+
+Catalog construction and splitting. We aggregate eligible requests and count item occurrences in target and retained history positions. These frequencies determine the retained item set; requests are kept if their target belongs to this set. We then fill training, validation, and test splits in processed stream order at an approximate 8 : 1 : 1 ratio. Item frequencies are computed before splitting. The final shared catalog is the union of retained item IDs appearing in the three output splits. This request-level protocol provides a common candidate space across splits. 
+
+## A.2 Training and Evaluation Protocols 
+
+Model configuration. Table 5 gives the training settings. Figures 3 and 4 detail semantic pretraining and joint training. The backbone has hidden dimension 2,560. LazSeq semantic pretraining runs for five epochs with 32 items per GPU, summary learning rate 3 ×
+
+10 −3, identity learning rate 5 × 10 −4, cosine decay, and 5% warm-up. A 128-dimensional identity embedding projects to two prefix tokens; item titles are capped at 96 tokens. Each segment uses up to 1,024 catalog negatives. Joint training uses weight decay zero and gradient clipping at one. The LazSeq ablations use eight GPUs with the same global batch and logical contrastive groups. The cache-refresh variants refresh candidate vectors every epoch. LazSeq and Qilin use the EOS readout and joint objective above. The queryless ML1M configuration uses the mean hidden state of the final REC block for the request representation and fixed pooled candidate encodings. It additionally uses a target-title gen-eration loss and catalog-sampled retrieval negatives. Section 4.1 summarizes these settings. 
+
+Data and checkpoint protocols. Qilin has 7,144/893/893 train-ing/validation/test requests and 159,477 catalog items; ML1M has 3,437/429/431 requests and 3,566 items. Each dataset uses a shared title catalog. LazSeq counts are given in Section 4.2. LazSeq is split at the request level, and a user can occur in multiple splits. Catalog membership is determined before the request split, while model training uses training requests. Filtering the retained catalog may shorten a history below the original 100-interaction eligibility threshold. The selected CRIM epochs are 3, 2, and 7 for LazSeq, Qilin, and ML1M. Checkpoint selection uses validation Recall@3000, Re-call@3000, and Recall@10, respectively. LazSeq ablations select validation Recall@3000, then evaluate the selected checkpoint once on the test set. Full MRR is unavailable for the beam-limited TIGER and GenSAR runs. Method years in the tables indicate publication or specific model release. 
+
+## A.3 A100 Measurements and Cost Calibration 
+
+Figure 1 measures five warm-ups followed by two passes over 200 fixed requests at batch size one. The cache is built before timing. Serving length counts actual RE input positions, including mem-ory slots, REC tokens, query, and special tokens. The request path includes input preparation, encoding, cosine retrieval over 49,993 candidates, and returned IDs. Backbone operations use BF16; the stored serving memories and candidate vectors use FP32. The serv-ing cache occupies 2.560 GB for CRIM, comprising 2.048 GB of item memories and 0.512 GB of candidate vectors. Dense reference can-didates occupy 0.512 GB. Figure 5 uses A100 measurements: estimated optimizer costs are 45.66 and 43.96 GPU-hours for CRIM and the dense reference, and initial cache construction takes 2,809.16 and 206.64 seconds. The online costs are 90.66 and 368.32 ms per request. These esti-mates cover optimizer computation, initial cache construction, and inference with a fixed model and catalog. For a cache-refresh or model-update schedule, the corresponding measured maintenance cost enters Δ𝐶 off in Equation (11). Each additional GPU-hour of relative offline cost requires approximately 12,965 further requests to amortize at these request costs. For the service-volume inset in Figure 5, monthly and annual totals are divided by 30 and 365, respectively. Starred per-second rates are multiplied by 24 × 60 × 60 = 86 ,400, the number of seconds in a day. They represent daily equivalents at the reported rates. Lazada’s approximately 30 million searches per day is a published 2020 figure [27]. 
+
+## A.4 Additional Comparisons 
+
+The method groups differ substantially. Among ID-based models, S3Rec has the highest Recall@100 at 0.1097. The adapted GenSAR 
+
+> 10 CRIM: Composable and Reusable Item Memory
+
+(a) Query–history overlap 
+
+Query perfume vanilla Keep if overlap ≥ 0.5 
+
+H₁   
+
+> Lazy Sunday Morning
+> perfume
+> Top Trend heels
+
+··· 
+
+> Blanc Papier
+> perfume
+> Clean Ultimate
+> perfume
+
+1 / 2 = 0.5 Keep 
+
+H₂ Top Trend heels Luxury women pumps ··· Top Trend heels Luxury women pumps 
+
+0 / 2 = 0 Drop 
+
+Overlap = matched query words / query words 
+
+(b) Candidate filtering 
+
+Eligible requests 
+
+H Lazy Sunday Blanc Papier Top Trend ··· 
+
+Target Clean Ultimate 
+
+Item frequencies     
+
+> H + target
+> Clean Ultimate Lazy Sunday Top Trend Blanc Papier
+
+Target retained History unchanged 
+
+H Lazy Sunday Blanc Papier Top Trend ··· 
+
+Target Clean Ultimate 
+
+Shared catalog     
+
+> Clean Ultimate Lazy Sunday Top Trend
+
+···  
+
+> Blanc Papier
+
+Target Blanc Papier Drop request 
+
+Figure 6: LazSeq construction. (a) Requests are filtered by query–history lexical overlap. (b) Item frequencies in history and target positions determine the retained candidate set; requests are kept when their target is retained. Table 5: CRIM training configurations for the main results.                                                     
+
+> Setting LazSeq Qilin ML1M Backbone Qwen3-Embedding-4B; bf16; LoRA rank 16 Slots / live history positions 𝐾 =4/ at most 8 𝐾 =4/ at most 4 𝐾 =4/ at most 4 Segment length / cache refresh 4 items / every epoch Joint training learning rate 10 −4; weight decay 0; gradient clip 1 Joint training maximum epochs / batch 3 / 64 3 / 64 10 / 8 Selected epoch 327Validation metric R@3000 R@3000 R@10 Request readout Suffix EOS Suffix EOS Final REC-block mean Candidate tower Trainable, last token Trainable, last token Frozen, pooled store Retrieval candidates during training 8 targets per logical group 8 targets per logical group Positive + cached negatives Segment negatives Up to 1,024 catalog negatives Loss weights (ret., seg., sem., gen.) (1,1,0.1,0)(1,1,0.1,0)(1,1,0.1,1)
+> Query / position Yes / after history Yes / after history No
+
+implementation reaches 0.4308, Qwen3-Embedding-0.6B reaches 0.6447, and CRIM reaches 0.6969. Methods using item text generally perform better in this query-conditioned setting. On LazSeq, CRIM ranks second at NDCG@50 and NDCG@100 with 0.2430 and 0.2614, compared with 0.2458 and 0.2620 for Qwen3-Embedding-4B. The dense reference leads Recall@10 at 0.3390 ver-sus 0.3204 for CRIM. CRIM combines higher candidate recall and strong ranking quality with compact history inputs. On Qilin, Recall@10 improves over Qwen3-Embedding-4B from 0.5801 to 0.5845, while GTE-1.5B achieves 0.5969. CRIM’s Recall@100 is 0.7458, compared with 0.7592 for Qwen3-Embedding-4B. Its main benefit on Qilin is therefore better target ranking, complementing the broader-cutoff recall gains observed on LazSeq. 
+
+## B Additional Ablations and Diagnostics B.1 Consistency across Random Seeds 
+
+Table 6 summarizes seeds 42, 43, and 44. Segment supervision im-proves all three metrics in every seed. Mean Recall@100 is 69.68% for CRIM, 66.29% without segment supervision, and 66.43% with retrieval loss alone. Omitting semantic reconstruction lowers mean 
+
+Table 6: Objective ablations across seeds 42, 43, and 44. Values are mean ± sample standard deviation, in percentages. Best means are bold. 
+
+Variant R@100 N@100 M@100 CRIM 69 .68 ± 1.40 26 .02 ± 0.20 15 .66 ± 0.33 w/o segment loss 66 .29 ± 0.73 24 .10 ± 0.16 14 .10 ± 0.12 w/o semantic loss 69 .12 ± 1.11 25 .61 ± 0.32 15 .40 ± 0.13 Retrieval loss only 66 .43 ± 0.69 24 .12 ± 0.03 14 .07 ± 0.15 
+
+Recall@100 by 0.56 and NDCG@100 by 0.41 percentage points, and mean MRR@100 by 0.26 points. The main retrieval benefit of the auxiliary objectives comes from segment supervision. 
+
+## B.2 Live Re-encoding and Cache Refresh 
+
+Table 7 varies training-time re-encoding and item-memory refresh. Recall@100 is 69.56%, 69.66%, and 69.69% for 𝜅 = 1, 4, 8, respectively. CRIM leads all three metrics, reaching 26.14% NDCG@100 and 15.76% MRR@100. It exceeds the fixed-cache variant by 3.07 points 
+
+> 11 Li et al.
+
+Table 7: Training-time history re-encoding and item-memory cache refresh on LazSeq. Metrics are percentages; evaluation uses rebuilt caches. Best retrieval metrics are bold.                            
+
+> Variant R@100 N@100 M@100
+> CRIM (𝜅 =8, epoch refresh) 69.69 26.14 15.76
+> Re-encoding 𝜅 =169.56 25.99 15.60 Re-encoding 𝜅 =469.66 25.89 15.45 Refresh every two epochs 68.49 25.49 15.21 No item-memory cache refresh 66.62 24.70 14.70
+
+in Recall@100. Candidate caches refresh each epoch; evaluation uses rebuilt caches. 
+
+## B.3 Memory Capacity and Storage 
+
+Table 8: Memory capacity on LazSeq. R and N use cutoff 100; M is full-catalog MRR. Metrics are percentages. Cache includes FP32 item memories and candidate vectors. Best retrieval metrics are bold.                                   
+
+> Variant R@100 N@100 M (all) Cache (GB)
+> 𝐾 =169.02 25.38 15.09 1.024 CRIM ( 𝐾 =4) 69.69 26.14 15.87 2.560
+> 𝐾 =868.22 25.20 15.07 4.607
+> 𝐾 =16 69.22 25.75 15.49 8.703
+> 𝐾 =32 68.20 25.31 15.13 16.894
+
+Table 8 compares 𝐾 = 1, 4, 8, 16 , 32. CRIM ( 𝐾 = 4) leads all three metrics. Increasing 𝐾 to 16 gives 69.22% Recall@100, while 𝐾 = 32 gives 68.20%. Increasing 𝐾 beyond four does not improve retrieval in these experiments. For 200 sampled requests, mean RE lengths for 
+
+𝐾 = 1, 4, 8, 16 are 459.93, 1,126.02, 2,014.14, and 3,790.38 positions. With hidden dimension 𝑑 = 2,560 and catalog size |I| = 49 ,993, FP32 serving storage is 4 |I| 𝑑 (𝐾 + 1) bytes: 𝐾 memory vectors and one candidate vector per item. Thus, increasing 𝐾 from 4 to 16 multiplies storage by 3.4 and mean input length by 3.37 without improving quality. At 𝐾 = 32, storage reaches 16.894 GB. These results support using four summary tokens per item. 
+
+## B.4 Live Item Encoding 
+
+In a controlled probe on two A100 80GB GPUs, the global batch is 64 and contrastive groups contain eight target items. After one warm-up, three optimizer steps with 𝜅 = 4 average 68.45 seconds and allocate at most 23.35 GB on either GPU. The all-history setting uses up to 500 live positions and runs out of memory during warm-up. The comparison holds the batch, RE history, and loss configuration fixed. 
+
+## B.5 History and Query Interventions 
+
+Table 9 changes inputs at a fixed checkpoint without retraining. Cross-user history swap replaces the history with another user’s sequence; order interventions retain the same multiset of items. Recent-history interventions retain the indicated suffix. The norm-matched control replaces item-specific memory directions with the catalog mean while preserving the original slot norms. Removing the query tests the fitted model’s reliance on the current query. 
+
+Table 9: Inference-time input interventions on LazSeq. Values are percentages. Best values within each group are bold.                                              
+
+> Variant R@100 N@100 M@100 History content Original history 69.52 25.93 15.53
+> Cross-user history swap 66.12 23.67 13.62 No history 65.82 23.69 13.68 Mean item memories 64.39 23.23 13.45 History order, length, and query Original history 69.69 25.97 15.55
+> Permutation, seed 42 69.56 25.62 15.18 Permutation, seed 43 69.49 25.50 15.04 Permutation, seed 44 69.02 25.45 15.07 Reverse order 69.46 25.62 15.24 Most recent 50 68.82 25.56 15.19 Most recent 100 69.19 25.76 15.37 Most recent 250 69.56 25.92 15.51 Norm-matched mean memories 63.79 23.01 13.33 Remove query 11.04 4.30 2.79
+
+We compute paired confidence intervals with 2,000 user-cluster bootstrap draws over 2,984 users and 2,999 requests. For cross-user history swap, the original-history Recall@100 advantage is 3.40 percentage points, with a 95% interval of [2.37, 4.39]; removing history yields a 3.70-point advantage, with [2.69, 4.70]. For norm-matched mean memories, the advantage is 5.90 points, with [4.84, 6.96]. Across the three within-history permutations, NDCG@100 declines by 0.35–0.52 points and MRR@100 by 0.36–0.51 points; their paired intervals exclude zero. Recall@100 decreases by 0.13– 0.67 points. 
+
+## B.6 History-Length and Item-Frequency Groups 
+
+Table 10: Recall@100 (%) by retained history length and train-ing frequency on the same 2,999 requests. Dense denotes Qwen3-Embedding-4B. Best values per row are bold.                           
+
+> Group Requests CRIM Dense History 1–50 116 81.03 70.69 History 51–100 450 78.22 65.78 History 101–250 1,540 76.04 68.70 History 251–500 893 52.97 67.53
+> Frequency 1–10 7100.00 57.14 Frequency 11–100 1,718 72.47 68.86 Frequency >100 1,274 65.78 66.88
+
+Table 10 groups the shared requests by retained history length and target frequency in training histories plus training targets. CRIM has higher recall in the groups through 250 items, whereas the dense reference leads in the 251–500 group. The aggregate paired Recall@100 difference is 1.70 points, with a 95% interval of [−0.60, 4.03]. Only seven requests fall in the frequency 1–10 group.

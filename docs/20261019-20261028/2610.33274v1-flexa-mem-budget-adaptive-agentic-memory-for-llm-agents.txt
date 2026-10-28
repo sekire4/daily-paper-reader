@@ -1,0 +1,551 @@
+Title: FlexA-Mem: Budget-Adaptive Agentic Memory for LLM Agents
+
+URL Source: https://arxiv.org/pdf/2610.33274v1
+
+Published Time: Tue, 27 Oct 2026 00:13:24 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+# FlexA-Mem: Budget-Adaptive Agentic Memory for LLM Agents 
+
+Wujiang Xu 1 Jiaojiao Han 2 Xi Zhu 1 Qizheng Zhang 3 Kaiqu Liang 4
+
+Yutong Yin 5 Kai Mei 1 Dimitris N. Metaxas 11Rutgers University 2Independent Researcher 3Stanford University 
+
+> 4
+
+Pricenton University 5Northwestern University 
+
+Abstract 
+
+Large language model (LLM) agents work in scenarios with very different memory needs. A question about past conversations needs the ex-act facts it names, while a multi-step task needs a trace of the steps already taken together with details that the next step cannot name. Existing memories are each designed and tested for one kind of scenario. Retrieval memories such as A-Mem miss steps that the current query does not express, summaries drop exact strings, and pairing the two fixes the split of the budget in advance. We propose FlexA-Mem, a general memory that writes each unit of history once into an immutable store and renders a fresh memory for every call. The rendered memory is a compact timeline of records plus detail that a fixed rule fits into the remaining room with-out an LLM call. The detail is either relevant units as raw text or excerpts or the verbatim pieces that best match the query. With one store, FlexA-Mem serves both kinds of scenario. On AppWorld challenge tasks at 4k, it outperforms the second-best method by 11.5%, and on 147 unused tasks with predictions fixed in advance it outperforms A-Mem with a summary by 12.2%. On LongMemEval and LoCoMo, it matches a dedicated keyword retriever that writes no memory, while memories built on text written by an LLM fall far behind at tight budgets. Ablations show that the timeline car-ries AppWorld completion, whereas recovery mainly saves steps there and decides accuracy on exact facts. Code is available at https: //github.com/WujiangXu/Flex-Amem .
+
+1 Introduction 
+
+Large language model (LLM) agents now work in many settings. They call the APIs of apps (Trivedi et al., 2024), resolve software issues by editing and testing code (Jimenez et al., 2024; Yang et al., 2024), and answer questions about conversations held over dozens of sessions (Wu et al., 2025a). In each setting the history soon outgrows a single call, and models use the middle of a long context less reliably (Liu et al., 2024). Therefore, each call works under a fixed token budget, and memory decides what fills it. What should fill the budget depends on the sce-nario. A question about a past conversation usually names its evidence and depends on a few exact facts, such as a date mentioned weeks before. A multi-step task depends first on an overview of what the agent has done. An AppWorld agent that sends money must log in, list the APIs and read their documentation, and if these steps leave its context it starts them again. It also needs exact details that change from step to step, such as an API argument or an earlier output. Some calls need all of a few past units, and others need a little of every past unit. Existing memories are each designed for one of these needs and tested on benchmarks of the matching kind. Retrieval memories such as A-Mem (Xu et al., 2025a) return the notes closest to the query, which suits fact recall, but an agent asked to send money has no reason to search for its earlier login. Compaction replaces old observations with placeholders or an LLM summary (Wang et al., 2025c; Lindenbauer et al., 2025), which keeps an overview of a long trajectory but drops the exact strings a fact question asks for. Summary+A-Mem combines the two with a fixed split of the budget, and MemGPT and Sculptor leave hidden details to tools (Packer et al., 2023; Li et al., 2026a) that agents rarely call (Fan et al., 2026; Li et al., 2026b). As a result, each method works well in its own scenario but loses much of its strength in the other. A memory that generalizes across scenarios is hard to build because the right balance between overview and detail is not known when the history is written (Figure 1). It depends on the scenario, on the step within a task and on the budget of the call. Nor can the query alone settle it. With its task and latest steps as the query, keyword matching finds 1arXiv:2610.33274v1 [cs.CL] 23 Oct 2026 One token budget Task trace + Exact details Views shown to the model                    
+
+> (a) Prior memory (b) Adaptive memory (ours) Retrieval (A-MEM) 123456
+> Retrieved notes; gaps in the task trace
+> Summary / compaction
+> Edited code. Ran tests. One test failed.
+> Omitted: expected 42, got 41
+> Task trace; exact details may be lost
+> One call same budget
+> 123456
+> A short trace, with relevant history expanded
+> Another call same budget
+> 123456
+> Different needs, different detail in view
+> Fixed hybrid: preset split Keep the trace. Adapt the detail.
+
+Figure 1: Retrieval suits fact recall but loses the trace of a multi-step task, a summary keeps the trace but loses exact facts, and FlexA-Mem serves both needs within a single token budget. 
+
+the details an AppWorld agent needs no better than chance. For this reason, a memory that commits at write time, by summarizing, by evolving notes or by fixing a split, is tuned to one scenario by construction. The decision has to be made at every call, and it must stay cheap, because an agent calls the model at every step. To this end, we propose FlexA-Mem, a general memory that writes each unit of history once and renders it anew at every call. The store keeps the raw text of every unit, and each rendering shows a timeline of short records that does not depend on the query. It fills the remaining room with recov-ered detail by a fixed rule, without an LLM call. Our contributions are summarized as follows. • We introduce a write-once, render-per-call de-sign for agent memory. It stores every unit of history immutably and decides only at read time how much of each unit a call sees. Nothing is discarded before the scenario, the query and the budget are known. • We propose fit-or-degrade, a budget-aware ren-derer that needs no LLM call. It gives each rele-vant unit the highest resolution that fits, raw text, an excerpt or its record, and turns more units into excerpts as the budget shrinks. As a drop-in renderer it raises the AppWorld completion of A-Mem’s own notes by 10.7%. • We show that one store serves both kinds of sce-nario. FlexA-Mem outperforms the second-best method by 11.5% on AppWorld challenge tasks and the strongest baseline by 12.2% on 147 un-used tasks, and on fact recall it matches a ded-icated keyword retriever. In our ablations the timeline carries agent completion, while recov-ery saves steps there and decides accuracy when the answer is an exact fact. 
+
+2 Related Work 
+
+Memory is essential for personalized agents (Liang et al., 2026; Xu et al., 2025b), enabling them to tailor their services to individual users’ needs and preferences. Most agent memories store past inter-actions and retrieve a few at each call (Park et al., 2023; Zhong et al., 2024; Chhikara et al., 2025; Rasmussen et al., 2025). A-Mem links its notes with an LLM and lets new notes rewrite their neigh-bors (Xu et al., 2025a), and unretrieved steps are absent from the call. A second line keeps the his-tory at several levels of detail (Packer et al., 2023; Sarthi et al., 2024; Rezazadeh et al., 2025; Xu et al., 2026a). MemGPT, RAPTOR and MemTree fix the level at write time, while MemGAS and SCM choose it with an LLM (Wang et al., 2025a) and Nemori adds raw messages of top episodes (Ma et al., 2026). The closest designs choose a form per item under a budget (Liao et al., 2026; Kang et al., 2026b). ReadAgent lets an LLM swap gists for raw pages (Lee et al., 2024), and AFM falls back from full to compressed to placeholder forms while pack-ing oldest first (Cruz, 2025). A third line lets the agent manage its context through tools (Hu et al., 2025; Li et al., 2026a; Ehrlich and Blackman, 2026; Li et al., 2026b) or learns this with reinforcement learning (Sun et al., 2025; Ye et al., 2026; Zhou et al., 2026; Yan et al., 2026), but agents seldom act on their own (Fan et al., 2026; Li et al., 2026b). FlexA-Mem builds on the two closest designs, taking degradation within a budget from AFM and in-place replacement of a gist by raw text from ReadAgent. Keeping raw text, several resolutions and in-place replacement are each known. The new design makes these choices at read time by a fixed rule, without an LLM call or an action of the agent. Unlike A-Mem it never rewrites a note, and unlike AFM it keeps a record of every unit and visits units by relevance rather than age. Our experiments then show that one store serves both kinds of scenario. Appendix D covers context compression and other memory systems in more detail. 
+
+3 FlexA-Mem 
+
+FlexA-Mem writes each unit once into an im-mutable store and renders a fresh memory for ev-ery call from one timeline and one of two recovery modes (Figure 2). Call t of an agent or a reader sees a context 
+
+Ct = [ Pt; Mt; Wt ], |Ct| ≤ ¯B, (1) 2or 
+
+(a) Write once      
+
+> Recent window Wt ui ··· newest units leaves the window Raw ri si
+> fields fi
+> keywords · tags description LLM encode
+> φ
+> embedding ei split Pieces Πi
+> Note mi m1 m2 m3 mi
+> Top-3 earlier · cosine links Li
+
+(b) Budget & timeline |Ct| ≤ B̄ = 0.95B Prompt Pt Memory Mt Recent window Wt At= B ̄ − |P t| − |Wt|    
+
+> Records Tt
+> s1 s2 s3
+
+··· sn Merge oldest cached LLM s1:2 s3 s4 ··· sn   
+
+> Memory allowance At
+> |Tt| Remaining room R0 R0= A t −|T t|
+
+(c) Unit recovery agents                
+
+> Task + newest unit qt Cosine top-k u1 u2 u3 u4 ±1 in time links Rank gt ↓
+> u2 u4 u1 u3 seeds + one-hop neighbors
+> Fit-or-degrade
+> si else else raw excerpt record BM25 within ui Excerpt query: newest unit only fit within remaining room
+> Recover in place
+> Tt s1:2 s3 s4 ··· sn insert replace s1:2
+> u2
+> s3
+> u4
+> s4 ··· sn Memory Mt Raw cost Dt (unit mode)
+
+(d) Piece recovery fact recall       
+
+> Question qt BM25 · all pieces
+> u1 u2 u3
+> Pack within R0
+> π32 π11 π21 rank order →take what fits
+> Append after timeline
+> Tt
+> u1
+> π11
+> u2
+> π21
+> u3
+> π32 group by unit · time order
+> LLM calls: note writing + cached timeline merges; recovery selection uses no LLM.
+
+Figure 2: Overview of FlexA-Mem. Each unit is written once and keeps its raw text in the store. Every call shows a compact timeline of records and fills the rest of the budget by unit or piece recovery. 
+
+where Pt is the fixed part of the prompt (instruc-tions and the task or question) and Mt is the mem-ory. The recent window Wt holds the newest units shown unchanged. Lengths are counted in tokens with one shared tokenizer, and the prompt length 
+
+¯B = 0 .95 B for a budget B leaves a small safety margin. The allowance At = ¯B − | Pt| − | Wt|
+
+is the room left for memory. Memory is kept in units. For an agent, consecutive steps, each an ac-tion with the environment’s output, are packed into one unit until it reaches 1,000 tokens. For a reader that answers a question about a past conversation, each session is cut at user turns into spans of at most about 2,000 tokens, and there is no recent window. The units older than the recent window are u1, . . . , u n in time order. 
+
+3.1 Writing Memory 
+
+When a unit ui leaves the recent window, FlexA-Mem writes it once as a note mi =(ri, s i, f i, e i, L i, Πi). The raw text ri is the unit ex-actly as it occurred and never changes. One LLM call reads ri and writes the record si, at most 80 words, with retrieval fields fi made of keywords, tags and a short description. A small sentence en-coder ϕ gives the embedding ei = ϕ(si∥fi), where 
+
+∥ denotes concatenation, and the links Li connect 
+
+ui in both directions to the three earlier notes with the highest cosine similarity to ei. Without an LLM call, FlexA-Mem also cuts ri at line breaks into pieces Πi = ( πi1, . . . , π iK i ) of at most κ tokens. Each piece stays inside one conversation turn or one block of an agent step. FlexA-Mem never rewrites a note, since a later call recovers detail from the exact raw text and a rewritten neighbor would add cost but no detail. 
+
+3.2 The Timeline of Records 
+
+Every call shows the timeline Tt, the records of past units in time order, which keeps a compact trace of what the agent has done. When it grows too long, FlexA-Mem replaces up to four consecutive records, oldest first, with a merged record that one LLM call writes. Let ∥Tt∥ be the length of the timeline, ρ the share of the allowance given to it, and Dt the total cost of showing every candidate of unit recovery as raw text (Section 3.3). Merging repeats, oldest first, while ∥Tt∥ > max( ρA t, A t −
+
+Dt). A merged record is computed once and reused by later calls. Merging loses the detail of separate records in the context, but the raw text of every unit stays in the store and can still be recovered. On agentic tasks the oldest records are also hidden for one call when the newest unit alone takes more than a quarter of the budget (Appendix A). The room left for recovery is R0 = At − ∥ Tt∥.
+
+3.3 Unit Recovery 
+
+Unit recovery shows each unit at one of three res-olutions, its record, an excerpt or its raw text, and 3a recovered unit appears in its place in the time-line. Candidates come from the query embedding 
+
+ϕ(qt). For a reader it embeds the question, and for an agent it is the normalized sum of the embed-dings of the task and of the newest unit (Table 9 in Appendix A). Let ct(j) be the cosine similarity be-tween ϕ(qt) and ej , let the seeds St be the k units with the highest ct, and let Ni hold the two units adjacent to ui in time. A unit uj receives the score 
+
+gt(j) = max λ[i̸=j] ct(i) : 
+
+i ∈ St, j ∈ { i} ∪ Li ∪ Ni , (2) where [i̸ = j] is 1 when uj is reached from another seed and 0 otherwise, and λ < 1 discounts units reached through a link or through time. The candi-dates are the seeds and the units they reach, visited in decreasing order of gt. Links recover a unit that is connected to what the query concerns, even if its own text does not resemble the query. Let xvi denote the text of ui at resolution v, and let τi = 1 if the record of ui still stands alone in the timeline and τi = 0 if it has been merged. Showing 
+
+ui at resolution v costs 
+
+cost i(v) = 
+
+(
+
+0 if v = rec ,
+
+|xvi | − τi|si| otherwise . (3) A recovered unit takes the place of its own record, which keeps each detail where it happened. After a merge it is placed right after the merged record and pays its full length. Fit-or-degrade visits the candi-dates in order and gives each the highest resolution that still fits. For the ℓ-th candidate u(ℓ),
+
+v(ℓ) = max 
+
+> rec ≺exc ≺raw
+
+v : cost (ℓ)(v) ≤ Rℓ−1 ,Rℓ = Rℓ−1 − cost (ℓ)
+
+ v(ℓ)
+
+. (4) The record always fits because it costs nothing. A unit whose raw text does not fit keeps the part of it that matches the query instead of falling back to its record. A more relevant unit is never degraded to make room for a less relevant one. The rule has no setting tied to the budget, yet a smaller allowance turns more of the recovered units into excerpts. An excerpt is the record si followed, in their orig-inal order, by the pieces of ui that best match the query. FlexA-Mem ranks the pieces by their Okapi BM25 (BM25) score against the query (Table 9), with inverse document frequencies over the whole store, and takes them greedily into a set Xi while P 
+
+> π∈Xi
+
+|π| ≤ E. Excerpts are verbatim because a later call often needs exact strings. 
+
+3.4 Piece Recovery 
+
+Piece recovery spends the room on pieces from the whole history instead of whole units. It ranks every piece of every unit, Π = S 
+
+> i
+
+Πi, by its BM25 score against the query, which is the question for a reader and the task with the newest unit for an agent. Pieces enter a set Xt in rank order while P 
+
+> π∈Xt
+
+|π| ≤ R0. The chosen pieces follow the timeline, grouped by unit in time order. Because pieces always want more room than is left, the timeline is merged down to its share ρA t and lends any unused part of it to the pieces. One unit can contribute several pieces and many units one each, which suits evidence spread over sessions. 
+
+3.5 Choosing a Recovery Mode 
+
+A question about a past conversation usually names its evidence, and keyword matching over all pieces finds it while spending the room only on match-ing text. The next step of an agent re-uses a detail that its context cannot name, and whole units keep the context around each detail. For this reason we use unit recovery for agents and piece recovery for questions over a history. Within a mode FlexA-Mem adapts the detail it shows to the budget at every call, but it does not choose the mode at run time (Section 6.4). The only LLM calls at read time write merged records, and Algorithm 1 in Ap-pendix A gives the full procedure of unit recovery. 
+
+4 Experimental Setup 
+
+4.1 Benchmarks 
+
+AppWorld (Trivedi et al., 2024) asks agents to com-plete everyday tasks through the APIs of nine apps. We report the share of tasks whose unit tests all pass, with 60 steps and budgets of 4k and 6k tokens. Test-Normal has 168 tasks, and Test-Challenge has 417 harder ones on which no setting was cho-sen. Without a budget the longest prompt on Test-Normal has a median of 10.4k tokens. The 147 unused tasks of the Train and Dev sets confirm the design, with the method, predictions and tests fixed before any run (Appendix E.1). SWE-bench Veri-fied (Jimenez et al., 2024; OpenAI, 2024) asks an agent in mini-swe-agent (Lieret and Jimenez, 2025) to resolve issues in Python repositories within 250 steps. We report the resolve rate at 8k on the 480 issues our images can grade, 95 of which were used to choose settings. LongMemEval (Wu et al., 2025a) gives each of 500 questions a history of about 48 sessions and 4AppWorld SWE-bench LongMemEval LoCoMo Normal Challenge issues at 8k Method 4k 6k 4k 6k 95 480 4k 8k 16k 32k 2k 4k 8k Full history 78.6 62.1 69.5 67.9 88.4 83.4 Truncation 26.2 55.4 8.6 22.5 63.2 62.3 10.9 15.0 24.1 35.5 14.0 25.9 39.6 Masking (Lindenbauer et al., 2025) 35.7 60.1 9.6 27.3 67.4 64.2 – – – – – – –Masking + rule log 58.3 66.7 27.6 42.7 – – – – – – – – –Piece retrieval 20.2 48.8 7.2 14.1 63.2 60.4 78.4 81.6 85.7 85.9 67.7 72.2 75.5 Unit retrieval 28.6 48.2 8.6 17.7 64.2 62.7 54.8 73.6 83.6 86.6 48.6 63.4 74.8 A-Mem (Xu et al., 2025a) 25.0 48.2 9.4 16.3 65.3 – 52.0 71.6 84.5 88.6 45.5 55.8 68.8 Summary+A-Mem (Wang et al., 2025c) 54.2 68.5 26.1 43.6 64.2 62.5 50.7 70.2 82.3 86.8 44.9 56.9 69.5 MemGAS (Xu et al., 2026a) 10.7 26.2 3.1 9.1 58.9 – 37.7 52.7 65.9 70.2 27.1 39.5 52.5 Sculptor (Li et al., 2026a) 26.2 47.6 8.2 21.3 62.1 – 33.9 75.9 76.4 74.5 17.1 29.2 51.6 ReadAgent (Lee et al., 2024) 61.9 72.0 28.8 54.7 67.4 – 23.0 35.2 53.4 58.2 27.3 49.4 72.1 AFM (Cruz, 2025) 55.4 72.0 26.1 52.3 – – 37.5 58.9 75.5 76.6 45.0 60.0 62.7 FlexA-Mem, unit recovery 64.3 78.0 40.3 62.4 71.6 66.5 69.5 75.0 81.4 86.1 52.5 65.2 75.7 FlexA-Mem, piece recovery 58.3 70.8 30.2 52.8 64.2 – 78.0 81.6 85.0 85.7 69.9 73.2 78.1 FlexA-Mem, timeline only 63.7 67.9 – – 69.5 – 41.4 62.7 70.5 70.5 40.3 63.8 67.8 
+
+Table 1: Main results, completion on AppWorld, resolve rate on SWE-bench, accuracy on 440 LongMemEval questions and J on LoCoMo. Blue, orange and green mark the best, second and third method with a budget per column. Gray numbers, from the mode FlexA-Mem does not use on that task, and timeline only are not ranked. Appendix B lists the results from separate runs. 
+
+103k tokens, which a reader answers from 4k to 32k tokens. We choose settings on 60 development questions and report accuracy on the other 440. Their aggregate results were inspected while we designed piece recovery and the rule for choosing a mode. For this reason we treat LongMemEval as comparative evidence and the unused AppWorld tasks as the test of the frozen design. LoCoMo (Ma-harana et al., 2024) has 1,540 questions on 10 con-versations in its first four categories, answered from 2k to 8k tokens with the reader and judge prompts of Mem0 (Chhikara et al., 2025), and FlexA-Mem keeps its LongMemEval settings. 
+
+4.2 Baselines and Implementation 
+
+All methods share the units, the embedding model, the budget, the token counter and the LLM, GPT-5.4 mini. A-Mem (Xu et al., 2025a) fills the allowance with retrieved notes in raw text, and Summary+A-Mem adds a running LLM summary (Wang et al., 2025c) that takes half of the allowance on LongMemEval and 70% on the agentic tasks. MemGAS (Xu et al., 2026a) filters granularities with an LLM, Sculptor (Li et al., 2026a) manages the context through tools, and ReadAgent (Lee et al., 2024) replaces gists with pages chosen by an LLM. AFM (Cruz, 2025), which we reproduce and calibrate, gives each unit a full, compressed or placeholder form (Appendix E.3). Piece and unit retrieval rank pieces by BM25 or units by embed-ding and write no memory. Observation masking                      
+
+> Setting FlexA-Mem Baseline Gap AppWorld Test-Normal 8k 75.0 A-Mem 67.3 +7.7 4k, 150 steps 80.4 masking 33.9 +46.4 4k, second run 65.5 masking 38.1 +27.4 6k, second run 74.4 masking 59.5 +14.9 SWE-bench Verified, 8k other 385 issues 65.2 masking 63.4 +1.8 no network 67.4 w/o excerpts 63.2 +4.2
+
+Table 2: FlexA-Mem against the strongest baseline run in further settings. 
+
+(Lindenbauer et al., 2025) hides old tool outputs, alone or with a rule-written log of past steps, and truncation keeps the newest units (Appendix C). We tuned FlexA-Mem on the LongMemEval de-velopment questions only and kept default values on the agentic tasks (Appendix A). Claude Sonnet 4.6 and GPT-5.4 judge the answers, and the exact McNemar test compares paired outcomes. 
+
+5 Results 
+
+5.1 Agentic Tasks 
+
+With unit recovery, FlexA-Mem completes more AppWorld tasks than every baseline that works un-der a budget (Table 1). The margin is widest on Test-Challenge, where it outperforms the second-best method, ReadAgent, by 11.5% at 4k ( p < 
+
+0.001 ) and 7.7% at 6k ( p = 0 .002 ). At 6k it also matches the full history, 62.4% against 62.1% (p = 1 ). Test-Normal separates the methods less 5Completion Steps Method 4k 6k 4k 6k Full history 77.6 16.0 Observation masking 38.8 70.7 41.5 24.1 Summary+A-Mem 64.6 74.1 34.8 24.4 Timeline only 76.2 79.6 32.2 28.7 FlexA-Mem, piece recovery 70.7 81.0 28.8 20.9 FlexA-Mem, unit recovery 76.9 81.6 26.9 20.7 
+
+Table 3: Confirmation on 147 unused AppWorld tasks, with steps per episode. Timeline only drops recovery. 
+
+clearly. Its leads of 2.4% and 6.0% over ReadA-gent are not significant and lie within the 4.8% that separates two runs of the same arm. On all 480 SWE-bench Verified issues the margins are smaller, as FlexA-Mem outperforms the second-best method, observation masking, by 2.3% and Summary+A-Mem by 4.0% with one fifth of the tokens of Summary+A-Mem. Neither a rerun of AppWorld nor a limit of 150 steps removes the sig-nificant lead, and on the 385 SWE-bench issues not used to choose settings the lead is 1.8% (Table 2 and Appendix F). 
+
+5.2 Confirmation on Unused Tasks 
+
+The 147 unused tasks confirm the AppWorld results (Table 3). Before the first episode we froze the code, six arms, two budgets and five predictions. At 4k FlexA-Mem outperforms the strongest baseline, Summary+A-Mem, by 12.2% (Holm-adjusted p =0.006 ), and it differs from the full history by −0.7% and +4.1%, neither significant. Three of the five predictions hold. The lead over Summary+A-Mem at 6k misses after correction ( p = 0 .061 ), and the lead over the timeline alone at 6k shrinks to 2.0% (p = 0 .345 ). This last miss is a first sign that the timeline does most of the work (Section 6.2). 
+
+5.3 Fact Recall 
+
+Keyword retrieval over the raw history is the strongest simple method for fact recall, and piece recovery keeps pace with it (Table 1). The two stay within 0.7% of each other at every Long-MemEval budget, and at 4k piece recovery out-performs A-Mem by 25.9%. That gap closes as the budget grows, until A-Mem leads at 32k with 88.6% against 85.7%. LoCoMo favors piece recov-ery slightly, by 1.0% to 2.6% over piece retrieval. These results do not show that records written by an LLM help fact recall, because removing the time-line changes LongMemEval accuracy by at most 3.6%. What they show is that one store serves both 100k 200k 500k 1000k 25 50 75 Completion (%) Full history Truncation Masking Piece retrieval Unit retrieval A-Mem Summary+A-Mem ReadAgent AFM    
+
+> FlexA-Mem
+> (a) AppWorld Test-Normal at 4k 10k 100k 1000k Tokens per task (log scale) 25 50 75 100 Accuracy (%)  Full history Truncation Piece retrieval Unit retrieval A-Mem Summary+A-Mem
+> FlexA-Mem
+> (b) LongMemEval at 8k
+
+Figure 3: Completion or accuracy against tokens per task, memory construction included. FlexA-Mem uses unit recovery on AppWorld and piece recovery on Long-MemEval, the mode set for each.                                        
+
+> Method GPT Gemini Haiku AppWorld Test-Normal, agent, 4k Full history 78.6 94.6 79.2 Truncation 26.2 67.3 45.2 Observation masking 35.7 87.5 58.3 Piece retrieval 20.2 74.4 53.6 FlexA-Mem w/o excerpts 64.3 91.1 67.3 FlexA-Mem 64.3 94.0 67.3 LongMemEval, reader, 8k Truncation 14.8 13.8 12.8 A-Mem 73.0 75.4 74.2 Summary+A-Mem 71.2 76.0 71.4 Piece retrieval 81.2 86.6 –FlexA-Mem w/o excerpts 74.6 77.0 74.0 FlexA-Mem 76.0 81.6 78.4
+
+Table 4: AppWorld with three agents and Long-MemEval with three readers. 
+
+kinds of scenario. The memory whose timeline car-ries agent completion matches a dedicated retriever on questions that name their evidence, whereas ev-ery baseline memory built on text written by an LLM falls behind once the budget is tight. 
+
+5.4 Cost and Other Models 
+
+FlexA-Mem spends one seventh to one third of the tokens of A-Mem and Summary+A-Mem per task (Figure 3 and Table 14), although the full his-tory costs fewer tokens in every setting. On App-World only observation masking uses fewer tokens among the methods with a budget, and it completes 28.6% fewer tasks. On LongMemEval piece re-trieval reaches the accuracy of FlexA-Mem with 8.0k instead of 176.6k tokens, because it writes no memory. On LongMemEval it stays the most accu-rate method that writes memory with all three read-ers (Table 4). Only on SWE-bench Verified with Haiku does FlexA-Mem trail, resolving 2.1% fewer 6AppWorld SWE-bench LongMemEval Variant 4k 6k 8k 4k 8k 16k 32k FlexA-Mem (control) 65.5 76.2 66.3 69.5 75.0 81.4 86.1 without timeline −15.5 −10.1 −1.1 +0.5 +3.6 +1.1 −0.9 without recovery −1.8 −8.3 +3.2 −28.2 −12.3 −10.9 −15.7 without excerpts +0.0 +2.4 −3.2 −15.7 −1.1 −1.4 −1.1 random candidates −0.6 −1.8 – −47.5 −40.9 −32.5 −17.0 same selection after the timeline +3.6 −3.6 – −0.5 +1.4 +0.5 +0.7 fixed-length recovery −0.6 −4.8 – +6.1 +7.0 +1.6 −1.8 A-Mem with fit-or-degrade +10.7 +7.7 – +13.4 +5.7 +2.0 −1.1 
+
+Table 5: Change in completion or accuracy (%) when one part of FlexA-Mem with unit recovery is removed or changed. Appendix B gives the control of each row.                      
+
+> Records written by Recovery 4k 6k GPT-5.4 mini none 67.3 75.0 fixed rules, no LLM none 61.3 61.3 fixed rules, with masking none 58.3 66.7 Claude Haiku 4.5 none 51.8 –GPT-5.4 mini raw text only 64.3 80.4 Claude Haiku 4.5 raw text only 62.5 –
+
+Table 6: AppWorld Test-Normal completion with records from different writers. 
+
+issues than observation masking (Appendix E.5). 
+
+6 Analysis 
+
+6.1 How the Baselines Fail on AppWorld 
+
+In the failure trajectories we analyze, the main failure mode of the baselines on AppWorld is repeating their own setup, not giving wrong an-swers (Figure 5). At 4k on Test-Normal, 23.8% of the episodes of FlexA-Mem end at the step limit, against 55.4% to 85.7% for every baseline except Summary+A-Mem. The tasks that the baselines declare complete are right about as often as those of FlexA-Mem. Of their failures at 4k, 90% are loops of logging in and rereading documentation. Extra steps do not rescue them. With 150 steps instead of 60, observation masking, truncation and piece retrieval complete no more tasks, whereas FlexA-Mem rises from 64.3% to 80.4%. ReadA-gent and AFM, the two strongest baselines, keep a gist of every unit or a compressed summary of most units in view. Unlike ReadAgent, AFM packs units oldest first and drops 2.3 of the newest units per call at 4k. 
+
+6.2 The Timeline Keeps the Trace 
+
+Removing the timeline costs the most on App-World, lowering completion by 15.5% at 4k and 10.1% at 6k (Table 5). On SWE-bench Verified the                               
+
+> Method Recall Hit rate Bal. acc. Full history 22/22 98.6 0.97 Truncation 17/22 19.2 0.59 Observation masking 17/22 95.2 0.96 A-Mem 11/22 25.3 0.61 Summary+A-Mem 12/22 47.9 0.73 ReadAgent 17/22 32.9 0.66 MemGAS 6/22 14.4 0.57 FlexA-Mem w/o excerpts 17/22 69.2 0.83 FlexA-Mem 18/22 90.4 0.93
+
+Table 7: Questions to the memory at 109 checkpoints of SWE-bench trajectories at 8k. Colors mark the best, second and third method with a budget, without the version without excerpts. 
+
+resolve rate barely moves, but the agent needs 56.9 steps per issue instead of 43.8. The unused tasks tell the same story, with the timeline alone within 2.0% of the full method (Table 3). Records from an LLM help little at 4k. A trace written by fixed rules, with no LLM call, still completes 61.3% of Test-Normal against 67.3% for records from GPT-5.4 mini ( p = 0 .15 ), although LLM records matter once there is room at 6k (Table 6). Such a trace is a strong design on its own. Observation masking with this trace reaches 58.3% at 4k, up from 35.7%, and trails FlexA-Mem by 6.0% ( p = 0 .12 ). The gap grows to 11.3% at 6k ( p = 0 .003 ) and on Test-Challenge to 12.7% at 4k and 19.7% at 6k (both 
+
+p < 10 −8). Fact recall, in contrast, barely uses the timeline. Removing it changes LongMemEval accuracy by at most 3.6%, and on LoCoMo the timeline alone stays below piece recovery at each budget from 2k to 8k. 
+
+6.3 Recovery Brings Back the Detail 
+
+Recovery decides accuracy when the answer is an exact detail. On LongMemEval, removing recovery lowers accuracy by 28.2% at 4k and random candi-dates lower it by 47.5%, whereas showing the same 7−20 −10 0 10 Unit minus piece recovery (points) Test-Normal 4k Test-Normal 6k Test-Challenge 4k Test-Challenge 6k SWE-bench 8k LongMemEval 4k LongMemEval 8k LongMemEval 16k LongMemEval 32k LoCoMo 2k LoCoMo 4k LoCoMo 8k    
+
+> +7.1 +4.8 +10.1* +9.6* +6.3
+> −8.4*
+> −6.6*
+> −3.6* +0.5
+> −17.4*
+> −8.1*
+> −2.4* units better pieces better
+> (a) Which recovery mode is better
+> rank 1 (n=204) rank 2-5 (n=122) rank 6-20 (n=53) rank >20 (n=34)
+> BM25 rank of the evidence 020 40 60 80 100 Accuracy at 4k (%)
+> 70 87 76 82 68 77 65 38
+> (b) LongMemEval by fi ndability
+> Unit recovery Piece recovery
+
+Figure 4: (a) Unit minus piece recovery (%). (b) LongMemEval accuracy at 4k, grouped by the BM25 rank of the best evidence piece of each question. 0 25 50 75 100 Episodes at the step limit (%) MemGAS Piece retrieval Sculptor Truncation A-MEM Unit retrieval Observation masking Summary+A-MEM FlexA-MEM 24 32 55 66 68 68 68 76 86  
+
+> 4k budget (value printed) 6k budget
+
+Figure 5: Test-Normal episodes that end at the 60-step limit at 4k (filled, value printed) and 6k (open). 0 20 40 60 80 100 Share of memory tokens (%) 8k 16k 32k   
+
+> 24.5 27.4 24.1 7.4 3.8 2.4 68.2 68.8 73.5 Records Excerpts Raw text
+
+Figure 6: Share of memory tokens of FlexA-Mem on records, excerpts and raw text. 
+
+selection after the timeline changes it by at most 1.4%. Fit-or-degrade is not the best rule there, since giving every candidate an excerpt gains 6.1% at 4k. AppWorld uses recovery to save effort rather than to complete more tasks, and on the unused tasks it cuts the steps per episode from 32.2 to 26.9 at 4k. It still adds 5.0% on Test-Challenge at 4k through ex-cerpts ( p = 0 .031 ) and 10.7% when Claude Haiku 4.5 writes the records (Appendix E.8). Without a timeline the rule decides completion, and render-ing the notes of A-Mem with fit-or-degrade raises its Test-Normal completion by 10.7% at 4k. The rule also adapts to the budget as designed. Ex-cerpts take 7.4% of the LongMemEval memory tokens at 8k and 2.4% at 32k, while raw text grows from 68.2% to 73.5% (Figure 6). With excerpts, the memory tells whether a SWE-bench agent dis-played a given file with a balanced accuracy of 0.93 against 0.83 without them (Table 7). Obser-vation masking reaches 0.96, since it keeps every command and hides only old outputs. 
+
+6.4 When Each Recovery Mode Wins 
+
+Each mode leads on the kind of scenario it was set for (Figure 4a). Unit recovery outperforms piece recovery in all five agentic settings, by 4.8% to 10.1%, and piece recovery leads on LongMemEval up to 16k and on LoCoMo at every budget. In the questions we test, the gap between the modes is associated with how well the question names its evidence (Figure 4b). Piece recovery is ahead by 17.6% at 4k when BM25 ranks the evidence first, and unit recovery is ahead by 26.5% when the evidence ranks below twentieth. This rank needs evidence labels. The runtime signals we tested do not reliably predict the better mode for a single query, and we offer no deployable rule for choosing it. The two modes also differ in more than the unit of recovery (Appendix F). 
+
+7 Conclusion 
+
+A single write-once store, rendered anew at every call as a compact timeline of records plus detail recovered by a fixed rule, lets FlexA-Mem serve both kinds of scenario. On agentic tasks the time-line keeps the trace and carries completion, coming within 2.0% of the full method on tasks unused in design. On fact recall the recovered text decides accuracy, and keyword retrieval over the kept raw text is already strong. Choosing the recovery mode for each query without labels is the next step. 8Limitations 
+
+We designed the final FlexA-Mem after the main experiments, and only the 147 unused AppWorld tasks test it with predictions fixed in advance. Most configurations ran once, with up to 4.8% between two runs on AppWorld. The recovery mode is set per task type rather than per query. Every history here fits in the context of the model, where the full history costs fewer tokens, and all four benchmarks are in English. Appendix B gives further details. 
+
+References 
+
+Ibragim Badertdinov, Alexander Golubev, Maksim Nekrashevich, Anton Shevtsov, Simon Karasik, An-drei Andriushchenko, Maria Trofimova, Daria Litv-intseva, and Boris Yangel. 2025. SWE-rebench: An automated pipeline for task collection and decontam-inated evaluation of software engineering agents. In 
+
+Advances in Neural Information Processing Systems .arXiv:2505.20411. Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. 2025. Mem0: Building production-ready AI agents with scalable long-term memory. In Proceedings of the European Conference on Artificial Intelligence (ECAI) . arXiv:2504.19413. Christopher Cruz. 2025. Adaptive focus memory for language models. arXiv preprint arXiv:2511.12712 .Zeyang Cui, Jiannong Cao, Zhiyuan Wen, Bo Yuan, Junlan Feng, and Shengyuan Chen. 2026. Edge-Mem: LLM-free agent memory construction and retrieval via evidence-preserving multi-anchor hyper-graph. arXiv preprint arXiv:2609.05553 .Clint Ehrlich and Theodore Blackman. 2026. LCM: Lossless context management. arXiv preprint arXiv:2605.04050 .Run-Ze Fan, Zihao Zhang, Simin Ma, Yebowen Hu, Shouju Wang, Kaiqiang Song, Fei Liu, Hamed Za-mani, and Xiaoyang Wang. 2026. An empirical study of harness design for coding agents. arXiv preprint arXiv:2609.20804 .Jizhan Fang, Xinle Deng, Haoming Xu, Ziyan Jiang, Yuqi Tang, Ziwen Xu, Shumin Deng, Yunzhi Yao, Mengru Wang, Shuofei Qiao, Huajun Chen, and Ningyu Zhang. 2026. LightMem: Lightweight and efficient memory-augmented generation. In Proceed-ings of the International Conference on Learning Representations (ICLR) . arXiv:2510.18866. Mengkang Hu, Tianxing Chen, Qiguang Chen, Yao Mu, Wenqi Shao, and Ping Luo. 2025. HiAgent: Hier-archical working memory management for solving long-horizon agent tasks with large language model. In Proceedings of the Annual Meeting of the Asso-ciation for Computational Linguistics (ACL) , pages 32779–32798. Huiqiang Jiang, Qianhui Wu, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2023. LLMLingua: Compress-ing prompts for accelerated inference of large lan-guage models. In Proceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP) , pages 13358–13376. Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dong-sheng Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2024. LongLLMLingua: Accelerating and enhanc-ing LLMs in long context scenarios via prompt com-pression. In Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL) ,pages 1658–1677. Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press, and Karthik Narasimhan. 2024. SWE-bench: Can language mod-els resolve real-world GitHub issues? In Proceedings of the International Conference on Learning Repre-sentations (ICLR) . arXiv:2310.06770. Jiazheng Kang, Mingming Ji, Zhe Zhao, and Ting Bai. 2025. Memory OS of AI agent. In Proceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP) , pages 25972–25981. arXiv:2506.06326. Minki Kang, Wei-Ning Chen, Dongge Han, Huseyin A. Inan, Lukas Wutschitz, Yanzhi Chen, Robert Sim, and Saravan Rajmohan. 2026a. ACON: Optimizing context compression for long-horizon LLM agents. In Proceedings of the International Conference on Machine Learning (ICML) . arXiv:2510.00615. Qingcan Kang, Mingyang Liu, Shixiong Kai, Kaichao Liang, Zhentao Tang, Yuqi Cui, Tao Zhong, and Mingxuan Yuan. 2026b. Retain or consolidate? Budget-dependent operator selection for language agent memory. arXiv preprint arXiv:2607.17545 .Kuang-Huei Lee, Xinyun Chen, Hiroki Furuta, John Canny, and Ian Fischer. 2024. A human-inspired reading agent with gist memory of very long contexts. In Proceedings of the International Conference on Machine Learning (ICML) , volume 235 of PMLR .arXiv:2402.09727. Mo Li, L. H. Xu, Qitai Tan, Long Ma, Ting Cao, and Yunxin Liu. 2026a. Sculptor: Empowering LLMs with cognitive agency via active context management. In Proceedings of the International Conference on Learning Representations (ICLR) .arXiv:2508.04664. Xiaochuan Li, Ryan Ming, Meng Chu, Shuai Shao, Rong Jin, and Chenyan Xiong. 2026b. ACM: Agen-tic context management for long horizon tasks. arXiv preprint arXiv:2607.23809 .Kaiqu Liang, Julia Kruk, Shengyi Qian, Xianjun Yang, Shengjie Bi, Yuanshun Yao, Shaoliang Nie, Mingyang Zhang, Lijuan Liu, Jaime Fernández Fisac, et al. 2026. Learning personalized agents from hu-man feedback. arXiv preprint arXiv:2602.16173 .
+
+9Ning Liao, Zihao Long, Xiaoxing Wang, Xue Yang, Yaoming Wang, Ziyuan Zhuang, Xunliang Cai, Rongxiang Weng, and Junchi Yan. 2026. ACE: Pluggable adaptive context elasticizer across agents. 
+
+arXiv preprint arXiv:2606.31564 .Kilian A. Lieret and Carlos E. Jimenez. 2025. mini-swe-agent. https://github.com/SWE-agent/ mini-swe-agent . Software, version 2.3.0. Tobias Lindenbauer, Igor Slinko, Ludwig Felder, Egor Bogomolov, and Yaroslav Zharov. 2025. The com-plexity trap: Simple observation masking is as effi-cient as LLM summarization for agent context man-agement. In NeurIPS 2025 Workshop on Deep Learn-ing for Code (DL4C) . arXiv:2508.21433. Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paran-jape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2024. Lost in the middle: How language mod-els use long contexts. Transactions of the Association for Computational Linguistics , 12:157–173. Shukai Liu, Bo Jiang, Jian Yang, Yizhi Li, Jinyang Guo, Xianglong Liu, and Bryan Dai. 2026. Context as a tool: Context management for long-horizon SWE-agents. In Findings of the Association for Computa-tional Linguistics: ACL 2026 , pages 20604–20617. arXiv:2512.22087. Shuyu Liu. 2026. What does context compres-sion cost an agent? interaction costs unre-vealed by task-completion metrics. arXiv preprint arXiv:2608.16370 .Wenquan Ma, Jiayan Nan, and WenLong Wu. 2026. What deserves memory: Adaptive memory distil-lation for LLM agents. In Proceedings of the Annual Meeting of the Association for Compu-tational Linguistics (ACL) , pages 34789–34812. arXiv:2508.03341. Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. 2024. Evaluating very long-term conversational memory of LLM agents. In Proceedings of the Annual Meeting of the Association for Compu-tational Linguistics (ACL) , pages 13851–13870. arXiv:2402.17753. Tony Mason. 2026. The missing memory hierarchy: Demand paging for LLM context windows. arXiv preprint arXiv:2603.09023 .OpenAI. 2024. Introducing SWE-bench Veri-fied. https://huggingface.co/datasets/ princeton-nlp/SWE-bench_Verified . Blog post and dataset. Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2023. MemGPT: Towards LLMs as operating sys-tems. arXiv preprint arXiv:2310.08560 .Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Xufang Luo, Hao Cheng, Dongsheng Li, Yuqing Yang, Chin-Yew Lin, H. Vicky Zhao, Lili Qiu, and Jianfeng Gao. 2025. On memory construction and retrieval for personal-ized conversational agents. In Proceedings of the International Conference on Learning Representa-tions (ICLR) . arXiv:2502.05589. Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Menglin Xia, Xufang Luo, Jue Zhang, Qingwei Lin, Victor Rühle, Yuqing Yang, Chin-Yew Lin, H. Vicky Zhao, Lili Qiu, and Dongmei Zhang. 2024. LLMLingua-2: Data distillation for efficient and faithful task-agnostic prompt compression. In Findings of the As-sociation for Computational Linguistics: ACL 2024 .arXiv:2403.12968. Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Mered-ith Ringel Morris, Percy Liang, and Michael S. Bern-stein. 2023. Generative agents: Interactive simulacra of human behavior. In Proceedings of the 36th An-nual ACM Symposium on User Interface Software and Technology (UIST) , pages 1–22. Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. 2025. Zep: A tempo-ral knowledge graph architecture for agent memory. 
+
+arXiv preprint arXiv:2501.13956 .Alireza Rezazadeh, Zichao Li, Wei Wei, and Yujia Bao. 2025. From isolated conversations to hierar-chical schemas: Dynamic tree memory representa-tion for LLMs. In Proceedings of the International Conference on Learning Representations (ICLR) .arXiv:2410.14052. Parth Sarthi, Salman Abdullah, Aditi Tuli, Shubh Khanna, Anna Goldie, and Christopher D. Manning. 2024. RAPTOR: Recursive abstractive processing for tree-organized retrieval. In Proceedings of the In-ternational Conference on Learning Representations (ICLR) . arXiv:2401.18059. Weiwei Sun, Miao Lu, Zhan Ling, Kang Liu, Xuesong Yao, Yiming Yang, and Jiecao Chen. 2025. Scaling long-horizon LLM agent via context-folding. arXiv preprint arXiv:2510.11967 .Harsh Trivedi, Tushar Khot, Mareike Hartmann, Ruskin Manku, Vinty Dong, Edward Li, Shashank Gupta, Ashish Sabharwal, and Niranjan Balasubramanian. 2024. AppWorld: A controllable world of apps and people for benchmarking interactive coding agents. In Proceedings of the Annual Meeting of the Asso-ciation for Computational Linguistics (ACL) , pages 16022–16076. Bing Wang, Xinnian Liang, Jian Yang, Hui Huang, Shuangzhi Wu, Peihao Wu, Lu Lu, Zejun Ma, and Zhoujun Li. 2025a. SCM: Enhancing large lan-guage model with self-controlled memory framework. In Proceedings of the International Conference on Database Systems for Advanced Applications (DAS-FAA) . arXiv:2304.13343. 
+
+10 Qingyue Wang, Yanhe Fu, Yanan Cao, Shuai Wang, Zhiliang Tian, and Liang Ding. 2025b. Recur-sively summarizing enables long-term dialogue mem-ory in large language models. Neurocomputing ,639:130193. arXiv:2308.15022. Xingyao Wang, Boxuan Li, Yufan Song, Frank F. Xu, Xiangru Tang, Mingchen Zhuge, Jiayi Pan, Yueqi Song, Bowen Li, Jaskirat Singh, Hoang H. Tran, Fuqiang Li, Ren Ma, Mingzhang Zheng, Bill Qian, Yanjun Shao, Niklas Muennighoff, Yizhe Zhang, Binyuan Hui, and 5 others. 2025c. OpenHands: An open platform for AI software developers as gen-eralist agents. In Proceedings of the International Conference on Learning Representations (ICLR) .arXiv:2407.16741. Xingyao Wang, Simon Rosenberg, Juan Michelini, Calvin Smith, Hoang Tran, Engel Nyst, Rohit Malho-tra, Xuhui Zhou, Valerie Chen, Robert Brennan, and Graham Neubig. 2026a. The OpenHands software agent SDK: A composable and extensible foundation for production agents. In Proceedings of Machine Learning and Systems (MLSys) . arXiv:2511.03690. Zhenting Wang, Huancheng Chen, Jiayun Wang, and Wei Wei. 2026b. Memex(RL): Scaling long-horizon LLM agents via indexed experience memory. arXiv preprint arXiv:2603.04257 .Zhiqi Wang, Yichi Zhang, Dongwon Lee, and Yuchen Yang. 2026c. Lost in compaction: Evaluating side-constraint loss under context compaction. arXiv preprint arXiv:2608.11242 .Sarel Weinberger and Amir Hozez. 2026. Token reduction is not cost reduction. arXiv preprint arXiv:2607.12161 .Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. 2025a. LongMemEval: Benchmarking chat assistants on long-term interac-tive memory. In Proceedings of the International Conference on Learning Representations (ICLR) .arXiv:2410.10813. Junde Wu, Minhao Hu, Jiayuan Zhu, Jiazhen Pan, Yuyuan Liu, Min Xu, and Yueming Jin. 2025b. Git context controller: Manage the context of LLM-based agents like git. arXiv preprint arXiv:2508.00031 .Yuan-An Xiao, Pengfei Gao, Chao Peng, and Yingfei Xiong. 2026. Reducing cost of LLM agents with trajectory reduction. Proceedings of the ACM on Software Engineering , 3(FSE):1241–1263. arXiv:2509.23586. Derong Xu, Yi Wen, Pengyue Jia, Yingyi Zhang, Wen-lin Zhang, Yichao Wang, Huifeng Guo, Ruiming Tang, Xiangyu Zhao, Enhong Chen, and Tong Xu. 2026a. From single to multi-granularity: Toward long-term memory association and selection of con-versational agents. In Proceedings of the Inter-national Conference on Learning Representations (ICLR) . arXiv:2505.19549. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. 2025a. A-MEM: Agentic memory for LLM agents. In Advances in Neural Information Processing Systems , volume 38, pages 20004–20031. arXiv:2502.12110. Wujiang Xu, Yunxiao Shi, Zujie Liang, Xuying Ning, Kai Mei, Kun Wang, Xi Zhu, Min Xu, and Yongfeng Zhang. 2025b. iagent: Llm agent as a shield be-tween user and recommender systems. In Findings of the Association for Computational Linguistics: ACL 2025 , pages 18056–18084. Wujiang Xu, Yu Wang, Kai Mei, Kaiqu Liang, Zhent-ing Wang, Mingyu Jin, Han Zhang, Shi-Xiong Zhang, Wenyue Hua, Sambit Sahu, and Dimitris N. Metaxas. 2026b. MemGym: a long-horizon mem-ory environment for LLM agents. arXiv preprint arXiv:2605.20833 .B. Y. Yan, Chaofan Li, Hongjin Qian, Shuqi Lu, and Zheng Liu. 2025. General agentic memory via deep research. arXiv preprint arXiv:2511.18423 .Sikuan Yan, Xiufeng Yang, Zuchao Huang, Ercong Nie, Zifeng Ding, Zonggen Li, Xiaowen Ma, Jinhe Bi, Kristian Kersting, Jeff Z. Pan, Hinrich Schütze, Volker Tresp, and Yunpu Ma. 2026. Memory-R1: Enhancing large language model agents to manage and utilize memories via reinforcement learning. In 
+
+Proceedings of the Annual Meeting of the Associ-ation for Computational Linguistics (ACL) , pages 12805–12825. arXiv:2508.19828. John Yang, Carlos Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao, Karthik Narasimhan, and Ofir Press. 2024. SWE-agent: Agent-computer interfaces enable automated software engineering. In Advances in Neural Information Processing Systems , pages 50528–50652. arXiv:2405.15793. Rui Ye, Zhongwang Zhang, Kuan Li, Huifeng Yin, Zhengwei Tao, Yida Zhao, Liangcai Su, Liwen Zhang, Zile Qiao, Xinyu Wang, Pengjun Xie, Fei Huang, Siheng Chen, Jingren Zhou, and Yong Jiang. 2026. AgentFold: Long-horizon web agents with proactive context management. In Proceedings of the International Conference on Learning Represen-tations (ICLR) . arXiv:2510.24699. Wenhao Yu, Hongming Zhang, Xiaoman Pan, Kaixin Ma, Hongwei Wang, and Dong Yu. 2024. Chain-of-Note: Enhancing robustness in retrieval-augmented language models. In Proceedings of the Conference on Empirical Methods in Natural Language Process-ing (EMNLP) . arXiv:2311.09210. Yi Yu, Liuyi Yao, Yuexiang Xie, Qingquan Tan, Ji-aqi Feng, Yaliang Li, and Libing Wu. 2026. Agen-tic memory: Learning unified long-term and short-term memory management for large language model agents. In Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL) ,pages 21457–21483. arXiv:2601.01885. 
+
+11 Zhengran Zeng, Yixin Li, Rui Xie, Wei Ye, and Shikun Zhang. 2026. AttnCompress: Dynamic attention-guided trajectory compression for software engineer-ing agents. In Proceedings of the ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA) . arXiv:2609.08318. Saber Zerhoudi, Jelena Mitrovic, and Michael Granitzer. 2026. The compaction cliff in long-running AI agent memory. In Proceedings of the ACM International Conference on Information and Knowledge Manage-ment (CIKM) . arXiv:2608.22752. Dylan Zhang, Yanshan Lin, Zhengkun Wu, Yihang Sun, Bingxuan Li, Dianqi Li, and Hao Peng. 2026a. Use-ful memories become faulty when continuously up-dated by LLMs. arXiv preprint arXiv:2605.12978 .Yuxiang Zhang, Jiangming Shu, Ye Ma, Xueyuan Lin, Shangxi Wu, and Jitao Sang. 2026b. Memory as ac-tion: Autonomous context curation for long-horizon agentic tasks. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 19149– 19164. arXiv:2510.12635. Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. 2024. MemoryBank: Enhancing large language models with long-term memory. Proceed-ings of the AAAI Conference on Artificial Intelligence ,38(17):19724–19731. Zijian Zhou, Ao Qu, Zhaoxuan Wu, Sunghwan Kim, Alok Prakash, Daniela Rus, Jinhua Zhao, Bryan Kian Hsiang Low, and Paul Pu Liang. 2026. MEM1: Learning to synergize memory and reasoning for ef-ficient long-horizon agents. In Proceedings of the International Conference on Learning Representa-tions (ICLR) . arXiv:2506.15841. 
+
+12 Contents 
+
+1 Introduction 12 Related Work 23 FlexA-Mem 2
+
+3.1 Writing Memory . . . . . . . . . 33.2 The Timeline of Records . . . . . 33.3 Unit Recovery . . . . . . . . . . . 33.4 Piece Recovery . . . . . . . . . . 43.5 Choosing a Recovery Mode . . . . 4
+
+4 Experimental Setup 4
+
+4.1 Benchmarks . . . . . . . . . . . . 44.2 Baselines and Implementation . . 5
+
+5 Results 5
+
+5.1 Agentic Tasks . . . . . . . . . . . 55.2 Confirmation on Unused Tasks . . 65.3 Fact Recall . . . . . . . . . . . . 65.4 Cost and Other Models . . . . . . 6
+
+6 Analysis 7
+
+6.1 How the Baselines Fail on AppWorld 76.2 The Timeline Keeps the Trace . . 76.3 Recovery Brings Back the Detail . 76.4 When Each Recovery Mode Wins 8
+
+7 Conclusion 8A Implementation Details 14 B Experiment Details 15 C Baselines 16 D Additional Related Work 17 E Additional Results 17 
+
+E.1 Confirmation Fixed in Advance . . 17 E.2 Results by Budget . . . . . . . . . 18 E.3 AFM and LoCoMo . . . . . . . . 18 E.4 Recovery Modes in Detail . . . . 18 E.5 Other Agents and Readers . . . . 19 E.6 Token Costs . . . . . . . . . . . . 20 E.7 Robustness . . . . . . . . . . . . 20 E.8 What the Timeline Needs . . . . . 20 E.9 What the Memory Recalls on SWE-bench . . . . . . . . . . . . 20 E.10 How the Memory Uses the Budget 21 E.11 Excerpt Variants and Plug-ins . . . 21 E.12 A Case Study . . . . . . . . . . . 21 E.13 Numbers Reported by Other Papers 21 
+
+F Supplementary Results 21 
+
+F.1 Results . . . . . . . . . . . . . . . 21 F.1.1 Agentic Tasks . . . . . . . 21 F.1.2 Confirmation on Unused Tasks . . . . . . . . . . . 21 F.1.3 Fact Recall . . . . . . . . 22 F.1.4 Cost and Other Models . . 23 F.2 Analysis . . . . . . . . . . . . . . 23 F.2.1 How the Baselines Fail on AppWorld . . . . . . . . . 23 F.2.2 The Timeline Keeps the Trace . . . . . . . . . . . 23 F.2.3 Recovery Brings Back the Detail . . . . . . . . . . . 24 F.2.4 When Each Recovery Mode Wins . . . . . . . . 24 13 A Implementation Details 
+
+Algorithm 1 Rendering memory at call t.                                                                                                                       
+
+> Require: notes {mi}, timeline T, query qt, allowance At,settings ρ, λ, k, E
+> 1: C ← candidates of qtordered by gt(Eq. 2) 2: D←P
+> j∈C cost j(raw)
+> 3: while ∥T∥>max( ρA t, A t−D)do
+> 4: merge the oldest records of Tinto one merged record 5: end while
+> 6: R←At− ∥ T∥,V ← ∅
+> 7: for j∈ C in order do
+> 8: if cost j(raw) ≤Rthen
+> 9: V ← V ∪ { (j, raw) },R←R−cost j(raw)
+> 10: else if cost j(exc) ≤Rthen
+> 11: V ← V ∪ { (j, exc) },R←R−cost j(exc)
+> 12: end if
+> 13: end for
+> 14: Mt←Twith each (j, v )∈ V in place of the record of
+> uj
+> 15: while |Mt|> A tdo
+> 16: remove the lowest ranked element of Vand rebuild
+> Mt
+> 17: end while
+> 18: return Mt
+> Setting LongMemEval Agentic tasks Prompt length ¯B0.95 B0.95 B
+> Recent window none within 0.25 B
+> Unit size (tokens) about 2,000 1,000 Timeline share ρ0.3 0.5 Discount λ0.5 0.9 Seeds k10 10 Links per note 33Piece size κ150 150 Excerpt pieces E300 300 BM25 query question newest unit Records merged at once up to 4 up to 4
+
+Table 8: Settings of FlexA-Mem, with tokens counted by the o200k tokenizer.           
+
+> Operation Reader Agent Unit seeds (cosine) question task +newest unit Excerpt pieces (BM25) question newest unit Piece recovery (BM25) question task, newest unit
+
+Table 9: Query of each operation. For seeds, task +
+
+newest unit is the normalized sum of their embeddings. BM25 uses the content words of the query. 
+
+The agent and the reader use medium reason-ing effort, and memory calls use low effort. Em-beddings come from all-MiniLM-L6-v2, and to-kens are counted with the o200k tokenizer. On LongMemEval the reader receives the benchmark’s Chain-of-Note reading prompt (Wu et al., 2025a; Yu et al., 2024) with the memory in place of the history, and the query is the question. On the agen-tic tasks the context holds the system prompt and the task, a message with the memory, and the re-cent window as the original messages. The recent window is the longest run of newest units within a quarter of the budget and always contains the newest unit. The query embedding is the normal-ized sum of the embeddings of the task and of the newest unit. On agentic tasks the pieces of an excerpt are ranked against the newest unit alone, because the task text stays the same for the whole episode and would pull every excerpt toward the same pieces. Table 9 lists the query of each op-eration. Memory starts at the first call that would exceed ¯B, and below it every method passes the history through unchanged. On agentic tasks merged records persist for the whole episode, and merges are sized by the larger of the current allowance and a reference allowance computed with a full recent window. When the newest unit alone takes more than a quarter of the budget, the current allowance falls below the refer-ence, and the oldest records are hidden for that call only. The prompt for a merged record asks for at most 120 words, and longer outputs are cut at 150. Ties in the BM25 ranking go to the cosine sim-ilarity between the piece and the query and then to the earlier piece. BM25 uses k1 = 1 .2 and 
+
+b = 0 .75 , treats the query as a set of lower-cased content words, and removes stop words and markup on both sides. Pieces never cross a turn or an output block. A kept piece that does not begin its turn or block is labeled with its speaker, or with its step number and the first line of its command. Pieces are cut at the first call after a unit is written, embed-ded when the unit is first excerpted, and reused at every later call. Piece recovery shows the timeline first within its share of the allowance, with merges sized as in unit recovery, and a timeline shorter than its share lends the rest to the pieces. Pieces are ranked as in piece retrieval, by BM25 over the content words of the query with ties broken by embedding similarity and then by position. They follow the timeline under a one-line header, grouped by unit in time order with marks for omitted text. The query is the question on LongMemEval and the task with the newest unit on the agentic tasks. If joining the pieces pushes the memory past the allowance, it is rendered again with fewer pieces. The control with random candidates makes every unit a candidate in a random order seeded by a hash of the query, and its excerpts keep the best matches to the query. 14 B Experiment Details 
+
+We test paired differences with the exact McNe-mar test on per-item outcomes. Confidence inter-vals of differences come from a paired bootstrap with 10,000 resamples, over questions on Long-MemEval, over scenarios on AppWorld, over repos-itories on SWE-bench and over conversations on LoCoMo. The word significant in the text refers to an uncorrected test at p < 0.05 , except for the predictions fixed in advance, which are Holm-corrected. We tested every paired difference in Tables 2 and 5 and in Figure 4a. In Table 2 the leads with 150 steps and in the second runs at 4k and 6k are significant. Table 17 stars the significant changes of Table 5, and Table 11 stars the signifi-cant gaps of Figure 4a, which the figure marks in the same way. Stars in the appendix tables mark 
+
+p < 0.05 . Differences are computed from paired counts before rounding. On LongMemEval the pri-mary judge agrees with the second on 96.2% to 99.0% of the answers in each of the 38 settings of method and budget scored on all 500 questions. Table 1 reports completion on the 168 Test-Normal and 417 Test-Challenge tasks of AppWorld, the resolve rate on the 95 selection issues and all 480 issues of SWE-bench Verified at 8k, accuracy on the 440 held-out LongMemEval questions under the primary judge, and accuracy (J) on the 1,540 LoCoMo questions of categories 1 to 4. Column heads give budgets in tokens, full history has no budget, a dash marks a setting that was not run, and masking is observation masking. Masking does not apply to LongMemEval and LoCoMo, whose conversations hold no tool observations to mask. Masking + rule log keeps the recent ac-tions of observation masking, turns older outputs into rule-written outcome lines and keeps a rule-written log of the steps that no longer fit, with no LLM call, and it ran separately on both AppWorld test sets. Owing to compute cost, the remaining baselines were evaluated on the 95-issue subset of SWE-bench only, and AFM was not run on SWE-bench. Some AppWorld results in Table 1 come from runs other than the main run. On both test sets these are ReadAgent, AFM and masking with a rule log, on Test-Normal also Summary+A-Mem, MemGAS and Sculptor, and on Test-Challenge also unit retrieval and piece recovery. Piece re-covery on Test-Normal and on the 95 SWE-bench issues comes from a separate run with its own unit-recovery control, which Table 11 compares. AFM uses its better setting on each benchmark, the paper thresholds on AppWorld and thresholds calibrated on the 60 LongMemEval development questions and on one LoCoMo conversation. Table 3 uses the 147 tasks of AppWorld’s Train and Dev sets, timeline only is FlexA-Mem without recovery, and steps are per episode. Timeline only in Table 1 is the arm without recovery of Table 5, a separate run on AppWorld and SWE-bench, and its Long-MemEval values follow from the paired counts of that table. On LoCoMo it comes from the run of Table 1. On LoCoMo, J is the share of answers that Claude Sonnet 4.6 judges correct with the judge prompt of Mem0. Table 14 counts tokens on both AppWorld test sets at 4k, on the 95 SWE-bench issues (SWE) at 8k and on the 440 held-out Long-MemEval questions (LME) at 8k, and FlexA-Mem uses unit recovery. Each LongMemEval question has its own history, and on LongMemEval piece recovery costs within 0.2k tokens of unit recovery. Table 5 covers AppWorld Test-Normal, the 95 SWE-bench issues and the 440 held-out Long-MemEval questions. Each row is compared with its own control. On LongMemEval the control of every row is the first row, the run of Table 1, which is also the in-run control of the render controls. On AppWorld and SWE-bench the first row is a sep-arate run of the full method, and it is the control of the rows without the timeline, without recovery and without links. The row without excerpts is compared with the run of Table 1. Random candi-dates is compared with its own control run, which completes 65.5% and 75.6%, and the other render controls with a control in their own run, which completes 63.7% and 78.6%. A-Mem with fit-or-degrade is compared with A-Mem, in the same run on AppWorld (22.0% and 47.0%) and with the A-Mem run of Table 1 on LongMemEval. Random candidates makes every unit a candidate in a ran-dom order, the next row shuffles only the relevant candidates, the next shows the same selection af-ter the timeline, and fixed-length recovery gives every candidate an excerpt instead of the highest resolution that fits the room. In Figure 7, ReadAgent and AFM on both Ap-pWorld test sets and Summary+A-Mem on Test-Normal come from separate runs, and in Figure 5 so do Summary+A-Mem, Sculptor and MemGAS. Figure 4a plots the pairs of Table 11, and Figure 4b groups the held-out LongMemEval questions by the rank at which BM25 with the bare question places the best piece of the evidence. In Table 11 15 the last column gives units minus pieces and the number of items that only unit recovery or only piece recovery solves. Test-Normal, the 95 SWE-bench issues and LoCoMo pair two arms of one run, and Test-Challenge and LongMemEval pair separate runs. In Table 12, SS is single-session, up-date is knowledge update, and abstention questions also count in their own type. In Table 4 GPT, Gemini and Haiku are GPT-5.4 mini, Gemini 3.1 Pro and Claude Haiku 4.5, and the colors leave out the version without excerpts. GPT-5.4 mini writes the memory in every case, FlexA-Mem uses unit recovery, the answers of Claude Haiku 4.5 are judged by GPT-5.4, and rows run with only one model are left out. In Table 13, Full is the full history, w/o exc. is FlexA-Mem without excerpts, Base is the mean of observation masking, piece retrieval and truncation, and the memory is the mean of FlexA-Mem and its version without ex-cerpts. GPT-5.4 mini averages two runs. In Table 2 the gap is an absolute difference in %, the rows with 150 steps use 56 tasks, and without network access only FlexA-Mem and its version without excerpts were rerun on the 95 issues. In Table 6 the first two rows share a run, as do the two rows with Claude Haiku 4.5, and no row uses excerpts. The row with masking comes from its own run, which keeps the recent actions of observation masking and turns older outputs into rule-written outcome lines. In Table 7, recall covers 22 questions about earlier events, and hit rate and balanced accuracy cover 307 questions that ask whether the agent displayed a given file. In Table 15, raw text first gives raw text to every candidate that fits before any excerpt, and memory evolution lets an LLM choose the links and rewrite the notes of neighbors in FlexA-Mem without ex-cerpts. Table 10 uses AppWorld Test-Normal, with thresholds of 0.45 and 0.25 in the paper setting and 0.30 and 0.15 after calibration. Figure 6 uses all 500 LongMemEval questions. Figure 8 wraps long lines and removes the user’s name and email. Several further details of the design and the runs bear on the results. We chose the excerpt length on the 60 development questions of LongMemEval with their evidence labels, and the query for rank-ing pieces on agentic tasks on the 95 SWE-bench issues used for selection. In the render control that shows the selection after the timeline, the added header changes the selection in 10.8% of the ren-ders. AFM is our reproduction from its paper, and its calibrated thresholds were chosen on develop-ment data. Two runs of the timeline alone differ by 7.1% at 6k on Test-Normal, and two runs of FlexA-Mem differ by 5.3% on the 95 SWE-bench issues. The budget is enforced on our own to-ken count, and on the 95 SWE-bench issues the provider billed more than the budget on 8.9% of the calls of FlexA-Mem that used memory. Rerun-ning the five episodes that held most of these calls with 85% of the budget removed every such call and left the number of resolved issues unchanged. The SWE-bench agents could reach the internet, and without network access both FlexA-Mem and its version without excerpts lose 4% to 5%. On LongMemEval each history serves a single ques-tion, and the tokens of memory construction are never shared across questions, and each merged record costs an LLM call at read time. 
+
+C Baselines 
+
+A-Mem (Xu et al., 2025a) follows the original prompts for note construction, link generation and memory evolution. Each note is indexed by its metadata and by its raw text in spans of 150 to-kens. At read time A-Mem’s search order is kept, and raw notes are taken while they fit and shown in time order. Summary+A-Mem adds a running summary written with the summarizing prompt of OpenHands and MemGym (Wang et al., 2025c; Xu et al., 2026b), extended with an instruction to keep names, numbers, identifiers, paths and error messages. The summary takes its share of the al-lowance and lends what it does not use to retrieval. On LongMemEval it is built once over the whole history before the question is seen. On agentic tasks it is updated as units leave the recent window. MemGAS (Xu et al., 2026a) keeps every unit as raw text, as turns or steps, as an LLM summary and as LLM keywords. It links units with a Gaussian mixture over their similarities, weights the gran-ularities per query, ranks units with personalized PageRank and passes them through one LLM filter. Sculptor (Li et al., 2026a) shows each unit as a fragment that the model can summarize, fold, re-store or search through the paper’s tools, with the tool schemas counted against the budget. ReadA-gent (Lee et al., 2024) writes one gist per unit and lets one LLM call per question, or per agent call on SWE-bench, choose the units whose raw text replaces their gists. MemGAS, Sculptor, ReadA-gent and AFM are our implementations from their papers. They run under the same harness, budgets, 16 agent or reader model and judges as the other meth-ods, and they reuse the prompts written for SWE-bench and LongMemEval on the other agentic and conversational benchmarks. Piece retrieval and unit retrieval make no LLM call. Unit retrieval ranks raw units by the best em-bedding similarity of their spans of 150 tokens and shows the units that fit in time order. Piece retrieval ranks the pieces of every unit by BM25 and shows the best pieces that fit, grouped by unit in time order with marks for omitted text. Observation masking (Lindenbauer et al., 2025) replaces tool outputs older than the last ten steps with a placeholder once the context would exceed ¯B, and masks more steps while the context still exceeds it. 
+
+D Additional Related Work 
+
+Several memories fix the unit or the tier of detail when they write. SeCom shows that turn, session and summary units each fall short and builds seg-ment units denoised by prompt compression (Pan et al., 2025), yet it commits to one granularity at write time. MemoryOS moves dialogue from a short-term queue into mid-term segments and a long-term store, each with its own budget (Kang et al., 2025), and recursive summarization keeps one rolling summary of a long dialogue (Wang et al., 2025b). GAM keeps a memo per session and the raw sessions as pages, and an LLM researcher plans, searches and reflects over them at read time (Yan et al., 2025), which raises its serving time to 12.43 seconds against 0.52 for A-Mem in that pa-per. EdgeMem keeps the original turns and builds its index without a generative LLM call (Cui et al., 2026), but units outside the retrieved set stay invis-ible. FlexA-Mem keeps the raw text of every unit, a trace of every unit in the timeline, and a rule that chooses the resolution without an LLM call. Other work argues for keeping raw text instead of rewriting it. Repeated consolidation by an LLM turns useful memories faulty, which leads its au-thors to treat raw episodes as evidence (Zhang et al., 2026a). Compactors keep on average 17% of in-jected constraints, and most do worse than no com-paction (Wang et al., 2026c). Under compression agents also call retrieval tools far more often, 63.9 times against 21.0 in one study (Liu, 2026). These findings motivate writing each unit once and recov-ering its exact text when a call needs it. Agents can also manage their context themselves. Memex(RL) and GCC let the agent read raw ex-perience back through an exact key or a context command (Wang et al., 2026b; Wu et al., 2025b), and Pichay restores an evicted tool output only after the agent issues the same call again (Mason, 2026). Other agents are trained to edit or condense their own context (Zhang et al., 2026b; Liu et al., 2026), and AgeMem learns one memory for short and long horizons with reinforcement learning and tool actions (Yu et al., 2026). Recovery then depends on an action of the agent, whereas FlexA-Mem recovers by a fixed rule before every call. Coding agents compact their history to fit the budget. SWE-agent replaces old observations with one-line placeholders (Yang et al., 2024), the Open-Hands condensers mask, truncate or summarize (Wang et al., 2025c, 2026a), and ACON optimizes the guidelines of an LLM compressor (Kang et al., 2026a). Observation masking matches LLM sum-marization at about half the cost on SWE-bench Verified (Lindenbauer et al., 2025), but the removed content cannot return, and repeated compaction erodes even the rules an agent was told to keep (Zer-houdi et al., 2026). Other methods reduce what the agent reads. LLMLingua and LLMLingua-2 drop tokens from a single prompt (Jiang et al., 2023, 2024; Pan et al., 2024), AttnCompress keeps a fixed share of each observation as verbatim blocks (Zeng et al., 2026), and AgentDiet removes 39.9% to 59.7% of input tokens by reducing trajectories (Xiao et al., 2026). Fewer tokens need not mean a lower bill, and one study finds that cutting tool-output tokens raised the billed cost of the agent (Weinberger and Hozez, 2026). We count every call and every memory construction in tokens per task. Unlike these methods, FlexA-Mem never removes the raw text of a unit from its store. Among other benchmarks, LoCoMo tests very long conversational memory (Maharana et al., 2024), and SWE-rebench collects fresh issues for decontaminated evaluation of coding agents (Badertdinov et al., 2025). MemGym offers a long-horizon memory environment (Xu et al., 2026b). 
+
+E Additional Results 
+
+E.1 Confirmation Fixed in Advance 
+
+The 147 AppWorld Train and Dev tasks had not been used by any run, analysis or design decision, and the agent’s prompt holds no demonstrations. Before the first episode we froze the code, the six arms of Table 3, the two budgets and five predic-tions. FlexA-Mem with unit recovery was pre-17 LoCoMo AppWorld Method 2k 4k 8k 4k 6k AFM, paper thresholds 43.8 46.0 46.2 55.4 72.0 AFM, calibrated 45.0 60.0 62.7 48.2 57.7 FlexA-Mem, unit recovery 52.5 65.2 75.7 64.3 78.0 
+
+Table 10: AFM with its paper and calibrated thresholds, against FlexA-Mem with unit recovery. 
+
+dicted to lead Summary+A-Mem at 4k and at 6k, to lead the timeline alone at 6k, and to be no more than 5% below piece recovery at 4k and at 6k. The first three were tested with one-sided exact McNe-mar tests and the last two with a non-inferiority test on a bootstrap over scenarios, with Holm correc-tion over all five. The adjusted p-values are 0.006, 0.061, 0.345, 0.0005 and 0.024 in that order. Power computed beforehand from Test-Normal was 0.36 for the lead over Summary+A-Mem at 6k and 0.50 for the lead over the timeline alone. One episode imported AppWorld’s internal modules, and it was rerun with the frozen code. 
+
+E.2 Results by Budget 
+
+Figure 7 plots the results of Table 1 by budget. On LongMemEval piece recovery leads every memory built by an LLM at 4k and 8k, and the gaps shrink as the budget grows. On AppWorld the lead of FlexA-Mem over the second-best method is largest at 4k on Test-Challenge, 11.5%, and smallest at 4k on Test-Normal, 2.4%. 
+
+E.3 AFM and LoCoMo 
+
+We reproduce AFM from its paper. A unit’s score multiplies the best embedding similarity of its spans with the query, a recency term with a half-life and an LLM importance label, and two thresholds map the score to a full, compressed or placeholder form. Units are packed oldest first, each falls back to the next form when it does not fit, and an LLM compresses a unit to about 100 tokens once. The prompts and the compression target are our choices. The paper set its thresholds for another embedder, and with ours the median score is 0.21 while the full-text threshold of 0.45 lies above the 99th per-centile. For this reason we compared four thresh-old pairs on one LoCoMo conversation with a rule fixed in advance, the highest mean accuracy over the three budgets, and chose 0.30 and 0.15, which reach 52.6 against 43.0 for the paper’s values. On LongMemEval the histories score lower, and we compared the paper’s thresholds with three pairs                                                        
+
+> Benchmark Budget Units Pieces Units −pieces Test-Normal 4k 65.5 58.3 +7.1 (23/11) 6k 75.6 70.8 +4.8 (23/15) Test-Challenge 4k 40.3 30.2 +10.1 ∗(67/25) 6k 62.4 52.8 +9.6 ∗(80/40) SWE-bench 8k 70.5 64.2 +6.3 (9/3) LongMemEval 4k 69.5 78.0 −8.4 ∗(33/70) 8k 75.0 81.6 −6.6 ∗(25/54) 16k 81.4 85.0 −3.6 ∗(21/37) 32k 86.1 85.7 +0.5 (23/21) LoCoMo 2k 52.5 69.9 −17.4 ∗(133/401) 4k 65.2 73.2 −8.1 ∗(135/259) 8k 75.7 78.1 −2.4 ∗(125/162)
+
+Table 11: Unit and piece recovery paired by task or question. ∗ marks p < 0.05 .
+
+on the 60 development questions by mean accuracy over the four budgets, which chose 0.15 and 0.07 (74.2 against 32.5 for the paper’s values). Five threshold pairs were tried in all. On the 440 held-out questions AFM then reaches 37.5, 58.9, 75.5 and 76.6 from 4k to 32k, against 33.2 to 34.1 with the paper’s thresholds. Which AFM setting works better depends on the benchmark (Table 10). Calibration raises AFM on LoCoMo by about 14% and 16% at 4k and 8k, but lowers it on AppWorld. There more units pass the lower thresholds, the full units fill the room, and oldest-first packing drops 4.4 of the newest units per call at 4k against 2.3 with the paper’s values. FlexA-Mem with unit recovery leads both settings on both benchmarks. Against the better setting it outperforms AFM by 8.9% and 6.0% on App-World and by 7.5%, 5.2% and 13.1% on LoCoMo. Without the conversation used for calibration, AFM reaches 45.2%, 60.3% and 63.2% on LoCoMo, and FlexA-Mem still leads by 7.7%, 4.5% and 11.6%. On LoCoMo each session forms one unit, and ev-ery memory is built once per conversation without its questions. The timeline alone reaches 40.3, 63.8 and 67.8 at 2k, 4k and 8k, and A-Mem with fit-or-degrade 47.8, 57.1 and 69.1, close to A-Mem, be-cause a LoCoMo session usually fits whole. Mem-ory construction costs 35.3k tokens per conversa-tion for FlexA-Mem, against 189.2k for A-Mem and 211.9k for Summary+A-Mem. 
+
+E.4 Recovery Modes in Detail 
+
+Piece recovery leads on most question types at 4k, by the most on temporal reasoning with 17.1% (Table 12). Unit recovery leads on questions about what the assistant said, on preference questions and on the abstention questions. On LongMemEval the 18 4k 8k 16k 32k                          
+
+> Budget (tokens)
+> 50 60 70 80 90
+> Accuracy (%)
+> full history 88.4
+> 78.0 69.5 52.0 50.7
+> (a) LongMemEval, 440 questions
+> Piece recovery Unit recovery A-MEM Summary+A-MEM
+> 025 50 75 100
+> AppWorld completion (%)
+> Piece retrieval A-MEM Truncation Obs. masking Summary+A-MEM AFM ReadAgent FlexA-MEM
+> full history
+> (b) Test-Normal
+> 64.3 78.0 61.9 72.0 55.4 72.0 54.2 68.5 35.7 60.1 26.2 55.4 25.0 48.2 20.2 48.8
+> 025 50 75 100
+> AppWorld completion (%)
+> full history
+> (c) Test-Challenge
+> 40.3 62.4 28.8 54.7 26.1 52.3 26.1 43.6 9.6 27.3 8.6 22.5 9.4 16.3 7.2 14.1 4k budget 6k budget
+
+Figure 7: (a) LongMemEval accuracy on 440 held-out questions. (b, c) AppWorld completion rate at 4k (filled) and 6k (open). Dashed lines mark the full history. 
+
+4k Pieces − units Type Units Pieces 4k 8k 16k 32k SS user 85 93 +8.3 +5.0 +5.0 +0.0 SS assistant 98 91 −6.5 −6.5 −2.2 +0.0 SS preference 85 80 −5.0 +5.0 −10.0 +0.0 multi-session 54 62 +7.3 +4.9 +4.9 +0.8 temporal 60 77 +17.1 +9.8 +5.7 +0.8 update 76 85 +8.8 +14.7 +4.4 −5.9 abstention 48 41 −7.4 −11.1 −7.4 +0.0 all 69.5 78.0 +8.4 +6.6 +3.6 −0.5 
+
+Table 12: Unit and piece recovery by LongMemEval question type at 4k and their gap at each budget. 
+
+two modes cost the same, within 0.2k tokens per question, because piece recovery reuses the notes and merged records that unit recovery writes. The two modes also reach different evidence. At 4k piece recovery alone shows part of every evidence turn for 106 questions and wins 54 of the 56 decided there, and unit recovery alone does so for 21 questions and wins 12 of 13. Piece retrieval and unit recovery fail on different questions. At 8k piece retrieval shows 86.4% of the held-out evidence turns of LongMemEval verbatim, against 77.4% for unit recovery. On the 82 of all 500 questions where piece retrieval shows only part of the evidence or none of it, unit recovery answers more often. It is correct on 56.9% against 41.4% where piece retrieval shows part of the evidence, and on 62.5% against 37.5% where it shows none. 
+
+Agent Full FlexA-Mem w/o exc. Base Share GPT 77.4 64.9 65.5 27.9 75 Gemini 94.6 94.0 91.1 76.4 89 Haiku 79.2 67.3 67.3 52.4 56 
+
+Table 13: Share of the 4k budget loss that the memory recovers on AppWorld Test-Normal, by agent. 
+
+E.5 Other Agents and Readers 
+
+The lead on AppWorld holds with Gemini 3.1 Pro and Claude Haiku 4.5 as agents (Table 4). With Gemini, FlexA-Mem completes 94.0% of the tasks, level with the full history at 94.6%, and outperforms observation masking, the second-best method with that agent, by 6.5%. With Haiku it completes 67.3% and outperforms observation masking by 8.9%. GPT-5.4 mini writes the memory in every case, and only the agent changes. On LongMemEval, FlexA-Mem is the most ac-curate method that writes memory at 8k with all three readers and under both judges. Excerpts mat-ter more with the two other readers, adding 4.6% with Gemini 3.1 Pro (30 wins, 7 losses) and 4.4% with Claude Haiku 4.5 (33 wins, 11 losses) but only 1.4% with GPT-5.4 mini (22 wins, 15 losses, not significant). At 16k FlexA-Mem ties A-Mem and Summary+A-Mem with both other readers, with no paired difference above 2.2%. The answers of Claude Haiku 4.5 are judged by GPT-5.4, because the primary judge comes from the same model fam-ily as Haiku. We measure how much of the loss caused by a 19 4k budget the memory recovers on AppWorld with each agent (Table 13). The share is the gap be-tween the memory and the mean of three baselines, divided by the gap between the full history and that mean. The memory recovers 75% of the loss with GPT-5.4 mini, 89% with Gemini 3.1 Pro and 56% with Claude Haiku 4.5. The agents differ in how fast their history fills the budget. The history of GPT-5.4 mini passes the 4k budget before its first login in 87.5% of the episodes, against 53.6% for Gemini 3.1 Pro and 57.1% for Claude Haiku 4.5. On SWE-bench Verified with Claude Haiku 4.5 as the agent, no method with a budget comes close to the agent without one, which resolves 72.6% of the 95 issues. FlexA-Mem resolves 61.1%, against 65.3% for its version without excerpts and 63.2% for observation masking. 
+
+E.6 Token Costs                                        
+
+> AppWorld Method Normal Challenge SWE LME Full history 134.4 218.7 210.4 104.9 Truncation 156.7 181.9 233.5 7.1 Masking 134.3 181.6 156.2 –Piece retrieval 192.6 223.4 521.9 8.0 Unit retrieval 165.0 –459.9 7.8 A-Mem 567.4 826.3 1,148.2 1,049.5 Summary+A-Mem 445.9 744.9 1,540.5 1,168.3 ReadAgent 208.4 316.5 500.0 –AFM 193.6 285.6 ––FlexA-Mem 150.7 232.1 344.2 176.6
+> Table 14: Thousands of tokens per task, memory con-struction included, at 4k on AppWorld and 8k on SWE-bench and LongMemEval (LME).
+
+Table 14 lists the costs behind Figure 3 and the two settings the figure leaves out, Test-Challenge at 4k and the 95 SWE-bench issues at 8k. In the figure FlexA-Mem on LongMemEval is plotted at the token count of unit recovery, which is within 0.2k of that of piece recovery. MemGAS, Sculptor and masking with a rule log have no cost measurement and are left out. 
+
+E.7 Robustness 
+
+Budgets, step limits, repeated runs and issue sets all leave the lead of FlexA-Mem in place (Table 2). At 8k on AppWorld it outperforms A-Mem, the strongest baseline run at that budget, by 7.7%. A second run of AppWorld changes the outcome of 15% to 17% of the tasks for FlexA-Mem and keeps every gap to the rerun baselines significant. On the 385 SWE-bench issues not used to choose settings, FlexA-Mem outperforms observation masking by 1.8% and Summary+A-Mem by 3.1%. Resampling the LongMemEval reader at 8k changes 19 of the 440 answers of unit recovery but moves its accuracy by only 0.2%. 
+
+E.8 What the Timeline Needs 
+
+A trace written by fixed rules keeps most of the benefit of the timeline at 4k, and records written by an LLM matter once there is room (Table 6). The trace is built from the agent’s actions without an LLM call and completes 61.3% of the Test-Normal tasks at 4k against 67.3% for records written by GPT-5.4 mini. This difference is not significant, and the trace still outperforms observation masking by 25.6%. At 6k the trace stays at 61.3% while the LLM records reach 75.0%, which gives a signifi-cant gap of 13.7%. Recovery also makes the memory tolerant of a weaker writer. With records from Claude Haiku 4.5 the timeline alone completes 15.5% fewer tasks than with records from GPT-5.4 mini. Recovery of raw text closes most of that gap. The memory written by Haiku then completes 62.5% of the tasks, 1.8% below the same memory written by GPT-5.4 mini, and within its run recovery adds 10.7%. 
+
+E.9 What the Memory Recalls on SWE-bench 
+
+FlexA-Mem keeps track of what a coding agent has seen nearly as well as the full history (Table 7). We stop the full-history trajectories of the 95 SWE-bench issues at 109 checkpoints and render each memory at 8k. We then ask the LLM 22 ques-tions about earlier events and 307 questions about whether the agent displayed a given file. On the second kind FlexA-Mem reaches a balanced accu-racy of 0.93, against 0.83 without excerpts, 0.73 for Summary+A-Mem and 0.61 for A-Mem. Ob-servation masking reaches 0.96, because it keeps every command and hides only old outputs. Re-runs show where the remaining errors come from. When the agent re-runs a command whose output has left its context, the memory usually held the right unit but lacked the room to show it. For FlexA-Mem without excerpts on the 95 issues, the unit with the earlier output was a candidate for 84.4% of 1,666 such re-runs. In 39.2% of them its raw text was larger than the room. Replaying these steps with excerpts shows part of the earlier output in only 5.8% of them. In about 70% of the cases where the raw text was too long, the room could not hold an excerpt either. 20 Variant 4k 8k 16k 32k FlexA-Mem ( E = 300 ) 69.5 75.0 81.4 86.1 excerpts of 150 tokens 73.2 78.2 – –excerpts of 600 tokens 64.5 74.5 – –raw text first 55.5 74.8 – –first pieces instead of best 70.0 76.1 – –A-Mem 52.0 71.6 84.5 88.6 A-Mem with fit-or-degrade 65.5 77.3 86.6 87.5 with memory evolution 51.1 71.1 79.8 84.5 and fit-or-degrade 65.0 74.8 82.5 86.6 
+
+> Table 15: Excerpt variants and the fit-or-degrade plug-in on 440 held-out LongMemEval questions.
+
+E.10 How the Memory Uses the Budget 
+
+As the budget grows, the memory shifts toward raw text (Figure 6). Excerpts take 7.4% of the memory’s tokens at 8k and 2.4% at 32k, raw text grows from 68.2% to 73.5%, and records stay near a quarter. At 8k unit recovery shows 77.4% of the held-out evidence turns verbatim against 71.8% without excerpts, and 11 of its 20 wins over that version come with more evidence shown, against 2 of its 15 losses. 
+
+E.11 Excerpt Variants and Plug-ins 
+
+Shorter excerpts help at 4k and 8k (Table 15), whereas giving raw text to every candidate first loses most of the gain at 4k. Fit-or-degrade raises the accuracy of A-Mem and of the variant with memory evolution by 13.4% and 13.9% at 4k and by 5.7% and 3.7% at 8k. 
+
+E.12 A Case Study 
+
+Figure 8 shows how unit recovery keeps an Ap-pWorld agent from repeating its setup. The task is “Reset friends on venmo to be the same as my friends in my phone”. In the figure, text after a unit label is the record of that unit, text after a step label is a verbatim piece of an excerpt, and long lines are wrapped. At step 16 with a 4k budget, the newest unit takes 1,571 tokens and leaves 1,712 tokens for memory, which holds five records and two excerpts. The record of steps 12 to 14 says that both logins returned access tokens but not under which names, and its excerpt keeps the code that printed them. The agent checks that both tokens still exist, never logs in again, and submits at step 22. On the same task truncation, A-Mem and piece retrieval stop at the limit of 60 steps after reading API documentation 74 to 109 times. 
+
+E.13 Numbers Reported by Other Papers 
+
+Table 16 lists numbers that other papers report on our three benchmarks. Their backbones, judges, splits, harnesses and budgets differ from ours. Without a budget our agents and reader reach 88.4% on LongMemEval, 67.9% on the 480 SWE-bench issues and 78.6% and 62.1% on the two AppWorld test sets, the references of Table 1. 
+
+F Supplementary Results 
+
+This section gives supplementary results for Sec-tions 5 and 6, including the complete ablations and the longer form of each analysis. 
+
+F.1 Results F.1.1 Agentic Tasks 
+
+FlexA-Mem with unit recovery completes more Ap-pWorld tasks than every baseline with a budget, and its lead is largest on the harder Test-Challenge (Ta-ble 1). There it completes 40.3% of the tasks at 4k and outperforms the second-best method, ReadA-gent, by 11.5% ( p < 0.001 ), and by 7.7% at 6k (p = 0 .002 ). At 6k it completes 62.4% against 62.1% for the agent with its full history, with no significant difference ( p = 1 ). Test-Normal is less decisive. The leads over ReadAgent, 2.4% at 4k and 6.0% at 6k, are not significant ( p = 0 .64 
+
+and 0.12 ), while the 8.9% lead over AFM at 4k is (p = 0 .017 ). At 6k on Test-Normal FlexA-Mem comes within 0.6% of the full history. A second run of FlexA-Mem completes 65.5% and 74.4% of Test-Normal (Appendix E.7), and two runs of the same arm differ by up to 4.8%, which is more than the 2.4% lead. SWE-bench Verified repeats this ordering with smaller margins. Among the methods run on all 480 issues, FlexA-Mem resolves 66.5% and outper-forms the second-best method, observation mask-ing, by 2.3% and Summary+A-Mem by 4.0%, while Summary+A-Mem spends 1,577.1k tokens per issue against 306.2k. On the 385 issues not used to choose settings these leads are 1.8% and 3.1%. A-Mem, MemGAS, Sculptor and ReadAgent ran only on the 95 selection issues, where FlexA-Mem resolves 71.6% against 67.4% for ReadAgent and observation masking and 69.5% for the full history. 
+
+F.1.2 Confirmation on Unused Tasks 
+
+The AppWorld results hold on the 147 unused tasks, which played no part in the design (Ta-ble 3). Before the first episode we froze the code, 21 [u1 · step 3] Inspected API docs for phone.show_contact_relationships and Venmo endpoints search_friends, add_friend, remove_friend, and search_users. (. . . ) [u2 · step 4] Queried API docs for three apps. Supervisor APIs include show_active_task, complete_task, (. . . ) [u3 · step 5 · excerpt] Looked up API docs for phone.show_contact_relationships and venmo.search_friends/add_friend/remove_friend. (. . . ) [step 5] output of $ print(apis.api_docs.show_api_doc(app_name='phone', api_name='show_contact_relationships')): [...] (. . . ) [u4 · steps 6-8] Queried available supervisor, phone, and Venmo APIs. (. . . ) [u5 · step 9] Looked up API docs for supervisor.show_account_passwords, phone.show_contact_relationships, and Venmo friend/user endpoints. (. . . ) [u6 · steps 10-11] Retrieved supervisor passwords for amazon, file_system, gmail, phone, (. . . ) and venmo. (. . . ) [u7 · steps 12-14 · excerpt] Loaded API docs for phone.login and venmo.login, then successfully logged in (. . . ), both returning Bearer access_token dicts. (. . . ) [step 12] assistant: [...] print(phone_token) print(venmo_token) [... 1 block omitted] 
+
+Figure 8: Memory of FlexA-Mem at step 16 of an AppWorld task at 4k, verbatim and trimmed. The excerpt of steps 12 to 14 keeps the code that names the access tokens. 
+
+Method Backbone Setting Reported Reference in the same paper LongMemEval MemGAS (Xu et al., 2026a) GPT-4o mini reader input cut at 8k and 16k, GPT-4o judge 59.8, 60.3 full history 50.6 Nemori (Ma et al., 2026) GPT-4.1 mini, GPT-4o mini context of 3.7k to 4.8k to-kens 74.6, 64.2 full context 65.6, 55.0 LightMem (Fang et al., 2026) GPT-4o mini no token budget, GPT-4o mini judge 64.3 to 68.6 A-Mem 62.6, full text 56.8 SWE-bench Verified AttnCompress (Zeng et al., 2026) Gemini 3 Flash 200 issues, no token budget 71.5 full history 72.5, mask-ing 67.5 masking (Lindenbauer et al., 2025) Gemini 2.5 Flash 500 issues, 250 turns, no to-ken budget 35.6 raw agent 32.8, sum-mary 36.0 AppWorld Test-Normal ACON (Kang et al., 2026a) GPT-4.1 mini compression from 4,096 history tokens 42.3 no compression 35.7 ACON (Kang et al., 2026a) GPT-5 chat as above 62.5, 65.5 no compression 66.7 
+
+Table 16: Numbers that other papers report in their own settings, not comparable to ours. 
+
+six arms, two budgets and five predictions with their tests. FlexA-Mem completes 76.9% of these tasks at 4k and outperforms the strongest base-line, Summary+A-Mem, by 12.2% (Holm-adjusted 
+
+p = 0 .006 ). Its differences from the full history, 
+
+−0.7% at 4k and +4.1% at 6k, are not signifi-cant. Three of the five predictions hold after Holm correction, the lead over Summary+A-Mem at 4k and non-inferiority to piece recovery at both bud-gets ( p = 0 .0005 and 0.024 ). Two predictions fail. The 7.5% lead over Summary+A-Mem at 6k gives p = 0 .061 , and the lead over the timeline alone at 6k is 2.0% ( p = 0 .345 ) against 8.3% on Test-Normal. This second miss is the first sign that the timeline does most of the work on AppWorld, which Section 6.2 examines. 
+
+F.1.3 Fact Recall 
+
+Keyword retrieval over the raw history is the strongest simple method for fact recall, and piece recovery keeps pace with it (Table 1). Piece re-trieval, which writes no memory, and piece recov-ery stay within 0.7% of each other at every Long-MemEval budget, because questions that name their evidence are served well by keyword match-ing. Both lead every memory built by an LLM at tight budgets. At 4k piece recovery answers 78.0% of the held-out questions and outperforms A-Mem by 25.9% and Summary+A-Mem by 27.3%. These gaps shrink as the budget grows, and at 32k A-Mem is the more accurate, 88.6% against 85.7%. On Lo-CoMo piece recovery leads piece retrieval by 1.0% 22 AppWorld SWE-bench LongMemEval Variant 4k 6k 8k 4k 8k 16k 32k FlexA-Mem (control) 65.5 76.2 66.3 69.5 75.0 81.4 86.1 without timeline −15.5 ∗ −10.1 ∗ −1.1 +0.5 +3.6 ∗ +1.1 −0.9 without recovery −1.8 −8.3 ∗ +3.2 −28.2 ∗ −12.3 ∗ −10.9 ∗ −15.7 ∗                                                 
+
+> without links +1.2 −0.6 +5.3 +1.4 +0.5 −0.7 −3.4 ∗
+> without excerpts +0.0 +2.4 −3.2 −15.7 ∗−1.1 −1.4 −1.1 random candidates −0.6 −1.8 –−47.5 ∗−40.9 ∗−32.5 ∗−17.0 ∗
+> same candidates, random order +0.6 −4.8 –−46.8 ∗−37.5 ∗−26.1 ∗−14.5 ∗
+> same selection after the timeline +3.6 −3.6 –−0.5 +1.4 +0.5 +0.7 fixed-length recovery −0.6 −4.8 –+6.1 ∗+7.0 ∗+1.6 −1.8 A-Mem with fit-or-degrade +10.7 ∗+7.7 ∗–+13.4 ∗+5.7 ∗+2.0 −1.1
+
+Table 17: All variants of Table 5, change in completion or accuracy (%), where ∗ marks p < 0.05 . Appendix B gives the control of each row. 
+
+to 2.6% at every budget. Unit recovery there outper-forms every baseline memory built by an LLM, by 6.2% to 9.4% over A-Mem and Summary+A-Mem and by 5.2% to 13.1% over AFM with calibrated thresholds. For questions that name their evidence, the value of FlexA-Mem lies in keeping the raw text verbatim more than in the records that an LLM writes for each unit. 
+
+F.1.4 Cost and Other Models 
+
+FlexA-Mem spends about one seventh to one third of the tokens of A-Mem and Summary+A-Mem per task, whose memory construction includes LLM link generation and memory evolution (Table 14). On Test-Normal it uses about as many tokens as truncation and observation masking while complet-ing far more tasks. The full history costs fewer tokens than FlexA-Mem in every column, and the savings of FlexA-Mem are relative to other memo-ries, not to reading the whole history. Changing the agent leaves the AppWorld lead in place (Appendix E.5). With Gemini 3.1 Pro as the agent, FlexA-Mem completes 94.0% of Test-Normal at 4k against 94.6% for the full history and 87.5% for observation masking, and with Claude Haiku 4.5 67.3% against 58.3%. The lead does not carry over to SWE-bench Verified with Haiku as the agent, where FlexA-Mem resolves 61.1% of the 95 issues against 63.2% for observation masking and 65.3% for its own version without excerpts. 
+
+F.2 Analysis F.2.1 How the Baselines Fail on AppWorld 
+
+In the failure trajectories we analyze, the main failure mode of the baselines on AppWorld is repeating their own setup, not giving wrong an-swers (Figure 5). At 4k on Test-Normal, 23.8% of the episodes of FlexA-Mem end at the step limit, against 55.4% to 85.7% for every baseline except Summary+A-Mem. When the five baselines of the main run declare a task complete, they are right about as often as FlexA-Mem, 77.8% to 85.0% against 84.4%. Of their failures at 4k, 90% are loops in which the agent logs in, lists the APIs and reads their documentation again. Extra steps do not rescue them. With 150 steps instead of 60, observation masking, truncation and piece re-trieval complete exactly as many tasks as before, whereas FlexA-Mem rises from 64.3% to 80.4%. On Test-Challenge at 4k, 47% of the episodes of FlexA-Mem reach the limit, against 57% for piece recovery, 61% for Summary+A-Mem and 84% to 95% for the other baselines. ReadAgent and AFM, the two strongest base-lines on Test-Normal, are also the two that keep something of every unit in view. ReadAgent keeps a gist of every unit and spends 91.0k memory to-kens per episode at 4k against 36.8k for FlexA-Mem. AFM keeps most units as short compressed summaries, but it packs units oldest first and drops 2.3 of the newest units per call at 4k. The ablations below test whether the trace of the whole history is what decides completion. 
+
+F.2.2 The Timeline Keeps the Trace 
+
+Removing the timeline costs the most on AppWorld (Table 5). Completion falls by 15.5% at 4k and 10.1% at 6k, and on SWE-bench Verified the agent needs 56.9 steps per issue instead of 43.8 while its resolve rate moves by only 1.1%. On the un-used tasks the timeline alone completes 76.2% and 79.6%, within 2.0% of the full method (Table 3). Even a trace written by fixed rules from the agent’s actions, with no LLM call, completes 61.3% of 23 Test-Normal at 4k against 67.3% for records writ-ten by GPT-5.4 mini ( p = 0 .15 ). At 6k it falls 13.7% behind (Appendix E.8). The trace matters where an agent must know what it has already done, and it does little for ques-tions that name their answer. Without the timeline, LongMemEval accuracy changes by at most 3.6%, and its one significant effect is a gain of 3.6% at 8k. On LoCoMo the timeline alone answers 40.3% to 67.8% of the questions from 2k to 8k, below piece recovery at every budget (Table 1). 
+
+F.2.3 Recovery Brings Back the Detail 
+
+Recovery decides accuracy when the answer is an exact detail. On LongMemEval, removing recov-ery lowers accuracy by 28.2% at 4k and removing excerpts lowers it by 15.7%. Four render controls, each changing one part of unit recovery on the same notes and budget, show that the choice and order of the recovered units decide accuracy there. Making every unit a candidate in a random order loses 47.5% at 4k and shuffling the relevant can-didates loses 46.8%, whereas showing the same selection after the timeline changes accuracy by at most 1.4%. Fit-or-degrade is not the best rule for this task, since giving every candidate an excerpt instead gains 6.1% and 7.0% at 4k and 8k. Excerpts also raise from 0.83 to 0.93 the balanced accuracy with which the memory tells whether a SWE-bench agent displayed a given file (Appendix E.9). On AppWorld recovery changes effort more than completion, and no render control changes the com-pletion rate of Test-Normal significantly. Unit re-covery takes 26.9 steps per episode on the unused tasks against 32.2 for the timeline alone at 4k, and 20.7 against 28.7 at 6k. Fixed-length recovery takes 3.6 and 5.0 more steps than fit-or-degrade. Excerpts add 5.0% on Test-Challenge at 4k ( p = 0 .031 ). Records from Claude Haiku 4.5 leave the timeline alone 15.5% behind, and recovery of raw text then adds 10.7% on Test-Normal (Appendix E.8). Without a timeline the recovery rule decides the completion rate. Rendering the notes that A-Mem writes with fit-or-degrade raises Test-Normal completion by 10.7% at 4k and 7.7% at 6k, and LongMemEval accuracy by 13.4% at 4k. A-Mem shows 0.87 whole notes per call at 4k and leaves much of its allowance empty, because a retrieved step is often longer than the room, whereas fit-or-degrade fills that room with about two excerpts. A-Mem with fit-or-degrade still completes 21% to 33% fewer tasks than FlexA-Mem. 
+
+F.2.4 When Each Recovery Mode Wins 
+
+Each recovery mode leads on the kind of scenario it was set for (Figure 4a). Unit recovery outper-forms piece recovery in all five agentic settings, by 4.8% to 10.1%, significantly at both budgets of Test-Challenge. Piece recovery leads on Long-MemEval by 8.4%, 6.6% and 3.6% from 4k to 16k, and the two tie at 32k. LoCoMo shows leads of 17.4%, 8.1% and 2.4% from 2k to 8k. The two modes also differ in where their text appears and in how much room the timeline can borrow (Limita-tions), and these gaps compare two configurations rather than isolate the unit of recovery. In the questions we test, the gap between the modes is associated with how well the question names its evidence (Figure 4b). We measure this by the rank at which BM25 with the bare question places the best evidence piece among the roughly 1,040 pieces of a history. For the 204 of the 413 held-out questions with an answer in the history whose evidence ranks first, piece recovery is ahead of unit recovery by 17.6% at 4k. Unit recovery is ahead by 26.5% for the 34 questions whose evi-dence ranks below twentieth. This rank needs the evidence labels, and the run-time signals we tested do not reliably predict the better mode for a single query. On AppWorld the detail an agent uses next lands among the top five keyword matches with its task and latest steps for 22.4% of its needs, against 22.2% under a ran-dom order. None of nine task properties correlates with the gap. The BM25 score of the best Long-MemEval piece has a Spearman correlation of at most 0.05 in magnitude with the gap at 4k and 8k. For these reasons we set the mode per task type. 24

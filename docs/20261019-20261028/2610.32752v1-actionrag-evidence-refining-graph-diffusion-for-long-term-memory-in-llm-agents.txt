@@ -1,0 +1,421 @@
+Title: ActionRAG: Evidence-Refining Graph Diffusion for Long-Term Memory in LLM Agents
+
+URL Source: https://arxiv.org/pdf/2610.32752v1
+
+Published Time: Mon, 26 Oct 2026 01:10:34 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+> Proceedings of Machine Learning Research 353, 2026 ACML 2026
+
+# ActionRAG: Evidence-Refining Graph Diffusion for Long-Term Memory in LLM Agents 
+
+Navyansh Mahla navyansh@actioneer.com 
+
+Sashank Vandrangi sashank@actioneer.com 
+
+Actioneer, Mountain View, California, USA 
+
+Editors: Andy Song, Bo Han and Sarah Erfani 
+
+Abstract 
+
+LLM agents need long-term memory that can recover precise and mutually consistent ev-idence from growing interaction histories, particularly when answers depend on relations among facts rather than isolated semantic matches. Current memory pipelines remain vulnerable at two stages: indexing errors can fragment repeated entities or merge distinct ones, and online retrieval often treats initial similarity scores as final even when the sur-rounding graph provides evidence for revising them. We introduce ActionRAG , a graph memory architecture that couples cautious indexing with query-time graph retroevaluation. Its indexing pipeline reconciles type labels and applies tiered entity resolution. Given a query, dual-channel entity and triple retrieval forms an initial evidence set and induces a bounded local graph. Query-conditioned receiver-normalized diffusion refines triple scores using local path structure. Seed protection, hub-penalized flux, and triple materialization preserve direct evidence while recovering missed connections. We evaluate ActionRAG on MemoryAgentBench (MAB), which tests accurate retrieval, conflict resolution, long-range understanding, and test-time learning. Across its eight deterministic-scoring columns, Ac-tionRAG achieves 55 .1 average accuracy, improving over the strongest retrieval-based mem-ory baseline by 5 .4 points. Under MAB’s query-time cost accounting, mean synthesis cost stays below $0.001 per query on the four reported cost columns, and the sum of separately measured retrieval-side p99 components is 440 .7 ms on our consumer Apple Silicon setup. 
+
+Keywords: graph retrieval-augmented generation; graph diffusion filtering; memory-augmented LLM agents; knowledge graphs 
+
+1. Introduction 
+
+Large language model (LLM) agents accumulate information across many turns of inter-action and must recall, reconcile, and update facts as those interactions unfold. A useful memory for such agents is not a single skill but a bundle of them: looking up a specific fact buried deep in past dialogue, reasoning across several facts to answer a multi-hop question, recognizing when a new statement supersedes an older one, and absorbing fresh informa-tion at test time. MemoryAgentBench (MAB) (Hu et al., 2026) operationalizes exactly this view, evaluating memory in LLM agents via incremental multi-turn interactions along four competencies: accurate retrieval, test-time learning, long-range understanding, and conflict resolution. The dominant memory architecture today is dense retrieval-augmented generation (RAG) (Lewis et al., 2020): chunk the interaction history, embed each chunk, and look up the top-
+
+k matches per query. This flat index works for single-hop fact recall but loses signal on  
+
+> ©2026 N. Mahla & S. Vandrangi. arXiv:2610.32752v1 [cs.AI] 23 Oct 2026 Mahla Vandrangi
+
+multi-hop reasoning (each chunk is scored in isolation) and on conflict resolution (a super-seded fact and the fact that overrides it share most of their semantic content and become indistinguishable to a chunk embedder). The result is a measurable accuracy gap on exactly the MemoryAgentBench slices that real agents need to handle. Graph-structured memory addresses this by representing the agent’s history as a typed entity–relation graph. Microsoft’s GraphRAG (Edge et al., 2024) and LightRAG (Guo et al., 2024) use shallow heuristic traversal over the resulting graph, which is fast but loses much of the multi-hop signal. HippoRAG (Guti´ errez et al., 2024) and its successor HippoRAG-v2 (Guti´ errez et al., 2025) take the stronger route of extracting named entities from the query, linking them to nodes in a global corpus graph, and using those nodes to seed Personalized PageRank (PPR) (Page et al., 1999; Haveliwala, 2002). This provides effective associative retrieval, but it introduces an LLM call before every graph search and makes retrieval depend on the entities retained by that call. Predicate-level cues that are not expressed as salient named entities may therefore receive weak or no initial activation, causing relevant relations to be overlooked. ActionRAG instead retrieves both entity and concrete triple seeds directly, then uses local graph diffusion to retroevaluate the resulting triples. This removes query-time LLM parsing from retrieval while preserving relational cues that entity-only seeding can miss. Although an agent’s memory may be large, evidence relevant to a particular query often occupies a small region once plausible entities and relations have been identified. ActionRAG builds this region over a cautiously indexed entity–relation graph. Its indexing pipeline reconciles type labels, resolves repeated or ambiguous entities through tiered checks, and preserves source provenance. At query time, direct retrieval over both entities and concrete triples produces an initial evidence set. ActionRAG then constructs a bounded local graph and applies query-conditioned, receiver-normalized diffusion to revise triple relevance using surrounding path structure. Graph connectivity therefore acts as a second-stage evaluator of retrieved evidence rather than replacing semantic retrieval altogether. We evaluate ActionRAG on the eight deterministic-scoring columns of MemoryAgentBench. ActionRAG has the highest reported score among retrieval-based memory agents on six of the eight columns where the unweighted mean of these heterogeneous scores is 55 .1, 5 .4points above HippoRAG-v2. 
+
+Contributions. 
+
+• A cautious graph-indexing pipeline with label reconciliation, tiered entity resolution, provenance preservation, and conflict-aware summarization. 
+
+• An evidence-refining local graph diffusion method that combines dual-channel retrieval with relational retroevaluation, yielding the highest reported score among retrieval-based memory agents on six of the eight deterministic MAB columns. 
+
+2. Related Work 
+
+2.1. Long-Context and Memory-Augmented LLMs 
+
+One line of work expands the context window to hold an entire interaction history. Frontier models offer 128K–1M token contexts (OpenAI, 2024b; Anthropic, 2024; Gemini Team, Google, 2024), while position interpolation (Chen et al., 2023), NTK and YaRN scaling ActionRAG 
+
+(Peng et al., 2024), and LongRoPE (Ding et al., 2024) extend them further. However, accuracy declines when relevant information lies deep in the window (Liu et al., 2024; Kamradt, 2023), and inference cost rises with context length, so long context alone is insufficient. External-memory systems instead store information around the LLM. MemGPT (Packer et al., 2024) pages between a small in-context working memory and a larger archive, a design productionised by Letta (Letta, 2024). Mem0 and Mem0g (Chhikara et al., 2025) extract structured user facts and retrieve them through a learned policy. A-MEM (Xu et al., 2025) adds agentic links and a self-organising memory graph and Zep (Rasmussen et al., 2025) maintains a temporal knowledge graph for evolving facts. Agentic retrieval systems such as Self-RAG (Asai et al., 2024) and MIRIX (Wang and Chen, 2025) add reflection or multi-agent memory control around retrieval. These systems address the competencies defined by MemoryAgentBench (Hu et al., 2026): accurate retrieval, test-time learning, long-range understanding, and conflict resolution. Their retrieval can nevertheless depend on opaque learned policies or flat similarity lookups that underuse structural signal. 
+
+2.2. Retrieval-Augmented Generation 
+
+Retrieval-augmented generation (Lewis et al., 2020; Guu et al., 2020) conditions an LLM on top-k documents retrieved by a sparse model such as BM25 (Robertson and Zaragoza, 2009) or a dense bi-encoder (Karpukhin et al., 2020; Izacard et al., 2022; Wang et al., 2022; Xiao et al., 2024). Recent embedding baselines include proprietary OpenAI Text-Embedding-3 models (OpenAI, 2024a) and Qwen3-Embedding (Zhang et al., 2025). Stronger pipelines add cross-encoder or LLM re-rankers (Nogueira et al., 2020; Sun et al., 2023), or late-interaction models such as ColBERT and ColBERTv2 (Khattab and Zaharia, 2020; San-thanam et al., 2022). On MemoryAgentBench, dense RAG is competitive for accurate retrieval but underperforms on multi-hop and conflict-resolution questions. Independent chunk scoring misses cross-chunk structure and cannot reliably distinguish semantically similar statements when one supersedes the other. 
+
+2.3. Knowledge Graphs for Retrieval and Reasoning 
+
+A complementary line structures retrieval through graphs or persistent memory. RAP-TOR (Sarthi et al., 2024) builds a tree of recursive summaries, GraphRAG (Edge et al., 2024) extracts an entity–relation graph and summarises its communities for global queries, and LightRAG (Guo et al., 2024) combines local entity and global relation retrieval over a lightweight graph. Cognee (Markovic et al., 2025) optimises the interface between knowl-edge graphs and LLMs for multi-hop reasoning. These approaches can underrepresent specific relational paths through summarization or heuristic expansion. Mem0 (Chhikara et al., 2025) extracts and consolidates salient conversational memories, and its graph variant represents entities and relations to support relational retrieval. A-MEM (Xu et al., 2025) organises memories as Zettelkasten-inspired notes with generated attributes and dynamic links, updating existing notes as new evidence arrives. MemoRAG (Qian et al., 2025) in-stead uses a dual-system architecture: a lightweight long-range model forms global memory and generates draft-answer clues that guide retrieval for a more expressive answering model. Mahla Vandrangi 
+
+> ONLINE RETRIEVAL
+
+## q node edge [f1][f2][f3]
+
+LLM              
+
+> Query Dual-channel seeds Bounded local evidence graph Evidence refinement Packed context Answer Inside evidence refinement a. Weight paths b. Diffuse scores c. Protect + prune d. Materialize
+> build Aq
+> receiver-normalized x
+> retain high-score items; drop low x
+> add high-flux triple Entity Expansion seed Relation Triple seed Materialized triple Hop limit Width denotes higher x
+
+Figure 1: ActionRAG online retrieval. A query retrieves entity nodes as expansion anchors and concrete triple edges as evidence items, then expands a bounded local evi-dence graph. Receiver-normalized diffusion scores the item set of concrete triples plus orphan entities; high raw-score items are protected, low-scoring evidence is pruned, and high-flux missing triples are materialized before the surviving facts are packed into the LLM context. Edge width denotes the diffused triple score. HippoRAG (Guti´ errez et al., 2024) seeds Personalized PageRank (Page et al., 1999; Haveliwala, 2002) over a corpus-level entity graph using query-relevant entities, then ag-gregates propagated scores to passages. HippoRAG-v2 (Guti´ errez et al., 2025) strengthens passage integration and the online use of an LLM. More broadly, graph diffusion propa-gates local relevance through weighted transition powers, with Personalized PageRank and heat kernels as common instances (Klicpera et al., 2019). Collectively, these methods span community summarization, dynamic memory linking, memory-guided clue generation, and global graph propagation, with trade-offs in query-time model calls, graph-wide computa-tion, and dependence on preselected entity cues. 
+
+3. ActionRAG 
+
+3.1. Overview 
+
+ActionRAG separates persistent memory construction from query-local retrieval. It assumes that each query touches only a bounded neighborhood of the accumulated interaction graph, so evidence diffusion operates on a query-conditioned subgraph rather than the corpus-level graph. Figure 1 summarizes the online pipeline. 
+
+Offline indexing (§3.2) converts multi-turn interaction histories into a typed entity– relation graph. An LLM extracts typed (head , relation , tail) triples, entity mentions are canonicalized, and entity and triple descriptions are embedded with BGE-M3 (Chen et al., ActionRAG 
+
+2024). Postgres stores the graph, its pgvector indices, and source-chunk back-pointers for every triple. 
+
+Online retrieval (§3.3) encodes the query once and retrieves the top-KE entities and top-KT concrete triples in parallel. Hop-capped expansion induces a bounded item graph, and receiver-normalized diffusion refines its scores through the closed-form solve x = α(I −
+
+(1 − α)P )−1s. Seed protection and pruning preserve high raw-similarity evidence, while hub-penalized flux materializes missing triples. The ordered evidence items are mapped to their source chunks and packed under a token budget as [fact # N ] entries for answer generation. 
+
+Notation. We write the typed graph as G = ( E, R, T ) with entity set E, relation-type set 
+
+R, and typed triple set T ⊆ E × R × E. For a query q, the retrieval-time item set V ⊆ T ∪ E
+
+contains the triples surfaced by seed expansion together with any orphan entities that lack outgoing relations in the local subgraph. Online “relation” retrieval therefore means retrieval of concrete triples in T , not relation types in R. We denote the nonnegative raw query-similarity scores by s ∈ R|V |≥0 and the refined scores by x ∈ R|V |. Let A ∈ R|V |×| V |
+
+be the symmetric path-weighted adjacency, D = diag( A1), and P = D−1A the receiver-normalized propagation operator. The coefficient α ∈ (0 , 1) retains raw seed evidence. The exact form of Aij , the hop cap, and the hub penalty are defined in §3.3. 
+
+3.2. Cautious Graph Construction 
+
+The indexer turns an interaction history into an entity–relation graph and records the source chunk for every graph item. Chunks are processed in parallel, but names and types are resolved across the complete batch before the graph is updated. 
+
+Structured extraction and temporal grounding. For each chunk, an LLM emits typed entity mentions and directed (head , relation , tail) mentions with textual descriptions. The current type vocabulary is supplied as a soft constraint, allowing the extractor to introduce a more specific label when no existing type is suitable. Dates, durations, and temporal phrases are retained inside the corresponding entity or relation description rather than represented as graph nodes. When a dialogue has a session timestamp, relative phrases such as “yesterday” or “last week” are converted to absolute dates using that timestamp. The resolved date is stored in the fact description instead of creating a separate node for it. 
+
+Label reconciliation. Free-form extraction improves coverage but can produce several names for the same entity type. Before updating the graph, the indexer groups proposed types using name and description similarity, maps each group to an existing canonical type when possible, and registers unmatched groups as new types. Alias chains are resolved before the resulting type map is applied to the batch. 
+
+Entity resolution. Mentions are resolved after their types have been canonicalized. A unique node with the same normalized name and a compatible type is reused directly. If no exact match exists, the indexer reuses a fuzzy name match only when it is the clear best candidate. All remaining mentions are grouped by normalized name, canonical type, and description similarity. One node is then created for each group before any relations are written, preventing parallel workers from creating duplicate nodes. Resolved entity pairs Mahla Vandrangi 
+
+are stored as typed triples, with repeated observations merged into the same edge. Each graph item retains links to its source chunks, preserving the original evidence. 
+
+Temporal graph summarization. Nodes and relations supported by several mentions are periodically summarized into a single description. Hierarchical summarization retains dates and links to the source chunks, after which the updated description is embedded for retrieval. The graph thus provides a compact semantic representation while the original evidence remains available through these links. 
+
+3.3. Query-Time Evidence Refinement by Graph Diffusion Motivation. Semantic retrieval scores graph items independently. It can therefore re-trieve two strongly matching facts while missing the relation that connects them, simply because the connecting relation is not itself similar to the query. Unrestricted graph ex-pansion has the opposite problem: high-degree entities introduce many generic facts and consume the context budget. ActionRAG treats the initial retrieval as a proposal rather than a final result. It constructs a bounded query-local graph, retroevaluates each proposed item using nearby evidence, removes weak proposals, and exposes useful relations that were absent from the initial set. 
+
+Dual-channel proposal. Let z = ϕ(Q) be the embedding of query Q. Independent nearest neighbor searches over entity and concrete triple descriptions recover referential and predicate-level matches, respectively. Their union, followed by bounded graph expansion, produces the initial item set V0 = {v1, . . . , v n}, where an item is either a typed triple or an orphan entity. Each item receives the nonnegative seed score 
+
+si = max(0 , cos( z, ϕ (vi))) ,
+
+giving the seed vector s ∈ Rn
+
+> ≥0
+
+.
+
+Query-conditioned item graph. A bounded entity graph GQ is fetched around the endpoints of V0. For affinity construction, we use the undirected projection of the typed triple graph: a triple item has endpoint set {h, t }, and an orphan entity item has endpoint set {e}. For each concrete triple τ in this graph, let 
+
+rτ = cos( z, ϕ (τ )) , r+ 
+
+> τ
+
+= max(0 , r τ ), cτ = max( δ, 1 − rτ ),
+
+where rτ measures query relevance and cτ is its traversal cost. For items vi and vj , let 
+
+πij be the minimum-cost path between any of their endpoints, subject to a hop bound H,and let dij = |πij |. Its relevance is rij = max τ ∈πij r+ 
+
+> τ
+
+, with rij = 1 when the two items share an endpoint. Shared endpoints are treated as direct local evidence. High-degree noise is controlled by the expansion cutoff before diffusion and by the hub penalty during materialization. These quantities define the symmetric item affinity 
+
+Aij =
+
+(
+
+exp( −βd ij ) rij , i̸ = j and dij ≤ H, 
+
+0, otherwise . (1) Traversal costs select the path, while the final affinity uses the hop length and the strongest positive triple relevance on that selected path. Thus, two items interact strongly only when ActionRAG 
+
+they are connected by a short path with query-relevant evidence. This max-relevance choice lets a salient bridge support diffusion even when nearby path triples mainly serve as context carriers; traversal cost selects among candidate paths and hop decay limits long bridges. 
+
+Receiver-normalized diffusion. Let D = diag( A1) and P = D−1A, with an all-zero row for an isolated item. ActionRAG refines the seed scores through 
+
+x = αs + (1 − α)P x, x = α I − (1 − α)P −1s. (2) The orientation of P is important. It acts directly on the column vector x, so a non-isolated item receives 
+
+xi = αs i + (1 − α)
+
+P 
+
+> j
+
+Aij xj
+
+P 
+
+> k
+
+Aik 
+
+. (3) Each item therefore combines its own semantic evidence with a relevance-weighted average of its neighbors. Normalization belongs to the receiving item, which makes the operator an evidence smoother rather than probability-mass transport. Since ρ((1 − α)P ) < 1 for 
+
+α ∈ (0 , 1), the fixed point is unique and the closed-form solve is well defined. 
+
+Pruning and evidence materialization. Diffusion can weaken an isolated but highly query-relevant item, so ActionRAG protects the strongest raw-similarity items. The re-tained index set is 
+
+m = max  
+
+> j
+
+xj , K =
+
+(
+
+{i : xi ≥ εm } ∪ Top S (s), m > 0,
+
+Top S (s), m = 0 , (4) where S is the number of protected raw-score items. The second branch is the all-zero fallback: if no item receives positive diffused score, only the protected raw-score items are retained. To recover triples that were not proposed initially, every concrete triple τ ∈ πij 
+
+between retained items receives the flux score 
+
+Fijτ = ( xi + xj ) exp( −βd ij )r+ 
+
+> τ
+
+hihj , hi = min 
+
+
+
+1, 1log max(∆ i, 2) 
+
+
+
+, (5) where ∆ i is the maximum local degree among the endpoints of vi. The factors hi and hj
+
+prevent hubs from dominating merely because they participate in many paths. A unique unseen triple receives the aggregate score 
+
+Fτ = max  
+
+> i,j ∈K
+> τ∈πij
+
+Fijτ .
+
+The highest-flux triples absent from V0 are materialized as additional evidence, up to a budget of L triples. This changes only the query-local candidate set, not the stored graph. 
+
+Context assembly. The evidence order is intentionally two stage: retained seed-supported items are packed first by diffused score, then materialized bridge triples are appended by flux. The retained and materialized items are rendered as graph facts and greedily packed into the generator context under a token budget. No LLM is invoked during retrieval, and all materialized evidence is temporary to the current query. Mahla Vandrangi 
+
+Algorithm 1: Query-time evidence refinement and materialization. 
+
+Input: Query Q; graph G; embedder ϕ; candidate parameters KE , K T , D E , D T , K init ;diffusion parameters H, α, β, δ, ε, S, L 
+
+Output: Ordered query-local evidence set V∗
+
+z ← ϕ(Q)retrieve top-KE entity seeds and top-KT concrete triple seeds expand entity and triple seeds to depths DE and DT , applying the fixed caps in Appendix C, to obtain ( V0, s )
+
+if V0 = ∅ then return [ ] fetch GQ within H hops of the item endpoints 
+
+foreach concrete triple τ ∈ G Q do 
+
+compute its relevance rτ , positive relevance r+ 
+
+> τ
+
+, and traversal cost cτ
+
+foreach unordered item pair (vi, v j ) do 
+
+find πij and dij ; set Aij using Eq. (1) row-normalize A to obtain P , using a zero row for each isolated item solve Eq. (2) for x
+
+retain K according to Eq. (4) 
+
+foreach unseen triple τ on a path between retained items do 
+
+compute pairwise flux entries Fijτ using Eq. (5) aggregate duplicate entries by Fτ = max i,j Fijτ 
+
+M ← unique triples with the top-L aggregate flux scores 
+
+V∗ ← { vi : i ∈ K} ∪ M 
+
+return retained items ordered by xi, followed by materialized triples ordered by Fτ
+
+4. Experiments 
+
+We evaluate ActionRAG on MemoryAgentBench (Hu et al., 2026), which tests long-term memory through incremental multi-turn interactions. We report its eight deterministic task columns across four competencies: accurate retrieval (SH-DocQA, MH-DocQA, and EventQA), conflict resolution (FC-SH and FC-MH), long-range understanding (Detective QA), and test-time learning (MCC and Recom). All ActionRAG results use the receiver-normalized diffusion method in Section 3.3; unless stated otherwise, all baseline numbers are taken directly from the MAB paper. We compare against the MAB baseline families most relevant to retrieval-based memory: long-context references, simple and embedding RAG, structure-augmented RAG, and agentic memory agents, including HippoRAG-v2 (Guti´ errez et al., 2025). 
+
+4.1. Setup Benchmark and scoring. The eight columns aggregate finer-grained datasets: SH-DocQA and MH-DocQA from RULER, three context-length variants of EventQA, five in-context classification datasets for MCC, Redial for Recom, Detective QA, and four context-length variants each for FC-SH and FC-MH. Following MAB, we use substring exact match for DocQA, EventQA, and fact consolidation, exact match for MCC and Detective QA, and Recall@5 for Recom. We preserve MAB’s within-column aggregation and report the ActionRAG 
+
+unweighted mean of the eight column scores as the “deterministic average.” Tasks requiring an LLM judge are excluded from this aggregate. 
+
+ActionRAG configuration. Each query retrieves the ten nearest entities and ten nearest concrete triples. Entity seeds are expanded by at most two hops and triple seeds by one hop, after which the initial set is capped at 200 items. The query-local graph uses hop bound H=3, distance-decay rate β=1, and minimum traversal cost δ=0 .01. We apply one receiver-normalized solve with direct-evidence weight α=0 .15; no second diffusion round is performed. Items scoring below ε=0 .10 times the maximum refined score are pruned, except for the S=10 strongest initial items, and at most L=5 unseen triples are materialized using Eq. (5). Retrieved graph facts are packed into a 7 ,000-token context. Full retrieval settings appear in Appendix C. Indexing follows Section 3.2 and uses Claude Haiku 4.5 for extraction and graph sum-marization. BGE-M3 ( ∼560M parameters) supplies all embeddings (Chen et al., 2024), and gpt-4o-mini generates the final answers for direct comparison with MAB Table 17. All ActionRAG experiments were run on a consumer Apple Silicon laptop (macOS 26.5.2, Darwin 25.5.0, arm64). In comparison, MAB reports HippoRAG-v2 timings on four NVIDIA L40 GPUs with an AMD EPYC 7713 CPU, so the latency results are not hardware-matched. 
+
+4.2. Main results on MAB deterministic columns 
+
+Table 1 reports eight deterministic MAB columns across long-context, RAG, structure-augmented, and agentic-memory baselines. ActionRAG (three runs) is grouped as structure-augmented and uses MAB’s gpt-4o-mini generator. Table 2 shows complementary indexing and retrieval effects: the full pipeline scores 55 .1on the reconciled graph but 45 .5 on the raw graph and 48 .9 with summarization without reconciliation. Base retrieval on the reconciled graph reaches 45 .0. The best result therefore combines reconciled, summarized indexing with query-local refinement. ActionRAG has the highest reported retrieval-based score on six columns and an un-weighted mean of 55 .1, 5 .4 points above HippoRAG-v2. MIRIX (4.1-mini) leads the com-bined structure-augmented/agentic group on MH-DocQA and Detective QA, but uses iter-ative search and GPT-4.1-mini rather than ActionRAG’s single retrieval pass and gpt-4o-mini. Relative to HippoRAG-v2, ActionRAG gains 20 .6, 8 .0, 7 .3, and 10 .5 points on MCC, Recom, FC-SH, and FC-MH, but trails on MH-DocQA (63 .0 vs. 66 .0) and Detective QA (46 .7 vs. 57 .7), where broader narrative context may be more useful than a compact triple neighborhood. Table 3 details MCC: ActionRAG nearly matches GPT-4o-mini long context (82 .0 vs. 82 .4), exceeds it on BANKING and TREC-Coarse, and outperforms the reported retrieval and agentic-memory baselines. 
+
+Retrieval seed-count ablation. Appendix A reports the exact MAB top-k sweep on four columns. Here k denotes retrieved chunks for MAB baselines and KE =KT =k entity and triple seeds for ActionRAG. The default k = 10 matches Table 1 and is ActionRAG’s strongest tested setting. Mahla Vandrangi 
+
+Table 1: Deterministic scores on the selected MAB columns. Baseline numbers are from MAB Table 3. Unless a model is named in the agent row, MAB uses gpt-4o-mini as the answer generator. Avg. is the unweighted mean of the eight heterogeneous displayed scores. Bold marks the global column best and underline marks the best among structure-augmented RAG and agentic memory agents. 
+
+AR TTL LRU CR Overall Agent type SH MH Event MCC Recom DetQA FC-SH FC-MH Avg. 
+
+Long-context agents 
+
+GPT-4o-mini (128K) 64.0 43.0 59.0 82.0 15.1 63.4 45.0 5.0 47.1 GPT-4.1-mini (1M) 83.0 66.0 82.6 75.6 16.7 56.3 36.0 5.0 52.7 
+
+Simple RAG agents 
+
+BM25 66.0 56.0 74.6 75.4 13.6 52.1 48.0 3.0 48.6 
+
+Embedding RAG agents 
+
+Contriever 22.0 31.0 66.8 70.6 15.2 42.3 18.0 7.0 34.1 Text-Embed-3-Small 60.0 44.0 63.0 70.0 15.3 54.9 28.0 3.0 42.3 Text-Embed-3-Large 54.0 44.0 70.0 72.4 16.2 56.3 28.0 4.0 43.1 Qwen3-Embedding-4B 57.0 47.0 71.4 78.0 12.2 59.2 29.0 3.0 44.6 
+
+Structure-augmented RAG agents 
+
+RAPTOR 29.0 38.0 45.8 59.4 12.3 42.3 14.0 1.0 30.2 GraphRAG 47.0 47.0 34.4 39.8 9.8 39.4 14.0 2.0 29.2 MemoRAG 29.0 33.0 56.0 77.0 13.1 50.7 21.0 7.0 35.9 HippoRAG-v2 76.0 66.0 67.6 61.4 10.2 57.7 54.0 5.0 49.7 Mem0 25.0 32.0 37.5 32.4 10.0 36.6 18.0 2.0 24.2 Cognee 31.0 26.0 26.8 35.4 10.1 29.6 28.0 3.0 23.7 Zep 44.0 25.0 42.5 62.8 12.1 28.2 7.0 3.0 28.1 
+
+ActionRAG 77 .0 
+
+> ±1.0
+
+63 .0
+
+> ±1.0
+
+77 .1
+
+> ±0.8
+
+82 .0
+
+> ±1.1
+
+18 .2 
+
+> ±0.4
+
+46 .7
+
+> ±0.9
+
+61 .3
+
+> ±1.2
+
+15 .5
+
+> ±0.7
+
+55 .1
+
+> ±0.9
+
+Agentic memory agents 
+
+Self-RAG 35.0 42.0 31.8 11.6 12.8 35.2 19.0 3.0 23.8 MemGPT 41.0 38.0 26.2 67.6 14.0 42.3 28.0 3.0 32.5 MIRIX 62.0 61.0 29.8 38.4 9.8 40.8 14.0 2.0 32.2 MIRIX (4.1-mini) 73.0 75.0 53.0 61.0 10.3 62.0 20.0 3.0 44.7 
+
+Table 2: Component attribution on MAB deterministic aggregate. 
+
+Graph construction Recon. Summ. Base PPR ActionRAG Raw exact-match triplet graph string only none 43.0 45.4 45.5 Summarized exact-match graph string only node/rel. 43.8 46.0 48.9 Reconciled ActionRAG graph node/type/rel. node/rel.+prov. 45.0 47.0 55.1 
+
+4.3. Amortized per-query cost 
+
+Following MAB Table 17, we use its November 2025 prices: $0.15/ $0.60 per 1M input/ output tokens for GPT-4o-mini and $0.40/ $1.60 for GPT-4.1-mini. Baseline costs come from MAB; ActionRAG uses measured mean tokens plus a 500-token prompt. This excludes graph construction, storage, and local embedding. ActionRAG 
+
+Table 3: MCC test-time learning accuracy and the baselines are from MAB Table 7.                                                                                                       
+
+> Agent BANKING CLINIC NLU TREC-C TREC-F Avg. GPT-4o LC 96.0 96.0 90.0 87.0 69.0 87.6 Claude-3.7-Sonnet LC 97.0 98.0 86.0 87.0 79.0 89.4
+> GPT-4o-mini LC 93.0 93.0 87.0 73.0 66.0 82.4 Qwen3-Embedding-4B 90.0 88.0 86.0 67.0 59.0 78.0 MemoRAG 90.0 87.0 86.0 66.0 56.0 77.0 BM25 89.0 89.0 84.0 62.0 53.0 75.4 MemGPT 89.0 83.0 79.0 56.0 31.0 67.6 Zep 83.0 74.0 70.0 50.0 37.0 62.8 HippoRAG-v2 81.0 86.0 73.0 38.0 29.0 61.4 RAPTOR 78.0 75.0 73.0 48.0 23.0 59.4 GraphRAG 64.0 54.0 49.0 24.0 6.0 39.4 MIRIX (4o-mini) 42.0 53.0 49.0 36.0 12.0 38.4 Cognee 34.0 42.0 42.0 41.0 18.0 35.4 Mem0 35.0 37.0 35.0 29.0 26.0 32.4 Self-RAG 19.0 13.0 6.0 15.0 5.0 11.6
+> ActionRAG 94.0 91.0 86.0 76.0 63.0 82.0
+
+Table 4: Per-query cost ( $) / score on four MAB columns and the baselines are from MAB Table 17 under November 2025 prices. 
+
+Agent MH-DocQA MCC DetQA FC-SH GPT-4o-mini LC 0.010 / 43.0 0.008 / 82.0 0.010 / 63.4 0.010 / 45.0 GPT-4.1-mini LC 0.043 / 66.0 0.011 / 75.6 0.013 / 56.3 0.027 / 36.0 BM25 + gpt-4o-mini <0.001 / 56.0 0.006 / 75.4 0.006 / 52.1 <0.001 / 48.0 MIRIX (4.1-mini) 0.016 / 75.0 0.010 / 61.0 0.011 / 62.0 0.019 / 20.0 
+
+ActionRAG 0.00109 / 63.0 0.00031 / 82.0 0.00116 / 46.7 0.00111 / 61.3 
+
+ActionRAG costs at most $0.00116/query. It matches GPT-4o-mini long context on MCC at lower cost and on MH-DocQA/FC-SH it is 39 ×/17 × cheaper than GPT-4.1-mini/ MIRIX, with a three-point MH gap and higher FC-SH score. 
+
+Retrieval latency. Excluding generation, retrieval takes 95 .5/414 .0 ms at p50 /p99 and BGE-M3 encoding 21 .7/26 .7 ms, a component-wise 440 .7 ms at p99 (Appendix D). 
+
+5. Conclusion 
+
+ActionRAG combines reconciled graph construction with query-local receiver-normalized diffusion, pruning, and materialization for long-term agent memory. Across eight hetero-geneous deterministic MAB columns, it records the highest reported retrieval-based score on six and an unweighted mean of 55 .1. Component ablations indicate that the best con-figuration combines reconciled, summarized indexing with retrieval-time refinement. Gains center on test-time learning and conflict resolution where weaker MH-DocQA and Detec-tiveQA results expose limits for narrative evidence. It also maintains low query cost and sub-half-second main-evaluation retrieval, while packed context remains nearly constant as the graph grows. Future work can include better algorithms for graph expansion which are more robust to hyperparameter values. Mahla Vandrangi 
+
+References 
+
+Anthropic. Claude 3.5 Sonnet, 2024. URL https://www.anthropic.com/news/ claude-3-5-sonnet .Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi. Self-RAG: Learning to retrieve, generate, and critique through self-reflection. In ICLR , 2024. Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu. BGE M3-Embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge distillation. arXiv preprint arXiv:2402.03216 , 2024. Shouyuan Chen, Sherman Wong, Liangjian Chen, and Yuandong Tian. Extending con-text window of large language models via positional interpolation. arXiv preprint arXiv:2306.15595 , 2023. Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready AI agents with scalable long-term memory. arXiv preprint arXiv:2504.19413 , 2025. Yiran Ding, Li Lyna Zhang, Chengruidong Zhang, Yuanyuan Xu, Ning Shang, Jiahang Xu, Fan Yang, and Mao Yang. LongRoPE: Extending LLM context window beyond 2 million tokens. In ICML , 2024. Darren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, and Jonathan Larson. From local to global: A graph RAG approach to query-focused summarization. arXiv preprint arXiv:2404.16130 , 2024. Gemini Team, Google. Gemini 1.5: Unlocking multimodal understanding across millions of tokens of context. arXiv preprint arXiv:2403.05530 , 2024. Zirui Guo, Lianghao Xia, Yanhua Yu, Tu Ao, and Chao Huang. LightRAG: Simple and fast retrieval-augmented generation. arXiv preprint arXiv:2410.05779 , 2024. Bernal Jim´ enez Guti´ errez, Yiheng Shu, Yu Gu, Michihiro Yasunaga, and Yu Su. HippoRAG: Neurobiologically inspired long-term memory for large language models. In NeurIPS ,2024. Bernal Jim´ enez Guti´ errez, Yiheng Shu, Weijian Qi, Sizhe Zhou, and Yu Su. From RAG to memory: Non-parametric continual learning for large language models. arXiv preprint arXiv:2502.14802 , 2025. Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasupat, and Ming-Wei Chang. REALM: Retrieval-augmented language model pre-training. In ICML , 2020. Taher H. Haveliwala. Topic-sensitive PageRank. In WWW , 2002. Yuanzhe Hu, Yu Wang, and Julian McAuley. Evaluating memory in LLM agents via incre-mental multi-turn interactions. In ICLR , 2026. ActionRAG 
+
+Gautier Izacard, Mathilde Caron, Lucas Hosseini, Sebastian Riedel, Piotr Bojanowski, Ar-mand Joulin, and Edouard Grave. Unsupervised dense information retrieval with con-trastive learning. Transactions on Machine Learning Research , 2022. Greg Kamradt. Needle In A Haystack: Pressure testing LLMs, 2023. URL https:// github.com/gkamradt/LLMTest_NeedleInAHaystack .Vladimir Karpukhin, Barlas O˘ guz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. Dense passage retrieval for open-domain question an-swering. In EMNLP , 2020. Omar Khattab and Matei Zaharia. ColBERT: Efficient and effective passage search via contextualized late interaction over BERT. In SIGIR , 2020. Johannes Klicpera, Stefan Weißenberger, and Stephan G¨ unnemann. Diffusion improves graph learning. In NeurIPS , 2019. Letta. Letta: Stateful agents framework with memory and reasoning, 2024. URL https: //www.letta.com/ .Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich K¨ uttler, Mike Lewis, Wen-tau Yih, Tim Rockt¨ aschel, Sebastian Riedel, and Douwe Kiela. Retrieval-augmented generation for knowledge-intensive NLP tasks. In NeurIPS , 2020. Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. Lost in the middle: How language models use long contexts. 
+
+Transactions of the Association for Computational Linguistics , 2024. Vasilije Markovic, Lazar Obradovic, Laszlo Hajdu, and Jovan Pavlovic. Optimizing the interface between knowledge graphs and LLMs for complex reasoning. arXiv preprint arXiv:2505.24478 , 2025. Rodrigo Nogueira, Zhiying Jiang, Ronak Pradeep, and Jimmy Lin. Document ranking with a pretrained sequence-to-sequence model. Findings of EMNLP , 2020. OpenAI. New embedding models and API updates, 2024a. URL https://openai.com/ index/new-embedding-models-and-api-updates/ .OpenAI. GPT-4o system card, 2024b. URL https://openai.com/index/ gpt-4o-system-card/ .Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. MemGPT: Towards LLMs as operating systems, 2024. URL 
+
+https://arxiv.org/abs/2310.08560 .Lawrence Page, Sergey Brin, Rajeev Motwani, and Terry Winograd. The PageRank citation ranking: Bringing order to the web. Technical report, Stanford InfoLab, 1999. Bowen Peng, Jeffrey Quesnelle, Honglu Fan, and Enrico Shippole. YaRN: Efficient context window extension of large language models. In ICLR , 2024. Mahla Vandrangi 
+
+Hongjin Qian, Zheng Liu, Peitian Zhang, Kelong Mao, Defu Lian, Zhicheng Dou, and Tiejun Huang. MemoRAG: Boosting long context processing with global memory-enhanced retrieval augmentation. In Proceedings of the ACM on Web Conference 2025 , WWW ’25, pages 2366–2377, New York, NY, USA, 2025. Association for Computing Machinery. ISBN 9798400712746. doi: 10.1145/3696410.3714805. URL https://doi.org/10.1145/ 3696410.3714805 .Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. Zep: A temporal knowledge graph architecture for agent memory. arXiv preprint arXiv:2501.13956 , 2025. Stephen Robertson and Hugo Zaragoza. The probabilistic relevance framework: BM25 and beyond. Foundations and Trends in Information Retrieval , 3(4):333–389, 2009. Keshav Santhanam, Omar Khattab, Jon Saad-Falcon, Christopher Potts, and Matei Za-haria. ColBERTv2: Effective and efficient retrieval via lightweight late interaction. In 
+
+NAACL , 2022. Parth Sarthi, Salman Abdullah, Aditi Tuli, Shubh Khanna, Anna Goldie, and Christo-pher D. Manning. RAPTOR: Recursive abstractive processing for tree-organized retrieval. In ICLR , 2024. Weiwei Sun, Lingyong Yan, Xinyu Ma, Shuaiqiang Wang, Pengjie Ren, Zhumin Chen, Dawei Yin, and Zhaochun Ren. Is ChatGPT good at search? Investigating large language models as re-ranking agents. EMNLP , 2023. Liang Wang, Nan Yang, Xiaolong Huang, Binxing Jiao, Linjun Yang, Daxin Jiang, Ran-gan Majumder, and Furu Wei. Text embeddings by weakly-supervised contrastive pre-training. arXiv preprint arXiv:2212.03533 , 2022. Yu Wang and Xi Chen. MIRIX: Multi-agent memory system for LLM-based agents. arXiv preprint arXiv:2507.07957 , 2025. Shitao Xiao, Zheng Liu, Peitian Zhang, Niklas Muennighoff, Defu Lian, and Jian-Yun Nie. C-Pack: Packed resources for general Chinese embeddings. SIGIR , 2024. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-MEM: Agentic memory for LLM agents. arXiv preprint arXiv:2502.12110 , 2025. Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, Fei Huang, and Jingren Zhou. Qwen3 em-bedding: Advancing text embedding and reranking through foundation models. arXiv preprint arXiv:2506.05176 , 2025. 
+
+Appendix A. Retrieval top-k ablation detail 
+
+Table 5 reports the top-k sweep. Baseline values are from MAB Table 9. ActionRAG 
+
+Table 5: Top-k accuracy: k is the chunk count for MAB baselines and KE =KT =k for ActionRAG seeds. 
+
+Dataset Method k=2 k=5 k=10 SH-DocQA BM25 50.0 60.0 66.0 SH-DocQA Text-Embed-3-Large 36.0 47.0 54.0 SH-DocQA HippoRAG-v2 60.0 69.0 76.0 SH-DocQA ActionRAG 76.0 76.0 77.0 MH-DocQA BM25 49.0 54.0 56.0 MH-DocQA Text-Embed-3-Large 37.0 41.0 44.0 MH-DocQA HippoRAG-v2 53.0 60.0 66.0 MH-DocQA ActionRAG 56.0 57.0 63.0 EventQA BM25 66.6 71.2 74.6 EventQA Text-Embed-3-Large 51.8 62.4 70.0 EventQA HippoRAG-v2 58.8 67.6 67.4 EventQA ActionRAG 60.3 60.7 77.1 MCC BM25 67.8 74.6 75.4 MCC Text-Embed-3-Large 59.4 69.4 72.4 MCC HippoRAG-v2 58.8 61.4 61.4 MCC ActionRAG 81.6 80.4 82.0 
+
+Appendix B. Additional Ablations and Sensitivity Analyses 
+
+Table 6: One-at-a-time MCC sensitivity. Each row changes one default. 
+
+Config BANK CLINIC NLU TREC-C TREC-F MCC avg default ( α = .15, H = 3, ε = .1, L = 5, S = 10) 94.0 91.0 86.0 76.0 63.0 82.0 
+
+α = 0 .05 94.0 90.0 85.0 82.0 63.0 82.8 
+
+α = 0 .50 92.0 89.0 86.0 79.0 64.0 82.0 
+
+α = 0 .85 95.0 89.0 86.0 86.0 68.0 84.8 
+
+H = 1 93.0 88.0 87.0 83.0 63.0 82.8 
+
+H = 5 92.0 89.0 87.0 80.0 66.0 82.8 
+
+ε = 0 .0 93.0 90.0 85.0 80.0 68.0 83.2 
+
+ε = 0 .3 93.0 89.0 85.0 84.0 62.0 82.6 
+
+L = 0 93.0 88.0 87.0 84.0 65.0 83.4 
+
+L = 10 92.0 89.0 87.0 80.0 63.0 82.2 
+
+S = 0 93.0 89.0 87.0 80.0 62.0 82.2 
+
+S = 20 93.0 89.0 86.0 80.0 63.0 82.2 
+
+MCC means span 82 .0–84 .8. Both α = 0 .85 (84 .8) and L = 0 (83 .4) exceed the fixed default, so it is not MCC-optimal and materialization is not uniformly beneficial and all settings remain within 2 .8 points. Table 7: MCC embedding sensitivity with fixed graph and retrieval settings. 
+
+Embedder Dim BANK CLINIC NLU TREC-C TREC-F MCC avg BGE-M3 1024 94.0 89.0 86.0 84.0 67.0 84.0 text-embedding-3-large 3072 92.0 91.0 88.0 74.0 60.0 81.0 text-embedding-3-small 1536 90.0 92.0 87.0 78.0 51.0 79.6 Mahla Vandrangi 
+
+Each backend uses a fresh MCC run after rebuilding embeddings, so BGE-M3 is separate from the main-table run. Its 84 .0 mean leads text-embedding-3-large (81 .0) and -3-small (79 .6) with TREC-F varying the most. Table 8: EventQA graph growth on matched 64K, 128K, and full questions.                                                               
+
+> Graph Nodes Tokens Doc 1 Doc 2 Doc 3 Doc 4 Doc 5 Avg p50 ms p99 ms Ctx tok Items retr. 64K 409 ∼77.9K 72 77 73 74 70 73.2 2212 5811 6844 103 128K 775 ∼156.8K 69 75 69 69 70 70.4 2233 6325 6901 121 full 2948 ∼651K 75 76 63 67 64 69.0 2764 7664 6896 153 ∆ 64K to full 7.2x 8.4x +3 -1 -10 -7 -6 -4.2 +25% +32% ∼flat +1.5x
+
+From 64K to full EventQA, nodes grow 409 → 2,948 and tokens 8 .4×, while packed context stays near 6 .9K. Latency rises 25%/32% at p50 /p99 and mean score falls 4 .2 points as distractors increase. 
+
+Appendix C. ActionRAG configuration 
+
+All MAB columns use one fixed configuration: Claude Haiku 4.5 extraction/summarization, BGE-M3 embeddings, and gpt-4o-mini synthesis. Table 9 maps implementation settings to Section 3.3; implementation KR corresponds to paper KT .Table 9: Fixed ActionRAG retrieval configuration.                                              
+
+> Setting Symbol Value Setting Symbol Value entity seeds KE10 hop cap H3concrete triple seeds KT10 distance decay β1.0 entity expansion depth DE2traversal floor δ0.01 triple expansion depth DT1direct-evidence weight α0.15 neighbors per expansion n/a 8prune threshold ε0.10 hub-degree cutoff n/a 80 protected raw-score items S10 initial item-pool cap Kinit 200 materialized triples L5final triple cap n/a 200 retrieved-context budget n/a 7,000 tokens
+
+The implementation uses cτ = max(0 .01 , 1 − cos( z, ϕ (τ ))) and one diffusion solve. In per intermediary mode, unseen path triples receive pairwise flux and duplicates are merged by maximum Fτ , and the top L become temporary query-local evidence. 
+
+Appendix D. Retrieval latency protocol 
+
+We measure isolated retrieval, excluding answer generation, on the same Apple Silicon laptop with local Postgres/pgvector and no discrete GPU. Diffusion timing covers 50 MH-DocQA queries after initialization and includes local-graph construction, path scoring, solv-ing, pruning, materialization, and packing, but excludes query embedding. BGE-M3 em-bedding is measured separately at batch size one with normalized embeddings, 20 warm-ups, and 200 measured calls. The reported p99 adds the two component p99 values and we omit concurrent full-retrieval wall time because database and Python scheduling make it more variable.

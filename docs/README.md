@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-25</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-19 ~ 2026-10-28</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 19 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 36 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>24</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-25 21:31:33 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-28 14:18:12 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天精读7篇、速读12篇，共扫描19篇论文，重点追踪多模态智能体记忆与无需训练的智能体自进化。最值得看的是PACE-Mem如何用前缀感知补全多模态证据，以及Hippo借海马体回放实现零训练自进化，两者均获9.0分。普通读者可先读这两篇精读，再结合VitaBench和记忆遗忘基准，理解智能体记忆从“检索”走向“生命周期管理”的趋势。</p>
+<p>2026-10-19至10-28共筛出36篇论文（精读24篇、速读12篇），焦点集中在Agentic Memory与LLM记忆机制两大前沿。最值得关注的是两篇满分精读《Agentic Memory Management Is the Next Frontier of Information Retrieval》和《Learning to Remember: Advances in Memory Mechanisms for Large Language Models》，它们共同指向“记忆管理”正成为检索与持续学习的关键突破口。普通读者可先读这两篇综述建立框架，再结合速读中的RAG问答评测与Co2In增量记忆框架理解落地路径。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">7 篇</strong>
+    <strong class="dpr-home-dashboard-count">24 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents">PACE-Mem: Prefix-Aware Complementary Evidence for Multimodal Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Hippo: Training-Free Agent Self-Evolution via Hippocampal Replay">Hippo: Training-Free Agent Self-Evolution via Hippocampal Replay</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemRevise: A Self-Revising Memory for Conversational Search">MemRevise: A Self-Revising Memory for Conversational Search</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Agentic Memory Management Is the Next Frontier of Information Retrieval">Agentic Memory Management Is the Next Frontier of Information Retrieval</span></li><li><span class="dpr-home-dashboard-paper-title" title="Learning to Remember: Advances in Memory Mechanisms for Large Language Models">Learning to Remember: Advances in Memory Mechanisms for Large Language Models</span></li><li><span class="dpr-home-dashboard-paper-title" title="ClawMMU: Protection-Coherent Virtual Memory for Stateful LLM Agents">ClawMMU: Protection-Coherent Virtual Memory for Stateful LLM Agents</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>7</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>18</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>6</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -94,9 +94,9 @@
     <strong class="dpr-home-dashboard-count">12 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="VitaBench: Memory Lifecycles Beyond Retrieval">VitaBench: Memory Lifecycles Beyond Retrieval</span></li><li><span class="dpr-home-dashboard-paper-title" title="Retrieving Complementary Evidence for Multi-Hop RAG with Semantic Gain Graphs">Retrieving Complementary Evidence for Multi-Hop RAG with Semantic Gain Graphs</span></li><li><span class="dpr-home-dashboard-paper-title" title="Can Agents Forget When Asked? A Benchmark for Memory Unlearning in LLM Agents">Can Agents Forget When Asked? A Benchmark for Memory Unlearning in LLM Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Analyzing performance of Retrieval Augmented Generation models for Question Answering Tasks">Analyzing performance of Retrieval Augmented Generation models for Question Answering Tasks</span></li><li><span class="dpr-home-dashboard-paper-title" title="Reliable Knowledge Acquisition for Continual Learning Agents">Reliable Knowledge Acquisition for Continual Learning Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Co2In: a Bi-level Memory Incremental Learning Framework with Knowledge Encoding, Consolidation, and Integration">Co2In: a Bi-level Memory Incremental Learning Framework with Knowledge Encoding, Consolidation, and Integration</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>6</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>6</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>7</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>5</strong></span></div>
 </section>
 </div>
 
