@@ -3,7 +3,6 @@ name: daily-paper-reader
 on:
   schedule:
     - cron: "43 18 * * *" # UTC 18:43；北京时间次日 02:43
-    - cron: "57 14 * * *" # 临时调度验证：只运行 schedule-probe，不调用模型
   workflow_dispatch:
     inputs:
       run_enrich:
@@ -35,22 +34,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  schedule-probe:
-    if: github.event_name == 'schedule' && github.event.schedule == '57 14 * * *'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      contents: read
-    steps:
-      - name: Confirm scheduled event delivery without paid work
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          echo "Scheduled event delivered: $EVENT_NAME / $EVENT_SCHEDULE"
-          date -u
   run:
-    if: github.event_name != 'schedule' || github.event.schedule != '57 14 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
