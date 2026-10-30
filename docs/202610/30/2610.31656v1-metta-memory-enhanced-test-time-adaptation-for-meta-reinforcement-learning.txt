@@ -1,0 +1,1092 @@
+Title: METTA: Memory-Enhanced Test-Time Adaptation for Meta-Reinforcement Learning
+
+URL Source: https://arxiv.org/pdf/2610.31656v1
+
+Published Time: Fri, 23 Oct 2026 01:44:12 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+Preprint 
+
+# METTA : M EMORY -E NHANCED TEST -T IME 
+
+# ADAPTATION FOR META -R EINFORCEMENT LEARNING 
+
+Ali Najar Hosein Hasani Amir Kooshan Fattah Yasamin Rajabi Mahdieh Soleymani Baghshah 
+
+Department of Computer Engineering Sharif University of Technology 
+
+{ali.najjar82,hosein.hasani,amir.hesari82, Yasamin.rajabi53,soleymani }@sharif.edu 
+
+ABSTRACT 
+
+Meta-reinforcement learning aims to train agents that adapt quickly to unseen tasks from limited interaction, but this requires representing task evidence over long interaction histories. Classical recurrent agents compress experience into hidden states, while transformer-based agents retrieve from past trajectories at quadratic memory and computation cost. In this work, we propose Memory-Enhanced Test-Time Adaptation (M ETTA ) for meta-reinforcement learning. It de-composes the fast adaptation phase into two temporal scales: a causal neural mem-ory performs fine-grained within-episode adaptation with linear sequence com-plexity, while compact episode-level summaries support long-range cross-episode task inference without attending over the full interaction history. Moreover, equip-ping agents with neural memory provides sufficient expressive capacity and test-time training capability, enabling effective adaptation to unseen held-out tasks and task families at meta-test time. On unseen held-out Meta-World ML10/45 test en-vironments, M ETTA achieves a success rate over 50% while maintaining a low training budget and short wall-clock time. On long-context sparse-reward Point-Maze tasks, it outperforms transformer-based baselines by exhibiting more struc-tured exploration behavior. These results show that M ETTA provides an efficient path toward more adaptive and scalable long-context meta-RL. 
+
+1 INTRODUCTION 
+
+Reinforcement learning (RL) studies how agents learn to make sequential decisions through in-teraction with an environment, using rewards as feedback to improve future behavior (Sutton & Barto, 2018). Despite strong performance in fixed environments, standard RL methods often require large amounts of data to adapt to new tasks and generalize poorly under environment shifts (Packer et al., 2018; Cobbe et al., 2019). Meta-reinforcement learning addresses this limitation by train-ing agents over a distribution of tasks so they can use past training experience to adapt quickly to unseen tasks from limited interaction at meta-test time (Duan et al., 2016; Wang et al., 2016; Finn et al., 2017; Rakelly et al., 2019). A fundamental problem in meta-RL is representing task evidence collected during interaction with the environment (Humplik et al., 2019; Zintgraf et al., 2021). Black-box sequence-based agents learn this representation directly from trajectories using internal dynamics (Duan et al., 2016; Wang et al., 2016; Mishra et al., 2018; Alver & Precup, 2021). Latent-context methods instead make task inference more explicit by inferring a task variable or belief from collected experience (Humplik et al., 2019; Rakelly et al., 2019; Zintgraf et al., 2021). Yet despite their differences, most approaches still rely on compressed task representations, which may restrict their capacity in meta-RL settings where task evidence may be sparse, delayed, or un-evenly distributed across episodes. Once experience is compressed into a latent task representation, the policy cannot easily recover specific past evidence that later becomes important. Transformers offer a natural alternative because self-attention enables associative retrieval over past interactions and supports long-range dependency modeling without relying on recurrent state com-1arXiv:2610.31656v1 [cs.LG] 22 Oct 2026 Preprint METTA (ours) ECET TrMRL 
+
+> Episode 1 Episode 2 Episode 5 Episode 10 Start End Goal
+
+Figure 1: Exploration behavior on a sparse-reward PointMaze task (Fu et al., 2020) across adapta-tion episodes. Trajectories are shown for Episodes 1, 2, 5, and 10 of the same task. As interaction proceeds, M ETTA explores new regions and reduces repeated trajectories across episodes, suggest-ing more effective reuse of past exploration evidence in long-context adaptation. TrMRL (Melo, 2022) is difficult to scale to long multi-episode settings, while ECET (Shala et al., 2025) is limited by its short within-episode context. pression (Vaswani et al., 2017; Melo, 2022; Shala et al., 2025). This makes them well suited to cross-episode meta-RL, where useful evidence may appear far back in the trial (Mishra et al., 2018; Shala et al., 2025; Melo, 2022). However, standard self-attention scales quadratically with sequence length (Vaswani et al., 2017; Duman Keles et al., 2023), making long adaptation horizons increas-ingly expensive in online RL settings. Prior work also showed that transformer optimization in reinforcement learning can be unstable due to exploration dynamics and non-stationary training sig-nals (Parisotto et al., 2019). In online meta-RL, the effective context grows with both the episode horizon and the number of adaptation episodes, making full-history attention increasingly expensive in memory and computation. As a result, transformer-based agents often face a trade-off between retaining long histories and remaining computationally practical. The computational overhead of full-history attention has motivated a recent shift toward modern linear recurrent models and neural memory architectures (Gu et al., 2021; Smith et al., 2022; Gu & Dao, 2023; Sun et al., 2023; 2025). Instead of attending over the full history, these methods update an adaptive memory state online while preserving linear sequence complexity. Recent work suggests that recurrence need not be limited to a small passive hidden state and can instead be equipped with expressive state dynamics or trainable memory modules, allowing models to store information over long horizons while preserving linear sequence complexity (Gu & Dao, 2023; Sun et al., 2025). In particular, Test-Time Training (TTT) (Sun et al., 2025) treats memory as a trainable module that can be updated continually during inference, turning sequence processing from passive state compression into adaptive memory updating. This has led to promising results in settings where long-range information is essential, including language modeling, time series, genomics, novel-view synthesis, and video generation (Sun et al., 2025; Behrouz et al., 2025; Zhang et al., 2025; Dalal et al., 2025). In this work, we propose Memory-Enhanced Test-Time Adaptation (M ETTA ), which leverages TTT layers (Sun et al., 2025) as a modern neural memory module to gather task evidence from long-range interaction sequences in meta-RL. Besides this within-episode memory module, which pro-vides fine-grained episode-level memories, we also use a coarse-grained aggregation mechanism that combines summaries across episodes. Thus, in addition to the classical slow and fast learning processes in meta-RL, our fast adaptation phase separates within-episode adaptation from cross-episode evidence aggregation, allowing the policy to condition on longer meta-test histories without relying on quadratic computation over agent interaction steps. Our experiments across locomotion, manipulation, and navigation benchmarks show that M ETTA 
+
+improves fast adaptation in both standard and long-context meta-RL settings. Interestingly, the rel-ative gain over existing methods is especially notable when generalizing to unseen held-out Meta-World task families that are not encountered during meta-training. This provides evidence of task-family-level out-of-distribution generalization, where adaptation transfers to task families not ob-served during meta-training. This suggests that neural memory modules can support adaptation beyond the task families observed during training. 2Preprint In addition, M ETTA achieves these improvements with substantially lower training cost than transformer-based meta-RL methods, while preserving linear sequence complexity over long hori-zons. Figure 1 illustrates the role of neural memory in long-context sparse-reward settings. M ETTA 
+
+explores more broadly while reducing repeated trajectories across episodes, suggesting more ef-fective reuse of information gathered during earlier episodes. We examine this behavior further in Section 4.2.1. 
+
+2 PRELIMINARIES 
+
+2.1 META -R EINFORCEMENT LEARNING 
+
+Reinforcement learning problems are formulated as Markov decision processes (MDPs), defined by the tuple (S, A, P, R, P 0, γ, H ), where S and A denote the state and action spaces, P (s′ | s, a )
+
+denotes the transition distribution, R(s, a ) the reward function, P0 the initial-state distribution, γ ∈
+
+[0 , 1] the discount factor, and H the horizon. At timestep t, the agent observes state st, samples an action at ∼ πψ (· | st) from a policy parameterized by ψ, receives reward rt, and transitions to the next state st+1 . The objective is to maximize the expected discounted return 
+
+J(πψ ) = Eπψ
+
+" HX
+
+> t=0
+
+γtrt
+
+#
+
+. (1) In meta-reinforcement learning, tasks are sampled from a distribution p(T ), where each task Ti =(S, A, P i, R i, P 0,i , γ, H ) shares the same observation and action spaces but may differ in transition dynamics, reward functions, or goals. During meta-training, the agent interacts with tasks sampled from p(T ) and learns a policy that can adapt efficiently across the task distribution. The meta-RL objective is to maximize expected return across the task distribution, 
+
+max  
+
+> ψ
+
+ET ∼ p(T )
+
+"
+
+Eπψ
+
+" HX
+
+> t=0
+
+γtrt
+
+## 
+
+. (2) During meta-testing, the learned policy is evaluated on unknown tasks sampled from the same dis-tribution p(T ). Meta-RL evaluation commonly measures adaptation over multiple episodes from the same task instance or family. The agent must improve behavior using only its internal memory and interaction history during rollout execution. 2.2 NEURAL MEMORY 
+
+Neural memory provides a common abstraction for sequence models that update an internal state and read from it to produce predictions. This view includes recurrent networks, linear attention, state-space models, and recent test-time memory architectures (Katharopoulos et al., 2020; Gu & Dao, 2023; Sun et al., 2025; Behrouz et al., 2025). Given an input sequence x1: n, a memory model maintains a state Mt = Uθ (Mt−1, x t) and produces an output yt = Rθ (Mt, x t), where Uθ is the update rule and Rθ is the readout rule. This notation covers both fixed-size recurrent states and richer memory states designed to store and retrieve information over longer horizons. Many memory models use an attention-style interface in which each input is projected into a key, value, and query. Given learned projections kt = θK xt, vt = θV xt, and qt = θQxt, the memory update and readout can be written in terms of key-value writing and query-based retrieval. In general, the write and read operations can be expressed as 
+
+Mt = f (Mt−1, kt, vt) , yt = g(Mt, qt) ,
+
+where f is the memory update rule, and g is the read function. A simple example is the linear Transformer (Katharopoulos et al., 2020; Schlag et al., 2021), which can be interpreted as a fast-weight memory storing key-value associations. In this case f (Mt−1, kt, vt) = Mt−1 + vtϕ(kt)⊤
+
+and g(Mt, qt) = Mtϕ(qt)/n⊤ 
+
+> t
+
+ϕ(qt), where ϕ(·) is a feature map and nt = Pti=1 ϕ(ki) is the normalization state. This example shows how attention-like retrieval can be implemented through a recurrent memory update. 3Preprint Previous Episodes Current Episode 
+
+> Current Episode Memory
+> Cross Attention
+> Online Memory Update
+> Layer Norm
+> Memory Inference
+> Critic
+> Actor
+
+Figure 2: Overview of M ETTA . The current episode is processed by a within-episode neural memory to produce h(L) 
+
+> e,t
+
+. At the end of each episode, the final representation is stored as an episode summary 
+
+¯he. During later episodes, previous summaries are combined with the current representation to form the context representation ze,t . The actor and critic condition on the current state se,t and ze,t .
+
+Test-Time Training (TTT). One recent neural memory model with linear sequence complex-ity is TTT, whose hidden states are themselves learnable models updated while processing the se-quence (Sun et al., 2025). Given an input sequence x1: n, a TTT layer maintains an inner-loop model 
+
+fMt , where Mt denotes the hidden state after processing the prefix x1: t. The layer therefore keeps the interface of a recurrent sequence model, but replaces the usual hidden vector with the parameters of a model that is trained online. The memory is updated by training fM in a self-supervised manner to predict the label view vt from the training view kt,
+
+ℓ(M; k, v) = 12 ∥fM(k) − v∥22 , Mt = Mt−1 − ηt∇Mℓ(Mt−1; kt, vt), (3) where ηt is a learnable inner-loop learning rate. The output is then produced by applying the updated memory to the test view, yt = fMt (qt). Thus, yt is computed from a memory model that has been adapted on the causal prefix x1: t.The distinction between inner-loop and outer-loop parameters is central to TTT. The memory pa-rameters Mt are fast parameters: they are initialized at the start of a sequence and updated while the sequence is processed, including at test time. In contrast, the view projections θK , θ V , θ Q, the initial memory parameters, and the downstream network parameters are slow parameters learned across training sequences. Thus, the outer loop learns how to construct a useful self-supervised update rule, while the inner loop applies this rule online to adapt the memory to the current sequence. 
+
+3 METTA 
+
+In this section, we introduce Memory-Enhanced Test-Time Adaptation (M ETTA ) for meta-RL. We consider a trial-based meta-RL setting in which the agent interacts with multiple consecutive episodes from the same sampled task. Each trial is generated from a hidden task T ∼ p(T ) and contains E episodes, each with horizon H.At episode e and timestep t, the agent uses the interaction history to construct a context repre-sentation ze,t that summarizes task-relevant evidence accumulated during adaptation. The policy conditions on both the current state and this context representation for action selection, 
+
+ae,t ∼ πψ (· | se,t , z e,t ) . (4) Besides the standard slow parameter updates during meta-training, M ETTA performs fast adaptation at two temporal scales. A within-episode neural memory supports fine-grained online adaptation, while a cross-episode memory aggregates information across episodes. Together, these modules 4Preprint produce the context representation ze,t , which provides the policy with information accumulated through interaction. Figure 2 summarizes the overall architecture. All modules are trained end-to-end with PPO (Schulman et al., 2017) over full meta-RL trials. Additional implementation details and full meta-train and meta-test algorithms are provided in Ap-pendix B. 3.1 WITHIN -E PISODE NEURAL MEMORY 
+
+We use a TTT architecture (Sun et al., 2025) as the within-episode neural memory in M ETTA .We denote this module by TTT θ , which consists of L stacked TTT layers whose fast weights are updated online while processing each token. METTA is modular with respect to the within-episode memory architecture. We instantiate this component with TTT in our default model, but the framework can accommodate other causal neural-memory architectures, allowing us to separately study the role of memory design and cross-episode aggregation. Following RL 2-style conditioning (Duan et al., 2016), M ETTA processes the sequential input 
+
+xe,t = [ se,t , a e,t −1, r e,t −1, d e,t −1] in an autoregressive manner. Sequence processing is performed by TTT θ with linear computational cost. We first embed the interaction input as h(0)  
+
+> e,t
+
+= ϕ(xe,t ),and then pass this representation through L TTT layers. For each layer l, the model maintains a fast-weight memory M(l) 
+
+> e,t
+
+that is initialized at the start of the episode and updated online as the episode unfolds. Given the previous-layer representation h(l−1)  
+
+> e,t
+
+, the layer forms training, label, and test views, 
+
+k(l) 
+
+> e,t
+
+= θ(l) 
+
+> K
+
+h(l−1)  
+
+> e,t
+
+, v(l) 
+
+> e,t
+
+= θ(l) 
+
+> V
+
+h(l−1)  
+
+> e,t
+
+, q(l) 
+
+> e,t
+
+= θ(l) 
+
+> Q
+
+h(l−1)  
+
+> e,t
+
+.
+
+It first writes the current evidence into memory through a gradient step on the self-supervised loss defined in Eq. (3), 
+
+M(l) 
+
+> e,t
+
+= M(l) 
+
+> e,t −1
+
+− η(l)
+
+> e,t
+
+∇Mℓ
+
+
+
+M(l)
+
+> e,t −1
+
+; k(l)
+
+> e,t
+
+, v(l)
+
+> e,t
+
+
+
+.
+
+The updated memory is then queried to produce the next-layer representation, h(l) 
+
+> e,t
+
+= fM(l)
+
+> e,t
+
+(q(l)
+
+> e,t
+
+).After the final layer, h(L) 
+
+> e,t
+
+is the adapted context representation of the current episode prefix. 3.2 CROSS -E PISODE MEMORY 
+
+The within-episode TTT module adapts to the current episode, but meta-RL trials also contain useful information across episodes. We use the final adapted representation of each episode, ¯he = h(L) 
+
+> e,H
+
+,as an episode-level summary. At episode e, the agent causally has access to all previous summaries 
+
+He−1 = {¯hi}e−1 
+
+> i=1
+
+. We consider two mechanisms for aggregating these summaries to construct the context representation ze,t , which is used as input to the actor and critic heads. 
+
+Exponential moving average. A simple aggregation mechanism is to maintain an exponential moving average (EMA) of previous episode summaries. Let ce−1 denote the compact cross-episode summary available before episode e. For e > 1, the current within-episode representation is com-bined with the recent cross-episode summary to form the current context representation 
+
+ze,t = αc e−1 + (1 − α)h(L) 
+
+> e,t
+
+, (5) where α ∈ [0 , 1] controls the influence of previous episodes. For the first episode, no previous summary is available, so z1,t = h(L)1,t and c1 = ¯h1. The EMA summary for episode e is updated as 
+
+ce = αc e−1 + (1 − α)¯he. (6) This variant stores only a single vector and updates cross-episode information in constant time. 
+
+Attention-based retrieval. While EMA is efficient, it does not allow selective retrieval of pre-vious episodes. Therefore, we use an attention layer over stored episode summaries as the default 5Preprint 0.0 0.5 1.0 1.5 2.0 2.5      
+
+> Meta-Learning Timestep 1e6 900
+> 800
+> 700
+> 600
+> 500
+> 400
+> 300
+> 200
+> 100
+> Return
+> HalfCheetahVel-v4 Train
+> METTA ECET PEARL
+> RL 2
+> TrMRL VariBAD 12345
+> Episode Number
+> 120
+> 100
+> 80
+> 60
+> 40
+> 20
+> Return
+> HalfCheetahVel-v4
+> METTA ECET PEARL
+> RL 2
+> TrMRL VariBAD
+
+(a) MuJoCo HalfCheetahVel. 0.2 0.4 0.6 0.8 1.0 1.2 1.4          
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Train
+> METTA ECET TrMRL VariBAD 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Test
+> METTA ECET TrMRL VariBAD
+
+(b) Sparse-reward PointMaze. 
+
+Figure 3: Fast adaptation during meta-training and meta-testing. (a) HalfCheetahVel training return and adaptation across meta-test episodes. (b) PointMaze training and unseen held-out test success rate. aggregation mechanism in M ETTA . This learnable attention layer forms a query qe,t = Wq h(L)
+
+e,t and uses the unordered set of episode summaries He−1 as keys and values for information retrieval: 
+
+˜he,t = Attn ( qe,t , He−1) . (7) The retrieved cross-episode representation is fused with the current within-episode representation, 
+
+ze,t = LayerNorm 
+
+
+
+h(L)
+
+e,t + ˜he,t 
+
+
+
+. (8) The resulting representation ze,t is passed to the RL agent (actor and critic modules) along with the current state se,t . Compared with EMA, attention-based retrieval is more expressive because it can learn which previous episode summaries contain the most relevant task information. 
+
+4 EXPERIMENTS 
+
+4.1 EXPERIMENTAL SETUP 
+
+Benchmarks. We evaluate the effectiveness of our method on standard meta-RL benchmarks cov-ering locomotion, manipulation, and navigation tasks. We evaluate continuous-control adaptation on MuJoCo HalfCheetahVel (Todorov et al., 2012), where the agent must infer the target velocity from interaction. We use a limited training budget to compare how efficiently each method adapts under restricted environment interaction. Next, we evaluate robotic manipulation on ML1, ML10, and ML45 from the Meta-World bench-mark (Yu et al., 2020). In ML1, following the standard baseline convention, goal coordinates are masked and must be inferred through interaction. ML10 and ML45 span multiple task families with disjoint train and test splits, allowing us to evaluate generalization to families not observed during meta-training. We view this as a form of task-family-level OOD evaluation, since the held-out test families are encountered only at meta-test time. In these settings, goal coordinates are included in the observation, while the task family remains fixed within each trial. During multi-class training, each rollout batch assigns environments to task classes in a balanced way and then samples a task variation within each class. Finally, we use PointMaze (Fu et al., 2020) with sparse rewards (only at the goal position) to eval-uate long-context adaptation. In this environment, the agent may need to explore for many steps before receiving useful feedback, making it important to preserve information from earlier parts of the trajectory. This benchmark directly tests whether meta-RL methods can benefit from long context. 
+
+Baselines. We compare METTA against representative meta-RL baselines from recurrent, gradient-based, latent-context, and transformer-based families. RL 2 uses recurrent state to imple-ment black-box adaptation from interaction history (Duan et al., 2016), while MAML learns an initialization that can be adapted with gradient updates (Finn et al., 2017). PEARL and VariBAD represent latent-context approaches that infer task variables from collected experience (Rakelly et al., 2019; Zintgraf et al., 2021). For transformer-based meta-RL, we compare against TrMRL, which uses self-attention over trajectory context (Melo, 2022), ECET, which improves cross-episode conditioning (Shala et al., 2025), and AMAGO, an in-context RL agent trained on long 6Preprint 0 1 2 3 4 5                                            
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML1 Push-v3 Train
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML10 Train
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML45 Train
+> 012345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML1 Push-v3 Test
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> Success
+> ML10 Test
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Success
+> ML45 Test
+> METTA ECET MAML PPO PEARL RL 2TrMRL VariBAD AMAGO
+
+Figure 4: Meta-World success rate on ML1, ML10, and ML45. Top: evaluation on unseen task instances from task families used during meta-training. Bottom: evaluation on the Meta-World test benchmark, which contains unseen held-out task families for ML10 and ML45. sequences (Grigsby et al., 2024). For all baselines, we use the default implementations and hyperpa-rameters from their respective repositories. All methods use the same evaluation protocol. Results are averaged over five seeds, with shaded regions showing ±1 SEM. Additional details are provided in Appendix D. 4.2 MAIN RESULTS 
+
+In this section, we focus on standard evaluations of baselines using well-known metrics, average return and success rate, and leave additional analyses, including ablation studies and qualitative results, to Appendix G. Figure 3a reports HalfCheetahVel performance under a limited training budget. The training curve shows that M ETTA improves rapidly with low training variance. The episode-wise adaptation plot in Figure 3a shows that M ETTA maintains strong returns from the first episode and remains stable across later episodes, suggesting that its neural memory can quickly infer the target velocity from interaction. 4.2.1 ROLE OF LONG -C ONTEXT MEMORY 
+
+Figure 3b shows that, in long-horizon tasks with sparse rewards, M ETTA rapidly improves the suc-cess rate during both meta-training and meta-testing, while the other baselines remain substantially lower. This suggests that M ETTA can preserve useful evidence from earlier exploration and reuse it in later episodes. Transformer-based baselines (Melo, 2022; Shala et al., 2025) struggle in this setting. TrMRL is difficult to scale to long effective horizons and tends to repeat similar exploration behavior, while ECET is limited by short-context cross-episode conditioning. VariBAD improves more slowly, likely because sparse rewards provide weak evidence for updating the latent task belief until successful exploration occurs (Zintgraf et al., 2021). Table 1: PointMaze exploration at 1.5M environment steps (mean ± SEM). 
+
+Method Coverage ↑ Episode Jaccard ↓ Steps ↓
+
+METTA 0.447 ± 0.036 0.792 ± 0.022 194 .8 ± 30 .1
+
+ECET 0.250 ± 0.087 0.935 ± 0.028 427 .3 ± 44 .5
+
+TrMRL 0.330 ± 0.031 1.000 ± 0.000 373 .4 ± 16 .1
+
+The exploration patterns in Figure 1 and the additional trajectories in Ap-pendix G.6 are further supported by Ta-ble 1. Coverage measures the fraction of the traversable maze visited, while Episode Jaccard measures overlap be-tween consecutive episodes, with lower values indicating less repetitive explo-ration. Steps measures the interactions required before success or horizon termination. METTA achieves the highest coverage and low-est overlap while requiring the fewest steps, suggesting that it maintains diverse exploration across episodes without sacrificing navigation efficiency. In contrast, ECET and TrMRL cover less of the 7Preprint −40 −20 0 20 40 dim 1 −40 −30 −20 −10 010 20 30 dim 2 
+
+t-SNE of z                                                                                                                                                                                                                  
+
+> door-close drawer-open lever-pull shelf-place sweep-into basketball button-press-topdown door-open drawer-close peg-insert-side pick-place push reach sweep window-open door-close drawer-open lever-pull shelf-place sweep-into basketball button-press-td door-open drawer-close peg-insert-side pick-place push reach sweep window-open door-close drawer-open lever-pull shelf-place sweep-into basketball button-press-td door-open drawer-close peg-insert-side pick-place push reach sweep window-open
+> 0.99 0.74 0.41 0.26 0.54 0.46 0.64 0.68 0.73 0.54 0.59 0.68 0.64 0.72 0.75 0.74 0.93 0.55 0.26 0.61 0.49 0.81 0.80 0.77 0.65 0.67 0.78 0.73 0.76 0.75 0.41 0.55 0.98 0.37 0.48 0.39 0.54 0.41 0.40 0.40 0.46 0.38 0.35 0.34 0.43 0.26 0.26 0.37 0.61 0.41 0.29 0.23 0.16 0.20 0.24 0.32 0.19 0.16 0.16 0.22 0.54 0.61 0.48 0.41 0.59 0.43 0.55 0.55 0.57 0.53 0.57 0.58 0.53 0.52 0.55 0.46 0.49 0.39 0.29 0.43 0.53 0.45 0.45 0.46 0.44 0.50 0.42 0.47 0.40 0.48 0.64 0.81 0.54 0.23 0.55 0.45 0.93 0.82 0.77 0.64 0.64 0.73 0.72 0.73 0.81 0.68 0.80 0.41 0.16 0.55 0.45 0.82 1.00 0.92 0.75 0.67 0.85 0.82 0.79 0.89 0.73 0.77 0.40 0.20 0.57 0.46 0.77 0.92 0.98 0.73 0.67 0.88 0.85 0.81 0.91 0.54 0.65 0.40 0.24 0.53 0.44 0.64 0.75 0.73 0.67 0.62 0.71 0.70 0.65 0.70 0.59 0.67 0.46 0.32 0.57 0.50 0.64 0.67 0.67 0.62 0.70 0.64 0.68 0.61 0.69 0.68 0.78 0.38 0.19 0.58 0.42 0.73 0.85 0.88 0.71 0.64 0.94 0.78 0.80 0.79 0.64 0.73 0.35 0.16 0.53 0.47 0.72 0.82 0.85 0.70 0.68 0.78 0.93 0.76 0.82 0.72 0.76 0.34 0.16 0.52 0.40 0.73 0.79 0.81 0.65 0.61 0.80 0.76 0.88 0.80 0.75 0.75 0.43 0.22 0.55 0.48 0.81 0.89 0.91 0.70 0.69 0.79 0.82 0.80 0.97
+
+zE; H Cosine Similarity 
+
+> 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+
+Figure 5: Structure of the learned context representations. Left: t-SNE visualization of z for all episodes. Circles denote training tasks and triangles denote test tasks. Right: pairwise cosine-similarity matrix computed from the final episode representation of each trial. maze while revisiting previously explored regions more frequently. Detailed definitions are provided in Appendix G.7. Figure 4 shows adaptation performance on the Meta-World benchmark. On simpler settings such as ML1, M ETTA quickly improves over adaptation episodes, indicating that the neural memory can infer task-relevant information from limited interaction. On the more challenging ML10 and ML45 benchmarks, M ETTA surpasses other baselines by a large margin across diverse task families. The performance gap is notable not only on train environments, where evaluation uses task fami-lies observed during meta-training, but also on the Meta-World test environments (up to a ∼ 40% 
+
+success-rate margin), which consist of unseen held-out task families. This result indicates that the learned adaptation mechanism of M ETTA generalizes beyond the task families encountered dur-ing meta-training. In our experiments, this generalization is substantially stronger than that of RL 2 (Duan et al., 2016), suggesting an advantage of adaptive neural memory over conventional autoregressive recurrent conditioning, which relies on passive and less expressive memory updates during inference. To further analyze the structure of the learned context, we measure representation similarity both quantitatively and qualitatively. Figure 5 shows cosine similarities of the context representations on ML10 along with a t-SNE visualization. The t-SNE plot shows that M ETTA organizes context rep-resentations according to task families while keeping test tasks aligned with related training tasks, suggesting generalization beyond memorization. The cosine-similarity matrix shows consistent rep-resentations within each task family through large diagonal values, while the off-diagonal structure captures relationships across different task families. These results indicate that the learned context contains task-discriminative structure while preserving meaningful similarities across tasks. 4.3 ONLINE MEMORY UPDATES 
+
+To isolate the contribution of test-time memory adaptation, we evaluate M ETTA with its online memory updates disabled while retaining cross-episode aggregation. Figure 6a shows that the effect depends strongly on how task-relevant information is obtained. On PointMaze, disabling the online update causes a large drop in test performance, showing that continual within-episode adaptation is particularly important when useful evidence is sparse and must be accumulated through interaction. In contrast, the two variants perform similarly on ML10, where the goal is observed and adaptation mainly requires identifying the task family, which is easy to distinguish once learned, beyond this, online updating makes little difference. Motivated by this contrast, we further evaluate the same ablation on ML1 Push, where the goal is hidden and must instead be inferred through interaction. Figure 6b shows that, with online updates, METTA reaches substantially higher success in the first evaluation episode, before any previous-episode information is available for cross-episode aggregation. Without online updates, performance 8Preprint 0.2 0.4 0.6 0.8 1.0          
+
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> Success
+> ML10 Test
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Test
+> METTA (online TTT update) METTA (no online TTT update)
+
+(a) ML10 and PointMaze test performance. 1 2 3 4 5        
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> Push-v3 Test (Episode 1)
+> 12345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> Push-v3 Test (Episode 25)
+> METTA (online TTT update) METTA (no online TTT update)
+
+(b) ML1 Push adaptation performance. 
+
+Figure 6: Effect of M ETTA test-time adaptation. The ML1 Push results report adaptation episodes 1 and 25 within each evaluation trial. is much lower initially and improves as information accumulates across episodes, but remains below the full model even after 25 episodes. This shows that cross-episode aggregation alone does not recover the benefit of within-episode neural memory adaptation when task-relevant information must be inferred from interaction. To further examine the effect of the within-episode memory design, we integrate M ETTA with alter-native neural memory architectures, including GRU, Mamba (Gu & Dao, 2023), and linear Trans-former (Katharopoulos et al., 2020), and compare their performance in Appendix G.1. We also study alternative cross-episode aggregation mechanisms in Appendix G.2 to evaluate how the two memory components contribute to adaptation. 4.4 TRAINING EFFICIENCY 0 1 2 3 4 5 6
+
+> GPU Hours
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML10 Train
+> METTA AMAGO ECET MAML PPO PEARL RL 2
+> TrMRL VariBAD
+
+Figure 7: Success versus GPU hours. Figure 7 compares the wall-clock training cost of M ETTA against transformer-based methods and standard meta-RL baselines on ML10. METTA dominates transformer-based methods, achieving stronger performance with substan-tially lower GPU-hour cost. At the same time, its training time remains comparable to widely used baselines, while surpassing their performance by a large margin. This shows that neural mem-ory provides a favorable trade-off between long-context adaptation and practical training cost. 
+
+Online inference complexity. Let T denote the episode horizon and E the number of episodes in a trial. Over a complete trial, M ETTA requires O(E2T ) computation with attention-based aggregation and O(ET ) with EMA, compared with O(E2T 2) for TrMRL (Melo, 2022) and O(ET 3 + E3T )
+
+for ECET (Shala et al., 2025). Since typically E ≪ T , the dependence on timestep-level history dominates in long-context settings. TTT incurs a constant per-step cost from its inner update, but this cost does not grow with timestep-level history. Detailed derivations and measured inference time and memory are provided in Appendix F. 
+
+5 CONCLUSION 
+
+We presented M ETTA , a meta-RL framework based on neural memory and test-time training. The method separates fast adaptation into within-episode online memory updates and cross-episode ev-idence aggregation, allowing the agent to leverage long interaction histories without attending over the full history. This temporal hierarchy provides an efficient mechanism for long-context adaptation with linear sequence complexity. Unlike standard recurrent approaches that rely on passive memory updates during inference, the TTT module performs gradient-based memory updates, providing an additional mechanism for fast adaptation to previously unseen task families. Experiments on HalfCheetahVel, Meta-World, and sparse-reward PointMaze showed that M ETTA 
+
+improves adaptation across both standard and long-context meta-RL settings while maintaining fa-vorable computational efficiency. The gains were especially strong on unseen held-out Meta-World task families, providing further evidence that neural memory with test-time adaptation can support 9Preprint task-family-level OOD generalization to previously unseen, novel task families. Our findings also suggest a promising direction for future work that extends M ETTA beyond the fixed-task trial set-ting considered here, for example by incorporating temporal or recency information into the cross-episode memory for continual or nonstationary environments that require fast online adaptation as task structure, dynamics, or rewards change over time. 
+
+AI U SE STATEMENT 
+
+We used generative AI tools to assist in polishing the language, improving clarity and grammar, and debugging the experimental code. These tools did not contribute to the core research ideas, methodological design, or experimental design of this work. All technical decisions, experiments, analyses, and interpretations were carried out and verified by the authors, who take full responsibility for the content of the paper. 
+
+REPRODUCIBILITY STATEMENT 
+
+The main paper and appendix document the model architecture, training procedure, benchmark settings, hyperparameters, statistical protocol, baseline configurations, and computational environ-ment used in our experiments. Appendix B provides implementation and optimization details, Ap-pendix C describes the benchmark configurations, and Appendix D documents the baseline imple-mentations and evaluation protocol. The supplementary material includes the training and evalua-tion code and experiment configurations needed to reproduce the reported results. We will make the complete repository publicly available upon acceptance. 
+
+REFERENCES 
+
+Maruan Al-Shedivat, Trapit Bansal, Yuri Burda, Ilya Sutskever, Igor Mordatch, and Pieter Abbeel. Continuous adaptation via meta-learning in nonstationary and competitive environments, 2018. URL https://arxiv.org/abs/1710.03641 .Safa Alver and Doina Precup. What is going on inside recurrent meta-reinforcement learning agents? 
+
+arXiv preprint arXiv:2104.14644 , 2021. Marcin Andrychowicz, Misha Denil, Sergio Gomez, Matthew W Hoffman, David Pfau, Tom Schaul, Brendan Shillingford, and Nando De Freitas. Learning to learn by gradient descent by gradient descent. Advances in neural information processing systems , 29, 2016. Ali Behrouz, Peilin Zhong, and Vahab Mirrokni. Titans: Learning to memorize at test time. In 
+
+Advances in Neural Information Processing Systems , 2025. Yoshua Bengio, Samy Bengio, and Jocelyn Cloutier. Learning a synaptic learning rule , volume 2. Universit´ e de Montr´ eal, D´ epartement d’informatique et de recherche op´ erationnelle, 1990. Lili Chen, Kevin Lu, Aravind Rajeswaran, Kimin Lee, Aditya Grover, Michael Laskin, Pieter Abbeel, Aravind Srinivas, and Igor Mordatch. Decision transformer: Reinforcement learning via sequence modeling, 2021. URL https://arxiv.org/abs/2106.01345 .Krzysztof Choromanski, Valerii Likhosherstov, David Dohan, Xingyou Song, Andreea Gane, Tamas Sarlos, Peter Hawkins, Jared Davis, Afroz Mohiuddin, Łukasz Kaiser, David Belanger, Lucy Colwell, and Adrian Weller. Rethinking attention with Performers. In International Conference on Learning Representations (ICLR) , 2021. Karl Cobbe, Oleg Klimov, Chris Hesse, Taehoon Kim, and John Schulman. Quantifying gener-alization in reinforcement learning. In Kamalika Chaudhuri and Ruslan Salakhutdinov (eds.), 
+
+Proceedings of the 36th International Conference on Machine Learning , volume 97 of Proceed-ings of Machine Learning Research , pp. 1282–1289. PMLR, 09–15 Jun 2019. URL https: //proceedings.mlr.press/v97/cobbe19a.html .10 Preprint Karan Dalal, Daniel Koceja, Jiarui Xu, Yue Zhao, Shihao Han, Ka Chun Cheung, Jan Kautz, Yejin Choi, Yu Sun, and Xiaolong Wang. One-minute video generation with test-time training. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 17702– 17711, 2025. Yan Duan, John Schulman, Xi Chen, Peter L. Bartlett, Ilya Sutskever, and Pieter Abbeel. RL 2: Fast reinforcement learning via slow reinforcement learning. arXiv preprint arXiv:1611.02779 , 2016. Feyza Duman Keles, Pruthuvi Mahesakya Wijewardena, and Chinmay Hegde. On the computational complexity of self-attention. In Proceedings of The 34th International Conference on Algorith-mic Learning Theory , volume 201 of Proceedings of Machine Learning Research , pp. 597–619. PMLR, 2023. Rasool Fakoor, Pratik Chaudhari, Stefano Soatto, and Alexander J. Smola. Meta-Q-learning, 2020. URL https://arxiv.org/abs/1910.00125 .Chelsea Finn, Pieter Abbeel, and Sergey Levine. Model-agnostic meta-learning for fast adaptation of deep networks. In Proceedings of the 34th International Conference on Machine Learning ,volume 70 of Proceedings of Machine Learning Research , pp. 1126–1135. PMLR, 2017. Justin Fu, Aviral Kumar, Ofir Nachum, George Tucker, and Sergey Levine. D4RL: Datasets for deep data-driven reinforcement learning. arXiv preprint arXiv:2004.07219 , 2020. Jake Grigsby, Linxi Fan, and Yuke Zhu. AMAGO: Scalable in-context reinforcement learning for adaptive agents. In The Twelfth International Conference on Learning Representations , 2024. Albert Gu and Tri Dao. Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint arXiv:2312.00752 , 2023. Albert Gu, Karan Goel, and Christopher R´ e. Efficiently modeling long sequences with structured state spaces. arXiv preprint arXiv:2111.00396 , 2021. Arthur Guez, David Silver, and Peter Dayan. Better optimism by Bayes: Adaptive planning with rich models, 2014. URL https://arxiv.org/abs/1402.1958 .Abhishek Gupta, Russell Mendonca, YuXuan Liu, Pieter Abbeel, and Sergey Levine. Meta-reinforcement learning of structured exploration strategies. In Proceedings of the 32nd Inter-national Conference on Neural Information Processing Systems , pp. 5307–5316, Red Hook, NY, USA, 2018. Curran Associates Inc. Timothy Hospedales, Antreas Antoniou, Paul Micaelli, and Amos Storkey. Meta-learning in neural networks: A survey, 2020. URL https://arxiv.org/abs/2004.05439 .Jan Humplik, Alexandre Galashov, Leonard Hasenclever, Pedro A. Ortega, Yee Whye Teh, and Nicolas Heess. Meta reinforcement learning as task inference. arXiv preprint arXiv:1905.06424 ,2019. Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, and Franc ¸ois Fleuret. Transformers are RNNs: Fast autoregressive transformers with linear attention. In Proceedings of the 37th In-ternational Conference on Machine Learning , volume 119 of Proceedings of Machine Learning Research , pp. 5156–5165. PMLR, 2020. Luckeciano C. Melo. Transformers are meta-reinforcement learners. In Proceedings of the 39th International Conference on Machine Learning , volume 162 of Proceedings of Machine Learning Research , pp. 15340–15359. PMLR, 2022. Nikhil Mishra, Mostafa Rohaninejad, Xi Chen, and Pieter Abbeel. A simple neural attentive meta-learner. In International Conference on Learning Representations , 2018. Alex Nichol, Joshua Achiam, and John Schulman. On first-order meta-learning algorithms. arXiv preprint arXiv:1803.02999 , 2018. Charles Packer, Katelyn Gao, Jernej Kos, Philipp Kr¨ ahenb¨ uhl, Vladlen Koltun, and Dawn Song. Assessing generalization in deep reinforcement learning. arXiv preprint arXiv:1810.12282 , 2018. 11 Preprint Emilio Parisotto, H. Francis Song, Jack W. Rae, Razvan Pascanu, Caglar Gulcehre, Siddhant M. Jayakumar, Max Jaderberg, Raphael Lopez Kaufman, Aidan Clark, Seb Noury, Matthew M. Botvinick, Nicolas Heess, and Raia Hadsell. Stabilizing transformers for reinforcement learn-ing, 2019. URL https://arxiv.org/abs/1910.06764 .Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, Huanqi Cao, Xin Cheng, Michael Chung, Leon Derczynski, Xingjian Du, Matteo Grella, Kranthi Gv, Xuzheng He, Haowen Hou, Przemyslaw Kazienko, Jan Kocon, Jiaming Kong, Bartłomiej Koptyra, Hayden Lau, Jiaju Lin, Krishna Sri Ipsit Mantri, Ferdinand Mom, Atsushi Saito, Guangyu Song, Xiangru Tang, Johan Wind, Stanisław Wo´ zniak, Zhenyuan Zhang, Qinghua Zhou, Jian Zhu, and Rui-Jie Zhu. RWKV: Reinventing RNNs for the transformer era. In Findings of the Association for Computational Linguistics: EMNLP 2023 , pp. 14048–14077, 2023. Kate Rakelly, Aurick Zhou, Deirdre Quillen, Chelsea Finn, and Sergey Levine. Efficient off-policy meta-reinforcement learning via probabilistic context variables. In Proceedings of the 36th In-ternational Conference on Machine Learning , volume 97 of Proceedings of Machine Learning Research , pp. 5331–5340. PMLR, 2019. Jonas Rothfuss, Dennis Lee, Ignasi Clavera, Tamim Asfour, and Pieter Abbeel. ProMP: Proximal meta-policy search. arXiv preprint arXiv:1810.06784 , 2018. Adam Santoro, Sergey Bartunov, Matthew Botvinick, Daan Wierstra, and Timothy Lillicrap. Meta-learning with memory-augmented neural networks. In International conference on machine learn-ing , pp. 1842–1850. PMLR, 2016. Imanol Schlag, Kazuki Irie, and J¨ urgen Schmidhuber. Linear transformers are secretly fast weight programmers. In Proceedings of the 38th International Conference on Machine Learning , volume 139 of Proceedings of Machine Learning Research , pp. 9355–9366. PMLR, 2021. John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. Proximal policy optimization algorithms. arXiv preprint arXiv:1707.06347 , 2017. Gresa Shala, Andr´ e Biedenkapp, Pierre Krack, Florian Walter, and Josif Grabocka. Efficient cross-episode Meta-RL. In International Conference on Learning Representations , 2025. Jimmy T. H. Smith, Andrew Warrington, and Scott W. Linderman. Simplified state space layers for sequence modeling. arXiv preprint arXiv:2208.04933 , 2022. Bradly C. Stadie, Sergey Levine, and Pieter Abbeel. Incentivizing exploration in reinforce-ment learning with deep predictive models, 2015. URL https://arxiv.org/abs/1507. 00814 .Yu Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram, Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang, Sanmi Koyejo, Tatsunori Hashimoto, and Carlos Guestrin. Learning to (Learn at test time): RNNs with expressive hidden states. In Proceedings of the 42nd International Conference on Machine Learning , volume 267 of Proceedings of Machine Learning Research , pp. 57503–57522. PMLR, 2025. Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, and Furu Wei. Retentive network: A successor to transformer for large language models. arXiv preprint arXiv:2307.08621 , 2023. Richard S. Sutton and Andrew G. Barto. Reinforcement Learning: An Introduction . MIT Press, second edition, 2018. Sebastian Thrun and Lorien Pratt. Learning to learn: Introduction and overview. In Learning to learn , pp. 3–17. Springer, 1998. Emanuel Todorov, Tom Erez, and Yuval Tassa. MuJoCo: A physics engine for model-based control. In 2012 IEEE/RSJ international conference on intelligent robots and systems , pp. 5026–5033. IEEE, 2012. 12 Preprint Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Advances in Neural Infor-mation Processing Systems , volume 30, 2017. Oriol Vinyals, Charles Blundell, Timothy Lillicrap, Koray Kavukcuoglu, and Daan Wierstra. Match-ing networks for one shot learning. Advances in neural information processing systems , 29, 2016. Jane X. Wang, Zeb Kurth-Nelson, Dhruva Tirumala, Hubert Soyer, Joel Z. Leibo, Remi Munos, Charles Blundell, Dharshan Kumaran, and Matt Botvinick. Learning to reinforcement learn. 
+
+arXiv preprint arXiv:1611.05763 , 2016. Tianhe Yu, Deirdre Quillen, Zhanpeng He, Ryan Julian, Karol Hausman, Chelsea Finn, and Sergey Levine. Meta-World: A benchmark and evaluation for multi-task and meta reinforcement learn-ing. In Conference on robot learning , pp. 1094–1100. PMLR, 2020. Tianyuan Zhang, Sai Bi, Yicong Hong, Kai Zhang, Fujun Luan, Songlin Yang, Kalyan Sunkavalli, William T. Freeman, and Hao Tan. Test-time training done right. arXiv preprint arXiv:2505.23884 , 2025. Luisa Zintgraf, Sebastian Schulze, Cong Lu, Leo Feng, Maximilian Igl, Kyriacos Shiarlis, Yarin Gal, Katja Hofmann, and Shimon Whiteson. VariBAD: Variational bayes-adaptive deep rl via meta-learning. Journal of Machine Learning Research , 22(289):1–39, 2021. 13 Preprint 
+
+A RELATED WORK 
+
+Reinforcement learning methods often achieve strong performance within a fixed environment but generalize poorly across tasks or changing dynamics (Sutton & Barto, 2018; Packer et al., 2018; Cobbe et al., 2019). This limitation motivated research on meta-learning, where models are trained over a distribution of tasks to learn transferable inductive biases that improve adaptation to unseen settings (Hospedales et al., 2020; Bengio et al., 1990; Thrun & Pratt, 1998). Early meta-learning work showed that experience across tasks can improve fast adaptation to unseen settings (Finn et al., 2017; Santoro et al., 2016; Vinyals et al., 2016). Meta-RL extends this idea to sequential deci-sion making, where the agent must infer task structure and adapt behavior using limited interaction data (Duan et al., 2016; Wang et al., 2016; Finn et al., 2017). Unlike conventional RL, which op-timizes a single policy for one environment, meta-RL explicitly targets fast adaptation under task variation. Meta-learning methods are commonly divided into optimization-based, metric-based, and memory-based approaches. Optimization-based methods learn parameters or update rules that support rapid adaptation through gradient-based learning (Finn et al., 2017; Nichol et al., 2018; Andrychowicz et al., 2016). Metric-based methods instead learn embedding spaces for fast similarity-based gen-eralization (Vinyals et al., 2016), while memory-based approaches use recurrent architectures or external memory to encode task information over time (Santoro et al., 2016). Although most meta-RL work builds on optimization-based learning (Finn et al., 2017), recurrent adaptation and latent memory mechanisms became particularly important because RL environments are sequential and partially observable. Early meta-RL methods mainly relied on recurrent policies that implicitly infer task identity from trajectories by compressing interaction history into recurrent hidden states. RL 2 (Duan et al., 2016) formulated the problem as learning an RL algorithm inside a recurrent network, where hidden states encode adaptation behavior (Wang et al., 2016). Subsequent work improved task inference using probabilistic latent variables and context encoders. VariBAD (Zintgraf et al., 2021) modeled meta-RL as approximate Bayesian inference over hidden task variables, while PEARL (Rakelly et al., 2019) introduced off-policy probabilistic context adaptation and significantly improved sample ef-ficiency. Other influential methods include ProMP (Rothfuss et al., 2018), MAESN (Gupta et al., 2018), and Meta-Q-Learning (MQL) (Fakoor et al., 2020), which use recurrent or latent context encoders to improve adaptation efficiency and task inference. Gradient-based meta-RL approaches directly adapted MAML to policy optimization settings (Al-Shedivat et al., 2018), enabling fast policy adaptation using a few gradient steps. A major challenge in meta-RL is balancing exploration and adaptation under partial observability, particularly when task-relevant evidence is sparse or delayed. In many benchmarks, the underlying task is hidden and must be inferred from sparse interactions. This led to methods that explicitly sep-arate task inference from control (Rakelly et al., 2019; Zintgraf et al., 2021). Bayesian formulations became especially influential because they model uncertainty over latent task identity and support structured exploration policies. VariBAD (Zintgraf et al., 2021) and PEARL (Rakelly et al., 2019) showed that latent posterior estimation improves adaptation efficiency and robustness. Related work also studied exploration-driven adaptation, where agents learn information-seeking behaviors that reduce uncertainty during early episodes (Gupta et al., 2018; Stadie et al., 2015). These formula-tions closely connect meta-RL with partially observable Markov decision processes and Bayesian reinforcement learning (Guez et al., 2014), where the agent must maintain and update beliefs over latent task structure. Attention mechanisms and transformer architectures have been applied to reinforcement learning and meta-reinforcement learning to improve long-range retrieval over interaction histories (Mishra et al., 2018; Parisotto et al., 2019; Chen et al., 2021). Recent transformer-based meta-RL methods such as TrMRL (Melo, 2022), ECET (Shala et al., 2025), and AMAGO (Grigsby et al., 2024) use sequence modeling over trajectories or episodes to improve task inference and adaptation. These methods reduce reliance on compressed recurrent states and improve long-context reasoning. How-ever, the high memory usage and quadratic computation cost of self-attention make transformer-based methods less suitable for long-horizon sparse-reward settings. In contrast, M ETTA uses neural memory with linear-time recurrent updates, preserving both high expressivity and linear sequence complexity, which makes it scalable to considerably longer horizons. 14 Preprint Linear-time alternatives to quadratic self-attention have been studied through recurrent, linear-attention, and state-space sequence models. State-space and linear recurrent models such as S4 (Gu et al., 2021), S5 (Smith et al., 2022), RWKV (Peng et al., 2023), RetNet (Sun et al., 2023), and Mamba (Gu & Dao, 2023) improve scalability through recurrent memory updates and causal stream-ing inference. Linear and kernelized attention methods (Katharopoulos et al., 2020; Choromanski et al., 2021) reinterpret attention as associative recurrent computation with subquadratic complexity. More recent neural memory approaches extend recurrent sequence models beyond passive hidden-state compression by updating memory parameters during inference. Test-Time Training (TTT) layers (Sun et al., 2025) formulate the hidden state as a learnable model optimized online through self-supervised updates, while Titans (Behrouz et al., 2025) introduces persistent neural memory modules for long-range associative retrieval. These architectures provide efficient long-horizon memory and online adaptation mechanisms that are well suited to meta-reinforcement learning and partially observable environments. 
+
+B IMPLEMENTATION DETAILS 
+
+B.1 SEQUENTIAL PPO O PTIMIZATION 
+
+Standard PPO implementations often construct minibatches by randomly sampling timesteps from the rollout buffer. For adaptive sequence models, this is inefficient. Evaluating a randomly selected timestep requires reconstructing the neural-memory state by forwarding the trajectory from the be-ginning of the trial up to that point. Random timestep sampling therefore repeatedly recomputes overlapping prefixes. To improve training efficiency, we perform PPO optimization sequentially over trajectory segments. Each trial is divided into ordered segments that are processed chronologically, and the PPO loss is applied only to the current segment. In our experiments, each segment corresponds to one episode within the trial. This avoids repeatedly reconstructing arbitrary trajectory prefixes and roughly halves the PPO update time in our implementation. During rollout collection, the TTT fast weights and cross-episode summaries evolve causally and are used for action selection, while the behavior-policy log probabilities and value estimates are stored. PPO optimization then reconstructs the memory state from the stored interactions rather than reusing the rollout memory states. For a segment in episode e, all preceding episodes and the required prefix of episode e are reprocessed using the current slow parameters. After the PPO loss for that segment is backpropagated and the slow parameters are updated, the computation graph is discarded. The causal history required for the next segment is therefore recomputed using the updated parameters, so memory states produced before an optimizer step are never reused by later segments. Gradients are propagated through the complete reconstructed causal computation for the current segment, including the preceding episode representations used by cross-episode aggregation and the differentiable TTT inner memory updates. Although the PPO loss is evaluated only on the cur-rent segment, gradients can flow through reprocessed preceding episodes when their representations contribute to the current context. We do not apply a stop-gradient within this reconstructed PPO computation, including through the fast-weight updates, allowing the outer PPO objective to train the slow TTT parameters through their effect on online adaptation. The computation graph ends at each PPO optimizer step; the required history is reconstructed for the next segment using the updated parameters. Advantage estimates are computed over the flattened trial trajectory using generalized advantage estimation (GAE), 
+
+ˆAt =
+
+> ∞
+
+X
+
+> l=0
+
+(γλ )lδt+l,
+
+where δt = rt + γV t+1 − Vt. To stabilize optimization across heterogeneous tasks, observations are normalized online and rewards are scaled by running discounted-return statistics. After comput-ing GAE over the flattened trial trajectory, advantages are normalized over valid rollout positions, optionally within each task class when task labels are available. 15 Preprint Policy optimization uses the PPO clipped objective, 
+
+LPPO = E
+
+h
+
+min 
+
+
+
+ρt ˆAt, clip( ρt, 1 − ϵ, 1 + ϵ) ˆAt
+
+i 
+
+, (9) where 
+
+ρt = exp  log πψ (at | st, z t) − ℓold 
+
+> t
+
+ , (10) and ℓold  
+
+> t
+
+is the behavior-policy log probability stored during rollout collection and kept fixed through-out all PPO epochs. Meanwhile, zt is freshly recomputed using the current model parameters. Gradients therefore propagate through the policy head, encoder, neural memory, and cross-episode aggregator when computing the numerator. An old TTT state or context representation does not need to be reconstructed. B.2 MORE ON TEST -T IME TRAINING 
+
+TTT-MLP. Following Sun et al. (2025), we instantiate the inner-loop model fM as a residual MLP memory. Specifically, let fMLP ,M denote a two-layer MLP with parameters M and a GELU activation. The memory model is defined as 
+
+fM(u) = u + LN( fMLP ,M(u)) ,
+
+where LN denotes layer normalization. The residual connection and normalization stabilize the online TTT updates, while the MLP gives the memory more expressive capacity. 
+
+Chunk-wise Training. The step-wise TTT update is causal but difficult to parallelize, since fully online gradient descent computes each gradient using the memory produced by the previous step. To improve efficiency, TTT uses a mini-batch gradient descent approximation over chunks. Let 
+
+Cm = {xm, 1, . . . , x m,C } denote the m-th chunk of length C, and let Mm, 0 be the memory inherited from the previous chunk. Instead of computing the gradient at each intermediate memory state, all gradients inside the chunk are computed with respect to the same initial memory: 
+
+gm,c = ∇Mℓ (Mm, 0; km,c , vm,c ) , c = 1 , . . . , C. 
+
+The memory after position c is then obtained by accumulating the gradients up to that position, 
+
+Mm,c = Mm, 0 −
+
+> c
+
+X
+
+> i=1
+
+ηm,i gm,i .
+
+The final memory Mm,C is passed to the next chunk as Mm+1 ,0, preserving chronological depen-dence across chunks. Because all gradients in a chunk are evaluated at Mm, 0, they become independent once the chunk begins and can be computed in parallel. The cumulative update still preserves causal ordering within the chunk, while the chunk-level formulation substantially improves GPU utilization by replacing many sequential updates with batched operations. B.3 METTA ALGORITHM 
+
+Let Θ = {θ, ϕ, ψ, ν, ζ } denote all slow outer-loop parameters of M ETTA . Here, ϕ parameterizes the input encoder h(0)  
+
+> e,t
+
+= ϕ(xe,t ), ψ parameterizes the policy head πψ , ν parameterizes the value func-tion Vν , and ζ parameterizes the cross-episode aggregator Agg ζ . For attention-based aggregation, 
+
+ζ consists of the query, key, and value projections together with the parameters of the final layer normalization. The parameters θ define the TTT module, including the view projections, inner-loop learning rates, and learned initial fast-weight memories {M (l)0 }Ll=1 . PPO updates the slow parameters Θ in the outer loop. In contrast, the episode-specific memories M(l) 
+
+> e,t
+
+are fast inner-loop states. They are initialized from M(l)0 at the start of each episode, updated online during sequence processing, and discarded after the episode. 16 Preprint 
+
+Algorithm 1 Training M ETTA with PPO 
+
+Require: Training tasks ptrain (T ), slow parameters Θ = {θ, ϕ, ψ, ν, ζ }
+
+Require: Trial length E, episode horizon H, number of environments B
+
+Require: PPO parameters γ, λ, ϵ , number of PPO epochs NPPO , environment minibatch size Bmb 
+
+1: for each training update do 
+
+2: Sample tasks {T b}Bb=1 from ptrain (T )
+
+3: Initialize episode-summary history Hb ← ∅ for each environment b
+
+4: Reset environments and initialize previous action, reward, and done inputs to zero 
+
+5: for e = 1 , . . . , E do 
+
+6: Initialize within-episode TTT memories {M (l)
+
+> b, 0
+
+}Ll=1 from learned initial memories 
+
+7: Reset previous action, reward, and done inputs to zero 
+
+8: for t = 0 , . . . , H do 
+
+9: Form the interaction input 
+
+xb,e,t = [ sb,e,t , a b,e,t −1, r b,e,t −1, d b,e,t −1]
+
+10: Embed the input h(0)  
+
+> b,e,t
+
+= ϕ(xb,e,t )
+
+11: Process the current episode prefix with the TTT module 
+
+h(L)
+
+> b,e,t
+
+, {M (l)
+
+> b,t
+
+}Ll=1 = TTT θ
+
+
+
+h(0) 
+
+> b,e,t
+
+, {M (l)
+
+> b,t −1
+
+}Ll=1 
+
+
+
+12: Aggregate previous episode summaries 
+
+zb,e,t = Agg ζ
+
+
+
+h(L)
+
+> b,e,t
+
+, Hb
+
+
+
+13: Compute policy and value 
+
+μb,e,t , σ ψ = πψ (sb,e,t , z b,e,t ), vb,e,t = Vν (sb,e,t , z b,e,t )
+
+14: Sample action 
+
+ab,e,t ∼ N (μb,e,t , σ 2 
+
+> ψ
+
+I)
+
+15: Step the environment and store transition data 
+
+(xb,e,t , z b,e,t , a b,e,t , r b,e,t , d b,e,t , log πψ (ab,e,t | sb,e,t , z b,e,t ), v b,e,t )
+
+16: end for 
+
+17: Store the final episode representation as an episode summary ¯hb,e = h(L)
+
+> b,e,H
+
+18: Update the episode-summary history Hb ← H b ∪ { ¯hb,e }
+
+19: if e < E then 
+
+20: Reset the environment under the same task 
+
+21: end if 
+
+22: end for 
+
+23: Compute advantages ˆAb,e,t and returns ˆRb,e,t using GAE over the flattened trial 
+
+24: Partition each trial b into chronological PPO segments {G b,m }Mm=1 
+
+25: for j = 1 , . . . , N PPO do 
+
+26: Partition environment indices {1, . . . , B } into minibatches {I q }Qq=1 of size Bmb 
+
+27: for q = 1 , . . . , Q do 
+
+28: for m = 1 , . . . , M do 
+
+29: Form segment minibatch Gq,m = {G b,m : b ∈ I q }
+
+30: Reprocess Gq,m with the corresponding prefixes and episode-summary histories 
+
+31: Compute LPPO and LV on Gq,m 
+
+32: Update Θ by minimizing 
+
+Ltotal = −L PPO + cv LV
+
+33: end for 
+
+34: end for 
+
+35: end for 
+
+36: end for 
+
+17 Preprint 
+
+Algorithm 2 Meta-Test Evaluation of M ETTA 
+
+Require: Test tasks ptest (T ), trained slow parameters Θ = {θ, ϕ, ψ, ν, ζ }
+
+Require: Evaluation trial length Eeval , episode horizon H, number of environments B
+
+1: Freeze slow parameters Θ
+
+2: Sample test tasks {T b}Bb=1 from ptest (T )
+
+3: Initialize episode-summary history Hb ← ∅ for each environment b
+
+4: Reset environments and initialize previous action, reward, and done inputs to zero 
+
+5: for e = 1 , . . . , E eval do 
+
+6: Initialize within-episode TTT memories {M (l)
+
+> b, 0
+
+}Ll=1 from learned initial memories 
+
+7: Reset previous action, reward, and done inputs to zero 
+
+8: for t = 0 , . . . , H do 
+
+9: Form the interaction input 
+
+xb,e,t = [ sb,e,t , a b,e,t −1, r b,e,t −1, d b,e,t −1]
+
+10: Embed the input 
+
+h(0)  
+
+> b,e,t
+
+= ϕ(xb,e,t )
+
+11: Process the current episode prefix with the TTT module 
+
+h(L)
+
+> b,e,t
+
+, {M (l)
+
+> b,t
+
+}Ll=1 = TTT θ
+
+
+
+h(0) 
+
+> b,e,t
+
+, {M (l)
+
+> b,t −1
+
+}Ll=1 
+
+
+
+12: Aggregate previous episode summaries 
+
+zb,e,t = Agg ζ
+
+
+
+h(L)
+
+> b,e,t
+
+, Hb
+
+
+
+13: Compute deterministic evaluation action 
+
+μb,e,t = πψ (sb,e,t , z b,e,t ), ab,e,t = μb,e,t 
+
+14: Step the environment and record return and success 
+
+15: end for 
+
+16: Store the final episode representation as an episode summary 
+
+¯hb,e = h(L)
+
+> b,e,H
+
+17: Update the episode-summary history 
+
+Hb ← H b ∪ { ¯hb,e }
+
+18: if e < E eval then 
+
+19: Reset the environment under the same test task 
+
+20: end if 
+
+21: end for 
+
+18 Preprint 
+
+Figure 8: Examples of Meta-World environments illustrate the diversity of robotic manipulation tasks in the benchmark. Figures adapted from the official project page https://meta-world. github.io .
+
+C BENCHMARK DETAILS 
+
+C.1 META -W ORLD 
+
+Meta-World is a popular benchmark in the field of meta-reinforcement learning, focusing on robotic manipulation tasks, which enables evaluation in few-shot adaptation. These tasks vary in objectives, object geometries, and interaction dynamics while sharing a common robot embodiment (Sawyer arm) and action space, enabling structured transfer and meta-learning evaluation. We evaluated our algorithm, M ETTA , on three families of environments within this benchmark. 
+
+ML1. In ML1, each trial contains episodes from a single task family (e.g., push ). Following the standard convention used by the baselines, we mask the goal coordinates from the observation, requiring the agent to infer the goal through interaction across episodes. 
+
+ML10 and ML45. ML10 and ML45 contain multiple robotic manipulation task families. Within a trial, all episodes belong to the same task family, while task variations such as object and goal con-figurations may change across episodes. Following the standard convention used by the baselines, goal coordinates are included in the observation for ML10 and ML45, rather than being masked as in ML1. Therefore, the persistent information across episodes primarily concerns the underly-ing task family and task-specific interaction structure. The same trial construction and observation convention are used for all compared methods. C.2 MUJOCO 
+
+We evaluate our method and baselines on a continuous-control task in the MuJoCo simulator, which is widely used in the meta-reinforcement learning literature. Specifically, we consider HalfChee-tahVel , where the agent must adapt its running speed to a target velocity. In this setup, the target velocity is sampled uniformly from the range [0 , 2] , and the episode length is set to 100 timesteps. C.3 POINT MAZE 
+
+We use a PointMaze setup with a 7 × 7 maze, where the agent must navigate to a goal location. The agent and goal are initialized with a minimum shortest-path distance of 10 steps, making successful exploration require long-horizon credit assignment. The environment provides sparse rewards, with reward +1 only when the agent reaches the goal, at which point the episode terminates. Within a trial, the task remains fixed across episodes, allowing information acquired during earlier explo-ration to be reused in subsequent episodes. Training and test tasks differ in their start and goal configurations, with 100 training tasks and 24 held-out test tasks. 19 Preprint Table 2: Hyperparameters used in our experiments.                                           
+
+> Parameter Meta-World MuJoCo PointMaze ML1 ML10 ML45 Training
+> num envs 50 50 180 50 25
+> rollout steps 500 100 500
+> trial length 5510
+> TTT
+> hidden size 128
+> num hidden layers 2
+> mini batch size 128
+> ttt layer type mlp
+> PPO
+> ppo epochs 10 10 5
+> lr 3e-4
+> ppo envs per minibatch 10
+> policy hidden sizes 64,64
+> value hidden sizes 64,64
+> gamma 0.99
+> gae lambda 0.95
+> clip epsilon 0.2
+> ent coef 0.0
+> vf coef 0.5
+> max std 1.5
+> min std 0.5 0.1 0.5
+> init std 1.0 0.5 1.0
+> Meta-Test
+> eval trial length 25 25 10
+
+D EXPERIMENTAL PROTOCOL AND BASELINE DETAILS 
+
+Baseline implementations and hyperparameters. For each baseline, we use the implementa-tion and the benchmark-specific configuration recommended by the corresponding repository when available. The baseline implementations are integrated into our codebase through a common train-ing and evaluation pipeline while retaining their default architectures and method-specific settings. Where a repository provides benchmark-specific configurations, we use the corresponding default configuration. All methods are evaluated under the same environment-interaction budget within each benchmark and using the same task splits and evaluation protocol. All reported results are computed over five independent random seeds. Learning curves show the mean across seeds, with shaded regions indicating ±1 standard error of the mean (SEM). 
+
+Computational environment. All experiments and wall-clock measurements are run on the same server equipped with an NVIDIA RTX 3090 Ti GPU. All methods are provided with a common hardware and evaluation environment for the computational comparisons while preserving the im-plementation choices specific to each method. 
+
+E HYPERPARAMETERS 
+
+Table 2 reports the main hyperparameters used in our experiments. The parameter num envs cor-responds to the number of parallel environments B. The parameter rollout steps denotes the episode horizon H, while trial length denotes the number of episodes E in each meta-RL trial used during rollout collection and sequential PPO optimization. 20 Preprint For the TTT module, hidden size is the hidden dimension of the TTT representations, and 
+
+num hidden layers corresponds to the number of stacked TTT layers L. The parameter 
+
+mini batch size is the chunk length C used for chunk-wise TTT training. The parameter 
+
+ttt layer type specifies the inner-loop memory model fM; in our experiments, we use a two-layer MLP. For PPO, ppo epochs is NPPO , and ppo envs per minibatch denotes Bmb , the number of environment trials used in each PPO minibatch before applying chronological segment updates. The policy and value hidden sizes specify the MLP hidden dimensions of the actor and critic heads. 
+
+F COMPUTATIONAL COMPLEXITY AND INFERENCE EFFICIENCY 
+
+Let T denote the number of timesteps per episode, E the number of episodes in a trial, e the cur-rent episode index, and t the current timestep. We analyze scaling with interaction-history length while treating hidden dimensions and network depths as constants. Existing complexity analyses for sequence-based meta-RL typically characterize the cost of constructing a context representation at a single decision point rather than the computation accumulated throughout an online trial. For example, ECET (Shala et al., 2025) reports O(T 2 + E2) for its hierarchical attention, corresponding to one context construction when the episode-level transformer evaluations are treated as parallel operations. In online meta-RL, however, action selection occurs at every timestep, so the full-trial complexity naturally accumulates this computation across all timesteps and episodes. We therefore report both the per-decision cost and the total computation over the complete trial. 
+
+TrMRL. TrMRL (Melo, 2022) applies timestep-level self-attention over the accumulated interac-tion context. At timestep t of episode e, the context contains approximately (e − 1) T + t transitions, giving a per-decision cost of O(( e − 1) T + t). Summing this cost over the full trial gives 
+
+> ET
+
+X
+
+> ℓ=1
+
+O(ℓ) = O(E2T 2).
+
+The stored timestep-level history grows as O(ET ).
+
+ECET. At episode e, ECET has a per-decision computation of O(eT 2 + e2). Since this computa-tion is performed at each of the T timesteps, the total cost for episode e is 
+
+O(eT 3 + e2T ).
+
+Summing over all E episodes gives 
+
+> E
+
+X
+
+> e=1
+
+O(eT 3 + e2T ) = O(E2T 3 + E3T ).
+
+When the computations across the e episodes are parallelized, the effective per-decision time reduces to O(T 2 + e2), resulting in O(T 3 + e2T ) per episode and 
+
+> E
+
+X
+
+> e=1
+
+O(T 3 + e2T ) = O(ET 3 + E3T )
+
+over the full trial. The stored interaction history scales as O(ET ). Since practical memory usage also depends on the implementation and parallelization strategy, we report measured memory usage below. 
+
+METTA . The within-episode TTT memory has a fixed size with respect to the accumulated inter-action history, giving O(1) history-dependent computation per timestep. With attention-based cross-episode aggregation, the current representation attends only to the e−1 previous episode summaries, giving O(e) additional computation. The computation over episode e is therefore O(T + eT ), and over the full trial EX
+
+> e=1
+
+O(T + eT ) = O(E2T ).
+
+21 Preprint Table 3: Online inference complexity with respect to episode horizon T and number of episodes E.Network dimensions and layer counts are treated as constants. 
+
+Method Per-decision computation Full-trial computation History memory TrMRL O(( e − 1) T + t) O(E2T 2) O(ET )
+
+ECET O(T 2 + e2) O(ET 3 + E3T ) O(ET )
+
+METTA + Attention O(1 + e) O(E2T ) O(E)
+
+METTA + EMA O(1) O(ET ) O(1) 
+
+Table 4: Measured per-step inference latency and memory usage as context length increases. TTT-MLP and TTT-Linear include the inner updates performed during inference. Lower values are better (↓). METTA TrMRL ECET ( E = 5 ) ECET ( E = 25 )Metric TTT-MLP TTT-Linear T = 5 T = 25 T = 100 T = 500 T = 5 T = 25 T = 100 T = 500 T = 5 T = 25 T = 100 T = 500                               
+
+> Time (ms/step) ↓2.159 1.616 0.551 0.639 1.061 9.223 0.761 0.991 2.119 21.713 1.035 2.151 7.599 105.403 Memory (MiB) ↓5.034 2.397 0.335 0.356 0.570 5.333 0.792 0.863 1.701 21.388 2.534 2.857 6.813 101.115
+
+Only episode summaries are retained, requiring O(E) history-dependent memory. With EMA ag-gregation, both within-episode and cross-episode memory remain constant with respect to history length, giving O(ET ) computation over the trial and O(1) history-dependent memory. Since typically E ≪ T , the dependence on timestep-level history becomes particularly important in long-horizon settings. In addition to the asymptotic analysis, we directly measure per-step inference latency and memory usage for both TTT variants and the transformer-based baselines, providing an empirical comparison of their practical inference overhead. Table 4 supports the scaling trends in Table 3. At short context lengths, TrMRL and ECET have lower latency because TTT performs an inner update at every timestep. As T increases, however, their inference time and memory grow substantially, while the TTT cost remains independent of the accumulated timestep-level history. At T = 500 , TTT-MLP requires 2.16 ms per step, providing 
+
+4.3× lower latency than TrMRL and 10 .1×/48 .8× lower latency than ECET with E = 5 /25 . TTT-MLP also uses 5.03 MiB of memory, over 20 × less than ECET with E = 25 . The lighter TTT-Linear variant further reduces the cost to 1.62 ms per step and 2.40 MiB, reaching 65 .2× lower latency and 42 .2× lower memory than ECET with E = 25 at T = 500 . Overall, TTT has a higher constant cost at short contexts but scales substantially better as the interaction history grows. 
+
+G ADDITIONAL RESULTS 
+
+G.1 ALTERNATIVE NEURAL MEMORIES 
+
+To examine the flexibility of the within-episode memory component, we integrate M ETTA with several alternative sequence architectures. Specifically, we replace the TTT memory with a GRU, Mamba (Gu & Dao, 2023), and a linear Transformer (Katharopoulos et al., 2020), while keeping the cross-episode aggregation mechanism, policy and value networks, and training procedure un-changed. Figure 9 shows that the M ETTA framework can operate with different within-episode sequence mod-els, while their adaptation behavior differs substantially. On PointMaze, TTT achieves the strongest and most consistent test performance, while the linear Transformer approaches it later in training and GRU and Mamba remain lower. The differences are also clear on ML10 test tasks: TTT and the linear Transformer achieve substantially stronger generalization than GRU and Mamba, despite all variants learning the training tasks effectively. These results show that the overall framework is not tied to a particular sequence architecture, while the choice of within-episode memory remains important for test-time adaptation and generalization. 22 Preprint 0.2 0.4 0.6 0.8 1.0 1.2 1.4 
+
+Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+PointMaze Train      
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+ML10 Train       
+
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+
+Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+PointMaze Test     
+
+> 0.2 0.4 0.6 0.8 1.0
+
+Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6 
+
+> Success
+
+ML10 Test    
+
+> METTA METTA (GRU) METTA (Mamba-1) METTA (linear Transformer)
+
+Figure 9: Comparison of alternative within-episode neural memory architectures in M ETTA on ML10 and PointMaze. 0.2 0.4 0.6 0.8 1.0 1.2 1.4 
+
+Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+PointMaze Train      
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+ML10 Train       
+
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+
+Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Success
+
+PointMaze Test     
+
+> 0.2 0.4 0.6 0.8 1.0
+
+Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6 
+
+> Success
+
+ML10 Test    
+
+> METTA (attention) METTA (no cross-episode aggregation) METTA (EMA) METTA (linear attention)
+
+Figure 10: Comparison of cross-episode aggregation mechanisms in M ETTA on ML10 and Point-Maze. All variants use the same within-episode neural memory. G.2 CROSS -E PISODE AGGREGATION 
+
+We next vary the mechanism used to combine information across episodes while keeping the within-episode neural memory and the rest of M ETTA unchanged. We compare the default softmax attention with no cross-episode aggregation, an exponential moving average (EMA) with α = 1 /2, and linear attention. 23 Preprint 0.2 0.4 0.6 0.8 1.0 1.2 1.4                                
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Train
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML10 Train
+> 012345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML1 Push-v3 Train
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Test
+> 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> Success
+> ML10 Test
+> 12345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML1 Push-v3 Test
+> METTA (online TTT update) METTA (no online TTT update)
+
+Figure 11: Complete online memory-update ablation on PointMaze, ML10, and ML1 Push. Top: training performance. Bottom: test performance. 1 2 3 4 5            
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> Push-v3 Test (Episode 1)
+> 12345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> Push-v3 Test (Episode 5)
+> 12345
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> Push-v3 Test (Episode 25)
+> METTA (online TTT update) METTA (no online TTT update)
+
+Figure 12: ML1 Push test performance at adaptation Episodes 1, 5, and 25 within each evaluation trial. The episode index denotes the progression of adaptation within the same trial. Figure 10 shows that the aggregation mechanism has relatively little effect on training performance but becomes substantially more important at test time. On ML10, removing cross-episode aggrega-tion leads to consistently lower test success, remaining around 0.3, while softmax attention, EMA (α = 1 /2), and linear attention all benefit from reusing information across episodes. On Point-Maze, the no-aggregation variant learns much more slowly at test time and remains near zero during approximately the first 0.5M environment steps, whereas the aggregation-based variants begin im-proving substantially earlier. This further highlights the importance of reusing evidence collected in previous episodes for adaptation on held-out tasks. Among the aggregation mechanisms, softmax attention provides the strongest overall trade-off across the four settings. EMA performs competitively on several test settings but is less stable on PointMaze and somewhat weaker on ML10 training tasks. Linear attention closely tracks softmax attention during training and reaches strong PointMaze test performance, but is less consistent on held-out tasks. These results support retaining a selective cross-episode retrieval mechanism while showing that M ETTA is not restricted to a single aggregation design. G.3 ADDITIONAL ONLINE MEMORY UPDATE RESULTS 
+
+Section 4.3 studies the contribution of M ETTA ’s online memory adaptation. Here, we provide the complete training and test curves for this ablation. In all cases, the no-update variant uses the same architecture and cross-episode aggregation as M ETTA , but disables the online memory updates. Figures 11 and 12 provide the complete results corresponding to the comparison in Section 4.3. The large difference on PointMaze appears in both training and test performance, with a substantially larger gap on held-out test tasks. On ML10, the two variants remain close throughout training and testing. On ML1 Push, both variants learn the training task effectively, while the online-update model achieves stronger test performance. 24 Preprint 0.2 0.4 0.6 0.8 1.0 1.2 1.4                                      
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Train
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML45 Train
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML10 Train
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Test
+> 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Success
+> ML45 Test
+> 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> Success
+> ML10 Test
+> TTT-MLP TTT-Linear
+
+Figure 13: Effect of within-episode memory capacity. We compare the default TTT-MLP memory with the lighter TTT-Linear variant on PointMaze, ML45, and ML10. G.4 MEMORY CAPACITY 
+
+We study the effect of the capacity of the within-episode memory by comparing the default TTT-MLP with the lighter TTT-Linear variant. TTT-MLP uses a two-layer MLP as the adaptive neu-ral memory, whereas TTT-Linear uses a single linear layer. Both variants otherwise use the same METTA architecture, cross-episode aggregation, policy and value networks, and training procedure. Figure 13 shows that both memory variants learn the training tasks effectively, while the higher-capacity memory provides stronger test-time adaptation. The difference is largest on PointMaze, where TTT-MLP substantially outperforms TTT-Linear on held-out tasks despite similar training success. TTT-MLP also achieves stronger test performance on ML10 and ML45, although the gap is smaller. These results indicate that increasing the capacity of the adaptive memory is particularly useful when task inference requires integrating richer interaction evidence, while the lighter linear memory remains a viable lower-cost alternative. G.5 SEPARATING STATE AND TASK CONTEXT 
+
+In the default M ETTA architecture, the learned context representation ze,t summarizes task-relevant interaction history, while the current state se,t is provided separately to the actor and critic. We ablate this design by removing the separate state input, forcing the learned representation to jointly encode both the current state and task context. Figure 14 shows that explicitly separating state information from task context has relatively little effect on training performance but improves generalization to held-out tasks. The difference is par-ticularly pronounced on PointMaze, where removing the separate state input causes a large reduction in test success despite maintaining strong training performance. The same trend is visible on ML10, while the two variants are closer on ML45. These results suggest that allowing the memory to focus on task-relevant evidence, while providing the instantaneous state directly to the policy and value function, produces a more effective representation for adaptation than requiring a single learned representation to encode both. G.6 QUALITATIVE POINT MAZE TRAJECTORIES 
+
+Figure 15 shows PointMaze examples for M ETTA , ECET, and TrMRL at two stages of learning: halfway through training and at the end of training. For each method, we visualize trajectories from Episodes 1, 2, 5, and 10 on the same task instances to illustrate how information is used across episodes within a trial. A clear pattern is that, for ECET and TrMRL, trajectories from different episodes often overlap sub-stantially. This suggests that these agents do not effectively use information gathered in previous 25 Preprint 0.2 0.4 0.6 0.8 1.0 1.2 1.4                                      
+
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Train
+> 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML45 Train
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> ML10 Train
+> 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+> Meta-Learning Timestep 1e6 0.0 0.2 0.4 0.6 0.8 1.0
+> Success
+> PointMaze Test
+> 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Success
+> ML45 Test
+> 0.2 0.4 0.6 0.8 1.0
+> Meta-Learning Timestep 1e7 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> Success
+> ML10 Test
+> METTA METTA (no state appended)
+
+Figure 14: Effect of separating the current state from the learned task context. The default M ETTA 
+
+provides se,t separately to the actor and critic, while the ablated variant must represent both state and task information through the learned context. episodes, and instead tend to repeat similar exploration patterns across the trial. Even when these methods eventually reach the goal, they frequently revisit previously explored paths rather than re-fining their search based on earlier failures or successes. In TrMRL, this behavior is consistent with limited effective long-context memory across episodes. For ECET, although it explicitly incorpo-rates cross-episode context, the available context is short, which makes it difficult to use previous episode information effectively in this very low-signal sparse-reward environment. Moreover, this behavior remains visible from mid-training to the end of training, indicating that these methods do not substantially improve their ability to reuse previous episodes over the course of learning. In contrast, M ETTA learns a qualitatively different exploration strategy. In particular, it learns to search the maze more broadly in the first episode, and the search space covered by this first episode becomes noticeably larger as training progresses. Later episodes then make better use of the infor-mation gathered during this broader initial exploration, leading to more directed behavior toward the goal. These examples, together with the exploration measures in Table 1, support our claim that episodic neural memory helps preserve and reuse task-relevant evidence across episodes, which is especially important in long-context sparse-reward settings such as PointMaze. G.7 POINT MAZE EXPLORATION METRICS 
+
+We characterize PointMaze exploration using three measures reported in Table 1. These measures are computed from the trajectories generated across episodes of each evaluation trial and then aver-aged across seeds. 
+
+Coverage. Coverage measures the fraction of traversable maze cells visited by the agent before success or episode termination. Higher coverage indicates that the agent explores a larger portion of the available maze rather than repeatedly visiting the same regions. 
+
+Episode Jaccard. For each pair of consecutive episodes, we compute the Jaccard similarity be-tween the sets of maze cells visited in the two episodes after excluding the forced starting cell. For consecutive episodes e and e + 1 with visited-cell sets Ce and Ce+1 , the similarity is 
+
+J(Ce, Ce+1 ) = |C e ∩ C e+1 ||C e ∪ C e+1 | .
+
+Lower values indicate that consecutive episodes overlap less and therefore exhibit less repetitive exploration. 
+
+Steps. Steps denotes the number of environment interactions before an episode reaches the goal or terminates at the horizon. When considered together with success performance and maze coverage, fewer steps indicate that broader exploration is achieved without requiring longer trajectories. 26 Preprint Sample 1      
+
+> Mid-Training End-of-Training Mid-Training End-of-Training Mid-Training End-of-Training
+> Sample 2 Sample 3 Sample 4 Sample 5 Sample 6 Sample 7 Sample 8 Sample 9
+
+METTA (ours) ECET TrMRL       
+
+> Episode 1 Episode 2 Episode 5 Episode 10 Start End Goal
+
+Figure 15: Qualitative PointMaze trajectories for M ETTA , ECET, and TrMRL. Columns correspond to methods, while rows show 9 task instances at mid-training and at the end of training. Colored curves denote Episodes 1, 2, 5, and 10 from the same trial. ECET and TrMRL frequently revisit similar regions across episodes, whereas M ETTA covers a wider portion of the maze and progres-sively produces more goal-directed behavior. 27

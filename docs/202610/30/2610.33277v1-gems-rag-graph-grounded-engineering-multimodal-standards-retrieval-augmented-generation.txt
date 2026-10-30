@@ -1,0 +1,2065 @@
+Title: GEMS-RAG: Graph-grounded Engineering Multimodal Standards Retrieval-Augmented Generation
+
+URL Source: https://arxiv.org/pdf/2610.33277v1
+
+Published Time: Tue, 27 Oct 2026 00:13:47 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+# GEMS-RAG: Graph-grounded Engineering Multimodal Standards Retrieval-Augmented Generation 
+
+## Abdul Hannan Azad 1, Irvin Wang 2, Jiwan Jiang 1, Chenchen Kuai 1, Bofeng Cao 3,Keshu Wu 1, Yuzhou Wang 1, Xiaopeng Li 3, Yang Zhou 1
+
+> 1
+
+Texas A&M University, College Station, USA 
+
+> 2
+
+A&M Consolidated High School College Station, USA 
+
+> 3
+
+University of Wisconsin, Madison, USA yangzhou295@tamu.edu 
+
+Abstract 
+
+Engineering standards are challenging knowledge sources for large language models (LLMs) because they are hier-archical, multimodal, and densely connected through fig-ures, tables, cross-references, and normative rules. Exist-ing retrieval-augmented generation (RAG) methods often rely on unstructured text retrieval and struggle with ques-tions requiring joint reasoning over textual provisions, visual specifications, and document structure. We propose GEMS-RAG (Graph-grounded Engineering Multimodal Standards Retrieval-Augmented Generation), a framework for grounded reasoning over engineering standards. GEMS-RAG com-bines hierarchical parsing, fine-grained visual entity extrac-tion, multimodal knowledge graph construction, and graph-grounded hybrid retrieval. Instead of treating figures as mono-lithic images, it decomposes them into meaningful visual entities linked to textual provisions, engineering concepts, and regulatory rules. During inference, dense, sparse, and vi-sual retrieval are combined with graph expansion to identify relevant evidence across text, figures, and document struc-ture. We evaluate GEMS-RAG on the Manual on Uniform Traffic Control Devices (MUTCD), a large engineering stan-dard containing regulations, technical drawings, and stan-dardized traffic-control devices. Results show that graph-grounded multimodal retrieval improves retrieval effective-ness and question-answering performance over text-only, mul-timodal, and graph-based RAG baselines. Beyond MUTCD, GEMS-RAG offers a general framework for reasoning over engineering codes, technical manuals, regulatory documents, and scientific standards in safety-critical applications. 
+
+Code — https://github.com/hannanazad/gemsrag.git 
+
+## Introduction 
+
+Large Language Models (LLMs) have demonstrated remark-able capabilities in language understanding, reasoning, and question answering. However, their effectiveness remains fundamentally constrained by the knowledge encoded dur-ing pretraining (Kuai et al. 2026a). Retrieval-Augmented Generation (RAG) has emerged as a powerful paradigm for grounding LLMs in external knowledge by retrieving rele-vant documents at inference time and incorporating them into the generation process (Lewis et al. 2020, 2021; Asai et al. 
+
+Copyright © 2027, Association for the Advancement of Artificial Intelligence (www.aaai.org). All rights reserved. 
+
+2023; Zhai 2024). While recent RAG systems have achieved substantial success on web documents (Yang et al. 2024), scientific literature (Lála et al. 2023), and domain knowl-edge bases (Kuai et al. 2026b), they remain poorly suited for regulatory and engineering standards documents that ex-hibit rich hierarchical organization, multimodal content, and normative reasoning requirements. Engineering standards documents constitute a particu-larly challenging class of knowledge sources for retrieval-augmented generation. Unlike conventional text corpora, they combine hierarchical organization, normative language, technical specifications, figures, tables, design examples, and dense cross-references. For example, the Manual on Uni-form Traffic Control Devices (MUTCD) (Federal Highway Administration 2025) contains textual regulations, engineer-ing guidance, standardized traffic-control devices, technical drawings, sign specifications, warrants, and cross-referenced provisions. In such documents, critical knowledge is rarely contained in a single passage; instead, correct interpretation often requires connecting textual rules with visual specifi-cations, document structure, and regulatory context (Doris et al. 2025; Shi et al. 2026). Conventional RAG systems face three key limitations when applied to engineering standards documents such as the MUTCD. First, many retrieval pipelines represent docu-ments as collections of independent text chunks, which can weaken the hierarchical context that determines the scope and interpretation of regulatory provisions. Second, even when multimodal content is considered, figures and diagrams are often indexed only at the page, caption, or image level, lim-iting access to the fine-grained visual semantics embedded in engineering symbols, standardized devices, and technical drawings. Third, standard dense or sparse retrieval does not explicitly model cross-references, regulatory dependencies, or relationships among sections, figures, tables, devices, and rule types. As a result, existing systems may produce in-complete, decontextualized, or inconsistent answers when standards-compliant reasoning requires joint evidence from text, visuals, and document structure. To address these limitations, we propose GEMS-RAG ,a Graph-grounded Engineering Multimodal Standards Retrieval-Augmented Generation framework for engineering standards documents which combines hierarchical document parsing, multimodal figure decomposition, dense and sparse arXiv:2610.33277v1 [cs.AI] 23 Oct 2026 retrieval, and graph-based knowledge organization within a unified retrieval architecture. Instead of treating figures as auxiliary content, we explicitly extract and index individual visual entities, such as traffic signs, plaques, and signal il-lustrations, and connect them to their corresponding textual provisions through a document knowledge graph. The re-sulting system enables retrieval over both textual and visual semantics while preserving the structural relationships that govern interpretation of the standard. More specifically, we construct a multimodal knowledge graph that captures relationships among sections, figures, traffic control devices, regulatory concepts, and normative statements. During retrieval, graph-based expansion supple-ments traditional dense retrieval by identifying structurally related content, allowing the system to recover relevant provi-sions even when they are distributed across multiple sections and modalities. Retrieved textual and visual evidence are then jointly provided to a vision-language reasoning model for grounded response generation. The contributions of this paper are threefold: 
+
+• We introduce a standards-aware hierarchical multimodal framework that represents engineering standards as struc-tured collections of text, figures, tables, visual enti-ties, cross-references, and rule types rather than isolated chunks. 
+
+• We propose a graph-grounded hybrid retrieval mecha-nism integrating hierarchical parsing, textual and visual retrieval, graph expansion, and rule-aware ranking to sup-port reasoning across sections, devices, figures, and nor-mative relationships. 
+
+• We develop a multimodal RAG benchmark and system for the MUTCD, as an example, showing that fine-grained visual grounding, preserved document structure, and nor-mative rule modeling improve retrieval and question an-swering over complex engineering standards. 
+
+## Related Work 
+
+Retrieval-Augmented Generation for Domain-Specific Knowledge 
+
+RAG has become a widely adopted approach for ground-ing large language models in external knowledge. By re-trieving relevant evidence at inference time, RAG reduces reliance on parametric memory and improves factuality in question answering over open-domain documents, scientific literature, and domain-specific knowledge bases (Karpukhin et al. 2020). Recent advances have further improved retrieval quality through hybrid dense–sparse retrieval, reranking, it-erative retrieval, self-reflection, and adaptive retrieval plan-ning (Asai et al. 2023; Wang et al. 2024; Zhai 2024). These methods have demonstrated strong potential for knowledge-intensive reasoning tasks. Most existing RAG systems as-sume that knowledge can be represented as independent tex-tual chunks. This assumption is inadequate for engineering standards, where meaning is distributed across section hi-erarchies, cross-references, tables, figures, captions, device drawings, and normative statements. A locally relevant pas-sage may therefore be insufficient without its structural lo-cation, visual specifications, and related provisions. Conse-quently, text-centered RAG may retrieve relevant fragments yet still produce noncompliant answers. This limitation mo-tivates a standards-aware architecture that preserves docu-ment hierarchy and regulatory context throughout retrieval and generation. 
+
+Multimodal Understanding of Engineering Standards Documents 
+
+Multimodal retrieval and vision-language models (Mathew, Karatzas, and Jawahar 2021; Xia et al. 2025; Li et al. 2025; Kuai et al. 2026b) provide an important foundation for rea-soning over visual and textual information. Shared image– text embedding models and recent multimodal foundation models have shown strong capabilities in visual question an-swering, document understanding, chart interpretation, and image-grounded generation. These developments have mo-tivated multimodal RAG systems that retrieve images, ta-bles, document pages, or visual regions alongside textual evidence (Yu et al. 2025). Engineering standards present a specialized form of multimodality. Their visuals often en-code formal concepts, standardized devices, geometric lay-outs, operational constraints, and regulatory specifications. For example, traffic signs, plaques, lane-use arrows, signal faces, and pavement markings are regulated entities with defined meanings, usage conditions, and governing provi-sions. Treating a figure as a monolithic image or relying only on its caption therefore obscures the fine-grained semantics required for grounded reasoning. Standards-centric multi-modal RAG must explicitly extract, index, and link visual entities to their textual and regulatory context. 
+
+Graph-Grounded Retrieval and Structural Reasoning 
+
+Knowledge graph-augmented retrieval offers a natural mech-anism for representing relationships among entities, con-cepts, documents, and rules (Procko and Ochoa 2024; Park et al. 2026; Hsiao et al. 2026; Luo et al. 2026; Zhu et al. 2025; Wu et al. 2026). Graph-based RAG methods can expand retrieved evidence through neighboring nodes, connect se-mantically related concepts, and support multi-hop reasoning beyond lexical similarity. These capabilities are especially relevant for engineering standards, where correct interpreta-tion often depends on relationships among sections, figures, tables, definitions, cross-references, and rule types. Never-theless, most existing graph-RAG approaches build graphs from textual entities, citations, or domain ontologies. They rarely treat engineering visuals as first-class entities or jointly represent visual objects, document hierarchy, regulatory con-cepts, and normative statements. Likewise, document intel-ligence methods can parse layouts, tables, and figures, but usually serve only as preprocessing rather than supporting graph-grounded retrieval and reasoning. To address these limitations, this paper proposes GEMS-RAG, a graph-grounded multimodal RAG framework for engineering standards. GEMS-RAG preserves document hi-erarchy, decomposes figures into fine-grained visual entities, and constructs a multimodal knowledge graph linking sec-tions, figures, traffic-control devices, regulatory concepts, Figure 1: Framework of GEMS-RAG and normative statements. By combining dense, sparse, and visual retrieval with graph expansion, it supports grounded reasoning across the textual, visual, and structural semantics of engineering standards. As shown in Figure 1, GEMS-RAG parses standards by their native hierarchy, extracts captioned figures and tables, links textual and visual elements in a knowledge graph, retrieves multimodal evidence, and adap-tively gates visual evidence per query. 
+
+## Methodology 
+
+Problem Formulation 
+
+Let D = ( d1, d 2, . . . , d N ) denote a standards document con-taining textual passages, figures, tables, and cross-references. We represent each document element as ci = ( xi, v i, m i),where xi denotes the textual content, vi denotes the visual content, and mi contains structural metadata, including the page number, section identifier, rule type, and figure or ta-ble identifier. Given a user query q, the system retrieves a supporting evidence set 
+
+R(q) = {ci1 , c i2 , . . . , c ik } , (1) and generates an answer 
+
+a = f  q, R(q). (2) The generated answer must ground its claims in the retrieved evidence and cite identifiers that resolve to valid sections, fig-ures, or tables in the underlying document. Visual elements are included only when the query requires visual evidence. 
+
+Hierarchical Document Parsing 
+
+Many engineering standards organize their content into parts, chapters, sections, and typed paragraphs. GEMS-RAG pre-serves this native structure rather than treating the document as an unstructured sequence of pages. Each textual chunk is assigned a hierarchy label 
+
+hi = ( pi, c i, s i, r i), (3) where pi, ci, si and ri denote the part, chapter, section, and normative rule type of chunk i, respectively. Text is segmented by paragraph within each section, with each chunk retaining its heading, page number, and related figure, table, and section references. The parser also normalizes identifier variants to ensure consistent cross-reference matching. 
+
+Caption-Anchored Figure and Table Extraction 
+
+GEMS-RAG uses detected captions as spatial anchors to extract figures and tables from each page. For a caption b
+
+on a page of height H, the corresponding visual region is defined by 
+
+region( b) = [ ybot (b) + δ1, min ( ytop (b′), H − δ2)] , (4) where b′ denotes the next caption below b, ybot (b) and 
+
+ytop (b′) define the relevant caption boundaries, and δ1 and 
+
+δ2 provide small spatial margins. The extraction procedure adapts to variations in page lay-out, including multi-column pages, horizontally aligned vi-suals, and figures distributed across multiple panels or pages. Spatial cues from caption position, column boundaries, and neighboring document elements are used to isolate the cor-responding visual content. Visual components that share the same document identifier are subsequently consolidated into a single canonical entity during graph construction. A secondary recovery procedure is applied when an iden-tified figure or table is not successfully extracted during the initial pass. This procedure relaxes the spatial constraints to improve coverage of small or irregularly formatted vi-sual elements. Extraction completeness is verified through a document-wide consistency check between referenced vi-sual identifiers and the figures and tables recovered by the pipeline. Identifiers corresponding to external documents are excluded from this comparison. Any unresolved references are flagged for additional extraction or review before inges-tion is completed. 
+
+Multimodal Knowledge Graph Construction 
+
+We organize the extracted document elements in a multi-modal knowledge graph G = ( V, E). The node set represents the document hierarchy, textual chunks, figures, tables, and traffic control devices: 
+
+V = Vpart ∪ V chap ∪ V sec ∪ V chunk ∪ V fig ∪ V tab ∪ V dev . (5) A single canonical node is created for each figure identifier and stores the images associated with all of its sheets. The edge-type set is 
+
+E = {contains , cites , mentions , depicts ,
+
+defines , anchored_in , cited_in ,
+
+belongs_to_chapter }.
+
+(6) The cites relation includes chunk-to-figure, chunk-to-table, and chunk-to-section references extracted from the chunk text. Figures are associated with sections using three comple-mentary forms of evidence. Let C(f ) denote the set of sec-tions whose chunks cite figure f , and let chap( f ) denote the chapter encoded in the identifier of f . The primary anchor section is defined as 
+
+anchor( f ) = arg max   
+
+> s∈C (f)∩chap( f)
+
+|cites( s, f )| , (7) where |cites( s, f )| is the number of citations to figure f
+
+within section s. If no citing section belongs to the chapter encoded in the figure identifier, the system falls back to the section with the largest number of citations to that figure. Each figure is linked to its primary section, referencing sec-tions, parent chapter, and depicted traffic control devices or concepts. These relations preserve the document hierarchy and each visual element’s semantic role in the knowledge graph. 
+
+Multimodal Indexing 
+
+Textual and visual evidence are encoded using modality-specific representation models. For each textual chunk xi,we compute a dense embedding and a learned sparse repre-sentation: 
+
+ei = ftext (xi), zi = fsparse (xi), (8) where both representations are produced using BGE-M3. For a figure or table crop Ij , we compute a token-level multi-vector visual representation: 
+
+Ej = fimg (Ij ) ∈ Rnj ×d, (9) where nj denotes the number of visual tokens and d denotes the embedding dimension. We use ColQwen2 (Faysse et al. 2025) to encode both individual visual crops and full-page renderings. The resulting representations are stored in vector indexes, while document metadata and cross-modal relations remain in the knowledge graph. 
+
+Graph-Grounded Hybrid Retrieval 
+
+For textual retrieval, dense and sparse rankings are combined using reciprocal rank fusion: 
+
+SRRF (q, c i) = X
+
+> r∈{ dense ,sparse }
+
+1
+
+κ + rank r (ci) , (10) where κ is a rank-smoothing constant. The dense ranking is induced by the cosine similarity cos ( eq , ei), where eq is the dense representation of query q.Explicit figure, table, section, and device identifiers in the query are matched to a set of graph nodes Vq . Each retrieved candidate then receives a graph-proximity score 
+
+Sgraph (q, c i) = max 
+
+> v∈V q
+
+11 + dG (v, c i) , (11) where dG (·, ·) denotes the shortest-path distance in G.
+
+Normative Rule Modeling 
+
+The MUTCD expresses provisions at four levels of normative authority. We assign each textual chunk a rule type 
+
+ri ∈ { Standard , Guidance , Option , Support }, (12) and define a rule-type weight w(ri) satisfying 
+
+w(Standard ) > w (Guidance )
+
+> w (Option ) > w (Support ). (13) We also introduce a hierarchical relevance prior 
+
+shier (q, c i) ∈ [0 , 1] ,
+
+which rewards candidates whose part, chapter, or section is explicitly referenced in the query. The fused first-stage retrieval score is 
+
+S(q, c i) = λ1SRRF (q, c i) + λ2Sgraph (q, c i)+ λ3
+
+ w(ri) − 1 + λ4shier (q, c i), (14) where λ1, . . . , λ 4 are fusion coefficients. This formulation prioritizes mandatory provisions over advisory or explana-tory text when the candidates are otherwise similarly rele-vant. A cross-encoder subsequently re-ranks the highest-scoring candidates: 
+
+S∗(q, c i) = fCE (q, x i). (15) The resulting order determines the final textual evidence set, denoted by Xq .
+
+Query-Adaptive Visual Evidence Gating 
+
+Attaching figures to answers that do not require visual evi-dence can reduce precision and increase unnecessary context. GEMS-RAG therefore employs a query-adaptive router that determines whether visual evidence should enter the gener-ation stage: 
+
+δ(q) ∈ { 0, 1}, (16) where δ(q) = 1 activates visual retrieval and δ(q) = 0 
+
+suppresses all visual inputs. Deterministic rules are evaluated first. An explicit figure or table identifier forces δ(q) = 1 , as does a visual expression such as “show,” “appearance,” or “look like.” In contrast, a definitional or permission-oriented question without visual cues forces δ(q) = 0 . Queries not resolved by the determin-istic rules receive a visual-need score 
+
+s(q) = X
+
+> k
+
+βk1[gk(q)] + βkg 
+
+1
+
+|C q |
+
+X
+
+> s∈C q
+
+1[cites( s)] , (17) where gk(q) represents lexical signals associated with device codes, visual nouns, and placement verbs. The set Cq con-tains the sections associated with the highest-ranked textual chunks. The second term measures the proportion of those sections that cite at least one figure. The router activates visual retrieval when 
+
+δ(q) = 1[s(q) ≥ τvis ] , (18) where τvis is a decision threshold. The system records the rules and signals responsible for every routing decision. When δ(q) = 0 , neither figure crops nor page images are passed to the generator, and no images are included in the resulting answer. 
+
+Visual Evidence Retrieval and Filtering 
+
+When δ(q) = 1 , visual candidates are obtained through two complementary retrieval paths. 
+
+Graph-linked retrieval. The first path collects figures and tables cited by the highest-ranked textual chunks. These can-didates are ordered according to the rank of their citing chunks. 
+
+Direct visual retrieval. The second path directly searches the visual crop index using late interaction. For a visual candidate Fj , its relevance score is 
+
+Svis (q, F j ) = X
+
+> i
+
+max  
+
+> t
+
+⟨qi, Ej,t ⟩ , (19) where qi is the embedding of the i-th query token and Ej,t 
+
+is the t-th visual token representation of candidate Fj .The candidates returned by the two paths are merged and evaluated by a vision-language filtering model: 
+
+Iq = ffilter (q, {F1, . . . , F m}) , |I q | ≤ kf , (20) where kf is the maximum number of retained visual entities. The filter is instructed to retain only visual evidence that a reader must inspect to answer the query, with a conservative preference for excluding marginally relevant images. The fil-tering model may be smaller than the final answer-generation model. When a retained figure contains multiple sheets, all sheets associated with its canonical graph node are included. 
+
+Multimodal Answer Generation 
+
+The final evidence set is 
+
+R(q) = {X q , δ (q)Iq , δ (q)Pq } , (21) where Xq denotes the textual evidence, Iq denotes the filtered figure and table crops, and Pq denotes the retrieved full-page renderings. Table 1: MUTCD dataset statistics. Component Count Sections 678 Text Chunks 5705 Figures 485 Tables 68 Knowledge Graph Nodes 8240 Knowledge Graph Edges 18245 The multimodal generator receives the query, the textual evidence with section identifiers and rule types, and the gated visual evidence: 
+
+a = fVLM (q, Xq , δ (q)Iq , δ (q)Pq ) . (22) Each textual chunk retains its section identifier and norma-tive rule type, while each visual entity retains its canonical identifier and anchor section. After generation, every cited section, figure, and table is verified through an exact lookup in G. Citations that cannot be resolved to valid graph entities are rejected. 
+
+Retrieval Procedure 
+
+For a query q, GEMS-RAG extracts figure, table, sec-tion, and traffic-control-device identifiers and maps them to knowledge-graph nodes. It retrieves text using dense and learned sparse search, fuses rankings through reciprocal rank fusion, and scores candidates using graph proximity, rule-type weights, and hierarchy priors in Eq. (14). The cross-encoder in Eq. (15) then produces the textual evidence set 
+
+Xq . The visual-evidence router determines δ(q) and, when 
+
+δ(q) = 1 , retrieves graph-linked and directly matched figures and tables for vision-language filtering. Finally, the frame-work assembles textual evidence, visual crops, captions, and page renderings into the generation context and produces an answer with graph-verified section, figure, table, and rule-type citations. 
+
+## Experimental Evaluation 
+
+This section evaluates GEMS-RAG on retrieval and ques-tion answering using the 11th Edition of the MUTCD. We assess its ability to retrieve sufficient textual and visual ev-idence, support grounded standards reasoning, and remain robust across evidence modalities and difficulty levels. Ta-ble 1 summarizes the resulting knowledge base, while Fig-ure 2 presents an exemplar subgraph centered on the STOP sign. 
+
+Evaluation Tasks and Results 
+
+We constructed MUTCD-150 as a benchmark of 150 ques-tions spanning textual, tabular, visual, and mixed-evidence reasoning. For each question, we manually locked the gold answer and the required MUTCD sections, source pages, tables, figures, and visual crops; 85 questions specifically required figure or table evidence. Using these fixed annota-tions and a common retrieval stack, we evaluated 12 vision-language models (OpenAI 2026; Alibaba Cloud 2026c; Figure 2: Knowledge graph for the R1-1 STOP sign example. Retrieval (/25 rescaled) Recall@5 MRR nDCG@6 Context precision@6 Exact visual crop hit Visual crop precision 
+
+> 40 50 60 70 80 90 100
+> Qwen3-VL 235B Qwen3.6 Flash Gemini 3.5 Flash Gemini 3.1 Flash-Lite Claude Haiku 4.5 Claude Fable 5 / Claude Sonnet 5 Qwen3.7 Plus Gemini 3.1 Pro Preview Qwen3-VL Flash Qwen3.7 Max / Qwen3.5 Omni Plus
+
+Figure 3: Retrieval and visual-evidence performance. Google 2026c,a,b; Anthropic 2025, 2026a,b; Alibaba Cloud 2026e,d,a,b) on evidence retrieval, visual filtering, and question answering. Retrieval performance was consistent across models (19.35–19.63/25), with Recall@5 of 86.7%– 88.0% and evidence sufficiency of 93.3%. Larger differences emerged in model-controlled visual filtering, where exact visual-crop hit rates ranged from 75.3% to 83.5% and crop precision ranged from 62.7% to 79.8%, given in Figure 3. The shared retrieval stack produced stable evidence cover-age across models, while the selected vision-language model primarily affected visual-crop selection. Context precision remained below 50%, indicating that irrelevant evidence was still frequently passed to the answer-generation stage. For answer evaluation, GPT-5.6 (OpenAI 2026) served as a constrained, evidence-grounded LLM judge. Judgments with confidence above 50% were accepted directly; lower-confidence cases were manually verified. It compared each Overall score Correctness Completeness Faithfulness Citation localization Full-credit rate Speed (inverted latency) 
+
+> 020 40 60 80 100
+> Qwen3.7 Plus Qwen3.7 Max Qwen3.6 Flash Qwen3-VL Flash Gemini 3.5 Flash Qwen3-VL 235B Gemini 3.1 Pro Preview Claude Fable 5 Qwen3.5 Omni Plus Claude Haiku 4.5 Gemini 3.1 Flash-Lite Claude Sonnet 5
+
+Figure 4: Question-answering performance. model response with the locked gold answer and MUTCD evidence and applied a predefined rubric covering correct-ness, completeness, faithfulness, citation localization, and visual or table reasoning. Strict full credit required perfect correctness, completeness, faithfulness, and citation scores. As shown in Figure 4, overall normalized scores ranged from 85.08 to 88.08, with Claude Fable 5 achieving the highest provisional score and an 80.0% full-credit rate. GPT-5.6 sup-ported benchmark construction, evidence review, and rubric-based scoring, whereas retrieval metrics and final composite scores were calculated using fixed rule-based scripts. Based on the cross-model comparison, we selected Claude Fable 5 for detailed analysis because it achieved the highest provisional overall and strict full-credit scores while balanc-ing correctness, faithfulness, citation localization, and visual reasoning. We then assessed its consistency across evidence modalities, answerability, and M-SDI difficulty levels, de-fined by localization, modality integration, reasoning, an-swer composition, and normative precision. As shown in Fig. 5, the model demonstrated strong performance across all evidence types. It achieved full credit on 90.0% of tab-ular and 83.3% of figure-based questions. Mixed-evidence questions yielded 91.2% correctness, 89.5% completeness, and a 76.7% full-credit rate, while purely textual questions achieved high correctness (93.5%) and faithfulness (99.3%) alongside a 75.0% full-credit rate. Notably, most point deduc-tions stemmed from omitted definitions, exceptions, quanti-ties, thresholds, or citations, rather than fundamentally in-correct conclusions. Performance also remained stable across M-SDI difficulty levels. For answerable questions (those fully supported by MUTCD evidence), correctness reached 88.2% on easy, 92.3% on medium, and 89.2% on hard queries. Fur-thermore, the model reliably handled unanswerable queries (those lacking sufficient, or in-scope support), maintaining near-perfect performance across all difficulty tiers. Figure (n=30) Mixed (n=30) Table (n=30) Text (n=60) Unanswerable Easy (n=12) Unanswerable Medium (n=16) Unanswerable Hard (n=2) Answerable Easy (n=54) Answerable Medium (n=46) Answerable Hard (n=20)                                           
+
+> Correctness Completeness Faithfulness Citation Full credit
+> 89.2% 89.2% 97.5% 91.7% 83.3% 91.2% 89.5% 98.3% 96.7% 76.7% 92.5% 93.3% 97.5% 96.7% 90.0% 93.5% 89.5% 99.3% 93.8% 75.0% 100.0% 100.0% 97.9% 100.0% 91.7% 100.0% 100.0% 100.0% 100.0% 100.0% 100.0% 100.0% 100.0% 100.0% 100.0% 88.2% 85.9% 97.9% 90.7% 75.9% 92.3% 90.7% 98.9% 95.1% 78.3% 89.2% 85.9% 97.5% 95.0% 70.0%
+> A. Performance by evidence modality B. Performance by M-SDI difficulty and answerability
+
+Figure 5: Claude Fable 5 performance by evidence modality and by M-SDI difficulty and answerability. 
+
+Figure 6: Retrieval performance comparison 
+
+Performance Comparisons 
+
+To evaluate GEMS-RAG, we benchmarked it against three established baselines (i.e., BM25 (Robertson and Zaragoza 2009), GraphRAG (Procko and Ochoa 2024), and PaperQA2 (Skarlinski et al. 2024)) across three language models. We first assessed retrieval by comparing the top 10 figures and evidence items returned by each method against GPT-5.6-Pro generated gold annotations. As shown in Figure 6, GEMS-RAG achieves the highest Recall@10, MRR@10, and nDCG@10, whereas GraphRAG substantially underper-forms BM25. As shown in Figure 7, GEMS-RAG improves the overall score by more than 10% across all models, with larger gains in correctness and full credit. Under the strict full-credit criterion, it exceeds the strongest baseline by ap-proximately 48%–50% points, demonstrating its ability to generate correct, complete, and well-grounded answers. 
+
+Ablation Study 
+
+We assessed the contribution of three GEMS-RAG compo-nents through controlled ablations using the full Claude Fable 5 configuration as the reference. As shown in Table 2, removing the VLM figure filter or hierarchy prior slightly increased retrieval scores but reduced 
+
+Figure 7: Question answering performance Table 2: Ablation results. Best results are bolded and second-best results are underlined. Unit: percent.                    
+
+> Condition Retr. (/25) Gen. (/60) Reliab. (/12) Overall (/100) GEMS-RAG 19.35 55.18 10.90 88.08
+> Without VLM filter 19.59 (+0.24) 55.12 (-0.06) 10.70 (-0.20) 88.06 (-0.02) Without hierarchy prior 19.59 (+0.24) 55.10 (-0.08) 10.54 (-0.36) 87.86 (-0.22) Without reranker 17.78 (-1.57) 52.77 (-2.41) 10.38 (-0.52) 83.43 (-4.65)
+
+generation, reliability, and overall performance. Removing the reranker caused the largest degradation, lowering the overall score by 4.65 points, which highlights its central role in selecting answer-relevant evidence. 
+
+## Conclusion 
+
+This paper presented GEMS-RAG, a graph-grounded mul-timodal RAG framework for engineering standards. Unlike conventional pipelines that treat standards as independent text chunks, GEMS-RAG preserves document hierarchy, de-composes figures into fine-grained visual entities, and links provisions, figures, devices, rule types, and cross-references in a multimodal knowledge graph. By combining dense, sparse, and visual retrieval with graph expansion and rule-aware ranking, it enables standards-grounded question an-swering sensitive to visual specifications and regulatory structure. Using the MUTCD as a representative engineering stan-dards corpus, we constructed a multimodal knowledge base containing textual sections, figures, tables, visual entities, and graph relations. The experimental evaluation demon-strates that explicitly modeling multimodal and structural relationships can improve evidence retrieval, visual ground-ing, and downstream question answering compared with text-only, multimodal, and graph-based RAG baselines. The case study also illustrates that GEMS-RAG can retrieve not only the relevant textual provisions, but also associated visual en-tities, rule categories, and graph-connected context, leading to more complete and interpretable responses. Beyond the MUTCD, further work will apply GEMS-RAG to other en-gineering codes, design manuals and scientific standards. 
+
+## References 
+
+Alibaba Cloud. 2026a. Qwen3-VL-Flash. Alibaba Cloud Model Studio. Model ID: qwen3-vl-flash; accessed July 27, 2026. Alibaba Cloud. 2026b. Qwen3.5-Omni-Plus. Alibaba Cloud Model Studio. Model ID: qwen3.5-omni-plus; accessed July 27, 2026. Alibaba Cloud. 2026c. Qwen3.6-Flash Model Documenta-tion. Alibaba Cloud Model Studio. Model ID: qwen3.6-flash; snapshot: qwen3.6-flash-2026-04-16; accessed July 27, 2026. Alibaba Cloud. 2026d. Qwen3.7-Max. Alibaba Cloud Model Studio. Model ID: qwen3.7-max; accessed July 27, 2026. Alibaba Cloud. 2026e. Qwen3.7-Plus. Alibaba Cloud Model Studio. Model ID: qwen3.7-plus; accessed July 27, 2026. Anthropic. 2025. Introducing Claude Haiku 4.5. Anthropic. Model ID: claude-haiku-4-5-20251001; accessed July 27, 2026. Anthropic. 2026a. Claude Fable 5 and Claude Mythos 5. An-thropic. Model ID: claude-fable-5; accessed July 27, 2026. Anthropic. 2026b. Introducing Claude Sonnet 5. Anthropic. Model ID: claude-sonnet-5; accessed July 27, 2026. Asai, A.; Wu, Z.; Wang, Y.; Sil, A.; and Hajishirzi, H. 2023. Self-RAG: Learning to Retrieve, Generate, and Cri-tique through Self-Reflection. ArXiv:2310.11511 [cs]. Doris, A. C.; Grandi, D.; Tomich, R.; Alam, M. F.; Ataei, M.; Cheong, H.; and Ahmed, F. 2025. Designqa: A mul-timodal benchmark for evaluating large language models’ understanding of engineering documentation. Journal of Computing and Information Science in Engineering , 25(2): 021009. Faysse, M.; Sibille, H.; Wu, T.; Omrani, B.; Viaud, G.; Hude-lot, C.; and Colombo, P. 2025. Colpali: Efficient document retrieval with vision language models. In International Con-ference on Learning Representations , volume 2025, 61424– 61449. Federal Highway Administration. 2025. Manual on Uni-form Traffic Control Devices for Streets and Highways . U.S. Department of Transportation, Federal Highway Adminis-tration, Washington, DC, 11th ed., revision 1 edition. Google. 2026a. Gemini 3.1 Flash-Lite. Google AI for De-velopers. Model ID: gemini-3.1-flash-lite; accessed July 27, 2026. Google. 2026b. Gemini 3.1 Pro Preview. Google AI for Developers. Model ID: gemini-3.1-pro-preview; accessed July 27, 2026. Google. 2026c. Gemini 3.5 Flash. Google AI for Developers. Model ID: gemini-3.5-flash; accessed July 27, 2026. Hsiao, C.-H.; Wang, Y.-C.; Lin, T.-S.; Yeh, Y.-R.; and Chen, C.-S. 2026. MegaRAG: Multimodal Knowledge Graph-Based Retrieval Augmented Generation. In Proceedings of the 64th Annual Meeting of the Association for Computa-tional Linguistics (Volume 1: Long Papers) , 48031–48059. Karpukhin, V.; Oğuz, B.; Min, S.; Lewis, P.; Wu, L.; Edunov, S.; Chen, D.; and Yih, W.-t. 2020. Dense Passage Retrieval for Open-Domain Question Answering. ArXiv:2004.04906 [cs]. Kuai, C.; Jiang, J.; Zhu, Z.; Wang, H.; Wu, K.; Li, Z.; Zhang, Y.; Liu, C.; Tu, Z.; Fan, Z.; et al. 2026a. How Independent are Large Language Models? A Statistical Framework for Auditing Behavioral Entanglement and Reweighting Verifier Ensembles. arXiv preprint arXiv:2604.07650 .Kuai, C.; Wu, C.; Zhou, Y.; Wang, B.; Yang, T.; Tu, Z.; Li, Z.; and Zhang, Y. 2026b. Cyportqa: Benchmarking multimodal large language models for cyclone preparedness in port op-eration. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, 38781–38789. Lála, J.; O’Donoghue, O.; Shtedritski, A.; Cox, S.; Ro-driques, S. G.; and White, A. D. 2023. Paperqa: Retrieval-augmented generative agent for scientific research. arXiv preprint arXiv:2312.07559 .Lewis, P.; Perez, E.; Piktus, A.; Petroni, F.; Karpukhin, V.; Goyal, N.; Küttler, H.; Lewis, M.; Yih, W.-t.; Rocktäschel, T.; et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in neural information process-ing systems , 33: 9459–9474. Lewis, P.; Perez, E.; Piktus, A.; Petroni, F.; Karpukhin, V.; Goyal, N.; Küttler, H.; Lewis, M.; Yih, W.-t.; Rocktäschel, T.; Riedel, S.; and Kiela, D. 2021. Retrieval-Augmented Genera-tion for Knowledge-Intensive NLP Tasks. ArXiv:2005.11401 [cs]. Li, L.; Yu, R.; Hu, Q.; Li, B.; Deng, M.; Zhou, Y.; and Jia, X. 2025. From pixels to places: A systematic benchmark for evaluating image geolocalization ability in large language models. arXiv preprint arXiv:2508.01608 .Luo, L.; Zhao, Z.; Haffari, R.; Phung, D.; Gong, C.; and Pan, S. 2026. GFM-RAG: graph foundation model for retrieval augmented generation. Advances in Neural Information Pro-cessing Systems , 38: 36371–36405. Mathew, M.; Karatzas, D.; and Jawahar, C. 2021. Docvqa: A dataset for vqa on document images. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , 2200–2209. OpenAI. 2026. GPT-5.6 in ChatGPT. https://help. openai.com/en/articles/20001354-gpt-56-in-chatgpt. Ac-cessed: July 27, 2026. Park, H.; Seo, J.; Mun, J.; Park, H.; Byeon, W.; Kim, S. J.; Im, H.; Lee, J.; and Kim, S. 2026. Mˆ 3KG-RAG: Multi-hop Mul-timodal Knowledge Graph-enhanced Retrieval-Augmented Generation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 14968–14978. Procko, T. T.; and Ochoa, O. 2024. Graph retrieval-augmented generation for large language models: A survey. In 2024 Conference on AI, science, engineering, and tech-nology (AIxSET) , 166–169. IEEE. Robertson, S.; and Zaragoza, H. 2009. The probabilistic relevance framework: BM25 and beyond , volume 4. Now Publishers Inc. Shi, Q.; Yang, Y.; Di, J.; Li, L.; Liu, J.; Hu, Y.; Xiao, J.; and Hu, Z. 2026. Trust-Aware KG-RAG: a framework for trustworthy question answering for engineering equipment. 
+
+Advanced Engineering Informatics , 74: 104801. Skarlinski, M. D.; Cox, S.; Laurent, J. M.; Braza, J. D.; Hinks, M.; Hammerling, M. J.; Ponnapati, M.; Rodriques, S. G.; and White, A. D. 2024. Language agents achieve su-perhuman synthesis of scientific knowledge. arXiv preprint arXiv:2409.13740 .Wang, J.; Chen, M.; Hu, B.; Yang, D.; Liu, Z.; Shen, Y.; Wei, P.; Zhang, Z.; Gu, J.; Zhou, J.; Pan, J. Z.; Zhang, W.; and Chen, H. 2024. Learning to Plan for Retrieval-Augmented Large Language Models from Knowledge Graphs. In 
+
+Findings of the Association for Computational Linguistics: EMNLP 2024 , 7813–7835. Miami, Florida, USA: Associa-tion for Computational Linguistics. Wu, K.; Kuai, C.; Li, Z.; Jiang, J.; Shen, S.; Wang, S.; Hu, C.-W.; Tu, Z.; and Zhou, Y. 2026. Knowledge is not static: Order-aware hypergraph rag for language models. arXiv preprint arXiv:2604.12185 .Xia, P.; Zhu, K.; Li, H.; Wang, T.; Shi, W.; Wang, S.; Zhang, L.; Zou, J. Y.; and Yao, H. 2025. Mmed-rag: Versatile mul-timodal rag system for medical vision language models. In 
+
+International Conference on Learning Representations , vol-ume 2025, 66188–66217. Yang, X.; Sun, K.; Xin, H.; Sun, Y.; Bhalla, N.; Chen, X.; Choudhary, S.; Gui, R. D.; Jiang, Z. W.; Jiang, Z.; et al. 2024. Crag-comprehensive rag benchmark. Advances in Neural Information Processing Systems , 37: 10470–10490. Yu, S.; Tang, C.; Xu, B.; Cui, J.; Ran, J.; Yan, Y.; Liu, Z.; Wang, S.; Han, X.; Liu, Z.; et al. 2025. Visrag: Vision-based retrieval-augmented generation on multi-modality documents. In International Conference on Learning Rep-resentations , volume 2025, 21074–21098. Zhai, W. 2024. Self-adaptive Multimodal Retrieval-Augmented Generation. Zhu, X.; Xie, Y.; Liu, Y.; Li, Y.; and Hu, W. 2025. Knowledge graph-guided retrieval augmented generation. In Proceed-ings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) ,8912–8924. Appendix 
+
+## Evaluation Metrics 
+
+Let Q = {qi}Ni=1 denote the evaluation set. For each question 
+
+qi, let Gi denote the locked gold evidence and let R(k) 
+
+> i
+
+=(ri, 1, . . . , r i,k ) denote the ordered list of the top-k retrieved text chunks. A chunk is relevant when its page, section, table reference, or figure reference matches the locked evidence for the question. We define rel i,j = 1 when ri,j is relevant and rel i,j = 0 otherwise. 
+
+Retrieval Metrics 
+
+Recall at 5: The main model and ablation evaluations use a question-level retrieval hit. A question receives credit when at least one relevant chunk appears within the first five ranks: 
+
+Recall@5 = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+1
+
+⎧⎨⎩
+
+> 5
+
+∑︂ 
+
+> j=1
+
+rel i,j > 0
+
+⎫⎬⎭ . (1) 
+
+Mean reciprocal rank: Let 
+
+ρi = min {j ≤ k : rel i,j = 1 } (2) be the rank of the first relevant item. The reciprocal rank is zero when no relevant item appears among the top-k results. Thus, 
+
+MRR@ k = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+{︃ 
+
+1/ρ i, ρi ≤ k, 
+
+0, otherwise . (3) 
+
+Normalized discounted cumulative gain: The discounted cumulative gain for question qi is 
+
+DCG i @k =
+
+> k
+
+∑︂ 
+
+> j=1
+
+2rel i,j − 1log 2(j + 1) . (4) Let L(k) 
+
+> i
+
+=∑︁ kj=1 rel i,j denote the number of relevant chunks recovered in the logged top-k list. The ideal DCG places those recovered relevant chunks first: 
+
+IDCG i @k =
+
+> L(k)
+> i
+
+∑︂ 
+
+> j=1
+
+1log 2(j + 1) . (5) The normalized score is 
+
+nDCG@ k = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+×{︃ DCG i @k/ IDCG i @k, IDCG i @k > 0,
+
+0, otherwise .
+
+(6) 
+
+Context precision: Context precision measures the frac-tion of the logged text context that matches the locked evi-dence: 
+
+CP@ k = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+1
+
+k
+
+> k
+
+∑︂ 
+
+> j=1
+
+rel i,j . (7) 
+
+Evidence sufficiency: Let P(4)  
+
+> i
+
+denote the top four re-trieved page images and let Gi, page denote the locked source pages. Let Vi denote the locked visual entities and let ˆ︁ Vi
+
+denote the visual entities supplied to the answer model. The saved retrieval package is sufficient when it contains at least one relevant text chunk, one required page among the top four, or one exact required visual entity: 
+
+ES = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+1
+
+⎧⎪⎪⎪⎨⎪⎪⎪⎩⎛⎝
+
+> 6
+
+∑︂ 
+
+> j=1
+
+rel i,j > 0
+
+⎞⎠ ∨(︂ P(4)  
+
+> i
+
+∩ G i, page ̸ = ∅)︂ 
+
+∨(︂ˆ︁ Vi ∩ V i̸ = ∅)︂ ⎫⎪⎪⎪⎬⎪⎪⎪⎭
+
+.
+
+(8) The main model and ablation evaluations report Recall@5, MRR over the six logged text ranks, nDCG@6, and context precision@6. The separate RAG baseline comparison re-ports Recall@10, MRR@10, and nDCG@10 using the same binary relevance definition. 
+
+Visual-Evidence Metrics 
+
+Let Qvis ⊆ Q denote the questions with at least one locked figure or table identifier. For each qi ∈ Q vis , let Vi be the set of locked visual entities and let ˆ︁ Vi be the unique visual entities supplied to the answer model. 
+
+Exact visual-crop hit rate: A hit occurs when at least one retained entity exactly matches a locked visual entity: 
+
+CropHit = 1
+
+|Q vis |∑︂ qi∈Q vis 
+
+1{︂ˆ︁ Vi ∩ V i̸ = ∅}︂ . (9) 
+
+Visual-crop recall: Visual-crop recall measures the frac-tion of required visual entities recovered for each visual ques-tion and then averages across the visual subset: 
+
+CropRecall = 1
+
+|Q vis |∑︂ qi∈Q vis ⃓⃓⃓ˆ︁ 
+
+Vi ∩ V i⃓⃓⃓ 
+
+|V i| . (10) 
+
+Visual-crop precision: Visual-crop precision is calculated for each visual question and then averaged. A question with no retained visual entity receives zero precision: 
+
+CropPrecision = 1
+
+|Q vis |∑︂ qi∈Q vis 
+
+×
+
+⎧⎪⎪⎨⎪⎪⎩⃓⃓⃓ˆ︁ 
+
+Vi ∩ V i⃓⃓⃓⃓⃓⃓ˆ︁ 
+
+Vi⃓⃓⃓ 
+
+,⃓⃓⃓ˆ︁ Vi⃓⃓⃓ > 0,
+
+0, otherwise .
+
+(11) 
+
+Required-page hit rate: Let P(h) 
+
+> i
+
+be the first h page images and let Gi, page be the locked source pages. For 
+
+h ∈ { 1, 3, 4}, the required-page hit rate is 
+
+PageHit@ h = 1
+
+|Q vis |∑︂ qi∈Q vis 
+
+1{︂ P(h) 
+
+> i
+
+∩ G i, page ̸ = ∅}︂ .
+
+(12) Modality-routing accuracy: Let yi = 1 when locked vi-sual evidence is required and yi = 0 otherwise. Given the router output δ(qi), routing accuracy is 
+
+RoutingAcc = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+1 {δ(qi) = yi} . (13) The visual metrics are reported as diagnostics. Exact visual hit and visual precision do not receive separate points in the 25-point retrieval score. 
+
+Question-Answering Metrics 
+
+For answer ai, GPT-5.6 assigns normalized scores si,d ∈
+
+[0 , 1] for correctness, completeness, faithfulness, and citation localization. Let 
+
+M d = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+si,d (14) denote the mean score for dimension d. Reported percent-ages equal 100 M d.Visual reasoning is calculated as mean correctness over questions whose primary modality is table, figure, or mixed: 
+
+M vis = 1
+
+|Q nontext |∑︂ qi∈Q nontext 
+
+si, cor . (15) The relevance and concision term is held at M rc = 0 .696 for the completed model comparison. The 60-point generation score is 
+
+Sgen = 22 M cor + 10 M com + 12 M fai + 6 M cit 
+
++ 7 M vis + 3 M rc . (16) 
+
+Strict full credit: An answer receives full credit only when correctness, completeness, faithfulness, and citation local-ization all equal 1: 
+
+FullCredit = 100 
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+∏︂ d∈{ cor ,com ,fai ,cit }
+
+1 {si,d = 1 } .
+
+(17) Scores by modality, answerability, or difficulty are cal-culated using the same equations after restricting Q to the corresponding question subset. 
+
+Reliability Metrics 
+
+Let Qunans denote the 30 questions whose locked annotations mark them as unanswerable. Let fi equal 1 when answer ai
+
+receives strict full credit and 0 otherwise. Unanswerable success is 
+
+U = 1
+
+|Q unans |∑︂ qi∈Q unans 
+
+fi. (18) Let ci ∈ [0 , 1] denote the figure-router confidence recorded for question qi. The Brier score is 
+
+Brier = 1
+
+N
+
+> N
+
+∑︂ 
+
+> i=1
+
+(ci − fi)2 . (19) For ten equal-width confidence bins Bb, expected calibration error is 
+
+ECE 10 =
+
+> 10
+
+∑︂ 
+
+> b=1
+
+|Bb|
+
+N⃓⃓⃓⃓⃓ 
+
+1
+
+|Bb|∑︂ i∈Bb
+
+ci − 1
+
+|Bb|∑︂ i∈Bb
+
+fi⃓⃓⃓⃓⃓ . (20) The calibration contribution and the measurable 12-point reliability score are 
+
+Scal = 6 [︃ 1 − Brier + ECE 10 
+
+2]︃ (21) and 
+
+Srel = 6 U + Scal . (22) The confidence value comes from the visual router rather than the final answer model or GPT-5.6. The no-router ablation has no comparable confidence value, so its Brier score, ECE, calibration points, 12-point reliability score, and 97-point full score are not defined. 
+
+Composite Scores 
+
+The 25-point retrieval score is 
+
+Sret = 10 Recall@5 +5 (︃ MRR + nDCG@6 2)︃ 
+
++ 5 CP@6 +3 RoutingAcc +2 ES .
+
+(23) Repeatability contributes up to 3 points in the intended 100-point framework. That component remains pending. The measured score therefore uses 97 available points: 
+
+S97 = Sret + Sgen + Srel , S97 ∈ [0 , 97] . (24) The reported provisional score normalizes the measured total to 100: 
+
+Sprovisional = 100 S97 
+
+97 . (25) The intended final score is 
+
+Sfinal = S97 + Srep , Srep ∈ [0 , 3] , (26) where Srep is the pending repeatability component. La-tency is reported separately through mean, median, and 90th-percentile response time. It does not contribute to the com-posite score. For the no-router ablation, the common score excludes cal-ibration and repeatability and uses a 91-point denominator: 
+
+Scommon = 100 Sret + Sgen + 6 U
+
+91 . (27) 
+
+MUTCD Structural Difficulty Index 
+
+For each question qi, the MUTCD Structural Difficulty Index (M-SDI) evaluates five dimensions: evidence localization, modality integration, reasoning operations, answer compo-sition, and normative precision. Let hi,ℓ ∈ { 0, 1, 2} denote the score for dimension ℓ. The total difficulty score is 
+
+M-SDI i =
+
+> 5
+
+∑︂ 
+
+> ℓ=1
+
+hi,ℓ , M-SDI i ∈ [0 , 10] . (28) Questions are categorized as 
+
+Difficulty( qi) = 
+
+⎧⎨⎩
+
+Easy , 0 ≤ M-SDI i ≤ 3,
+
+Medium , 4 ≤ M-SDI i ≤ 6,
+
+Hard , 7 ≤ M-SDI i ≤ 10 .
+
+(29) Improvement over Baselines 
+
+For GEMS-RAG score SGEMS and baseline score Sb, the relative improvement is 
+
+∆rel (b) = 100 SGEMS − Sb
+
+Sb
+
+. (30) For percentage-valued metrics such as full-credit rate, the percentage-point improvement over the strongest baseline is 
+
+∆pp = SGEMS − max  
+
+> b∈B
+
+Sb. (31) For the ablation study, we drew 800 paired bootstrap sam-ples of the 150 question identifiers. Each sample used the same resampled questions for the original RAG and the ab-lated condition. We recomputed the score difference for each sample and reported the 2.5th and 97.5th percentiles. These intervals measure uncertainty from the benchmark question sample. They do not measure variation across re-peated model calls. 
+
+## Reproducibility Assets 
+
+The benchmark assets were frozen before model execution. The runtime question file contained only the question identi-fier and question text. A separate locked gold file contained the gold answer, required sections, source pages, figures, tables, answerability labels, and M-SDI annotations. The answering models did not load the gold file. This separa-tion prevented answer leakage and kept the generation runs independent from the evaluation annotations. The benchmark contained 150 questions, with 120 answer-able and 30 unanswerable questions. The primary-modality distribution was 60 text, 30 table, 30 figure, and 30 mixed questions. The development split contained 30 questions and the test split contained 120 questions. The development split supported prompt and retrieval configuration. The test split remained fixed for final reporting. We retained the source document, question-only bench-mark, locked annotations, model registry, runtime manifests, answer files, retrieval files, error logs, item-level scores, abla-tion outputs, and per-response rationale records. Each model run wrote separate JSONL files for answers and retrieval traces together with a manifest that recorded the model iden-tifier, run identifier, runner version, and execution settings. These files provide the audit trail used to reproduce the re-ported tables and figures. Version control recorded the implementation state used for the experiments. The updated ablation archives identify harness version ablations_v3 
+
+and Git commit ba26b07031398fb25efca 8ba793a42c6ebb4ae03 . The main benchmark records also identify runner version 1.1.2 and preserve the exact provider model identifiers. Recording both the run manifest and source revision distinguishes changes in model behavior from changes in the evaluation code. 
+
+## Implementation Hyperparameters 
+
+The values in Tables 1 and 2 come from the saved configura-tion, run manifests, provider adapter, and ablation metadata. Parameters that the code did not set explicitly are identified as provider defaults. 
+
+Retry, Resume, and Failure Handling 
+
+The runner wrote each completed record to disk before mov-ing to the next question. Resume mode skipped valid records that already existed and continued from missing or failed question identifiers. The runner allowed at most five provider attempts and placed a 2.0-second interval between requests. For Claude, the provider adapter used a 16,000-token output cap and performed one truncation-specific retry with twice the limit, capped at 32,000 tokens. We reran records only for operational failures, missing records, corrupted outputs, provider errors, or materially incomplete retrieval logging. We did not rerun an answer because it was factually incorrect or received a low score. When a retry succeeded, the evaluator retained the first valid response for the question and preserved the original failure record for audit. This rule avoided selecting a more favorable answer after observing model quality. 
+
+Role of GPT-5.6 and the Evaluated Language Models 
+
+The authors used GPT-5.6 to review benchmark-runner code, provider adapters, runtime validation checks, scoring scripts, plotting code, and technical documentation. The authors executed the code, inspected saved records, selected the final settings, and resolved failures before accepting an output. Model-generated code or prose did not enter the reported results without execution and record-level verification. During evaluation, GPT-5.6 supported benchmark con-struction, evidence review, and application of the locked answer-quality rubric. It did not generate the retrieval ranks, latency values, calibration statistics, or composite scores. Fixed scripts calculated those quantities from the saved records. The evaluated vision-language models received only the user question and retrieved evidence. They did not receive the locked gold answer file. The cross-model study used twelve vision-language con-figurations under the same benchmark and scoring frame-work. The selected model also controlled visual filtering when the filter-model override was null. Claude Fable 5 pro-duced the answers for the detailed modality, difficulty, and ablation analyses after it achieved the highest provisional score in the cross-model comparison. The ablation study kept Claude Fable 5 and the few-shot prompt fixed while removing one retrieval component at a time. 
+
+## Answer-Rationale Audit and Evaluator Confidence 
+
+We created one grading rationale for each of the 900 ab-lation responses and each of the 150 original-RAG base-line responses. Each record retained the four official item scores, the strict full-credit flag, the model answer, the locked gold answer, the retrieved evidence metrics, and the rationale provenance. The rationale package distinguishes an explicit adjudication note from a structured reconstruction of an ex-isting grade. Table 1: Core indexing and retrieval hyperparameters.               
+
+> Setting Value Text representation BAAI/bge-m3 , used for dense and learned sparse representations Visual representation vidore/colqwen2-v0.1
+> Cross-encoder reranker mixedbread-ai/mxbai-rerank-large-v2
+> Page and figure rendering 180 dpi for pages, 220 dpi for figure and table crops Text retrieval depths 30 dense, 30 sparse, 30 fused, 40 after graph expansion, 6 after reranking Visual retrieval depths 10 candidate entities, 6 direct visual candidates, at most 4 retained entities, 4 page images Caption fallback Disabled Question router Enabled, soft threshold 0.5, VLM tie break disabled VLM figure filter Enabled. For the final Claude and Gemini runs, the filter followed the selected answer model because the filter override was null Fusion weights Dense 1.00, sparse 0.60, hierarchy 0.20, graph proximity 0.40, rule type 0.30 Rule-type multipliers Standard 1.20, Guidance 1.00, Option 0.90, Support 0.70 ColQwen2 image settings Maximum 768 image patches, binary quantization enabled Maximum text from each chunk 1400 characters in the answer prompt
+
+Table 2: Generation, benchmark-runner, and evaluation hyperparameters.              
+
+> Setting Value Detailed-analysis and ablation model Claude Fable 5, alias frontier_claude
+> Answer prompt Few-shot, 3 examples Visual-filter prompt Zero-shot Claude output-token cap 16,000 tokens, including adaptive-thinking tokens and visible answer tokens Truncation handling One retry with a multiplier of 2.0, capped at 32,000 tokens for Claude Temperature and top-p Not set explicitly in the adapter, so the provider defaults applied Benchmark runner Version 1.1.2 Random seed and replicates Seed 20260710, 1 replicate per model configuration Retry policy Maximum 5 attempts, 2.0 seconds between requests, resume enabled Ablation controls Claude Fable 5 and the few-shot prompt remained fixed. Each run removed one component Paired bootstrap 800 paired resamples of the 150 question identifiers
+
+Programmatic Consistency Checks 
+
+Table 3 summarizes checks performed over all 1,050 records. These checks validate the internal representation of the offi-cial grades. They do not establish that every underlying item grade is correct against the MUTCD. The token-overlap field is diagnostic rather than authori-tative. It listed a missing or underdeveloped element in 216 full-credit records, primarily when an unanswerable response used a refusal phrasing that did not lexically match the gold wording. It listed no missing element in 173 partial-credit records, where the deduction instead came from an adjudi-cation note, faithfulness, or citation localization. The official four scores and the adjudication notes remain the source of truth. A direct recheck found 20 records with citation score 1.00 and an empty regex-detected citation field. All 20 were unan-swerable responses involving a false premise, unsupported precision, or out-of-scope request. The accepted citation-localization score reflected correct handling of the unsup-ported request, while the citation detector searched only for explicit section, figure, table, page, or legal-reference pat-terns. We therefore treat these records as a detector limitation rather than a contradiction in the official grade. 
+
+Evaluator Confidence 
+
+GPT-5.6 gave a strict self-assessment of 82% confidence in the complete ablation evaluation. This value reflected high confidence in deterministic runtime and retrieval calculations and lower confidence in rubric-based item judgments. The value is a judgmental assessment, not a model probability and not a sampling-based confidence interval. The authors then supplied the 1,050 rationale records to Claude Fable 5 for a secondary model audit. Fable 5 checked score arithmetic, aggregate agreement, provenance rules, repaired-record allocation, and a small set of MUTCD con-tent examples. It assigned 85% confidence with a reported evaluator-confidence interval of [78%, 90%]. Fable 5 placed the mechanical consistency of the package near the top of its scale because the score and aggregate checks matched. It reduced its overall assessment because most rationales reconstruct or restate existing grades and therefore do not independently validate the substantive MUTCD judgment. The reported evaluator-confidence summary is ˆ︁ 
+
+CFable = 0 .85 , IFable = [0 .78 , 0.90] . (32) This interval is a judgmental interval supplied by a secondary language-model auditor. It is not a frequentist confidence interval, a Bayesian credible interval, or the paired bootstrap interval used for ablation score differences. Claude Fable 5 Table 3: Programmatic checks of the per-response rationale package. 
+
+Check Verified result Strict full-credit flag compared with all four dimensions equal to 1.00 0 mismatches in 1,050 records Descriptive mean compared with the mean of correctness, completeness, faith-fulness, and citation 0 mismatches in 1,050 records Per-condition correctness, completeness, faithfulness, citation, and full-credit aggregates compared with the version 4 report Exact match for all seven conditions Strict full-credit counts 120, 114, 112, 114, 112, 109, and 103 for the baseline and A1 through A6 Rationale provenance 895 structured reconstructions, 48 explicit adjudica-tion notes, and 107 reused baseline notes Reused-note criterion 0 violations. Each reused note had the same ques-tion identifier and identical four official scores as the baseline Explicit-note allocation 30 original-RAG partial-credit records and 18 re-paired A1 records Repaired A1 records Exactly T001 through T018 
+
+also generated the evaluated answers, so this secondary audit does not replace an independent MUTCD-informed human annotator. The rationale package assigns fixed confidence values by provenance tier: 0.90 for explicit adjudication notes, 0.88 for reconstructed full-credit records, 0.82 for the 18 repaired A1 responses reviewed by GPT-5.6, and 0.76 for reconstructed partial-credit rationales. These are design constants used to describe confidence in the explanation. They are not em-pirical probabilities. A second MUTCD-informed annotator should review a stratified sample, report agreement, and ad-judicate disagreements before the item-level judgments are treated as independently validated. 
+
+## Sample MUTCD-150 Questions and Locked Gold Answers 
+
+This section provides 10 representative examples for each re-porting category: answerable, unanswerable, easy, medium, and hard. The five displayed sets do not repeat question identifiers. Answerability and M-SDI difficulty remain in-dependent benchmark labels, so each entry retains both la-bels. We selected examples to cover text, table, figure, and mixed evidence where the category permits. The question wording, locked gold answers, evidence identifiers, answer-ability labels, and M-SDI scores below are copied from the locked gold file. The answering models did not receive this file during execution. 
+
+Answerable Questions 
+
+Answerable Questions: 10 Locked Examples 
+
+1. T002 Text, Easy, Answerable, M-SDI 1/10 
+
+Question : Does the applicability of the MUTCD to a facility open to public travel depend on whether the facility is publicly or privately owned or on the source of its funding? 
+
+Locked Gold Answer : No. Applicability is independent of public or private ownership or jurisdiction and independent of whether funding is Federal, State, local, or private. 
+
+Locked Evidence : Section 1A.01, PDF page 42. 
+
+2. T005 Text, Easy, Answerable, M-SDI 3/10 
+
+Question : How do the MUTCD headings Standard, Guidance, Option, and Support differ, including the verbs typically associ-ated with them? 
+
+Locked Gold Answer : A Standard is mandatory or prohibitive and typically uses ’shall.’ Guidance is recommended practice with justified deviations allowed and typically uses ’should.’ An Option is permissive and typically uses ’may.’ Support is infor-mational and conveys no mandate, recommendation, permission, prohibition, or enforceable condition. 
+
+Locked Evidence : Section 1C.01, PDF page 54. 
+
+3. T025 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : What must a Speed Limit sign display, in what in-crements, and may it be used to show an advisory speed for a roadway condition? 
+
+Locked Gold Answer : It must display the speed limit estab-lished by law, ordinance, regulation, or an authorized agency based on an engineering study, in multiples of 5 mph. It should not be used for an advisory speed; an advisory speed plaque below an appropriate warning sign should be used instead. 
+
+Locked Evidence : Section 2B.21, PDF pages 126, 127. 
+
+4. TB001 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : According to Table 1B-1, what is the compliance date for implementing and continuing to use a method designed to maintain longitudinal pavement-marking retroreflectivity? 
+
+Locked Gold Answer : September 6, 2026. 
+
+Locked Evidence : Section 1B.03, Table 1B-1, PDF page 46. 
+
+5. TB002 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : In Table 1D-1, what standard abbreviations are per-mitted for ’Pedestrian(s)’? 
+
+Locked Gold Answer : PED or PEDS. 
+
+Locked Evidence : Section 1D.08, Table 1D-1, PDF page 76. 6. TB024 Table, Medium, Answerable, M-SDI 5/10 
+
+Question : What minimum off-roadway sizes does Table 9A-1 give for a STOP sign, a YIELD sign, and a Crossbuck sign on a bicycle facility? 
+
+Locked Gold Answer : STOP: 18 x 18 inches; YIELD: 18 x 18 x 18 inches; Crossbuck: 24 x 4.5 inches. 
+
+Locked Evidence : Section 9A.03, Table 9A-1, PDF page 1090. 
+
+7. F008 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : From Figure 2B-1, identify the shapes of the STOP and YIELD signs and the color scheme of the ALL-WAY plaque. 
+
+Locked Gold Answer : STOP is an octagon; YIELD is a downward-pointing equilateral triangle; the ALL-WAY plaque has white legend and border on a red background. 
+
+Locked Evidence : Sections 2B.04, 2B.05, Figure 2B-1, PDF page 115. 
+
+8. F012 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : What four crosswalk marking patterns are illustrated in Figure 3C-1? 
+
+Locked Gold Answer : Transverse, longitudinal bar, ladder, and bar pair. 
+
+Locked Evidence : Section 3C.03, Figure 3C-1, PDF page 631. 
+
+9. M001 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : A provision appears under a Guidance heading and uses the word ’should.’ Is it mandatory, and when may a devia-tion be appropriate? 
+
+Locked Gold Answer : It is recommended practice, not a manda-tory Standard. A deviation may be appropriate when engineering judgment or an engineering study indicates that the deviation is suitable for the specific situation. 
+
+Locked Evidence : Sections 1A.04, 1C.01, PDF pages 43, 54. 
+
+10. M019 Mixed, Hard, Answerable, M-SDI 9/10 
+
+Question : For a 12-foot lateral offset and a 35-mph speed, cal-culate L using Table 6B-4. Then state the minimum merging, shifting, and shoulder taper lengths from Table 6B-3. 
+
+Locked Gold Answer : For 40 mph or less, L = W*S 2/60 = 12*35 2/60 = 245 feet. Minimum merging taper: 245 feet; shift-ing taper: 122.5 feet; shoulder taper: about 80.9 feet (0.33L, commonly rounded appropriately in design). 
+
+Locked Evidence : Section 6B.08, Tables 6B-3, 6B-4, PDF page 816. 
+
+Unanswerable Questions 
+
+Unanswerable Questions: 10 Locked Examples 
+
+1. T049 Text, Medium, Unanswerable, M-SDI 5/10, Unsupported Precision 
+
+Question : According to the MUTCD, what exact percentage reduction in crashes is guaranteed by installing a STOP sign or all-way stop control? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 2B.04, 2B.12-2B.17, PDF pages 115, 120. 
+
+2. T052 Text, Medium, Unanswerable, M-SDI 4/10, False Presupposition 
+
+Question : What single mandatory signal-cycle length must be used at every urban signalized intersection in the United States? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 4A.01-4A.06, 4B.01-4B.05, PDF pages 684, 691. 
+
+3. T054 Text, Medium, Unanswerable, M-SDI 5/10, Out Of Scope 
+
+Question : How many licensed traffic engineers must a road agency employ per 100 centerline miles to comply with the MUTCD? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 1A.04, 1D.03, PDF pages 43, 73. 
+
+4. T059 Text, Easy, Unanswerable, M-SDI 3/10, Contradicted Premise 
+
+Question : What minimum miles-per-gallon rating must a ve-hicle achieve to qualify as an inherently low-emission vehicle under the MUTCD? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 1C.02, PDF pages 60, 62. 
+
+5. TB027 Table, Easy, Unanswerable, M-SDI 3/10, Unsupported Precision 
+
+Question : What RGB values are listed in Table 2A-2 for fluo-rescent yellow-green? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2A.06, Table 2A-2, PDF page 85. 
+
+6. TB029 Table, Medium, Unanswerable, M-SDI 6/10, Out Of Scope 
+
+Question : Which table lists State-by-State monetary fines for violating a No Turn on Red sign? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2B.60, Table 2B-1, PDF page 113. 7. F026 Figure, Easy, Unanswerable, M-SDI 3/10, Absent Information 
+
+Question : What foundation depth is required for the sign posts drawn in Figure 2A-2? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 2A.13, 2A.18, Figure 2A-2, PDF page 92. 
+
+8. F029 Figure, Easy, Unanswerable, M-SDI 3/10, Unsupported Precision 
+
+Question : What exact crossing angle, in degrees, is shown for the railroad tracks in Figure 8E-1? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 8E.01, 8E.02, Figure 8E-1, PDF page 1076. 
+
+9. M028 Mixed, Medium, Unanswerable, M-SDI 6/10, Absent Information 
+
+Question : What were the sample size, participant demograph-ics, and statistical significance values of the human-factors study underlying each treatment in Figure 2A-1? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF pages 89, 90. 
+
+10. M030 Mixed, Hard, Unanswerable, M-SDI 7/10, Out Of Scope 
+
+Question : What exact dollar penalty and criminal classification apply when an agency violates a MUTCD Standard? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 1B.01, 1D.02, PDF pages 45, 72. 
+
+Easy Questions 
+
+Easy Questions: 10 Locked Examples 
+
+1. T001 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What is the purpose of the MUTCD, and what four objectives are used to achieve that purpose? 
+
+Locked Gold Answer : The MUTCD establishes uniform na-tional criteria for traffic control devices on streets, highways, pedestrian and bicycle facilities, and site roadways open to pub-lic travel. Its objectives are to promote safety, inclusion, and mobility; promote efficiency through national uniformity in de-vice meaning and appearance; promote consistency in use, in-stallation, and operation; and provide basic decision-making principles for traffic engineers. 
+
+Locked Evidence : Section 1A.01, PDF page 42. 
+
+2. T003 Text, Easy, Answerable, M-SDI 1/10 
+
+Question : Are islands, curbs, speed humps, raised roadway sur-faces, and rumble strips considered traffic control devices under the MUTCD? 
+
+Locked Gold Answer : No. Infrastructure elements that phys-ically restrict travel paths or speeds, including islands, curbs, speed humps, other raised surfaces, and transverse or longitudi-nal rumble strips, are not traffic control devices. 
+
+Locked Evidence : Section 1A.02, PDF page 42. 
+
+3. T014 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What general meanings does the MUTCD assign to fluorescent pink, orange, and purple? 
+
+Locked Gold Answer : Fluorescent pink is for incident man-agement, orange is for temporary traffic control, and purple is restricted to vehicles with registered electronic toll collection accounts. 
+
+Locked Evidence : Section 1D.05, PDF page 74. 
+
+4. T019 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What are the minimum mounting heights for roadside signs in rural areas and in business, commercial, or residential areas where parking, bicyclist, or pedestrian activity is likely? 
+
+Locked Gold Answer : The minimum is 5 feet in rural areas and 7 feet in business, commercial, or residential areas where such activity or obstruction is likely, measured as specified from the near pavement edge or curb. 
+
+Locked Evidence : Section 2A.15, PDF page 99. 
+
+5. TB011 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : At a posted or 85th-percentile speed of 60 mph, what advance placement distance does Table 2C-3 show for deceleration to an advisory speed of 30 mph? 
+
+Locked Gold Answer : 200 feet. 
+
+Locked Evidence : Section 2C.04, Table 2C-3, PDF page 193. 
+
+6. TB014 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : What minimum passing sight distance does Table 3B-1 specify for a speed of 55 mph? 
+
+Locked Gold Answer : 900 feet. 
+
+Locked Evidence : Section 3B.03, Table 3B-1, PDF page 584. 
+
+7. TB019 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : What minimum sight distance for signal visibility does Table 4D-2 list at an 85th-percentile speed of 45 mph? 
+
+Locked Gold Answer : 460 feet. 
+
+Locked Evidence : Section 4D.06, Table 4D-2, PDF page 711. 
+
+8. F001 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : In Figure 1B-1, what happens immediately after FHWA approves a request to experiment? 
+
+Locked Gold Answer : The requesting jurisdiction installs the experimental traffic control device. 
+
+Locked Evidence : Section 1B.05, Figure 1B-1, PDF page 48. 9. F009 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : Which sign is placed above the other in every paired assembly shown in Figure 2B-17? 
+
+Locked Gold Answer : The DO NOT ENTER sign is above the WRONG WAY sign. 
+
+Locked Evidence : Section 2B.48, Figure 2B-17, PDF page 156. 
+
+10. F024 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : In Figure 9E-12, what minimum distance separates the advance motor-vehicle stop line from the intersection stop line across the bicycle box? 
+
+Locked Gold Answer : 10 feet minimum. 
+
+Locked Evidence : Section 9E.12, Figure 9E-12, PDF page 1147. 
+
+Medium Questions 
+
+Medium Questions: 10 Locked Examples 
+
+1. T009 Text, Medium, Answerable, M-SDI 4/10 
+
+Question : When a non-compliant traffic control device is re-placed because it is damaged, missing, or no longer serviceable, what is the general rule and the limited replacement-in-kind ex-ception? 
+
+Locked Gold Answer : The replacement must generally be a compliant device. A non-compliant device may be replaced in kind only when engineering judgment finds that a lone compli-ant device among adjacent non-compliant devices would confuse users and/or the planned replacement schedule for the whole se-ries will achieve timely compliance. 
+
+Locked Evidence : Section 1B.03, PDF page 47. 
+
+2. T012 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : What public-domain condition applies to a new traffic control device proposed for experimentation or interim approval? 
+
+Locked Gold Answer : The traffic-control message, design, or application must be in the public domain and not protected by patent, trademark, or copyright. Legally binding statements are required from the relevant agency/developer/supplier for experi-mentation. Protection of internal components or manufacturing methods can still be allowed. 
+
+Locked Evidence : Sections 1B.05, 1D.06, PDF pages 50, 74, 75. 
+
+3. T035 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : Does satisfying a traffic signal warrant automatically require installation of a traffic control signal? 
+
+Locked Gold Answer : No. A warrant is a threshold that triggers analysis; it is not conclusive justification. Installation must be based on an engineering study considering safety, operation, alternatives, and the site. A signal can also be installed where no warrant is met if an engineering study documents why it is the best solution. 
+
+Locked Evidence : Sections 4B.04, 4C.01, PDF pages 691, 694. 
+
+4. T046 Text, Medium, Answerable, M-SDI 4/10 
+
+Question : When two-way traffic must share one lane for a lim-ited distance, what coordination rule and control methods apply? 
+
+Locked Gold Answer : Movements from both ends must be co-ordinated, except for a short, low-volume, mutually visible work zone that can self-regulate. Methods include flaggers, flag trans-fer, a pilot car, temporary traffic signals, or stop/yield control. 
+
+Locked Evidence : Section 6E.01, PDF page 828. 
+
+5. TB003 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : In Table 1D-2, how is ’Road Work’ abbreviated on a portable changeable message sign, and what may follow it? 
+
+Locked Gold Answer : RD WK; it may be followed by AHEAD or a distance, such as ’RD WK 1 MILE.’ 
+
+Locked Evidence : Section 1D.08, Table 1D-2, PDF page 77. 
+
+6. TB007 Table, Medium, Answerable, M-SDI 5/10 
+
+Question : For white-on-red signs, what minimum maintained retroreflectivity values and contrast criterion are shown in Table 2A-5? 
+
+Locked Gold Answer : White at least 35 cd/lx/m 2, red at least 7 cd/lx/m 2, and a white-to-red contrast ratio of at least 3:1. 
+
+Locked Evidence : Section 2A.22, Table 2A-5, PDF page 104. 
+
+7. TB018 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : For a four-leg intersection, what one-year crash thresholds are listed in Table 4C-2 for all-severity an-gle/pedestrian crashes and for fatal-and-injury angle/pedestrian crashes? 
+
+Locked Gold Answer : Five all-severity angle and pedestrian crashes, or three fatal-and-injury angle and pedestrian crashes. 
+
+Locked Evidence : Section 4C.08, Table 4C-2, PDF page 702. 
+
+8. F003 Figure, Medium, Answerable, M-SDI 4/10 
+
+Question : What conspicuity treatment is labeled ’E’ in Figure 2A-1? 
+
+Locked Gold Answer : A vertical retroreflective strip on the sign support. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF page 89. 
+
+9. F017 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : What four main areas of a temporary traffic control zone are shown in Figure 6B-1, in order of travel? 
+
+Locked Gold Answer : Advance warning area, transition area, activity area, and termination area. 
+
+Locked Evidence : Section 6B.03-6B.07, Figure 6B-1, PDF page 813. 
+
+10. M004 Mixed, Medium, Answerable, M-SDI 6/10 
+
+Question : A portable CMS designer proposes ’DLY’ to mean DELAY. Using Section 1D.08 and Table 1D-3, is this acceptable and why? 
+
+Locked Gold Answer : No. DLY is explicitly prohibited because it can be misinterpreted as DAILY. 
+
+Locked Evidence : Section 1D.08, Table 1D-3, PDF pages 75, 78. 
+
+Hard Questions 
+
+Hard Questions: 10 Locked Examples 1. M002 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Figure 2A-1 and Section 2A.11, describe the requirements for a retroreflective strip used on a sign support to enhance conspicuity. 
+
+Locked Gold Answer : The strip must be at least 2 inches wide, extend from the sign down the full support to within 2 feet above the near edge of the roadway, match the sign background color except that YIELD and DO NOT ENTER strips are red, and contain no legend or other information. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF pages 89, 90. 
+
+2. M003 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : For a basic rural roadside sign, combine Figure 2A-2 with Sections 2A.15 and 2A.16 to state the normal minimum mounting height and lateral offset. 
+
+Locked Gold Answer : The minimum mounting height is 5 feet. The normal minimum lateral offset is 12 feet from the edge of the traveled way, or 6 feet from the edge of a shoulder wider than 6 feet. 
+
+Locked Evidence : Sections 2A.15, 2A.16, Figure 2A-2, PDF pages 92, 99, 101. 
+
+3. M005 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : At an all-way stop, what plaque arrangement and appearance are required by Section 2B.04 and Figure 2B-1, and may a 4-WAY plaque be substituted? 
+
+Locked Gold Answer : An ALL-WAY (R1-3P) plaque must be mounted below each STOP sign. It has a white legend and border on a red background. A 4-WAY or other numeric-way plaque may not be substituted. 
+
+Locked Evidence : Section 2B.04, Figure 2B-1, PDF page 115. 
+
+4. M007 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : If an agency is using an approved retroreflectivity-management method but a few individual signs temporarily fall below Table 2A-5, is the agency automatically out of compli-ance? Include the white-on-red thresholds relevant to STOP-type signs. 
+
+Locked Gold Answer : Not automatically. The agency com-plies by having and using a method designed to maintain the minimums, even if some individual signs fall below them at a particular moment. For white on red, the table gives white at least 35, red at least 7 cd/lx/m 2, and at least a 3:1 white-to-red contrast ratio. 
+
+Locked Evidence : Section 2A.22, Table 2A-5, PDF pages 103, 104. 
+
+5. M008 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : On a multi-lane roadway posted at 35 mph, may the single-lane regulatory-sign size be used, and what size must a STOP sign still use? 
+
+Locked Gold Answer : For regulatory signs other than STOP, the single-lane size may be used at 35 mph or less. The STOP-sign exception remains: the multi-lane STOP size is 36 x 36 inches. 
+
+Locked Evidence : Section 2B.03, Table 2B-1, PDF pages 108, 109. 
+
+6. M010 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : For a curve with an advisory speed of 40 mph and a radius within 401 to 700 feet, what Chevron Alignment sign spacing and placement are indicated? 
+
+Locked Gold Answer : Typical spacing is 120 feet. The signs must be on the outside of the curve, approximately at right angles to approaching traffic, with a minimum mounting height of 4 feet. 
+
+Locked Evidence : Section 2C.08, Table 2C-5, PDF page 199. 
+
+7. M012 Mixed, Hard, Answerable, M-SDI 9/10 
+
+Question : For Warrant 1 Condition A with at least two major-street lanes and one minor-street lane, what volumes must exist and over what time basis, and does meeting them compel signal installation? 
+
+Locked Gold Answer : For each of the same 8 selected hours, 600 vph must exist on the major street (both approaches total) and 150 vph on the critical minor approach (one direction) at the 100-percent thresholds. Meeting the warrant does not compel installation; an engineering study must determine whether a signal is justified. 
+
+Locked Evidence : Sections 4C.01, 4C.02, Table 4C-1, PDF page 694. 
+
+8. M015 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Section 4I.06 and Figure 4I-4, describe the pedestrian interval order, minimum buffer interval, and walking speed normally used for clearance timing. 
+
+Locked Gold Answer : The order is WALK, flashing DONT WALK pedestrian change interval, then steady DONT WALK buffer interval. The buffer interval is at least 2 seconds before conflicting traffic is released, and clearance is normally evaluated using 3.5 feet per second. 
+
+Locked Evidence : Section 4I.06, Figure 4I-4, PDF pages 764, 765. 
+
+9. M021 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : For a Type C arrow board in Figure 6L-3, state its minimum size, legibility distance, minimum number of ele-ments, and required categories of display modes. 
+
+Locked Gold Answer : Minimum size 96 x 48 inches, mini-mum legibility distance 1 mile, and at least 15 elements. It must provide at least one directional merge mode, the flashing double-arrow mode, and at least one caution mode. 
+
+Locked Evidence : Section 6L.06, Figure 6L-3, PDF page 875. 
+
+10. M024 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Section 9E.12 and Figure 9E-12, state the minimum bicycle-box length, required pavement symbol, turn-on-red rule, and green-pavement coverage rule. 
+
+Locked Gold Answer : The bicycle box must be at least 10 feet long, include at least one bicycle symbol, prohibit turns on red from its lane, and, if green pavement is used, fill the entire limits of the box. 
+
+Locked Evidence : Section 9E.12, Figure 9E-12, PDF pages 1146, 1147. Appendix 
+
+## Evaluation Metrics 
+
+Let Q = {qi}Ni=1 denote the evaluation set. For each question 
+
+qi, let Gi denote the locked gold evidence and let R(k) 
+
+> i
+
+=(ri, 1, . . . , r i,k ) denote the ordered list of the top-k retrieved text chunks. A chunk is relevant when its page, section, table reference, or figure reference matches the locked evidence for the question. We define rel i,j = 1 when ri,j is relevant and rel i,j = 0 otherwise. 
+
+Retrieval Metrics 
+
+Recall at 5: The main model and ablation evaluations use a question-level retrieval hit. A question receives credit when at least one relevant chunk appears within the first five ranks: 
+
+Recall@5 = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1
+
+
+
+> 5
+
+X
+
+> j=1
+
+rel i,j > 0
+
+ . (1) 
+
+Mean reciprocal rank: Let 
+
+ρi = min {j ≤ k : rel i,j = 1 } (2) be the rank of the first relevant item. The reciprocal rank is zero when no relevant item appears among the top-k results. Thus, 
+
+MRR@ k = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1/ρ i, ρi ≤ k, 
+
+0, otherwise . (3) 
+
+Normalized discounted cumulative gain: The discounted cumulative gain for question qi is 
+
+DCG i @k =
+
+> k
+
+X
+
+> j=1
+
+2rel i,j − 1log 2(j + 1) . (4) Let L(k) 
+
+> i
+
+= Pkj=1 rel i,j denote the number of relevant chunks recovered in the logged top-k list. The ideal DCG places those recovered relevant chunks first: 
+
+IDCG i @k =
+
+> L(k)
+> i
+
+X
+
+> j=1
+
+1log 2(j + 1) . (5) The normalized score is 
+
+nDCG@ k = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+×
+
+DCG i @k/ IDCG i @k, IDCG i @k > 0,
+
+0, otherwise .
+
+(6) 
+
+Context precision: Context precision measures the frac-tion of the logged text context that matches the locked evi-dence: 
+
+CP@ k = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1
+
+k
+
+> k
+
+X
+
+> j=1
+
+rel i,j . (7) 
+
+Evidence sufficiency: Let P(4)  
+
+> i
+
+denote the top four re-trieved page images and let Gi, page denote the locked source pages. Let Vi denote the locked visual entities and let bVi
+
+denote the visual entities supplied to the answer model. The saved retrieval package is sufficient when it contains at least one relevant text chunk, one required page among the top four, or one exact required visual entity: 
+
+ES = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1
+
+
+
+> 6
+
+X
+
+> j=1
+
+rel i,j > 0
+
+ ∨
+
+
+
+P(4)  
+
+> i
+
+∩ G i, page ̸ = ∅
+
+
+
+∨
+
+bVi ∩ V i̸ = ∅
+
+
+
+.
+
+(8) The main model and ablation evaluations report Recall@5, MRR over the six logged text ranks, nDCG@6, and context precision@6. The separate RAG baseline comparison re-ports Recall@10, MRR@10, and nDCG@10 using the same binary relevance definition. 
+
+Visual-Evidence Metrics 
+
+Let Qvis ⊆ Q denote the questions with at least one locked figure or table identifier. For each qi ∈ Q vis , let Vi be the set of locked visual entities and let bVi be the unique visual entities supplied to the answer model. 
+
+Exact visual-crop hit rate: A hit occurs when at least one retained entity exactly matches a locked visual entity: 
+
+CropHit = 1
+
+|Q vis |
+
+X
+
+> qi∈Q vis
+
+1
+
+nbVi ∩ V i̸ = ∅
+
+o
+
+. (9) 
+
+Visual-crop recall: Visual-crop recall measures the frac-tion of required visual entities recovered for each visual ques-tion and then averages across the visual subset: 
+
+CropRecall = 1
+
+|Q vis |
+
+X
+
+> qi∈Q vis
+
+bVi ∩ V i
+
+|V i| . (10) 
+
+Visual-crop precision: Visual-crop precision is calculated for each visual question and then averaged. A question with no retained visual entity receives zero precision: 
+
+CropPrecision = 1
+
+|Q vis |
+
+X
+
+> qi∈Q vis
+
+×
+
+bVi ∩ V i
+
+bVi
+
+, bVi > 0,
+
+0, otherwise .
+
+(11) 
+
+Required-page hit rate: Let P(h) 
+
+> i
+
+be the first h page images and let Gi, page be the locked source pages. For 
+
+h ∈ { 1, 3, 4}, the required-page hit rate is 
+
+PageHit@ h = 1
+
+|Q vis |
+
+X
+
+> qi∈Q vis
+
+1
+
+n
+
+P(h) 
+
+> i
+
+∩ G i, page ̸ = ∅
+
+o
+
+.
+
+(12) Modality-routing accuracy: Let yi = 1 when locked vi-sual evidence is required and yi = 0 otherwise. Given the router output δ(qi), routing accuracy is 
+
+RoutingAcc = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1 {δ(qi) = yi} . (13) The visual metrics are reported as diagnostics. Exact visual hit and visual precision do not receive separate points in the 25-point retrieval score. 
+
+Question-Answering Metrics 
+
+For answer ai, GPT-5.6 assigns normalized scores si,d ∈
+
+[0 , 1] for correctness, completeness, faithfulness, and citation localization. Let 
+
+M d = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+si,d (14) denote the mean score for dimension d. Reported percent-ages equal 100 M d.Visual reasoning is calculated as mean correctness over questions whose primary modality is table, figure, or mixed: 
+
+M vis = 1
+
+|Q nontext |
+
+X
+
+> qi∈Q nontext
+
+si, cor . (15) The relevance and concision term is held at M rc = 0 .696 for the completed model comparison. The 60-point generation score is 
+
+Sgen = 22 M cor + 10 M com + 12 M fai + 6 M cit 
+
++ 7 M vis + 3 M rc . (16) 
+
+Strict full credit: An answer receives full credit only when correctness, completeness, faithfulness, and citation local-ization all equal 1: 
+
+FullCredit = 100 
+
+N
+
+> N
+
+X
+
+> i=1
+
+Y
+
+> d∈{ cor ,com ,fai ,cit }
+
+1 {si,d = 1 } .
+
+(17) Scores by modality, answerability, or difficulty are cal-culated using the same equations after restricting Q to the corresponding question subset. 
+
+Reliability Metrics 
+
+Let Qunans denote the 30 questions whose locked annotations mark them as unanswerable. Let fi equal 1 when answer ai
+
+receives strict full credit and 0 otherwise. Unanswerable success is 
+
+U = 1
+
+|Q unans |
+
+X
+
+> qi∈Q unans
+
+fi. (18) Let ci ∈ [0 , 1] denote the figure-router confidence recorded for question qi. The Brier score is 
+
+Brier = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+(ci − fi)2 . (19) For ten equal-width confidence bins Bb, expected calibration error is 
+
+ECE 10 =
+
+> 10
+
+X
+
+> b=1
+
+|Bb|
+
+N
+
+1
+
+|Bb|
+
+X
+
+> i∈Bb
+
+ci − 1
+
+|Bb|
+
+X
+
+> i∈Bb
+
+fi . (20) The calibration contribution and the measurable 12-point reliability score are 
+
+Scal = 6 
+
+
+
+1 − Brier + ECE 10 
+
+2
+
+
+
+(21) and 
+
+Srel = 6 U + Scal . (22) The confidence value comes from the visual router rather than the final answer model or GPT-5.6. The no-router ablation has no comparable confidence value, so its Brier score, ECE, calibration points, 12-point reliability score, and 97-point full score are not defined. 
+
+Composite Scores 
+
+The 25-point retrieval score is 
+
+Sret = 10 Recall@5 +5 
+
+ MRR + nDCG@6 2
+
+
+
++ 5 CP@6 +3 RoutingAcc +2 ES .
+
+(23) Repeatability contributes up to 3 points in the intended 100-point framework. That component remains pending. The measured score therefore uses 97 available points: 
+
+S97 = Sret + Sgen + Srel , S97 ∈ [0 , 97] . (24) The reported provisional score normalizes the measured total to 100: 
+
+Sprovisional = 100 S97 
+
+97 . (25) The intended final score is 
+
+Sfinal = S97 + Srep , Srep ∈ [0 , 3] , (26) where Srep is the pending repeatability component. La-tency is reported separately through mean, median, and 90th-percentile response time. It does not contribute to the com-posite score. For the no-router ablation, the common score excludes cal-ibration and repeatability and uses a 91-point denominator: 
+
+Scommon = 100 Sret + Sgen + 6 U
+
+91 . (27) 
+
+MUTCD Structural Difficulty Index 
+
+For each question qi, the MUTCD Structural Difficulty Index (M-SDI) evaluates five dimensions: evidence localization, modality integration, reasoning operations, answer compo-sition, and normative precision. Let hi,ℓ ∈ { 0, 1, 2} denote the score for dimension ℓ. The total difficulty score is 
+
+M-SDI i =
+
+> 5
+
+X
+
+> ℓ=1
+
+hi,ℓ , M-SDI i ∈ [0 , 10] . (28) Questions are categorized as 
+
+Difficulty( qi) = 
+
+
+
+Easy , 0 ≤ M-SDI i ≤ 3,
+
+Medium , 4 ≤ M-SDI i ≤ 6,
+
+Hard , 7 ≤ M-SDI i ≤ 10 .
+
+(29) Improvement over Baselines 
+
+For GEMS-RAG score SGEMS and baseline score Sb, the relative improvement is 
+
+∆rel (b) = 100 SGEMS − Sb
+
+Sb
+
+. (30) For percentage-valued metrics such as full-credit rate, the percentage-point improvement over the strongest baseline is 
+
+∆pp = SGEMS − max  
+
+> b∈B
+
+Sb. (31) For the ablation study, we drew 800 paired bootstrap sam-ples of the 150 question identifiers. Each sample used the same resampled questions for the original RAG and the ab-lated condition. We recomputed the score difference for each sample and reported the 2.5th and 97.5th percentiles. These intervals measure uncertainty from the benchmark question sample. They do not measure variation across re-peated model calls. 
+
+## Reproducibility Assets 
+
+The benchmark assets were frozen before model execution. The runtime question file contained only the question identi-fier and question text. A separate locked gold file contained the gold answer, required sections, source pages, figures, tables, answerability labels, and M-SDI annotations. The answering models did not load the gold file. This separa-tion prevented answer leakage and kept the generation runs independent from the evaluation annotations. The benchmark contained 150 questions, with 120 answer-able and 30 unanswerable questions. The primary-modality distribution was 60 text, 30 table, 30 figure, and 30 mixed questions. The development split contained 30 questions and the test split contained 120 questions. The development split supported prompt and retrieval configuration. The test split remained fixed for final reporting. We retained the source document, question-only bench-mark, locked annotations, model registry, runtime manifests, answer files, retrieval files, error logs, item-level scores, abla-tion outputs, and per-response rationale records. Each model run wrote separate JSONL files for answers and retrieval traces together with a manifest that recorded the model iden-tifier, run identifier, runner version, and execution settings. These files provide the audit trail used to reproduce the re-ported tables and figures. Version control recorded the implementation state used for the experiments. The updated ablation archives identify harness version ablations_v3 
+
+and Git commit ba26b07031398fb25efca 8ba793a42c6ebb4ae03 . The main benchmark records also identify runner version 1.1.2 and preserve the exact provider model identifiers. Recording both the run manifest and source revision distinguishes changes in model behavior from changes in the evaluation code. 
+
+## Implementation Hyperparameters 
+
+The values in Tables 1 and 2 come from the saved configura-tion, run manifests, provider adapter, and ablation metadata. Parameters that the code did not set explicitly are identified as provider defaults. 
+
+Retry, Resume, and Failure Handling 
+
+The runner wrote each completed record to disk before mov-ing to the next question. Resume mode skipped valid records that already existed and continued from missing or failed question identifiers. The runner allowed at most five provider attempts and placed a 2.0-second interval between requests. For Claude, the provider adapter used a 16,000-token output cap and performed one truncation-specific retry with twice the limit, capped at 32,000 tokens. We reran records only for operational failures, missing records, corrupted outputs, provider errors, or materially incomplete retrieval logging. We did not rerun an answer because it was factually incorrect or received a low score. When a retry succeeded, the evaluator retained the first valid response for the question and preserved the original failure record for audit. This rule avoided selecting a more favorable answer after observing model quality. 
+
+Role of GPT-5.6 and the Evaluated Language Models 
+
+The authors used GPT-5.6 to review benchmark-runner code, provider adapters, runtime validation checks, scoring scripts, plotting code, and technical documentation. The authors executed the code, inspected saved records, selected the final settings, and resolved failures before accepting an output. Model-generated code or prose did not enter the reported results without execution and record-level verification. During evaluation, GPT-5.6 supported benchmark con-struction, evidence review, and application of the locked answer-quality rubric. It did not generate the retrieval ranks, latency values, calibration statistics, or composite scores. Fixed scripts calculated those quantities from the saved records. The evaluated vision-language models received only the user question and retrieved evidence. They did not receive the locked gold answer file. The cross-model study used twelve vision-language con-figurations under the same benchmark and scoring frame-work. The selected model also controlled visual filtering when the filter-model override was null. Claude Fable 5 pro-duced the answers for the detailed modality, difficulty, and ablation analyses after it achieved the highest provisional score in the cross-model comparison. The ablation study kept Claude Fable 5 and the few-shot prompt fixed while removing one retrieval component at a time. 
+
+## Answer-Rationale Audit and Evaluator Confidence 
+
+We created one grading rationale for each of the 900 ab-lation responses and each of the 150 original-RAG base-line responses. Each record retained the four official item scores, the strict full-credit flag, the model answer, the locked gold answer, the retrieved evidence metrics, and the rationale provenance. The rationale package distinguishes an explicit adjudication note from a structured reconstruction of an ex-isting grade. Table 1: Core indexing and retrieval hyperparameters.               
+
+> Setting Value Text representation BAAI/bge-m3 , used for dense and learned sparse representations Visual representation vidore/colqwen2-v0.1
+> Cross-encoder reranker mixedbread-ai/mxbai-rerank-large-v2
+> Page and figure rendering 180 dpi for pages, 220 dpi for figure and table crops Text retrieval depths 30 dense, 30 sparse, 30 fused, 40 after graph expansion, 6 after reranking Visual retrieval depths 10 candidate entities, 6 direct visual candidates, at most 4 retained entities, 4 page images Caption fallback Disabled Question router Enabled, soft threshold 0.5, VLM tie break disabled VLM figure filter Enabled. For the final Claude and Gemini runs, the filter followed the selected answer model because the filter override was null Fusion weights Dense 1.00, sparse 0.60, hierarchy 0.20, graph proximity 0.40, rule type 0.30 Rule-type multipliers Standard 1.20, Guidance 1.00, Option 0.90, Support 0.70 ColQwen2 image settings Maximum 768 image patches, binary quantization enabled Maximum text from each chunk 1400 characters in the answer prompt
+
+Table 2: Generation, benchmark-runner, and evaluation hyperparameters.              
+
+> Setting Value Detailed-analysis and ablation model Claude Fable 5, alias frontier_claude
+> Answer prompt Few-shot, 3 examples Visual-filter prompt Zero-shot Claude output-token cap 16,000 tokens, including adaptive-thinking tokens and visible answer tokens Truncation handling One retry with a multiplier of 2.0, capped at 32,000 tokens for Claude Temperature and top-p Not set explicitly in the adapter, so the provider defaults applied Benchmark runner Version 1.1.2 Random seed and replicates Seed 20260710, 1 replicate per model configuration Retry policy Maximum 5 attempts, 2.0 seconds between requests, resume enabled Ablation controls Claude Fable 5 and the few-shot prompt remained fixed. Each run removed one component Paired bootstrap 800 paired resamples of the 150 question identifiers
+
+Programmatic Consistency Checks 
+
+Table 3 summarizes checks performed over all 1,050 records. These checks validate the internal representation of the offi-cial grades. They do not establish that every underlying item grade is correct against the MUTCD. The token-overlap field is diagnostic rather than authori-tative. It listed a missing or underdeveloped element in 216 full-credit records, primarily when an unanswerable response used a refusal phrasing that did not lexically match the gold wording. It listed no missing element in 173 partial-credit records, where the deduction instead came from an adjudi-cation note, faithfulness, or citation localization. The official four scores and the adjudication notes remain the source of truth. A direct recheck found 20 records with citation score 1.00 and an empty regex-detected citation field. All 20 were unan-swerable responses involving a false premise, unsupported precision, or out-of-scope request. The accepted citation-localization score reflected correct handling of the unsup-ported request, while the citation detector searched only for explicit section, figure, table, page, or legal-reference pat-terns. We therefore treat these records as a detector limitation rather than a contradiction in the official grade. 
+
+Evaluator Confidence 
+
+GPT-5.6 gave a strict self-assessment of 82% confidence in the complete ablation evaluation. This value reflected high confidence in deterministic runtime and retrieval calculations and lower confidence in rubric-based item judgments. The value is a judgmental assessment, not a model probability and not a sampling-based confidence interval. The authors then supplied the 1,050 rationale records to Claude Fable 5 for a secondary model audit. Fable 5 checked score arithmetic, aggregate agreement, provenance rules, repaired-record allocation, and a small set of MUTCD con-tent examples. It assigned 85% confidence with a reported evaluator-confidence interval of [78%, 90%]. Fable 5 placed the mechanical consistency of the package near the top of its scale because the score and aggregate checks matched. It reduced its overall assessment because most rationales reconstruct or restate existing grades and therefore do not independently validate the substantive MUTCD judgment. The reported evaluator-confidence summary is 
+
+bCFable = 0 .85 , IFable = [0 .78 , 0.90] . (32) This interval is a judgmental interval supplied by a secondary language-model auditor. It is not a frequentist confidence interval, a Bayesian credible interval, or the paired bootstrap interval used for ablation score differences. Claude Fable 5 Table 3: Programmatic checks of the per-response rationale package. 
+
+Check Verified result Strict full-credit flag compared with all four dimensions equal to 1.00 0 mismatches in 1,050 records Descriptive mean compared with the mean of correctness, completeness, faith-fulness, and citation 0 mismatches in 1,050 records Per-condition correctness, completeness, faithfulness, citation, and full-credit aggregates compared with the version 4 report Exact match for all seven conditions Strict full-credit counts 120, 114, 112, 114, 112, 109, and 103 for the baseline and A1 through A6 Rationale provenance 895 structured reconstructions, 48 explicit adjudica-tion notes, and 107 reused baseline notes Reused-note criterion 0 violations. Each reused note had the same ques-tion identifier and identical four official scores as the baseline Explicit-note allocation 30 original-RAG partial-credit records and 18 re-paired A1 records Repaired A1 records Exactly T001 through T018 
+
+also generated the evaluated answers, so this secondary audit does not replace an independent MUTCD-informed human annotator. The rationale package assigns fixed confidence values by provenance tier: 0.90 for explicit adjudication notes, 0.88 for reconstructed full-credit records, 0.82 for the 18 repaired A1 responses reviewed by GPT-5.6, and 0.76 for reconstructed partial-credit rationales. These are design constants used to describe confidence in the explanation. They are not em-pirical probabilities. A second MUTCD-informed annotator should review a stratified sample, report agreement, and ad-judicate disagreements before the item-level judgments are treated as independently validated. 
+
+## Sample MUTCD-150 Questions and Locked Gold Answers 
+
+This section provides 10 representative examples for each re-porting category: answerable, unanswerable, easy, medium, and hard. The five displayed sets do not repeat question identifiers. Answerability and M-SDI difficulty remain in-dependent benchmark labels, so each entry retains both la-bels. We selected examples to cover text, table, figure, and mixed evidence where the category permits. The question wording, locked gold answers, evidence identifiers, answer-ability labels, and M-SDI scores below are copied from the locked gold file. The answering models did not receive this file during execution. 
+
+Answerable Questions 
+
+Answerable Questions: 10 Locked Examples 
+
+1. T002 Text, Easy, Answerable, M-SDI 1/10 
+
+Question : Does the applicability of the MUTCD to a facility open to public travel depend on whether the facility is publicly or privately owned or on the source of its funding? 
+
+Locked Gold Answer : No. Applicability is independent of public or private ownership or jurisdiction and independent of whether funding is Federal, State, local, or private. 
+
+Locked Evidence : Section 1A.01, PDF page 42. 
+
+2. T005 Text, Easy, Answerable, M-SDI 3/10 
+
+Question : How do the MUTCD headings Standard, Guidance, Option, and Support differ, including the verbs typically associ-ated with them? 
+
+Locked Gold Answer : A Standard is mandatory or prohibitive and typically uses ’shall.’ Guidance is recommended practice with justified deviations allowed and typically uses ’should.’ An Option is permissive and typically uses ’may.’ Support is infor-mational and conveys no mandate, recommendation, permission, prohibition, or enforceable condition. 
+
+Locked Evidence : Section 1C.01, PDF page 54. 
+
+3. T025 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : What must a Speed Limit sign display, in what in-crements, and may it be used to show an advisory speed for a roadway condition? 
+
+Locked Gold Answer : It must display the speed limit estab-lished by law, ordinance, regulation, or an authorized agency based on an engineering study, in multiples of 5 mph. It should not be used for an advisory speed; an advisory speed plaque below an appropriate warning sign should be used instead. 
+
+Locked Evidence : Section 2B.21, PDF pages 126, 127. 
+
+4. TB001 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : According to Table 1B-1, what is the compliance date for implementing and continuing to use a method designed to maintain longitudinal pavement-marking retroreflectivity? 
+
+Locked Gold Answer : September 6, 2026. 
+
+Locked Evidence : Section 1B.03, Table 1B-1, PDF page 46. 
+
+5. TB002 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : In Table 1D-1, what standard abbreviations are per-mitted for ’Pedestrian(s)’? 
+
+Locked Gold Answer : PED or PEDS. 
+
+Locked Evidence : Section 1D.08, Table 1D-1, PDF page 76. 6. TB024 Table, Medium, Answerable, M-SDI 5/10 
+
+Question : What minimum off-roadway sizes does Table 9A-1 give for a STOP sign, a YIELD sign, and a Crossbuck sign on a bicycle facility? 
+
+Locked Gold Answer : STOP: 18 x 18 inches; YIELD: 18 x 18 x 18 inches; Crossbuck: 24 x 4.5 inches. 
+
+Locked Evidence : Section 9A.03, Table 9A-1, PDF page 1090. 
+
+7. F008 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : From Figure 2B-1, identify the shapes of the STOP and YIELD signs and the color scheme of the ALL-WAY plaque. 
+
+Locked Gold Answer : STOP is an octagon; YIELD is a downward-pointing equilateral triangle; the ALL-WAY plaque has white legend and border on a red background. 
+
+Locked Evidence : Sections 2B.04, 2B.05, Figure 2B-1, PDF page 115. 
+
+8. F012 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : What four crosswalk marking patterns are illustrated in Figure 3C-1? 
+
+Locked Gold Answer : Transverse, longitudinal bar, ladder, and bar pair. 
+
+Locked Evidence : Section 3C.03, Figure 3C-1, PDF page 631. 
+
+9. M001 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : A provision appears under a Guidance heading and uses the word ’should.’ Is it mandatory, and when may a devia-tion be appropriate? 
+
+Locked Gold Answer : It is recommended practice, not a manda-tory Standard. A deviation may be appropriate when engineering judgment or an engineering study indicates that the deviation is suitable for the specific situation. 
+
+Locked Evidence : Sections 1A.04, 1C.01, PDF pages 43, 54. 
+
+10. M019 Mixed, Hard, Answerable, M-SDI 9/10 
+
+Question : For a 12-foot lateral offset and a 35-mph speed, cal-culate L using Table 6B-4. Then state the minimum merging, shifting, and shoulder taper lengths from Table 6B-3. 
+
+Locked Gold Answer : For 40 mph or less, L = W*S 2/60 = 12*35 2/60 = 245 feet. Minimum merging taper: 245 feet; shift-ing taper: 122.5 feet; shoulder taper: about 80.9 feet (0.33L, commonly rounded appropriately in design). 
+
+Locked Evidence : Section 6B.08, Tables 6B-3, 6B-4, PDF page 816. 
+
+Unanswerable Questions 
+
+Unanswerable Questions: 10 Locked Examples 
+
+1. T049 Text, Medium, Unanswerable, M-SDI 5/10, Unsupported Precision 
+
+Question : According to the MUTCD, what exact percentage reduction in crashes is guaranteed by installing a STOP sign or all-way stop control? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 2B.04, 2B.12-2B.17, PDF pages 115, 120. 
+
+2. T052 Text, Medium, Unanswerable, M-SDI 4/10, False Presupposition 
+
+Question : What single mandatory signal-cycle length must be used at every urban signalized intersection in the United States? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 4A.01-4A.06, 4B.01-4B.05, PDF pages 684, 691. 
+
+3. T054 Text, Medium, Unanswerable, M-SDI 5/10, Out Of Scope 
+
+Question : How many licensed traffic engineers must a road agency employ per 100 centerline miles to comply with the MUTCD? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 1A.04, 1D.03, PDF pages 43, 73. 
+
+4. T059 Text, Easy, Unanswerable, M-SDI 3/10, Contradicted Premise 
+
+Question : What minimum miles-per-gallon rating must a ve-hicle achieve to qualify as an inherently low-emission vehicle under the MUTCD? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 1C.02, PDF pages 60, 62. 
+
+5. TB027 Table, Easy, Unanswerable, M-SDI 3/10, Unsupported Precision 
+
+Question : What RGB values are listed in Table 2A-2 for fluo-rescent yellow-green? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2A.06, Table 2A-2, PDF page 85. 
+
+6. TB029 Table, Medium, Unanswerable, M-SDI 6/10, Out Of Scope 
+
+Question : Which table lists State-by-State monetary fines for violating a No Turn on Red sign? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2B.60, Table 2B-1, PDF page 113. 7. F026 Figure, Easy, Unanswerable, M-SDI 3/10, Absent Information 
+
+Question : What foundation depth is required for the sign posts drawn in Figure 2A-2? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 2A.13, 2A.18, Figure 2A-2, PDF page 92. 
+
+8. F029 Figure, Easy, Unanswerable, M-SDI 3/10, Unsupported Precision 
+
+Question : What exact crossing angle, in degrees, is shown for the railroad tracks in Figure 8E-1? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 8E.01, 8E.02, Figure 8E-1, PDF page 1076. 
+
+9. M028 Mixed, Medium, Unanswerable, M-SDI 6/10, Absent Information 
+
+Question : What were the sample size, participant demograph-ics, and statistical significance values of the human-factors study underlying each treatment in Figure 2A-1? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF pages 89, 90. 
+
+10. M030 Mixed, Hard, Unanswerable, M-SDI 7/10, Out Of Scope 
+
+Question : What exact dollar penalty and criminal classification apply when an agency violates a MUTCD Standard? 
+
+Locked Gold Answer : The MUTCD does not specify this infor-mation. A correct response should state that the requested value or requirement cannot be determined from the manual rather than inventing an answer. 
+
+Locked Evidence : Sections 1B.01, 1D.02, PDF pages 45, 72. 
+
+Easy Questions 
+
+Easy Questions: 10 Locked Examples 
+
+1. T001 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What is the purpose of the MUTCD, and what four objectives are used to achieve that purpose? 
+
+Locked Gold Answer : The MUTCD establishes uniform na-tional criteria for traffic control devices on streets, highways, pedestrian and bicycle facilities, and site roadways open to pub-lic travel. Its objectives are to promote safety, inclusion, and mobility; promote efficiency through national uniformity in de-vice meaning and appearance; promote consistency in use, in-stallation, and operation; and provide basic decision-making principles for traffic engineers. 
+
+Locked Evidence : Section 1A.01, PDF page 42. 
+
+2. T003 Text, Easy, Answerable, M-SDI 1/10 
+
+Question : Are islands, curbs, speed humps, raised roadway sur-faces, and rumble strips considered traffic control devices under the MUTCD? 
+
+Locked Gold Answer : No. Infrastructure elements that phys-ically restrict travel paths or speeds, including islands, curbs, speed humps, other raised surfaces, and transverse or longitudi-nal rumble strips, are not traffic control devices. 
+
+Locked Evidence : Section 1A.02, PDF page 42. 
+
+3. T014 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What general meanings does the MUTCD assign to fluorescent pink, orange, and purple? 
+
+Locked Gold Answer : Fluorescent pink is for incident man-agement, orange is for temporary traffic control, and purple is restricted to vehicles with registered electronic toll collection accounts. 
+
+Locked Evidence : Section 1D.05, PDF page 74. 
+
+4. T019 Text, Easy, Answerable, M-SDI 2/10 
+
+Question : What are the minimum mounting heights for roadside signs in rural areas and in business, commercial, or residential areas where parking, bicyclist, or pedestrian activity is likely? 
+
+Locked Gold Answer : The minimum is 5 feet in rural areas and 7 feet in business, commercial, or residential areas where such activity or obstruction is likely, measured as specified from the near pavement edge or curb. 
+
+Locked Evidence : Section 2A.15, PDF page 99. 
+
+5. TB011 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : At a posted or 85th-percentile speed of 60 mph, what advance placement distance does Table 2C-3 show for deceleration to an advisory speed of 30 mph? 
+
+Locked Gold Answer : 200 feet. 
+
+Locked Evidence : Section 2C.04, Table 2C-3, PDF page 193. 
+
+6. TB014 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : What minimum passing sight distance does Table 3B-1 specify for a speed of 55 mph? 
+
+Locked Gold Answer : 900 feet. 
+
+Locked Evidence : Section 3B.03, Table 3B-1, PDF page 584. 
+
+7. TB019 Table, Easy, Answerable, M-SDI 3/10 
+
+Question : What minimum sight distance for signal visibility does Table 4D-2 list at an 85th-percentile speed of 45 mph? 
+
+Locked Gold Answer : 460 feet. 
+
+Locked Evidence : Section 4D.06, Table 4D-2, PDF page 711. 
+
+8. F001 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : In Figure 1B-1, what happens immediately after FHWA approves a request to experiment? 
+
+Locked Gold Answer : The requesting jurisdiction installs the experimental traffic control device. 
+
+Locked Evidence : Section 1B.05, Figure 1B-1, PDF page 48. 9. F009 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : Which sign is placed above the other in every paired assembly shown in Figure 2B-17? 
+
+Locked Gold Answer : The DO NOT ENTER sign is above the WRONG WAY sign. 
+
+Locked Evidence : Section 2B.48, Figure 2B-17, PDF page 156. 
+
+10. F024 Figure, Easy, Answerable, M-SDI 3/10 
+
+Question : In Figure 9E-12, what minimum distance separates the advance motor-vehicle stop line from the intersection stop line across the bicycle box? 
+
+Locked Gold Answer : 10 feet minimum. 
+
+Locked Evidence : Section 9E.12, Figure 9E-12, PDF page 1147. 
+
+Medium Questions 
+
+Medium Questions: 10 Locked Examples 
+
+1. T009 Text, Medium, Answerable, M-SDI 4/10 
+
+Question : When a non-compliant traffic control device is re-placed because it is damaged, missing, or no longer serviceable, what is the general rule and the limited replacement-in-kind ex-ception? 
+
+Locked Gold Answer : The replacement must generally be a compliant device. A non-compliant device may be replaced in kind only when engineering judgment finds that a lone compli-ant device among adjacent non-compliant devices would confuse users and/or the planned replacement schedule for the whole se-ries will achieve timely compliance. 
+
+Locked Evidence : Section 1B.03, PDF page 47. 
+
+2. T012 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : What public-domain condition applies to a new traffic control device proposed for experimentation or interim approval? 
+
+Locked Gold Answer : The traffic-control message, design, or application must be in the public domain and not protected by patent, trademark, or copyright. Legally binding statements are required from the relevant agency/developer/supplier for experi-mentation. Protection of internal components or manufacturing methods can still be allowed. 
+
+Locked Evidence : Sections 1B.05, 1D.06, PDF pages 50, 74, 75. 
+
+3. T035 Text, Medium, Answerable, M-SDI 5/10 
+
+Question : Does satisfying a traffic signal warrant automatically require installation of a traffic control signal? 
+
+Locked Gold Answer : No. A warrant is a threshold that triggers analysis; it is not conclusive justification. Installation must be based on an engineering study considering safety, operation, alternatives, and the site. A signal can also be installed where no warrant is met if an engineering study documents why it is the best solution. 
+
+Locked Evidence : Sections 4B.04, 4C.01, PDF pages 691, 694. 
+
+4. T046 Text, Medium, Answerable, M-SDI 4/10 
+
+Question : When two-way traffic must share one lane for a lim-ited distance, what coordination rule and control methods apply? 
+
+Locked Gold Answer : Movements from both ends must be co-ordinated, except for a short, low-volume, mutually visible work zone that can self-regulate. Methods include flaggers, flag trans-fer, a pilot car, temporary traffic signals, or stop/yield control. 
+
+Locked Evidence : Section 6E.01, PDF page 828. 
+
+5. TB003 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : In Table 1D-2, how is ’Road Work’ abbreviated on a portable changeable message sign, and what may follow it? 
+
+Locked Gold Answer : RD WK; it may be followed by AHEAD or a distance, such as ’RD WK 1 MILE.’ 
+
+Locked Evidence : Section 1D.08, Table 1D-2, PDF page 77. 
+
+6. TB007 Table, Medium, Answerable, M-SDI 5/10 
+
+Question : For white-on-red signs, what minimum maintained retroreflectivity values and contrast criterion are shown in Table 2A-5? 
+
+Locked Gold Answer : White at least 35 cd/lx/m 2, red at least 7 cd/lx/m 2, and a white-to-red contrast ratio of at least 3:1. 
+
+Locked Evidence : Section 2A.22, Table 2A-5, PDF page 104. 
+
+7. TB018 Table, Medium, Answerable, M-SDI 4/10 
+
+Question : For a four-leg intersection, what one-year crash thresholds are listed in Table 4C-2 for all-severity an-gle/pedestrian crashes and for fatal-and-injury angle/pedestrian crashes? 
+
+Locked Gold Answer : Five all-severity angle and pedestrian crashes, or three fatal-and-injury angle and pedestrian crashes. 
+
+Locked Evidence : Section 4C.08, Table 4C-2, PDF page 702. 
+
+8. F003 Figure, Medium, Answerable, M-SDI 4/10 
+
+Question : What conspicuity treatment is labeled ’E’ in Figure 2A-1? 
+
+Locked Gold Answer : A vertical retroreflective strip on the sign support. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF page 89. 
+
+9. F017 Figure, Medium, Answerable, M-SDI 5/10 
+
+Question : What four main areas of a temporary traffic control zone are shown in Figure 6B-1, in order of travel? 
+
+Locked Gold Answer : Advance warning area, transition area, activity area, and termination area. 
+
+Locked Evidence : Section 6B.03-6B.07, Figure 6B-1, PDF page 813. 
+
+10. M004 Mixed, Medium, Answerable, M-SDI 6/10 
+
+Question : A portable CMS designer proposes ’DLY’ to mean DELAY. Using Section 1D.08 and Table 1D-3, is this acceptable and why? 
+
+Locked Gold Answer : No. DLY is explicitly prohibited because it can be misinterpreted as DAILY. 
+
+Locked Evidence : Section 1D.08, Table 1D-3, PDF pages 75, 78. 
+
+Hard Questions 
+
+Hard Questions: 10 Locked Examples 1. M002 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Figure 2A-1 and Section 2A.11, describe the requirements for a retroreflective strip used on a sign support to enhance conspicuity. 
+
+Locked Gold Answer : The strip must be at least 2 inches wide, extend from the sign down the full support to within 2 feet above the near edge of the roadway, match the sign background color except that YIELD and DO NOT ENTER strips are red, and contain no legend or other information. 
+
+Locked Evidence : Section 2A.11, Figure 2A-1, PDF pages 89, 90. 
+
+2. M003 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : For a basic rural roadside sign, combine Figure 2A-2 with Sections 2A.15 and 2A.16 to state the normal minimum mounting height and lateral offset. 
+
+Locked Gold Answer : The minimum mounting height is 5 feet. The normal minimum lateral offset is 12 feet from the edge of the traveled way, or 6 feet from the edge of a shoulder wider than 6 feet. 
+
+Locked Evidence : Sections 2A.15, 2A.16, Figure 2A-2, PDF pages 92, 99, 101. 
+
+3. M005 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : At an all-way stop, what plaque arrangement and appearance are required by Section 2B.04 and Figure 2B-1, and may a 4-WAY plaque be substituted? 
+
+Locked Gold Answer : An ALL-WAY (R1-3P) plaque must be mounted below each STOP sign. It has a white legend and border on a red background. A 4-WAY or other numeric-way plaque may not be substituted. 
+
+Locked Evidence : Section 2B.04, Figure 2B-1, PDF page 115. 
+
+4. M007 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : If an agency is using an approved retroreflectivity-management method but a few individual signs temporarily fall below Table 2A-5, is the agency automatically out of compli-ance? Include the white-on-red thresholds relevant to STOP-type signs. 
+
+Locked Gold Answer : Not automatically. The agency com-plies by having and using a method designed to maintain the minimums, even if some individual signs fall below them at a particular moment. For white on red, the table gives white at least 35, red at least 7 cd/lx/m 2, and at least a 3:1 white-to-red contrast ratio. 
+
+Locked Evidence : Section 2A.22, Table 2A-5, PDF pages 103, 104. 
+
+5. M008 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : On a multi-lane roadway posted at 35 mph, may the single-lane regulatory-sign size be used, and what size must a STOP sign still use? 
+
+Locked Gold Answer : For regulatory signs other than STOP, the single-lane size may be used at 35 mph or less. The STOP-sign exception remains: the multi-lane STOP size is 36 x 36 inches. 
+
+Locked Evidence : Section 2B.03, Table 2B-1, PDF pages 108, 109. 
+
+6. M010 Mixed, Hard, Answerable, M-SDI 8/10 
+
+Question : For a curve with an advisory speed of 40 mph and a radius within 401 to 700 feet, what Chevron Alignment sign spacing and placement are indicated? 
+
+Locked Gold Answer : Typical spacing is 120 feet. The signs must be on the outside of the curve, approximately at right angles to approaching traffic, with a minimum mounting height of 4 feet. 
+
+Locked Evidence : Section 2C.08, Table 2C-5, PDF page 199. 
+
+7. M012 Mixed, Hard, Answerable, M-SDI 9/10 
+
+Question : For Warrant 1 Condition A with at least two major-street lanes and one minor-street lane, what volumes must exist and over what time basis, and does meeting them compel signal installation? 
+
+Locked Gold Answer : For each of the same 8 selected hours, 600 vph must exist on the major street (both approaches total) and 150 vph on the critical minor approach (one direction) at the 100-percent thresholds. Meeting the warrant does not compel installation; an engineering study must determine whether a signal is justified. 
+
+Locked Evidence : Sections 4C.01, 4C.02, Table 4C-1, PDF page 694. 
+
+8. M015 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Section 4I.06 and Figure 4I-4, describe the pedestrian interval order, minimum buffer interval, and walking speed normally used for clearance timing. 
+
+Locked Gold Answer : The order is WALK, flashing DONT WALK pedestrian change interval, then steady DONT WALK buffer interval. The buffer interval is at least 2 seconds before conflicting traffic is released, and clearance is normally evaluated using 3.5 feet per second. 
+
+Locked Evidence : Section 4I.06, Figure 4I-4, PDF pages 764, 765. 
+
+9. M021 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : For a Type C arrow board in Figure 6L-3, state its minimum size, legibility distance, minimum number of ele-ments, and required categories of display modes. 
+
+Locked Gold Answer : Minimum size 96 x 48 inches, mini-mum legibility distance 1 mile, and at least 15 elements. It must provide at least one directional merge mode, the flashing double-arrow mode, and at least one caution mode. 
+
+Locked Evidence : Section 6L.06, Figure 6L-3, PDF page 875. 
+
+10. M024 Mixed, Hard, Answerable, M-SDI 7/10 
+
+Question : Using Section 9E.12 and Figure 9E-12, state the minimum bicycle-box length, required pavement symbol, turn-on-red rule, and green-pavement coverage rule. 
+
+Locked Gold Answer : The bicycle box must be at least 10 feet long, include at least one bicycle symbol, prohibit turns on red from its lane, and, if green pavement is used, fill the entire limits of the box. 
+
+Locked Evidence : Section 9E.12, Figure 9E-12, PDF pages 1146, 1147.

@@ -1,0 +1,1795 @@
+Title: LongSearchEval: Evaluating Long-Horizon Web Search Capabilities of Large Language Models via a Trajectory-Aware Agent Framework with Failure-Node Localization
+
+URL Source: https://arxiv.org/pdf/2610.35150v1
+
+Published Time: Tue, 27 Oct 2026 02:20:43 GMT
+
+Number of Pages: 34
+
+Markdown Content:
+## LongSearchEval: Evaluating Long-Horizon Web Search Capabilities of Large Language Models via a Trajectory-Aware Agent Framework with Failure-Node Localization 
+
+Jialiang Liu 1† Shusheng Li 2,3,4 *† Wenjun Tan 2,3,4 *
+
+> 1College of Information Science and Engineering, Northeastern University, China
+> 2Key Laboratory of Intelligent Computing of Medical Images, Ministry of Education, Northeastern University, China.
+> 3School of Computer Science and Engineering, Northeastern University, Shenyang 110819, China
+> 4National Frontiers Science Center for Industrial Intelligence and Systems Optimization, Northeastern University, China
+> tanwenjun@cse.neu.edu.cn
+
+Abstract 
+
+Long-horizon web search requires LLM-based agents to integrate information across web-pages through extended interactions under task-specific constraints. Evaluating this ca-pability is important not only for measuring final answer quality, but also for assessing whether an agent acquires, verifies, and uses evidence reliably over extended interactions. Existing evaluations, however, mainly rely on simulated trajectories or on post-hoc trajecto-ries reconstructed from final answers, rather than on retained real interaction traces, which limits the fidelity of behavioral assessment and weakens support for fine-grained error localization. To address this gap, we intro-duce L ONG SEARCH EVAL , a trajectory-aware agent evaluation framework that combines a unified agent execution protocol with source-constrained outcome verification and retrospec-tive failure-node localization. Stage 1 verifies answer groups against agent-cited webpages without human-authored gold answers; Stage 2 audits normalized rounds and links flagged fail-ure nodes to incorrect answer groups. We eval-uate 16 models from eight families on 100 tasks, yielding 1,600 retained runs and 6,545 automatically flagged failure nodes. Trajectory collection and evaluation required 1,037 and 318 hours of cumulative runtime, respectively. Human validation yields 94.50% agreement on supplied answer-group labels and 98.11% feature-correspondence precision for audited round–group links. Together, outcome scores and linked trajectory evidence support con-trolled model comparison and retrospective in-spection of answer-related content. 
+
+> *Corresponding authors.
+> †These authors contributed equally to this work.
+
+1 Introduction 
+
+Large language models (LLMs) have demonstrated remarkable capabilities in language understand-ing, generation, and complex reasoning, enabling a broad range of applications beyond traditional natu-ral language processing (Brown et al., 2020). Build-ing on these capabilities, LLM-based agents extend models from passive generation to autonomous problem solving by interacting with external en-vironments (Yao et al., 2023; Wang et al., 2024c). Web search enables language models to acquire external and up-to-date information by retrieving and inspecting web sources beyond their paramet-ric knowledge (Nakano et al., 2021). Agentic web search further transforms retrieval into autonomous information seeking, where agents decompose com-plex queries, navigate webpages, verify evidence, and synthesize citation-supported responses (Gou et al., 2025). Early approaches have explored complemen-tary directions toward autonomous web informa-tion seeking. Mind2Web (Deng et al., 2023), We-bArena (Zhou et al., 2024), and AgentBench (Liu et al., 2024a) establish general benchmarks for real-world websites, reproducible browser envi-ronments, and multi-domain agent evaluation. WebVoyager (He et al., 2024), WebLINX (Lu et al., 2024), and VisualWebArena (Koh et al., 2024) extend evaluation to multimodal or dialogue-conditioned web interaction. Assistant-Bench (Yoran et al., 2024), WorkArena (Drouin et al., 2024), WorkArena++ (Boisvert et al., 2024), and TravelPlanner (Xie et al., 2024a) examine re-alistic, time-consuming, or compositional tasks that require extended information gathering and planning. AppWorld (Trivedi et al., 2024), OS-World (Xie et al., 2024b), AndroidWorld (Rawles et al., 2025), and τ -bench (Yao et al., 2025) further introduce stateful applications, open-ended com-1arXiv:2610.35150v1 [cs.AI] 26 Oct 2026 (a) Source-Grounded Answer Evaluation  (b) Span-Labeled Process Localization  (c) Ours:  LongSearchEval                   
+
+> ✗Limited trajectory-level diagnosis ✗Requires expert-verified span labels
+> ✓Unified Agent Execution Protocol
+> ✓No gold answers or process-error annotations as
+> Task
+> Rubric Tree
+> Final
+> Response
+> Webpage
+> Sources
+> Agent as a judge
+> abc
+> c2
+> ...
+> c1... c3Correctness Source
+> Rubric
+> judge
+> Agent Trajectory
+> (Oagent / Miroflow)
+> ...
+> Semantic Span Segmentation
+> ...
+> Expert Benchmark References
+> Process Diagnosis (Error Spans)
+> ...
+> ✗No source-grounded final-answer scoring localization inputs
+> 16 Models × 100 Tasks 🤖 ... ... 🤖
+> Unified Agent
+> Interface
+> Final Response Observable Trajectory
+> Source-Constrained
+> Verification
+> Failure-Node
+> Localization
+> Answer Score
+> Failure Nodes
+> Answer-Linked
+> Failure Nodes
+> Attribution Link
+
+Figure 1: Source-grounded answer evaluation, process benchmarks, and retrospective trajectory inspection. Expert labels in (b) are benchmark references, not required localization inputs; (c) returns content related to Stage 1-incorrect answer groups under a shared unified agent execution protocol. 
+
+puter environments, and tool–user interaction pro-tocols. Collectively, these benchmarks substantially improve the realism and scope of agent evaluation, while leaving limited support for jointly verifying source-grounded final answers and locating related evidence in comparable open-web trajectories. Recent research has increasingly focused on evaluating D EEP SEARCH agents from two com-plementary perspectives. The first direction em-phasizes source-grounded final-answer evaluation (Figure 1(a) ). Mind2Web 2 (Gou et al., 2025) in-troduces realistic long-horizon agentic-search tasks and rubric-based Agent-as-a-Judge evaluation. GAIA (Mialon et al., 2024), AssistantBench (Yoran et al., 2024), LiveResearchBench (Wang et al., 2025), and BrowseComp (Wei et al., 2025) eval-uate complex information seeking under external-knowledge, live-web, or persistent-browsing re-quirements. RAGChecker (Ru et al., 2024), long-form factuality (Wei et al., 2024) evaluation, and RAGTruth (Niu et al., 2024) provide finer-grained analyses of retrieval support, claim correctness, and hallucination in grounded generation. Because these settings often rely on LLM-based evalua-tors, a parallel line of work studies judge construc-tion (Zheng et al., 2023) and meta-evaluation (Zeng et al., 2024) through pairwise comparison, adver-sarial instruction-following cases, critique gener-ation (Ke et al., 2024), rubric-conditioned scor-ing (Kim et al., 2024), hierarchical criteria (Liu et al., 2024b), and judge-specific benchmarks (Tan et al., 2025). Other studies identify systematic eval-uator biases, including unfair comparison behav-ior (Wang et al., 2024a) and self-preference (Pan-ickssery et al., 2024). These methods substantially improve outcome evaluation, but their primary ob-ject remains the generated answer and its support-ing evidence rather than the observable search pro-cess that produced it. The second direction inves-tigates process-level evaluation and error localiza-tion ( Figure 1(b) ). Let’s Verify Step by Step (Light-man et al., 2024), Math-Shepherd (Wang et al., 2024b), and ProcessBench (Zheng et al., 2025) show that intermediate-step verification (Light-man et al., 2024) can reveal reasoning failures beyond final-answer accuracy. AgentBoard (Ma et al., 2024) introduces progress-level diagnostics for multi-turn agents, while analyses of error snow-balling (Zhang et al., 2024) show how early mis-takes can induce downstream failures. TELBench and DRIFT (Wang et al., 2026) further adapt pro-cess localization to DeepResearch trajectories by segmenting agent trajectories and identifying harm-ful error spans. These approaches demonstrate the value of process-level diagnosis. Human-verified labels support their evaluation benchmarks, which is distinct from requiring such labels as localization inputs. Our focus is the outcome-conditioned con-nection between answer groups judged incorrect and retained web-search content under a unified agent execution protocol. In response to these challenges, we introduce LONG SEARCH EVAL , a trajectory-aware agent eval-uation framework for assessing the long-horizon web-search capabilities of LLMs ( Figure 1(c) ). Each evaluated LLM operates within a shared agent controller and standardized web-tool interface, and its final response is assessed together with the ob-servable trajectory that produced it. The shared controller and restricted tool outputs standardize the interaction conditions, connecting model-level comparison with inspectable evidence of search behavior. LONG SEARCH EVAL combines controlled trajec-2tory collection with two evaluation stages. Source-constrained outcome verification checks final-answer groups using only the webpages cited by the agent, without requiring human-authored gold answers. Conditioned on the final response and Stage 1 judgments, retrospective failure-node local-ization links related content, sources, or fields to groups judged incorrect. The returned associations expose where constraint-relevant evidence for each incorrect group appears in the trajectory. A correct webpage observation can still expose an answer discrepancy. These associations support retrospec-tive inspection, not identification of an agent’s first erroneous commitment. We apply L ONG SEARCH EVAL to 16 models from eight families on 100 real-world web-search tasks, yielding 1,600 retained runs. Trajectory col-lection and evaluation required 1,037 and 318 hours, respectively. Human review of 946 supplied answer groups from 200 responses yields 94.50% agreement with automatic judgments, while An-swer Score and Answer Precision correlate with human scores at Pearson coefficients of 0.9054 and 0.9132. In a separate run sample, review of all 317 retained round–group links confirms 311 feature correspondences (98.11%). The experiments also reveal distinct search and reading patterns among models with similar answer scores. 
+
+Our contributions are threefold: 1. We formulate long-horizon web-search evalu-ation as a joint analysis of source-supported outcomes and observable trajectories under a controlled agent protocol. 
+
+2. We introduce LONG SEARCH EVAL , which combines trajectory collection under a unified execution protocol, source-constrained verifi-cation, and retrospective localization of con-tent related to Stage 1 incorrect groups, without gold answers or pre-labeled process errors as operational inputs. 
+
+3. We build a 1,600-run corpus covering 16 LLMs and 100 tasks, with human validation of 946 supplied answer groups and all 317 retained links in fixed samples. 
+
+2 Related Work 
+
+Web Agent Evaluation. Web-agent evaluation has progressed from isolated browsing actions toward realistic long-horizon interaction and evidence-grounded task completion. Mind2Web (Deng et al., 2023) introduces large-scale real-world website tasks for generalist web agents, while WebArena (Zhou et al., 2024) provides realistic multi-website environments for autonomous in-teraction. AgentBench (Liu et al., 2024a) eval-uates LLMs as agents across diverse environ-ments. WebVoyager (He et al., 2024), WebLINX (Lu et al., 2024), and VisualWebArena (Koh et al., 2024) extend evaluation to multimodal or dialogue-conditioned web interaction. Assistant-Bench (Yoran et al., 2024), WorkArena (Drouin et al., 2024), WorkArena++ (Boisvert et al., 2024), and TravelPlanner (Xie et al., 2024a) fur-ther study realistic, time-consuming, or composi-tional information-seeking tasks, while AppWorld (Trivedi et al., 2024), OSWorld (Xie et al., 2024b), AndroidWorld (Rawles et al., 2025), and τ -bench (Yao et al., 2025) investigate stateful environments and tool-user interaction. Beyond task comple-tion, recent studies have focused on evaluating whether agent responses are supported by exter-nal evidence. Mind2Web 2 (Gou et al., 2025) in-troduces rubric-based Agent-as-a-Judge evaluation for citation-supported web responses. GAIA (Mi-alon et al., 2024), AssistantBench (Yoran et al., 2024), LiveResearchBench (Wang et al., 2025), and BrowseComp (Wei et al., 2025) evaluate complex information seeking under external-knowledge and live-web settings. RAGChecker (Ru et al., 2024), long-form factuality evaluation (Wei et al., 2024), and RAGTruth (Niu et al., 2024) further analyze retrieval support, claim correctness, and hallucina-tion. These methods improve outcome evaluation, but mainly focus on final responses rather than in-dexed trajectory content related to answer groups judged incorrect. 
+
+Process-Level Diagnosis. Process-level evalua-tion aims to identify failures beyond final outputs. Let’s Verify Step by Step (Lightman et al., 2024), Math-Shepherd (Wang et al., 2024b), and Process-Bench (Zheng et al., 2025) show that intermediate-step verification can reveal reasoning failures be-yond final-answer accuracy. AgentBoard (Ma et al., 2024) introduces progress-level diagnostics for multi-turn agents, while error snowballing anal-ysis (Zhang et al., 2024) studies how early mis-takes induce downstream failures. TELBench and DRIFT (Wang et al., 2026) further extend process localization to DeepResearch trajectories by seg-menting agent trajectories and identifying harm-ful error spans. These approaches demonstrate the value of process diagnosis. L ONG SEARCH EVAL 
+
+connects source-constrained answer-group verifica-3tion with retrospective localization of related obser-vations, sources, and fields under a unified agent execution protocol. The final response and its judg-ments are inputs to this task; returned associations do not identify error onset. 
+
+3 Method 
+
+LONG SEARCH EVAL evaluates LLMs’ long-horizon web-search capabilities through a shared agent execution protocol and two complementary evaluation stages. For each model–task run, we jointly consider the source-grounded final response 
+
+F and the observable web-interaction trajectory τ
+
+produced while solving the task. Agent execution under a unified protocol first provides comparable interaction records. Stage 1 then verifies source-supported answer groups in F , and Stage 2 uses these judgments and F to flag candidate locations and link their content to groups judged incor-rect by Stage 1. Figure 2 illustrates the complete workflow. 
+
+3.1 Agent Execution and Trajectory Collection 
+
+Within L ONG SEARCH EVAL , we run 16 LLMs on a shared task set and collect the complete web-search trajectories produced during actual agent execu-tion. A representative example of the trajectory-collection workflow is illustrated in Appendix C.4. Given model m and task question q, we initialize the agent history as Hm,q, 0 = ( q). At round t, the model generates an explicitly recorded reasoning state hm,q,t from the existing interaction history and then selects a tool action am,q,t . This sequential dependence is formalized as 
+
+pθm (ht, a t | H t−1)= pθm (ht | H t−1) pθm (at | H t−1, h t) . (1) Here, θm denotes the parameters of model m.The variable hm,q,t corresponds to the observable textual reasoning field logged by the shared agent controller; it does not include unobserved inter-nal states. A tool action is represented as am,q,t =(wm,q,t , ξ m,q,t ), where wm,q,t identifies a tool in the shared web-tool interface W and ξm,q,t contains its invocation arguments. After the action is executed, the web environment returns an observation accord-ing to 
+
+om,q,t ∼ pW
+
+
+
+o | am,q,t , s web 
+
+> m,q,t −1
+
+
+
+, (2) where sweb  
+
+> m,q,t −1
+
+denotes the web-environment state before the action. Search results, webpage content, and tool failures are all recorded as observations 
+
+om,q,t in their original execution order. Web content therefore serves as environmental feedback within the agent interaction rather than as a separate collec-tion objective. After round t, the interaction history is updated as 
+
+Hm,q,t =  q, (hm,q,s , a m,q,s , o m,q,s )ts=1 
+
+ . (3) Subsequent decisions use this history, which retains unsuccessful searches, intermediate revisions, and candidates omitted from the final response. Let 
+
+dm,q,t denote the controller’s termination state after round t, and let B be the maximum interaction budget. The realized stopping round is 
+
+Tm,q = min {t ≥ 1 : dm,q,t = finalize ∨ t = B} .
+
+(4) After round Tm,q , the agent generates the terminal response Fm,q conditioned on the complete inter-action history. The resulting raw trajectory is 
+
+τ raw  
+
+> m,q
+
+=
+
+
+
+(hm,q,t , a m,q,t , o m,q,t )Tm,q  
+
+> t=1
+
+, F m,q 
+
+
+
+. (5) Conditioned on the task and realized trajectory length, the complete generation process factorizes as 
+
+pθm,W (τ raw | q, T )= pθm (F | H T )
+
+> T
+
+Y
+
+> t=1
+
+pθm (ht, a t | H t−1)
+
+pW
+
+
+
+ot | at, s web 
+
+> t−1
+
+
+
+.
+
+(6) After collection, the resulting trajectory pre-serves the complete observable decision process from the task question to the final response, allow-ing subsequent evaluators to inspect where task-relevant defects are flagged and how these rounds relate to the retained final response. 
+
+3.2 Source-Constrained Outcome Verification 
+
+Stage 1 evaluates how well the final response ful-fills the task requirements by verifying its answer groups against the webpages cited in that response. For each group, the verifier checks whether the cited content supports all applicable requirements and then aggregates the group-level judgments into outcome scores. It uses only agent-provided URLs and performs no additional web search, enabling source-constrained evaluation without human-authored gold answers. 41. Long-Horizon Web Search Task  2. Agent Execution and Trajectory Collection 
+
+Final Answer    
+
+> answer1: ......
+> source1: http://...
+> source2: http://...
+> answer1: ......
+> source1: http://...
+> source2: http://...
+> answer1: ......
+> source1: http://...
+> source2: http://...
+
+... 
+
+> Agent Controller with Evaluated LLM
+> input
+> thought
+> action
+> observation
+> final answer
+> Web-Interaction
+> Tools
+> web_search
+> open_url
+> read_page
+> find_on_page
+> extract_links
+> tool-use
+> Observable raw trajectory
+
+...  
+
+> Round 1 Round ...
+
+3.Trajectory Normalization and Answer  Separation 
+
+Retain the final response produced during 
+
+collection. Normalize observable interactions 
+
+into ordered rounds and store the final response 
+
+separately. 
+
+> extract
+
+Normalized trajectory  
+
+> Normalized trajectory
+> Observable rounds
+> Model text · tools
+> Final response F
+> Stored separately
+
+4.Stage 1:Source-Constrained Outcome Verification 
+
+1
+
+> R = (N, C, ρ)
+
+correct  incorrect  unverifiable 
+
+> derive
+
+2 Parse final answer 
+
+into answer groups 
+
+gi = (a i , U i )
+
+3 Open only the model-
+
+provided URLs  Ui
+
+> No new web search
+
+4 Judge each group 
+
+> An answer group is correct
+> only if all hard constraints
+> are supported by the
+> provided sources.
+
+Score = min(C, N) / N 
+
+> Upper = min(C + U, N) / N
+> Precision = C / max(M, 1)
+
+5.Stage 2:  Failure-Node Localization 
+
+?
+
+> question
+
+☷
+
+> rubric
+
+▤
+
+> final
+> answer
+
+▮▮▮ 
+
+> Stage 1
+> result
+
+◷
+
+> normalized
+> rounds
+
+No web access 
+
+Judge A 
+
+agree? 
+
+yes 
+
+no 
+
+> Rounds with no evaluable
+> evidence-bearing content
+> are skipped.
+> linked by overlap in names, URLs, prices,
+> dates, or other task-specific fields
+
+Judge B 
+
+Arbiter   
+
+> All localized
+> error nodes
+> Eall = {t : z t= error}
+> Final answer
+> linked error nodes
+> Elinked
+> First linked
+> error node
+> tfirst
+> ⼀
+
+round  rt   
+
+> Find at least 3 English-taught AI master’s
+> programs in Europe with annual non-EU
+> tuition < €8,000 and no GRE requirement.
+> every answer item or answer group must
+> include corresponding webpage link(s) that
+> verify the information for that item/group.
+
+Derive Rubric Figure 2: Overview of L ONG SEARCH EVAL . A unified agent interface records each LLM’s observable trajectory and final response. Stage 1 verifies answers using agent-provided URLs. Conditioned on the response and Stage 1 judgments, Stage 2 links related content in normalized rounds to incorrect answer groups without web access or hidden chain-of-thought. 
+
+For each retained run (m, q ), Stage 1 indepen-dently instantiates a rubric 
+
+Rm,q = ( Nm,q , Cm,q , ρ m,q )
+
+from the task question under the same evaluator configuration. Here, Nm,q is the required minimum number of answer groups, Cm,q is the set of hard task constraints, and ρm,q specifies the grouping rule. The evaluated model identity is not included in this generation call. Stage 1 then parses the final response into: 
+
+G(Fm,q ) = {gm,q,i }Pm,q 
+
+i=1 ,gm,q,i = ( am,q,i , Um,q,i ) , (7) where am,q,i is the answer content of group i and 
+
+Um,q,i is the set of URLs cited as its evidence. The minimum count Nm,q is used for task-level scoring, whereas each proposed group must independently satisfy all applicable hard constraints. For read-ability, we suppress the run indices (m, q ) in the remainder of this subsection. The count-mode con-ventions used in the experiment are specified in Section 4.1 alongside the score aggregation rules. For each answer group gi = ( ai, Ui), the verifier fetches only the URLs in Ui and denotes the re-sulting webpage evidence by Ei. Let βi = 1 when at least one cited URL yields usable page content. Let γi = 1 when Ui is non-empty but all cited URLs fail solely because of source-access uncer-tainty, such as a timeout, temporary unavailability, network failure, or anti-bot blocking. Missing, mal-formed, fabricated, or irrelevant citations are not treated as access-only failures under this criterion. Missing citations, unsupported claims, invalid attributions, and constraint violations are treated as incorrect, whereas groups that cannot be veri-fied solely because of source-access uncertainty are kept separate as unverifiable. Let Ci ⊆ C contain the blocking constraints ap-plicable to group gi, excluding the task-level count requirement. The verifier defines a binary sup-port function ψ(gi, c, E i), where ψ(gi, c, E i) = 1 
+
+means that the cited evidence supports constraint c
+
+5for group gi. The group verdict is 
+
+vi =
+
+
+
+correct ,βi = 1 
+
+∧ Y
+
+> c∈C i
+
+ψ(gi, c, E i) = 1 ,
+
+unverifiable , βi = 0 ∧ γi = 1 ,
+
+incorrect , otherwise .
+
+(8) Let C = P 
+
+> i
+
+1[vi = correct] , U = P 
+
+> i
+
+1[vi =unverifiable] , and M = |G (F )|. We define the normalized answer score sans , its optimistic coun-terpart s+ans , and answer precision qans as 
+
+sans = min( C,N ) 
+
+> N
+
+,s+ans = min( C+U,N ) 
+
+> N
+
+,qans = C 
+
+> max( M, 1)
+
+.
+
+(9) The reported Answer Score and Upper Score are percentage scores, 100 sans and 100 s+ans , respec-tively. The main answer score measures task-level requirement satisfaction under the minimum-count setting; Upper Score treats the groups currently marked unverifiable as potentially correct, and pre-cision measures the verified fraction of the returned groups. These quantities measure satisfaction under agent-provided evidence. 
+
+3.3 Trajectory-Aware Failure-Node Localization 
+
+Stage 2 traces answer groups judged incorrect by Stage 1 back to related webpage content in the recorded trajectory. For each such group, the lo-calization task is to identify relevant observations, sources, or fields along the original round order, from the beginning of the trajectory onward. The resulting round–group associations provide con-crete evidence locations for inspecting the final answer, without re-evaluating its Stage 1 verdict. Each judge receives only the task question, run-specific rubric, final response, Stage 1 answer-group verdicts, and one normalized round, with no web access or evaluated-model identity. Judges assess only observable content, not latent reasoning or hidden chain-of-thought. Each round is repre-sented as 
+
+xm,q,t =
+
+
+
+q, R m,q , F m,q , V (1) 
+
+> m,q
+
+, r m,q,t 
+
+
+
+, (10) where V (1)  
+
+> m,q
+
+= {(gm,q,i , v m,q,i )}Pm,q  
+
+> i=1
+
+contains the Stage 1 verdicts; (m, q ) is omitted when unambigu-ous. Judges independently produce 
+
+ˆyjt =
+
+
+
+zjt , Ljt
+
+
+
+, j ∈ { A, B },
+
+where zjt ∈ { error , nonerror , skipped } is the ver-dict and ˆLjt the proposed answer-group links. For a jointly identified error, ˆLAB t =  LAt ∪ L Bt
+
+ . The consensus output ¯yt = (¯ zt, ¯Lt) is 
+
+¯yt =
+
+ error , ˆLAB t
+
+, ˆzAt = ˆ zBt = error ,
+
+ˆyAt , ˆzAt = ˆ zBt̸ = error ,
+
+ xt, ˆyAt , ˆyBt
+
+ , ˆzAt̸ = ˆ zBt .
+
+(11) Agreement does not trigger arbitration. Joint er-rors retain the union of proposed links and use Judge A’s normalized error type when available, otherwise Judge B’s. For differing verdicts, the third-case tuple is passed to the arbiter and its out-put is adopted. Rounds assigned error by the ar-biter remain flagged failure nodes when no valid normalized type is available, but are excluded from taxonomy-specific analyses. The original candidate checks and er-ror /nonerror /skipped labels are retained, includ-ing checks on exploratory candidates. Extracted units and reasons are evaluator interpretations, not agent quotations. Inspecting an ineligible candi-date is not itself erroneous; correct observations can expose answer discrepancies. A consensus-
+
+error round is termed a failure node , used as an automatic candidate flag. All such nodes form 
+
+Eall = {t : ¯ zt = error } . We report Eall as an auto-matic diagnostic inventory, not a behavioral-error rate; evaluable-round counts and organization depend on search behavior within each run. Judges associate flagged failure nodes with final-answer groups through task-relevant semantic cues without requiring exact lexical overlap. The pro-posed answer-group links are standardized in for-mat without an additional deterministic semantic-consistency check, to accommodate implicit corre-spondences in open-ended tasks. When both judges label the same round as error , their proposed links are merged and deduplicated, while arbitration-resolved rounds retain the arbiter’s links. Because raw diagnostic links may include groups not con-firmed as incorrect by Stage 1, downstream analy-ses retain only links to the confirmed incorrect set 
+
+B = {i ∈ { 1, . . . , P } : vi = incorrect }. Correct, unverifiable, and nonexistent targets are excluded. This target-status filter is not a semantic check; Stage 1 mistakes can affect the retained associa-tions. Answer-linked failure nodes are 
+
+Elinked = t ∈ E all : ¯Lt ∩ B̸ = ∅ . (12) 6When Elinked is non-empty, we define tfirst =min Elinked as the earliest returned related location, not the first erroneous commitment or a causal ori-gin. The nodes in Elinked and their retained round– group edges are the main retrospective output; Eall 
+
+also includes unlinked flags. Nodes, edges, and target groups have separate denominators because links can be many-to-many. Appendix G.2 illus-trates these source–answer comparisons. Together, answer metrics and group verdicts characterize outcomes, while these three diagnos-tics summarize all flagged failure nodes, answer-linked failure nodes, and the earliest linked round. Auxiliary signals for search, content inspection, link navigation, and premature answering support complementary behavioral analyses. Both stages are model-identity blind; model IDs are attached only after judging. 
+
+4 Experiments 
+
+We use L ONG SEARCH EVAL to compare LLMs’ long-horizon web-search performance through out-come scores, observable search behavior, and failure-node diagnostics, then assess outcome ver-ification and diagnostic correspondence through human review. 
+
+4.1 Experimental Setup Tasks, models, and protocol. The evaluation comprises 16 models from eight families on 100 long-horizon web-search tasks: 46 from Mind2Web 2 (Gou et al., 2025), 20 from LiveRe-searchBench (Wang et al., 2025), 29 from Assistant-Bench (Yoran et al., 2024), and 5 manually curated tasks. All models use the same agent controller, prompt, five web-interaction tools, configured iter-ation limit, and execution policy. Each model–task pair contributes one retained run, giving 1,600 tra-jectories; recovery attempts do not create additional samples. The evaluated DeepSeek models are V3.2 and V4-Flash. Stage 1 uses DeepSeek-V4-Pro as its single verifier. Stage 2 uses DeepSeek-V4-Pro as Judge A and Qwen3.7-Max as Judge B and ar-biter. This role assignment is fixed across all evalu-ated models and tasks; evaluated-model identities are omitted from judging inputs. The ten-category vocabulary is fixed from a disjoint 50-task, 500-trajectory development set. 
+
+Metrics and aggregation. Answer Score (AS), Answer Precision (AP), and Upper Score are macro-averaged over each model’s runs; Unver-ifiable Group Rate pools U/M over all returned groups. The corpus contains 7,685 answer groups and 42,658 normalized rounds. Table 1 jointly re-ports outcome, behavior, evidence-use, and exe-cution indicators. The minimum-count formula in Section 3.2 applies to min ; the stored exact nor-malization uses max( N, M ) and dynamic_all 
+
+uses M as the AS/Upper denominator. AP uses 
+
+max( M, 1) , and confirmed empty outputs receive zero. These conventions retain the exported scores without changing the labels. Reported 95% inter-vals use 10,000 paired task-bootstrap resamples with fixed automatic outputs; they quantify task-level uncertainty rather than repeated agent execu-tion. 
+
+4.2 Long-Horizon Web Search Performance 
+
+Table 1 shows substantial variation under the shared interface. GPT-6.1-Sol has the highest point es-timates for AS (68.80), AP (68.34%), and Up-per (75.35), followed by GPT-6-Luna-Pro in AS (65.88) and AP (67.39%). GPT-5.4 has the low-est UGR (3.56%). The Sol–Luna AS difference is 2.92 points, with a paired 95% interval of 
+
+[−5.67 , 11 .99] , whereas the GLM-5–GLM-4.7-Flash difference is 14.67 points [8 .41 , 20 .82] . Thus the results distinguish broad performance gaps from closely spaced point estimates. Similar outcome scores can conceal different search profiles. DeepSeek-V3.2 and V4-Flash ob-tain AS values of 54.38 and 53.90, respectively, but average 13.75 versus 21.99 searches and 22.29k versus 37.60k read characters—about 37.5% fewer searches and 40.7% less text for V3.2. The paired AS difference is 0.48 points [−6.03 , 6.95] . Across models, search counts range from 9.49 to 21.99, and read text from 4.78k to 48.02k characters. Grok-4.20 returns the most final URLs (14.34 per run) without leading the outcome scores. Joint re-porting therefore distinguishes verification success from interaction volume and evidence presentation. All 1,600 runs remain in the analysis, including 1,567 direct agent responses, 20 collection-time no-tool syntheses, and 13 fallbacks. The saved validity indicator is true for 1,573 responses (98.31%); 11 runs carry a premature-answer flag. These retained paths are evaluated unchanged rather than limiting the comparison to successful executions with valid outputs. 7Table 1: Outcome quality, search behavior, evidence use, and execution robustness evaluated with LONG SEARCH EVAL under the controlled agent execution setting. AS, AP, and UGR denote Answer Score, Answer Precision, and Unverifiable Group Rate. AP and UGR are percentages, and Read kChars is the mean character count divided by 1,000. Valid and Prem. use the saved final-answer-validity and premature-answer indicators. Models are grouped by family, with thin horizontal rules separating families to facilitate within- and cross-family comparisons.                                                                                                                                                                                     
+
+> Outcome Quality Search Behavior Evidence Use Execution Robustness Model AS
+> ↑
+> AP (%) ↑
+> Upper
+> ↑
+> UGR (%) ↓
+> Avg. Rounds Avg. Searches Avg. Domains Read kChars Final URLs Valid (%) ↑
+> Prem. (%) ↓
+> GPT-6.1-Sol 68.80 68.34 75.35 5.32 17.74 9.49 6.59 26.79 10.44 100 0GPT-6-Luna-Pro 65.88 67.39 73.08 6.12 18.41 14.57 5.38 16.58 8.11 100 0GPT-5.4 54.23 55.99 58.85 3.56 19.67 11.19 5.37 10.24 12.90 100 0GPT-5-Mini 47.17 47.17 51.13 4.90 25.07 16.35 5.08 4.78 11.24 92 5Gemini-3.1-Pro 38.51 38.76 50.15 10.99 24.57 16.64 5.72 24.64 7.99 100 0Gemini-2.5-Flash 33.33 35.20 38.31 6.48 32.37 11.42 6.54 36.44 8.45 95 3Kimi-K2.6 51.86 51.84 58.51 7.05 34.67 21.98 9.16 44.75 9.08 99 0Kimi-K2.5 50.35 50.12 55.97 5.04 32.48 18.88 8.47 44.80 9.21 100 0Qwen3.7-Plus 49.23 49.01 54.03 4.68 20.44 13.80 5.15 23.11 8.02 96 2Qwen3.6-Flash 37.32 37.90 45.20 8.55 20.34 15.90 4.73 21.42 7.53 98 0DeepSeek-V3.2 54.38 54.48 59.28 4.66 27.67 13.75 8.39 22.29 9.35 100 0DeepSeek-V4-Flash 53.90 53.78 58.69 5.43 30.22 21.99 6.75 37.60 12.26 99 0GLM-5 47.54 46.44 53.67 5.39 30.04 13.58 7.69 48.02 8.18 99 0GLM-4.7-Flash 32.87 32.61 39.57 6.07 31.80 20.85 6.18 10.27 7.43 97 0Grok-4.20 48.31 48.04 52.93 4.33 25.40 10.67 6.87 34.43 14.34 99 1Nemotron-3-Ultra 43.35 43.14 48.53 5.11 35.69 13.76 7.07 39.58 9.42 99 0
+
+Table 2: Automatic candidate-node diagnostics under Stage 1-incorrect-group filtering. Earliest-association percentages use the 850 runs with retained links.        
+
+> Process diagnostic Result
+> All automatically flagged candidate nodes 6,545 Linked / unlinked candidate nodes 3,664 / 2,881 Typed / unassigned candidate nodes 6,503 / 42 Unlinked incorrect final-answer groups 1,145 Runs with at least one linked candidate node 850 Earliest association by round 5 / 20 46.5% / 88.7%
+
+4.3 Failure-Node and Trajectory Diagnostics 
+
+Of 42,658 rounds, the final consensus retains 14,734 evaluable records: 6,545 automatic can-didate flags and 8,189 nonerror labels. Among flagged nodes, 3,664 (56.0%) have retained links to Stage 1-incorrect answer groups. The 5,798 distinct round–group edges cover 2,229 of 3,374 incorrect groups, leaving 1,145 without a retained content association. Table 2 reports node-level diagnostics separately from answer-group coverage. Among the 850 linked runs, the earliest returned association is by round 5 in 395 runs (46.5%) and by round 20 in 754 (88.7%); the median is round 6, with an interquartile range of 3–13. These locations identify related content for retrospective inspec-tion, not when the agent first made an erroneous commitment. Constraint violation (2,124 nodes), insufficient evidence (1,782), and missing required field (1,222) account for 78.86% of typed nodes. 
+
+Figure 3 shows their model-specific composition: the constraint-violation share is 21.15% for V3.2 and 33.55% for V4-Flash despite their similar ag-gregate AS. The taxonomy summarizes the judges’ diagnostic categories over candidate content. Hu-man validation below assesses correspondence be-tween the returned locations and their target answer groups through a manual audit of all retained links in the sampled trajectories. 
+
+4.4 Evaluator Reliability and Human Validation Audit design. The post-hoc audit covers 946 sup-plied answer groups across all tasks , with two randomly sampled model responses per task. Hu-man labels serve as validation references, not inputs to scoring or localization. The primary reviewer (H1) checks requirements and the original cited URLs, assigns correct/incorrect/unverifiable labels, and derives response-level scores. Automatic ver-dicts, scores, reasons, and model metadata are with-held until annotation is locked. The review retains 8GPT-6.1-Sol GPT-6-Luna-Pro GPT-5.4 GPT-5-Mini Gemini-3.1-Pro Gemini-2.5-Flash Kimi-K2.6 Kimi-K2.5 Qwen3.7-Plus Qwen3.6-Flash DeepSeek-V4-Flash DeepSeek-V3.2 GLM-5 GLM-4.7-Flash Grok-4.20 Nemotron-3-Ultra        
+
+> Constraint violation Insufficient evidence
+> Missing required field
+> Temporal / scope Source not supporting Wrong entity Source quality error Count / grouping Formatting / mapping Other error
+
+Error type          
+
+> 0% 5% 10% 15% 20% 25% 30% 35% 40% 45%
+
+Within-model share of typed failure nodes (%)                                                                                                                                   
+
+> 28% 24% 27% 4% 3% 7% 6% 1% 18% 28% 29% 9% 3% 9% 2% 31% 16% 33% 10% 2% 5% 3% 36% 31% 18% 4% 7% 3% 2% 36% 27% 16% 5% 7% 4% 4% <1% <1% 33% 20% 13% 24% 2% 4% 4% <1% <1% 37% 33% 11% 4% 4% 5% 5% <1% <1% 33% 33% 16% 6% 4% 2% 6% <1% 40% 19% 22% 4% 5% 5% 4% <1% <1% 44% 30% 10% 3% 5% 4% 4% <1% 34% 30% 22% 4% 4% 4% 1% <1% 21% 28% 27% 8% 4% 6% 5% <1% <1% 32% 29% 21% 6% 4% 5% 4% 29% 26% 26% 5% 6% 4% 4% <1% <1% 33% 32% 15% 6% 5% 4% 4% <1% 35% 28% 17% 3% 5% 7% 4% <1%
+> Typed Unassigned
+> 155 0130 0283 1307 3390 10 774 3547 1534 10 275 1213 4304 0506 0449 2554 1579 1503 5
+
+Figure 3: Diagnostic type composition of 6,503 automatically flagged and typed candidate nodes. Each model is normalized by its own typed-node count; 42 unassigned nodes remain in localization totals but not in type denominators. 30 35 40 45 50 55 60 65 70 
+
+> Answer Score
+> 30 35 40 45 50 55 60 65 70
+> Answer Precision (%)
+> GPT-6.1-Sol GPT-6-Luna-Pro GPT-5.4 GPT-5-Mini Gemini-3.1-Pro Gemini-2.5-Flash Kimi-K2.6 Kimi-K2.5 Qwen3.7-Plus Qwen3.6-Flash DeepSeek-V4-Flash DeepSeek-V3.2 GLM-5 GLM-4.7-Flash Grok-4.20 Nemotron-3-Ultra
+
+Figure 4: Answer Score versus Answer Precision for 16 LLMs. Colors and lines denote model families. 
+
+the supplied group boundaries, all 200 responses (including four confirmed empty-group responses), and both sides’ recorded quantity parameters. A second reviewer (H2) independently checks a fixed 40-response, 172-group subset. Reported intervals use 10,000 paired task-cluster bootstrap resamples, retaining each task’s two responses and all associ-ated group-level records. 
+
+Outcome agreement. Table 3 reports Pearson 
+
+r, Spearman ρ, and Kendall τ on the same 200 re-sponse pairs. At group level, 894/946 judgments agree (94.50%; κ = 0 .8989 ). AS and AP have mean absolute errors of 4.88 score points and 4.45 percentage points, with machine-minus-human bi-ases of 0.84 and 0.46, respectively. The AS and AP Pearson 95% intervals are [0 .8496 , 0.9519] 
+
+and [0 .8595 , 0.9588] . The two human reviewers agree on 160/172 subset group labels (93.02%; 
+
+κ = 0 .8574 ). Figure 5 complements these statis-tics by showing repeated exact matches across score levels and lower-frequency off-diagonal dis-crepancies. The agreement in group judgments and response-level scores supports the validity of source-constrained evaluation on the supplied an-swer groups. 
+
+Table 3: Score correlations following the 946-group human audit. Each coefficient uses 200 response pairs from 100 tasks. 
+
+Score Pearson r Spearman ρ Kendall τ
+
+Answer Score 0.9054 0.9035 0.8609 Answer Precision 0.9132 0.9103 0.8712 
+
+Within-task comparison. When both compar-isons are non-tied, automatic and human orderings agree on 56/60 tasks for AS and 57/61 for AP. In-cluding 28/27 shared ties gives 84/100 matching relations for each metric; each also has four re-versed non-ties and 12 one-sided ties. These results assess within-task comparisons between the two sampled model responses. 
+
+Round-to-answer correspondence. The pro-90 20 40 60 80 100      
+
+> Human Answer Score
+> 020 40 60 80 100
+> LongSearchEval Answer Score
+> (a) Answer Score 020 40 60 80 100
+> Human Answer Precision (%)
+> 020 40 60 80 100
+> LongSearchEval Answer Precision (%)
+> (b) Answer Precision
+
+Figure 5: Automatic–human outcome-score alignment in the post-hoc validation study: (a) Answer Score and (b) Answer Precision. Both panels use the same 200 response pairs from 100 tasks. Dashed lines indicate exact agreement ( y = x); marker area is proportional to the number of responses sharing the same score pair. 
+
+cess sample covers all 2,642 normalized rounds of 100 runs from 50 randomly selected tasks. All 317 retained round–group links are reviewed, in-cluding every retained edge in the sample. A sup-ported link shares a verified, locatable feature such as an entity, URL, provider, or price; topic similarity alone is insufficient. For split/merged groups, at least one mapped target must satisfy this rule. Review confirms 311/317 links, giv-ing 98.11% feature-correspondence precision 
+
+(95% CI: [96 .15 , 99 .40] ). The audit supports high-precision localization of answer-related trajectory content under the defined feature-correspondence criterion. 
+
+Audit criteria. A separate audit using an ex-plicit erroneous-commitment criterion assigned no error labels to the reviewed rounds, whereas the candidate-content procedure produced 349 flags. These counts concern different annotation targets. The returned-link audit above evaluates the outcome-conditioned content-localization task de-fined in Section 3.3. 
+
+Internal consistency. Judges A and B agree on 12,417 of 14,818 round-level verdict pairs (83.80%). Among 4,612 rounds jointly labeled as error with comparable normalized types, their type judgments agree in 4,032 cases (87.42%). To-gether with human validation of answer scores and returned-link correspondence, these results provide empirical support for the effectiveness and reliabil-ity of L ONG SEARCH EVAL in source-constrained evaluation and retrospective trajectory-content lo-calization. 
+
+5 Conclusion 
+
+We presented L ONG SEARCH EVAL , a trajectory-aware agent evaluation framework for long-horizon web search that combines agent execution under a unified protocol, source-constrained outcome ver-ification, and retrospective failure-node localiza-tion. The 16-model, 1,600-run corpus combines answer scores, search behavior, and inspectable round-group associations. Similar answer scores can accompany different search workloads. Con-ditioned on the final response and Stage 1 judg-ments, localization connects answer groups with inspectable trajectory content. Correct webpage ob-servations can still be diagnostically useful when compared with a group judged incorrect; the full candidate inventory is reported separately from re-turned answer-linked evidence. Human validation demonstrates close alignment with reference an-swer judgments and high precision in returned con-tent correspondences. Together with cross-judge agreement, these findings support the effectiveness and reliability of L ONG SEARCH EVAL for source-constrained outcome evaluation and retrospective trajectory inspection. 
+
+References 
+
+Léo Boisvert, Megh Thakkar, Maxime Gasse, Massimo Caccia, Thibault Le Sellier De Chezelles, Quentin Cappart, Nicolas Chapados, Alexandre Lacoste, and Alexandre Drouin. 2024. WorkArena++: Towards compositional planning and reasoning-based com-mon knowledge work tasks. In Advances in Neural Information Processing Systems , volume 37. 
+
+10 Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D. Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu, Clemens Winter, Chris Hesse, Mark Chen, Eric Sigler, Ma-teusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. Language models are few-shot learners. In Advances in Neural Information Processing Systems , volume 33. Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel Stevens, Boshi Wang, Huan Sun, and Yu Su. 2023. Mind2Web: Towards a generalist agent for the web. In Advances in Neural Information Processing Systems , volume 36. Alexandre Drouin, Maxime Gasse, Massimo Caccia, Issam H. Laradji, Manuel Del Verme, Tom Marty, David Vazquez, Nicolas Chapados, and Alexandre Lacoste. 2024. WorkArena: How capable are web agents at solving common knowledge work tasks? In Proceedings of the 41st International Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 11642–11662. Boyu Gou, Zanming Huang, Yuting Ning, Yu Gu, Michael Lin, Weijian Qi, Andrei Kopanev, Botao Yu, Bernal Jiménez Gutiérrez, Yiheng Shu, Chan Hee Song, Jiaman Wu, Shijie Chen, Hanane Moussa, Tianshu Zhang, Jian Xie, Yifei Li, Tianci Xue, Zeyi Liao, Kai Zhang, Boyuan Zheng, Zhaowei Cai, Vik-tor Rozgic, Morteza Ziyadi, Huan Sun, and Yu Su. 2025. Mind2Web 2: Evaluating agentic search with agent-as-a-judge. In Advances in Neural Information Processing Systems , volume 38. Hongliang He, Wenlin Yao, Kaixin Ma, Wenhao Yu, Yong Dai, Hongming Zhang, Zhenzhong Lan, and Dong Yu. 2024. WebVoyager: Building an end-to-end web agent with large multimodal models. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 6864–6890. Pei Ke, Bosi Wen, Andrew Feng, Xiao Liu, Xuanyu Lei, Jiale Cheng, Shengyuan Wang, Aohan Zeng, Yuxiao Dong, Hongning Wang, Jie Tang, and Minlie Huang. 2024. CritiqueLLM: Towards an informative critique generation model for evaluation of large language model generation. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 13034– 13054. Seungone Kim, Jamin Shin, Yejin Cho, Joel Jang, Shayne Longpre, Hwaran Lee, Sangdoo Yun, Seongjin Shin, Sungdong Kim, James Thorne, and Minjoon Seo. 2024. Prometheus: Inducing fine-grained evaluation capability in language models. In 
+
+The Twelfth International Conference on Learning Representations .Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Lim, Po-Yu Huang, Graham Neu-big, Shuyan Zhou, Russ Salakhutdinov, and Daniel Fried. 2024. VisualWebArena: Evaluating multi-modal agents on realistic visual web tasks. In Pro-ceedings of the 62nd Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) , pages 881–905. Hunter Lightman, Vineet Kosaraju, Yuri Burda, Harri-son Edwards, Bowen Baker, Teddy Lee, Jan Leike, John Schulman, Ilya Sutskever, and Karl Cobbe. 2024. Let’s verify step by step. In The Twelfth Inter-national Conference on Learning Representations .Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu Lei, Hanyu Lai, Yu Gu, Hangliang Ding, Kaiwen Men, Kejuan Yang, Shudan Zhang, Xiang Deng, Ao-han Zeng, Zhengxiao Du, Chenhui Zhang, Sheng Shen, Tianjun Zhang, Yu Su, Huan Sun, Minlie Huang, Yuxiao Dong, and Jie Tang. 2024a. Agent-Bench: Evaluating LLMs as agents. In The Twelfth International Conference on Learning Representa-tions .Yuxuan Liu, Tianchi Yang, Shaohan Huang, Zihan Zhang, Haizhen Huang, Furu Wei, Weiwei Deng, Feng Sun, and Qi Zhang. 2024b. HD-Eval: Aligning large language model evaluators through hierarchi-cal criteria decomposition. In Proceedings of the 62nd Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 7641–7660. Xing Han Lu, Zdenˇ ek Kasner, and Siva Reddy. 2024. WebLINX: Real-world website navigation with multi-turn dialogue. In Proceedings of the 41st Interna-tional Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 33007–33056. Chang Ma, Junlei Zhang, Zhihao Zhu, Cheng Yang, Yujiu Yang, Yaohui Jin, Zhenzhong Lan, Lingpeng Kong, and Junxian He. 2024. AgentBoard: An ana-lytical evaluation board of multi-turn LLM agents. In 
+
+Advances in Neural Information Processing Systems ,volume 37. Grégoire Mialon, Clémentine Fourrier, Craig Swift, Thomas Wolf, Yann LeCun, and Thomas Scialom. 2024. GAIA: A benchmark for general AI assistants. In The Twelfth International Conference on Learning Representations .Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse, Shantanu Jain, Vineet Kosaraju, William Saunders, Xu Jiang, Karl Cobbe, Tyna Eloundou, Gretchen Krueger, Kevin Button, Matthew Knight, Benjamin Chess, and John Schulman. 2021. We-bGPT: Browser-assisted question-answering with hu-man feedback. arXiv preprint arXiv:2112.09332 .Cheng Niu, Yuanhao Wu, Juno Zhu, Siliang Xu, KaShun Shum, Randy Zhong, Juntong Song, and Tong Zhang. 
+
+11 2024. RAGTruth: A hallucination corpus for de-veloping trustworthy retrieval-augmented language models. In Proceedings of the 62nd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 10862–10878. Arjun Panickssery, Samuel R. Bowman, and Shi Feng. 2024. LLM evaluators recognize and favor their own generations. In Advances in Neural Information Processing Systems , volume 37. Chris Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Al-ice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Divya Tyam-agundlu, Timothy Lillicrap, and Oriana Riva. 2025. AndroidWorld: A dynamic benchmarking environ-ment for autonomous agents. In The Thirteenth Inter-national Conference on Learning Representations .Dongyu Ru, Lin Qiu, Xiangkun Hu, Tianhang Zhang, Peng Shi, Shuaichen Chang, Cheng Jiayang, Cunxi-ang Wang, Shichao Sun, Huanyu Li, Zizhao Zhang, Binjie Wang, Jiarong Jiang, Tong He, Zhiguo Wang, Pengfei Liu, Yue Zhang, and Zheng Zhang. 2024. RAGChecker: A fine-grained framework for diagnos-ing retrieval-augmented generation. In Advances in Neural Information Processing Systems , volume 37. Sijun Tan, Siyuan Zhuang, Kyle Montgomery, William Tang, Alejandro Cuadron, Chenguang Wang, Raluca Popa, and Ion Stoica. 2025. JudgeBench: A bench-mark for evaluating LLM-based judges. In The Thir-teenth International Conference on Learning Repre-sentations .Harsh Trivedi, Tushar Khot, Mareike Hartmann, Ruskin Manku, Vinty Dong, Edward Li, Shashank Gupta, Ashish Sabharwal, and Niranjan Balasubramanian. 2024. AppWorld: A controllable world of apps and people for benchmarking interactive coding agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 16022–16076. Jiaming Wang, Ziteng Feng, Jiangtao Wu, Ruihao Li, Qianqian Xie, Yuxiang Ren, He Zhu, Xueming Han, Fanyu Meng, Junlan Feng, and Jiaheng Liu. 2026. Where do deep-research agents go wrong? span-level error localization in agent trajectories. Preprint ,arXiv:2606.02060. Jiayu Wang, Yifei Ming, Riya Dulepet, Qinglin Chen, Austin Xu, Zixuan Ke, Frederic Sala, Aws Albargh-outhi, Caiming Xiong, and Shafiq Joty. 2025. LiveRe-searchBench: A live benchmark for user-centric deep research in the wild. Preprint , arXiv:2510.14240. Peiyi Wang, Lei Li, Liang Chen, Zefan Cai, Dawei Zhu, Binghuai Lin, Yunbo Cao, Lingpeng Kong, Qi Liu, Tianyu Liu, and Zhifang Sui. 2024a. Large language models are not fair evaluators. In Proceedings of the 62nd Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 9440–9450. Peiyi Wang, Lei Li, Zhihong Shao, Runxin Xu, Damai Dai, Yifei Li, Deli Chen, Yu Wu, and Zhifang Sui. 2024b. Math-shepherd: Verify and reinforce LLMs step-by-step without human annotations. In Proceed-ings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Pa-pers) , pages 9426–9439. Xingyao Wang, Zihan Wang, Jiateng Liu, Yangyi Chen, Lifan Yuan, Hao Peng, and Heng Ji. 2024c. MINT: Evaluating LLMs in multi-turn interaction with tools and language feedback. In The Twelfth International Conference on Learning Representations .Jason Wei, Zhiqing Sun, Spencer Papay, Scott McK-inney, Jeffrey Han, Isa Fulford, Hyung Won Chung, Alex Tachard Passos, William Fedus, and Amelia Glaese. 2025. BrowseComp: A simple yet challeng-ing benchmark for browsing agents. arXiv preprint arXiv:2504.12516 .Jerry Wei, Chengrun Yang, Xinying Song, Yifeng Lu, Nathan Hu, Jie Huang, Dustin Tran, Daiyi Peng, Ruibo Liu, Da Huang, Cosmo Du, and Quoc V. Le. 2024. Long-form factuality in large language mod-els. In Advances in Neural Information Processing Systems , volume 37. Jian Xie, Kai Zhang, Jiangjie Chen, Tinghui Zhu, Renze Lou, Yuandong Tian, Yanghua Xiao, and Yu Su. 2024a. TravelPlanner: A benchmark for real-world planning with language agents. In Proceedings of the 41st International Conference on Machine Learn-ing , volume 235 of Proceedings of Machine Learning Research , pages 54590–54613. Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhou-jun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. 2024b. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In Advances in Neural Information Processing Systems , volume 37. Shunyu Yao, Noah Shinn, Pedram Razavi, and Karthik Narasimhan. 2025. τ -bench: A benchmark for tool-agent-user interaction in real-world domains. In 
+
+The Thirteenth International Conference on Learning Representations .Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2023. ReAct: Synergizing reasoning and acting in language models. In The Eleventh International Conference on Learning Representations .Ori Yoran, Samuel Joseph Amouyal, Chaitanya Malaviya, Ben Bogin, Ofir Press, and Jonathan Be-rant. 2024. AssistantBench: Can web agents solve realistic and time-consuming tasks? In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , pages 8938–8968. 
+
+12 Zhiyuan Zeng, Jiatong Yu, Tianyu Gao, Yu Meng, Tanya Goyal, and Danqi Chen. 2024. Evaluating large lan-guage models at evaluating instruction following. In 
+
+The Twelfth International Conference on Learning Representations .Muru Zhang, Ofir Press, William Merrill, Alisa Liu, and Noah A. Smith. 2024. How language model hallucinations can snowball. In Proceedings of the 41st International Conference on Machine Learning ,volume 235 of Proceedings of Machine Learning Research , pages 59670–59684. Chujie Zheng, Zhenru Zhang, Beichen Zhang, Runji Lin, Keming Lu, Bowen Yu, Dayiheng Liu, Jingren Zhou, and Junyang Lin. 2025. ProcessBench: Iden-tifying process errors in mathematical reasoning. In 
+
+Proceedings of the 63rd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 1009–1024. Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuohan Li, Dacheng Li, Eric P. Xing, Hao Zhang, Joseph E. Gonzalez, and Ion Stoica. 2023. Judging LLM-as-a-judge with MT-Bench and chatbot arena. In Advances in Neural Information Processing Sys-tems , volume 36. Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, Uri Alon, and Gra-ham Neubig. 2024. WebArena: A realistic web en-vironment for building autonomous agents. In The Twelfth International Conference on Learning Repre-sentations .
+
+13 Supplementary Material 
+
+A Overview and Evaluation Units 
+
+This supplement details the L ONG SEARCH EVAL 
+
+evaluation protocol and results. It follows the same 16-model, eight-family, 100-task comparison, with one retained run per model–task pair. It expands the collection protocol, source-constrained verification, retrospective content localization, and validation. Human review is a separate validation study, not an input to automatic evaluation.    
+
+> How to interpret the localization output
+> Afailure node is a normalized round assigned the stored consensus label error ; it is an automatic candidate flag. A retained link associates that round with an answer group judged incorrect by Stage 1. These associations locate answer-related content in the recorded trajectory. Human review separately evaluates returned feature cor-respondences and explicit agent commitments.
+
+A.1 Reading Guide 
+
+Tasks and evaluator roles appear in Appendix B; collection and normalization in Appendices C and D. Stage 1 and its rubric-consistency analysis appear in Appendix E; Stage 2, its round account-ing, and judge agreement appear in Appendix F. Appendix G brings all ten error-type definitions, four representative cases, and the type distribution together. Appendix H gives the complete quantita-tive diagnostics, followed by human validation in Appendix I and experimental runtime and API bud-gets in Appendix J. Appendix K specifies prompt contracts and reproduction procedures; Appendix L discusses evaluation scope. 
+
+A.2 Objects and Denominators 
+
+For model m and task q, let Fm,q be the retained final response and τm,q = ( r1, . . . , r T ) the nor-malized trajectory. The terminal response is stored separately and never counted as a round. Each run has its own stored rubric Rm,q = ( N, C, ρ ), speci-fying the required answer count, hard constraints, and grouping rule, together with a count mode. Stage 1 extracts groups gi = ( ai, Ui), comprising answer content and cited URLs, and labels each group correct, incorrect, or unverifiable. Type shares use typed nodes only; human-review denominators are specified separately in Appendix I. 
+
+B Tasks, Models, and Evaluator Configuration 
+
+The evaluation set targets long-horizon web search. Retained tasks require sustained information seek-ing over public webpages, explicit constraint track-ing, and a final response whose answer items can be checked against cited webpage sources. The separate taxonomy-development set appears in Ap-pendix G.3. 
+
+B.1 Operational Task Definition 
+
+A retained long-horizon web search task requires an agent to search, open, read, compare, and verify information from public webpages and then pro-duce a response that can be checked from those webpages. Tasks may require multiple candidates, fields, sources, or constraint checks; they are not restricted to a single answer string or a single sup-porting page. For every retained task, the final-answer instruc-tion requires each answer item or answer group to include the corresponding webpage URL or URLs that verify the information in that group. When an original task does not specify how many items should be returned, the adapted task specifies an appropriate minimum count. This makes task-level coverage measurable while preserving group-level verification: a task can require at least N valid groups, while each proposed group must indepen-dently satisfy all applicable hard constraints and source requirements. The adapted task text, including any added source or minimum-count requirement, defines the shared task specification for the evaluated models. The evaluation pipeline does not require a human-authored gold final answer or pre-labeled trajectory errors to generate the reported outcome and process diagnostics. 
+
+B.2 Source Composition 
+
+The 100-task main evaluation set contains 46 tasks derived from Mind2Web 2, 20 from LiveResearch-Bench, 29 from AssistantBench, and 5 manually curated tasks. Model comparisons aggregate over the complete task set. The five manually curated tasks are subjected to the same task-definition, source-grounding, and weak-tool-suitability requirements as the 14 Unit Meaning and aggregation        
+
+> Task / retained run 100 task IDs; 1,600 model–task cells. Retries and resumes do not add samples. Answer group 7,685 supplied groups. AS, AP, and Upper are run-level scores macro-averaged over 100 tasks per model; UGR pools groups. Normalized round 42,658 ordered units; distinct from raw controller iterations and individual tool calls. Flagged node 6,545 consensus-error rounds, including 42 without an assigned type. Counts summarize the automatic diagnostic inventory. Retained edge A distinct run–round–incorrect-group triple. 5,798 edges connect 3,664 nodes to 2,229 groups. Each unit has its own denominator. Earliest association Minimum linked-round index, conditional on a retained link; defined for 850 runs. The other 750 receive no index.
+> Table A1: Evaluation units and their separate aggregation denominators.
+
+benchmark-derived tasks. They are included to sup-plement the retained benchmark subsets rather than to define a separate evaluation regime. 
+
+B.3 Selection and Adaptation 
+
+Selection used five qualitative criteria: public-web feasibility, a need to compare multiple pages or candidates, explicit jointly applicable constraints, human-checkable evidence, and compatibility with the five shared tools. Tasks dependent on login, maps, decisive visual evidence, or unsupported in-teraction are excluded. Adaptation requires support-ing URLs per answer group and adds an explicit minimum count where the original request leaves quantity open. Temporal, scope, source, formatting, and candidate-level conditions remain in the task shown to every model; they are not hidden scoring requirements. 
+
+B.4 Stored and Derived Task Metadata 
+
+The core stored task object contains task_id, cate-gory, and question. The category field retains het-erogeneous descriptive tags. Primary model results aggregate over all task IDs using the same task population. 
+
+Stored fields. task_id joins the task, trajectory, manifest, Stage 1, and Stage 2 artifacts; question records the adapted task text; and category is re-tained only as an unconsolidated descriptive tag. 
+
+Derived diagnostics. question_word_count records prompt length, while rubric_variation de-scribes field-level variation across run-specific rubrics in Appendix E. Neither quantity enters scor-ing. Because Stage 1 reconstructs a rubric indepen-dently for every model–task run, exact free-text rubric hashes are not treated as task-level ground truth. All reported outcome scores use the rubric stored in the corresponding run report. 
+
+B.5 Evaluated Model Inventory 
+
+The retained main comparison comprises 16 mod-els from eight families, each evaluated on the same 100 tasks with the shared weak-tool controller. The run-selection manifest binds each retained tra-jectory to its evaluated model; trace02 identifies DeepSeek-V3.2 in this comparison. 
+
+B.6 Evaluator Role Assignment 
+
+Stage 1 uses DeepSeek-V4-Pro as a single veri-fier for rubric construction and source-constrained answer verification. Stage 2 uses DeepSeek-V4-Pro as Judge A and Qwen3.7-Max as Judge B; Qwen3.7-Max also supplies the arbiter. These as-signments are fixed across evaluated models and tasks. Evaluated-model identity is excluded from evaluator inputs. Stage 1 uses the task, answer groups, and evidence from agent-provided URLs without replacement search. Each Stage 2 judge re-ceives the task, run-specific rubric, final response, Stage 1 verdicts, and normalized round, without web access. Only the arbiter additionally receives the two judge outputs. Human review validates this automatic framework and is not an operational step in its evaluation pipeline. 
+
+C Controlled Weak-Tool Trajectory Collection 
+
+This section expands the controlled collection pro-tocol summarized in the main paper. All evalu-ated models use the same ReAct controller, system prompt, five-tool interface, iteration budget, and execution policy; only the underlying LLM varies during collection. Under these fixed conditions, the observable trajectory exposes model-side search planning, URL selection, page reading, keyword localization, link navigation, evidence checking, and final synthesis. Scoring uses a fixed evalua-15 Family Evaluated models Trajectories                    
+
+> GPT GPT-6.1-Sol; GPT-6-Luna-Pro; GPT-5.4; GPT-5-Mini 400 Gemini Gemini-3.1-Pro; Gemini-2.5-Flash 200 Kimi Kimi-K2.6; Kimi-K2.5 200 Qwen Qwen3.7-Plus; Qwen3.6-Flash 200 DeepSeek DeepSeek-V3.2; DeepSeek-V4-Flash 200 GLM GLM-5; GLM-4.7-Flash 200 Grok Grok-4.20 100 Nemotron Nemotron-3-Ultra 100
+> Total 16 models, eight families 1,600 Table A2: Main evaluation inventory across 100 tasks. Each of the 16 models contributes one retained trajectory per task, giving 1,600 trajectories across eight families. Model names follow the main paper.
+
+tor configuration with independently reconstructed run-specific rubrics, as detailed in Appendix E. Retained-run and recovery rules are specified in Appendix D.8. 
+
+C.1 Measurement Objective and Information Boundary 
+
+The controlled interface keeps page selection, pas-sage inspection, and strategy revision observable.      
+
+> Weak-tool information boundary Discovery. web_search exposes ranked titles, URLs, and domains; open_url creates a cached page record and returns metadata, not body text. Evidence. Only read_page and find_on_page expose cached page text to the model; extract_links exposes only anchors and destination URLs. Excluded assistance. The interface supplies no query-aware snippets, page summaries, se-mantic retrieval, reranked passages, direct answers, or LLM-generated webpage extraction.
+
+C.2 Shared ReAct Controller 
+
+The agent is implemented as a text-style ReAct con-troller connected to an OpenAI-compatible model endpoint. Function-calling mode is disabled so that the controller emits an observable sequence of model messages, tool requests, tool results, and a terminal final-response marker. These records are captured by the collection framework and later con-verted into the normalized trajectory representation described in Appendix D. A controller iteration may produce a tool request, an observation-dependent follow-up decision, or a terminal response. Malformed actions are first han-dled by the implementation’s mechanical parser recovery. If parsing still fails, the format error and expected action format are returned to the model, and the correction consumes another ReAct itera-tion rather than a separate malformed-action bud-get. 
+
+C.3 Weak-Tool Interface 
+
+The agent registers exactly five web tools. Their roles are intentionally separated so that discover-ing a URL, opening a page, reading its body text, locating a literal term, and following links remain distinct model decisions. The model-visible con-tracts are: 
+
+web_search. Input is a query and requested re-sult count, capped at 10. The model receives only the query plus ranked titles, URLs, and domains. Snippets, page content, answer boxes, knowledge-graph fields, summaries, semantic chunks, rele-vance scores, and direct answers are excluded. 
+
+open_url. Input is a candidate URL. The tool re-turns a page identifier and metadata: requested and resolved URLs, status, title, cleaned-text length, extracted-link count, and cache status. It does not return body text, a relevant passage, a main-content summary, a query-aware fragment, or an LLM-generated description. 
+
+read_page. Inputs are a page identifier, start offset, and requested character count (default 3,000; hard cap 5,000). The return is an exact character slice from mechanically cleaned cached text. No rewrit-ing, compression, semantic filtering, reranking, or summarization is applied. 
+
+find_on_page. Inputs are a page identifier, lit-eral keyword, maximum matches, and context width. The model receives case-insensitive exact-substring matches with local cached-text con-text, without semantic search, BM25, embeddings, query expansion, fuzzy retrieval, or LLM extrac-tion. 
+
+extract_links. Inputs are a page identifier and max-imum link count. The tool mechanically returns anchor text and absolute URLs, without relevance ranking, recommendations, target-page summaries, or preselection of “useful” links. 16 C.4 Representative ReAct Search Episode 
+
+Figure A1 follows Qwen3.7-Plus on 
+
+ds_003_trace_03 : R11 discovers the BMA House URL, R12 opens it, and R13–R14 read and search the same cached page. Each step is a separate nor-malized round. R13 exposes 3,000 of the 10,376 cached characters, and R14 returns four literal matches for delegate . The displayed “Thought” is model-emitted controller text. The terminal re-sponse is stored separately from these normalized rounds. 
+
+C.5 Effective Execution Controls Table A3 records the collection configuration. The 120-iteration budget and generate early-stopping setting are present in all 1,600 retained run mani-fests. Other operational values below come from the archived configuration audit and implementa-tion snapshot; per-run historical environment over-rides are not fully persisted. Parser corrections consume ordinary iterations, requests above a tool cap are truncated, and a failed web request is returned as an observable tool error. The LLM timeout applies per request attempt, not to the complete trajectory; no fixed end-to-end wall-clock limit is imposed. The 660-second watchdog measures absence of subprocess output, not absence of a new webpage or search result. It is therefore distinct from the soft and hard search-stagnation counters. The latter monitor search progress inside the agent, whereas the watchdog monitors whether the batch subpro-cess is still producing observable output. 
+
+C.6 Stored Artifacts and Behavioral Diagnostics 
+
+For each retained model–task trajectory, the col-lection project stores raw and human-inspectable interaction records, run metadata, behavioral met-rics, and checkpoint state. Run identifiers join these records to tasks and model metadata. 
+
+Interaction records. The raw record preserves ordered model messages, tool calls, observations, and terminal output. The human-inspectable trajec-tory adds normalized model-decision blocks and trajectory-round boundaries for downstream audit-ing. 
+
+Join and recovery metadata. Manifests store run, task, model, trajectory, configuration, and artifact identifiers; checkpoint state supports resumption without creating an additional experimental sam-ple. 
+
+Behavioral and finalization diagnostics. Tool-use fields summarize calls, domains, URLs, and text read. Separate finalization fields record answer provenance, termination, evidence use, validator status, premature answering, and budget exhaus-tion; they do not form one mutually exclusive state. Existing code identifiers may retain the legacy term trace; the paper-facing description uses trajec-tory .The large internal webpage caches are not part of the paper-facing package. The archived analy-sis records contain the URLs and observable web-page text presented within the trajectory records, together with final responses, manifests, metrics, and evaluation reports. The implications for exact re-aggregation and live-web re-verification are dis-cussed in Appendix K. 
+
+D Trajectory Construction, Finalization, and Recovery 
+
+The collection framework records low-level observ-able events, whereas L ONG SEARCH EVAL oper-ates on normalized trajectory rounds and a separate terminal final response. This section specifies the transformation between these representations and distinguishes trajectory construction from termi-nal validation, collection-time final synthesis, and infrastructure recovery. 
+
+D.1 Observable Event Record 
+
+The raw record preserves observable controller events in chronological order: the task question, model-produced ReAct messages, tool requests and results, and a terminal final-answer marker. The formatted record uses event classes such as Ques-tion, ReasoningRound, ToolCall, ToolCallResult, and FinalAnswer. Trajectory construction uses only this recorded interaction; hidden model states and external web evidence are outside the extractor’s inputs. 
+
+D.2 Trajectory-Round Construction 
+
+The production extractor preserves event order and applies deterministic boundaries to the observable ReAct sequence. A new model-decision turn opens a round; tool actions and results follow the im-plemented tool-stage order. A round may begin at 
+
+open_url or a later stage when earlier stages are 17 Representative Agent Search Episode 
+
+ds_003 | ds_003_trace_03 | Qwen3.7-plus | R11–R14 | bmahouse.org.uk 
+
+STEP 1  Website Searching  Normalized Round R11 
+
+Observable Thought 
+
+I have good data on 20 Cavendish Square. Now 
+
+let me search for more central London venues 
+
+with DDR or pricing for 80-120 people. 
+
+Tool : web_search 
+
+{'query': 'central London conference venue 
+
+day delegate rate 100 people hire price', 
+
+'max_results': 10} 
+
+Observation 
+
+{"query": "central London conference venue day delegate rate 100 
+
+people hire price", "results": 
+
+[..., 
+
+{"rank": 9, 
+
+"title": "Central London Conference Venue - BMA House", 
+
+"url": "https://bmahouse.org.uk/conferences/", 
+
+"domain": "bmahouse.org.uk"} 
+
+, ...]} 
+
+STEP 2  Page Opening  Normalized Round R12 
+
+Observable Thought 
+
+Let me check BMA House and University of 
+
+London for central London venues with 
+
+capacity and pricing information. 
+
+Tool : open_url 
+
+{'url': 'https://bmahouse.org.uk/conferences/'} 
+
+Observation 
+
+{ "page_id": "p_838767970bb0", 
+
+"url": "https://bmahouse.org.uk/conferences/", 
+
+"final_url": "https://bmahouse.org.uk/conferences/", 
+
+"status_code": 200, 
+
+"title": "Central London Conference Venue | BMA House", 
+
+"text_length": 10376, 
+
+"link_count": 76, 
+
+"cached": false }
+
+STEP 3  Text Exposure  Normalized Round R13 
+
+Observable Thought 
+
+Let me read the BMA House page to check 
+
+capacity and pricing information. 
+
+Tool : read_page 
+
+{'page_id': 'p_838767970bb0', 'start': 0, 
+
+'max_chars': 3000} 
+
+Observation 
+
+{"page_id": "p_838767970bb0", "start": 0, "end": 3000, 
+
+"text_length": 10376, 
+
+"text": "Central London Conference Venue | BMA House\n...\nWith 
+
+capacities ranging from 10 all the way up to 320 delegates, the 
+
+venue is fully flexible;\n..."} 
+
+STEP 4  Literal Localization  Normalized Round R14 
+
+Observable Thought 
+
+Let me find BMA House's specific room 
+
+capacities and DDR information. 
+
+Tool : find_on_page 
+
+{'page_id': 'p_838767970bb0', 
+
+'keyword': 'delegate', 'max_matches': 5} 
+
+Observation 
+
+{"page_id": "p_838767970bb0", "keyword": "delegate", 
+
+"num_matches_returned": 4, "matches[3]. 
+
+context": "...\nHOSPITALITY MENUS\nDRINKS MENUS\nDAY 
+
+DELEGATE RATES\nROOM HIRE RATES & 
+
+CAPACITIES\nRooms available\nGreat Hall\nThe flagship room of 
+
+BMA House.\nRoom dimensions:\nL33.48m x W13.72m x 
+
+H8.97m\nMaximum capacity:\n320\nREAD MORE\nPaget room\nA 
+
+beautiful space full of character.\nRoom dimensions:\nL16.9m x 
+
+W12.48m x H5.1m\nMaximum capacity:\n160\n..."} 
+
+Round Outcome 
+
+The stored page evidence exposes day-delegate and room-hire sections and reports room capacities 
+
+of 320 and 160. Figure A1: Recorded rounds R11–R14: candidate discovery, metadata-only opening, cached-text exposure, and literal localization. R13–R14 reuse the page identifier from R12; ellipses abbreviate stored fields. 
+
+Control Effective value 
+
+Maximum ReAct budget 120 iterations Early-stopping method generate web_search results Default 10; hard cap 10 read_page characters Default 3,000; hard cap 5,000 LLM request timeout 600 seconds per attempt web_search timeout 10-second connect; 20-second read open_url timeout 10-second connect; 25-second read Cached-page tools No network request End-to-end wall-clock limit None No-output watchdog / check / grace 660 / 5 / 5 seconds Search-stagnation thresholds Soft 8; hard 14 Total-search thresholds Soft 50; hard 75 Hard-brake evidence target 3 evidence items 
+
+Table A3: Recorded collection controls; historical per-run coverage is specified in the text. Per-request timeouts and the subprocess watchdog are distinct from search-stagnation controls. 
+
+absent. A transition back to an earlier stage can open another round: for example, find_on_page 
+
+followed by open_url creates a boundary under the production ordering. Rounds therefore differ from raw events and indi-vidual tool calls. Their boundaries follow recorded decisions and tool-stage transitions without post-hoc human segmentation by topic, candidate set, or semantic similarity. The terminal response is ex-tracted separately and receives no round index. The production extractor’s event-type branches specify the exact boundary rules. 18 D.3 Worked Round Boundaries 
+
+The production boundary rules can be read from three retained examples: • ds_009_trace_03 : new model decisions open R1–R4; R1–R3 contain search results and R4 an opening result. A read request present only as unexecuted call text in R4 contributes no page-text observation. • ds_058_trace_03 : R3 begins directly with an opening result; the extractor does not invent a preceding search stage. • ds_065_trace_06 : an opening result in R4 is fol-lowed by a search result, resetting the tool-stage order and starting R5. The final response remains separate in each exam-ple. 
+
+D.4 Terminal Final-Response Separation 
+
+The normalized trajectory is represented as 
+
+τm,q =  rm,q, 1, . . . , r m,q,T m,q 
+
+ ,Am,q = ( τm,q , F m,q ) .
+
+Stage 1 evaluates Fm,q , while Stage 2 audits the in-dexed rounds of τm,q conditioned on that response and its Stage 1 judgments. The terminal-output parser distinguishes acanonical agent final response from intermediate tool syntax or malformed terminal content. Final-answer validity checks reject, among other cases: • empty or degenerate repeated output; • raw tool-call text, tool JSON, or XML-style tool-call syntax; • page metadata presented as if it were the answer; • malformed terminal content that cannot be inter-preted as a final response; • an answer produced before any executed page-text reading or literal-search evidence operation. The last condition implements the evidence-before-answer requirement: search titles and opened-page metadata alone do not count as page-text evidence. 
+
+D.5 Collection-Time Final-Only Synthesis 
+
+If terminal output is invalid but the trajectory already contains usable evidence, the collection framework may request a no-tool final-only syn-thesis. The model receives the already collected context but cannot invoke additional web tools. The current configuration permits up to two final-synthesis attempts. A synthesized final answer is recorded through explicit final-answer provenance fields rather than inferred from answer text or stored as a sec-ond trajectory. The collection record sets fi-nal_answer_source to final_recovery; the manifest and finalization record persist the same source value. Downstream audit code derives the fi-nal_only_synthesis flag strictly from this field. If usable evidence is unavailable, the framework preserves an invalid fallback rather than fabricating a source-grounded response. Final-only synthesis records a distinct terminal-response construction path; the resulting answer undergoes the same col-lection checks and subsequent evaluation. Both evaluation stages receive the retained re-sponse unchanged. Evaluation-time normalization applies to trajectory structure, URLs, schemas, and judge outputs. 
+
+D.6 Retry and Recovery Layers 
+
+The recovery layers may overlap, but none creates an additional experimental replicate: • Request layer. Web-tool HTTP calls are not automatically retried; a backend exception be-comes an observable tool error. Model requests use framework retry setting 5, while malformed provider response objects permit up to three shape-recovery attempts. • Controller layer. Mechanical parser recovery is attempted for malformed ReAct actions; unre-solved format errors consume ordinary ReAct iterations rather than a separate retry budget. • Process layer. A failed batch subprocess per-mits up to two attempts, and a saved runtime checkpoint permits up to three auto-resume at-tempts. Resume markers remain observable in the retained artifact. • Terminal layer. Collection-time no-tool final-only synthesis permits up to two attempts using already collected evidence. Provider connection, timeout, rate-limit, and internal-server exceptions are handled by the model-request layer. Web-tool exceptions are in-stead returned as observable tool errors. If a run-time exception persists, the framework saves a checkpoint before applying the configured resume policy. 19 D.7 Execution-State Dimensions 
+
+Execution and finalization fields arise from differ-ent dimensions and should not be interpreted as one mutually exclusive status variable. 
+
+Availability and provenance. has_final_answer records whether a terminal object is present. final_ answer_source distinguishes agent, final_recovery, and fallback, while final_answer_reason records the selected terminal path. 
+
+Budget, evidence, and validation. max_ iterations_reached may coexist with a saved response; evidence_requirement_met records whether page text was obtained before finalization; and the validity flags plus final_answer_invalid_ reason record the terminal validator outcome. 
+
+Behavior and recovery. premature_answer marks answering before the required page-text operation. A resume marker records checkpoint-based recov-ery, although the released artifacts do not reliably separate every batch retry from every runtime auto-resume. 
+
+D.8 Retained-Trajectory Policy 
+
+The corpus contains one retained trajectory for each of the 16 × 100 = 1 ,600 model–task pairs. All 1,600 artifacts are preserved and evaluated. Infras-tructure retries, resume attempts, invalid-final re-tries, and finalization repair do not add extra rows to the experimental run matrix. Final-answer prove-nance, terminal validation, evidence status, and re-sume markers remain separate diagnostic dimen-sions and may overlap. Their independently observ-able corpus counts are reported with the extended results in Appendix H. Cache use and the procedures for offline aggre-gation, evaluator re-execution, and live-web verifi-cation are specified in Appendix K. 
+
+E Stage 1: Source-Constrained Outcome Verification 
+
+Stage 1 evaluates the terminal response as a set of source-grounded answer groups and assigns one of three verdicts to each extracted group.       
+
+> Stage 1 evidence contract Receives. The task question and retained terminal re-sponse; the run-specific rubric and answer groups are re-constructed within Stage 1. May access. Only webpages cited in the evaluated agent’s answer-group URL sets, using saved or newly fetched text for those same URLs.
+> Must not use. Evaluated-model identity, replacement search, uncited pages, or external evidence introduced to repair a missing citation. Access-only state. Unverifi-able is reserved for a non-empty cited URL set whose members all fail solely because of access uncertainty, with no established answer-visible blocking failure.
+
+E.1 Inputs and Run-Specific Rubrics 
+
+For each retained model–task run (m, q ), Stage 1 receives the task question q and the terminal re-sponse Fm,q . Under the same evaluator configu-ration, it independently constructs from the task question 
+
+Rm,q = ( Nm,q , Cm,q , ρ m,q ) ,
+
+where Nm,q is the required number of answer groups under the stored count mode, Cm,q is the set of hard constraints, and ρm,q specifies how the response should be divided into groups. Task-level count requirements are used for coverage scoring, whereas group-level constraints determine whether an individual proposed group is acceptable. The rubric is reconstructed separately for every retained run rather than generated once and shared across all 16 models. This reflects the implemented evaluation pipeline; each run is scored using the rubric stored in its own report. The evaluated model identity is excluded from rubric generation, and no canonical rubric is substituted post hoc when computing the reported scores. The fixed evaluator configuration and saved run-specific rubrics jointly define the scoring protocol. Field-level consistency across the 16 reconstructions per task is summa-rized at the end of this section. 
+
+E.2 Answer-Group Extraction 
+
+Given Rm,q , Stage 1 parses the terminal response into 
+
+G(Fm,q ) = {gm,q,i = ( am,q,i , Um,q,i )}Pm,q  
+
+> i=1
+
+,
+
+where am,q,i contains the answer content assigned to group i and Um,q,i contains the URLs cited for that group. The grouping rule ρm,q determines the evaluation unit: depending on the task, a group may represent one entity, one row, one candidate with several required fields, or another task-defined answer unit. Group extraction is automatic and is not manu-ally corrected before scoring. Multiple URLs may be attached to one group, including cases in which different URLs support different required fields. 20 Missing citations yield an empty URL set rather than external source discovery by the evaluator. Re-sponses that do not follow the requested output format are still parsed when the required answer units can be recovered from the response; other-wise, missing or malformed content is reflected in the extracted groups and subsequent verdicts. 
+
+E.3 URL-Constrained Evidence Acquisition 
+
+For each group gi = ( ai, Ui), the verifier may inspect only the URLs in Ui. It does not issue a search query, replace a missing source, or obtain additional evidence from an uncited page. Existing usable cached webpage text is reused. If a cached page is marked abnormal, the evaluator first at-tempts to fetch and cache that page again before assigning the source state. Let Ei denote the webpage evidence obtained from the cited URL set. We set βi = 1 when at least one URL yields usable content. We set γi = 1 
+
+when Ui is non-empty but every cited URL fails solely because of access uncertainty, such as a time-out, network failure, anti-bot blocking, or tempo-rary unavailability. Missing URLs, malformed or fabricated URLs, irrelevant pages, and reachable pages that do not support the claim are not treated as access-only failures. The evaluation-time cache stabilizes verifica-tion. Saved reports preserve the evidence references and verdicts used for statistical re-aggregation (Ap-pendix K). 
+
+E.4 Multiple and Conflicting Sources 
+
+When a group cites multiple URLs, the verifier con-siders their available texts jointly. Different sources may support different fields or constraints of the same group, and no single URL is required to estab-lish every field when the combined cited evidence is sufficient. Conversely, the presence of one rele-vant URL does not make the group correct when another required field remains unsupported. The verifier does not apply a fixed preference for official, primary, or secondary sources unless the task itself imposes an explicit source-quality con-straint. When cited sources disagree, the Stage 1 judge resolves the group using the complete cited evidence and emits one of the existing three ver-dicts; the implementation does not introduce a sep-arate unresolved-conflict category. With mixed us-able and inaccessible sources, the verdict follows the usable cited evidence and applicable answer-visible requirements. The formal rule below sepa-rates these checks from access uncertainty. 
+
+E.5 Group Verdicts 
+
+For readability, we suppress the run indices below. Let Ci ⊆ C be the blocking constraints applica-ble to group gi, excluding the task-level count re-quirement. The support function ψ(gi, c, E i) = 1 
+
+indicates support for constraint c, checking cited ev-idence or answer-visible fields as required by its ev-idence domain. Let δi = 1 when an answer-visible blocking failure is already established, such as a missing required field or citation. This condition operationalizes the main paper’s access-only prin-ciple: an established answer-visible failure takes priority over page inaccessibility. The group verdict is 
+
+vi =
+
+
+
+correct ,βi = 1 ∧ δi = 0 
+
+∧ ψ(gi, c, E i) = 1 
+
+∀c ∈ C i,
+
+unverifiable , βi = 0 ∧ γi = 1 
+
+∧ δi = 0 ,
+
+incorrect , otherwise .
+
+Thus, missing citations, unsupported claims, in-valid attributions, missing required fields, and con-straint violations receive incorrect labels, while access-only failures are separated as unverifiable. 
+
+E.6 Outcome Metrics and Aggregation 
+
+Let C, I, and U count correct, incorrect, and unver-ifiable groups, with M = C + I + U . The stored rubric specifies required count N and count mode 
+
+μ (count_mode ). For M > 0 and N > 0, define 
+
+f (K; N, M, μ ) = 
+
+
+
+min( K, N )/N, μ = min ,K/ max( N, M ), μ = exact ,K/M, μ = dynamic_all .
+
+Then AS = 100 f (C; N, M, μ ), Upper 
+
+= 100 f (C + U ; N, M, μ ), and AP =100 C/ max( M, 1) . Confirmed empty responses receive zero. Rubrics require N ≥ 1; a zero-denominator branch returns zero. The minimum-count equation in the main method is the min 
+
+case; exact also penalizes overproduction through 
+
+max( N, M ). Upper treats unverifiable groups as potentially correct without changing their la-bels. Every reported value retains its original 21 run-specific rubric, quantity mode, and saved automatic score; descriptive modal rubrics do not replace the stored scoring objects. AS, AP, and Upper are macro-averages over each model’s 100 tasks. Unverifiable Group Rate instead pools groups: 
+
+UGR m = 100 
+
+P 
+
+> q
+
+Um,q 
+
+P 
+
+> q
+
+Mm,q 
+
+.
+
+These denominators distinguish response-level pre-cision from pooled group-level access uncertainty. 
+
+E.7 Rubric Reconstruction Stability 
+
+All 1,600 stored rubrics are available, giving 16 reconstructions for each of 100 tasks. Table A4 summarizes the completed field-consistency analy-sis. Run-weighted modal coverage sums the largest within-task frequency once per task and divides by 1,600, including tied modes. Unique-mode medi-ans exclude only the tasks tied for that field. Each model score continues to use its own saved rubric; no modal-rubric rescoring was performed. The required count is identical across all 16 runs for 87 tasks, while the hard-constraint count is identical for one task. Complete normalized rubric hashes are distinct for every within-task pair (0/12,000 matches). Normalization applies Uni-code NFKC, collapses whitespace, folds case, sorts dictionary keys and hard constraints, and otherwise preserves list order. These hashes measure literal agreement in the stored rubric fields. Figure A2 shows the task-level distributions across 16 saved runs per task. 
+
+F Stage 2: Retrospective Localization and Linking 
+
+Stage 2 identifies recorded content related to final-answer groups judged incorrect by Stage 1. It re-tains the original candidate checks and the stored 
+
+error /nonerror /skipped labels. A consensus-error 
+
+round is called a failure node , denoting an auto-matic candidate flag under the final-answer context. The output combines this diagnostic inventory with associations to the original Stage 1 group judg-ments. 
+
+F.1 Inputs, Verdicts, and Consensus 
+
+Before judging, a deterministic filter skips struc-turally empty rounds and rounds matching config-ured background or navigation patterns. It applies lexical rules to the recorded text, context, observa-tions, and URLs, including price and URL excep-tions. Each remaining round is sent to both judges, which receive the same tuple 
+
+xm,q,t =  q, R m,q , F m,q , V (1) 
+
+> m,q
+
+, r m,q,t 
+
+,
+
+comprising the task, run-specific rubric, retained final response, Stage 1 group records, and one normalized round. Neither judge has web access, evaluated-model identity, or hidden model states. The output records the verdict, failed criteria, pro-posed group IDs, a reason, and a diagnostic type when applicable. Extracted answer units and rea-sons are evaluator interpretations, stored separately from the model-emitted text. The candidate checks inspect task-relevant claims, evidence interpretations, constraint judg-ments, and candidate content. A nonerror verdict means that no candidate defect is flagged under these checks; skipped means that no evaluable an-swer unit is retained. These labels support outcome-conditioned inspection of the recorded content. 
+
+Agreement on error. Retain Judge A’s base record; union failed criteria and deduplicate the proposed-link union. Use A’s normalized type when available, otherwise B’s. 
+
+Agreement on nonerror or skipped. Retain Judge A’s record. 
+
+Verdict disagreement. Pass the original input and both judge records to the arbiter and adopt its re-turned record. Type disagreement alone preserves the agreed verdict. 
+
+F.2 Round Accounting 
+
+Figure A3 accounts for all 42,658 normalized rounds. Deterministic pre-filtering skips 26,379 rounds before judging; 16,279 proceed to both judges. Of these, 1,545 are skipped after judg-ing, leaving 14,734 evaluable records: 6,545 candi-date flags and 8,189 nonerror verdicts. Skipped records are compacted into summaries. These counts concern rounds, rather than provider re-quests or batches. 
+
+F.3 Judge Agreement and Record Coverage 
+
+The paired-record diagnostics reported in the main paper cover 14,818 recovered Judge A/B verdict pairs: 12,417 agree (83.80%) and 2,401 differ. Of 4,679 pairs jointly labeled error, 4,612 have com-parable normalized types; 4,032 type labels agree 22 Field Modal coverage Tied tasks Median unique-mode count Distinct values/task 
+
+Required count N 1,556/1,600 (97.25%) 1 16/16 (99 tasks) 1–5 Hard-constraint count 755/1,600 (47.19%) 11 7/16 (89 tasks) 1–9 Normalized grouping-rule text 927/1,600 (57.94%) 2 10/16 (98 tasks) 1–16 
+
+Table A4: Field-level agreement among the 16 stored rubrics for each task. Grouping-rule agreement measures normalized wording; the other rows measure agreement in the required count and number of constraints. 7 8 9 10 11 12 13 14 15 16 
+
+> Runs matching the unique modal required N (of 16)
+> 020 40 60 80 100
+> Tasks
+
+a Modal required-N coverage (n = 99)        
+
+> Mode ties excluded: 1
+> 132687
+> 12345
+> Distinct required-N values per task
+> 020 40 60 80 100
+> Tasks
+
+b Required-N variation (n = 100)              
+
+> 87 10 21
+> 45678910 11 12 13 14 15 16
+> Runs matching the unique modal hard-constraint count (of 16)
+> 0510 15 20 25 30
+> Tasks
+
+c Modal hard-constraint coverage (n = 89)            
+
+> Mode ties excluded: 11
+> 311 17 17 13 9462331
+> 123456789
+> Distinct hard-constraint counts per task
+> 0510 15 20 25 30
+> Tasks
+
+d Hard-constraint-count variation (n = 100)   
+
+> 1321 25 25 17 521
+
+Figure A2: Field-level rubric stability across 16 saved runs per task (100 tasks; 1,600 rubrics). Panels (a) and (c) show the frequency of the unique modal required count and hard-constraint count, excluding 1 and 11 tasks with tied modes, respectively. Panels (b) and (d) retain all 100 tasks and show the number of distinct values per task. The panels measure structural count agreement. Each run retains its original rubric for scoring. b Persisted-record composition a Complete round flow 
+
+01 
+
+02 
+
+03 
+
+04 
+
+Normalized input 
+
+Deterministic pre-filter 
+
+Final consensus state 
+
+Evaluable verdicts             
+
+> All normalized 42,658
+> Evaluable 14,734 Final skipped 27,924
+> Pre-skipped 26,379 Dual-judged 16,279
+> Error 6,545 Nonerror 8,189
+> Pre-skipped summary
+> 26,379 (61.84%)
+> Detailed evaluable
+> 14,734 (34.54% )
+> Post-judge summary
+> 1,545 (3.62%)
+
+42,658 
+
+rounds  total 
+
+Figure A3: Stage 2 round accounting across 1,600 runs. (a) The 16,279 dual-judged rounds yield 14,734 evaluable records and 1,545 post-judging skips; the latter combine with 26,379 pre-skipped rounds to give 27,924 final skips. The stored error label denotes an automatic candidate flag. (b) Persisted-record composition uses all 42,658 rounds as its denominator: 61.84% pre-skipped summaries, 34.54% detailed evaluable records, and 3.62% post-judge summaries. 
+
+(87.42%) and 580 differ. The remaining 67 pairs contribute to verdict-level accounting and retain a separate non-comparable-type status. 23 Arbiter-return summaries cover 2,317 disagree-ments; another 84 disagreements have no retained summary. These two counts sum to the 2,401 ver-dict disagreements. Paired-record rates use rounds for which both judge objects were recovered, in-cluding recoverable post-judging skipped records. The 16,279 dual-judged rounds in Appendix F.2 in-stead describe the complete operational workload. Each statistic therefore retains its corresponding record population. 
+
+F.4 Proposed Links and Target-Status Filtering 
+
+The prompt supplies all Stage 1 groups and their verdicts and asks the judges to consider task-relevant correspondences such as entities, names, URLs, providers, prices, dates, and required fields. Exact lexical overlap is not required. Parsing normalizes ID shape, including null-to-empty-list conversion and numeric-to-string conversion. Returned-link feature correspondence is assessed in the human-validation sample. Agreeing-error links are unioned and deduplicated. Arbiter-resolved links remain as returned before summary construc-tion. Let ¯Lt be the stored consensus links and B =
+
+{i : vi = incorrect } the Stage 1-incorrect group set. Downstream summaries retain 
+
+Lsum  
+
+> t
+
+= ¯Lt ∩ B .
+
+This intersection excludes correct, unverifiable, and nonexistent targets. This operation selects targets according to their saved Stage 1 status. Returned-link feature correspondence is evaluated through the human link audit in Appendix I. 
+
+F.5 Diagnostic Units and Interpretation 
+
+For a retained run, define 
+
+Eall = {t : ¯ zt = error },
+
+Elinked = {t ∈ E all : Lsum 
+
+> t
+
+̸ = ∅} ,tfirst = min Elinked (Elinked ̸ = ∅),
+
+Bunlinked = B \ [
+
+> t∈E all
+
+Lsum  
+
+> t
+
+.
+
+The primary retrospective output is the linked nodes and their retained round–group edges; the full candidate inventory also includes unlinked flags. The earliest linked index identifies the ear-liest returned related location in the retained tra-jectory. Nodes, edges, target groups, and runs have separate denominators: one node may link to mul-tiple groups, and one group may receive multiple links. Node counts summarize automatic flags; hu-man link review measures feature correspondence, and the separate commitment-based audit assesses explicit erroneous commitments. 
+
+F.6 Unassigned Types 
+
+Of 6,545 flagged nodes, 6,503 have a normalized type and 42 (0.64%) remain unassigned. These nodes stay in localization and linking totals but are kept separate from the typed-node denomina-tor. The ten-category composition appears in Ap-pendix G. 
+
+G Error-Type Definitions and Representative Cases 
+
+The diagnostic vocabulary contains ten error-type labels for flagged candidate content. This section first defines every category and its boundary, then presents four source–answer comparisons, and fi-nally reports how the vocabulary is fixed and dis-tributed across the corpus. 
+
+G.1 Ten Categories and Their Boundaries 
+
+Table A5 gives the complete definitions. Each typed node receives one dominant category. A retained round–group link, when present, identifies the asso-ciated final-answer content. The four cases below use these same category names. 
+
+G.2 Four Representative Source–Answer Cases 
+
+Figure A4 illustrates four categories defined in Ta-ble A5: source not supporting, constraint violation, source quality error, and wrong entity. Each panel pairs a recorded observation with its final-answer group and the evaluator’s interpretation. The re-maining six categories retain their full definitions in the same table. The cases preserve the original model, task, round, and group bindings: 1. Source not supporting. Qwen3.6-Flash, 
+
+ds_006 , R9/G6. The source lists A100 at USD 3.09/hour and A100-80G at USD 3.18/hour; the answer pairs the 80-GB variant with USD 3.09/hour. 2. Constraint violation. GLM-4.7-Flash, ds_010 ,R5/G1. The Family membership and NARM add-on total USD 150/year under a task require-ment of strictly less than USD 150. 24 Error type Diagnostic definition and nearest boundary Wrong entity The target is identified, substituted, or merged with a different entity, alias, version, institution, product, or location. If the entity is the intended one but fails an eligibility condition, use con-straint violation. 
+
+Constraint violation A candidate fails an explicit hard condition such as a feature, threshold, status, or eligibility rule. Date, geographic, and population boundaries belong to temporal or scope error. 
+
+Missing required field An identifiable answer unit lacks a required attribute or source. An existing value assigned to the wrong field is a mapping error; incorrectly formed units are a grouping error. 
+
+Insufficient evidence The available observation is too incomplete to establish a claim, for example a title, metadata, or partial passage lacking the required detail. 
+
+Source not supporting Inspected content can be assessed but is irrelevant, omits the claimed fact, supports another value, or contradicts the interpretation. The issue is support for the claim, rather than source type. 
+
+Source quality error The source is invalid, inaccessible, unsuitable, or explicitly disallowed by an official/primary-source requirement. 
+
+Count or grouping error The number, distinctness, or boundaries of answer units are wrong through miscounting, dupli-cation, merging, splitting, or omission. This differs from an absent attribute in a properly formed unit. 
+
+Temporal or scope error Inclusion or exclusion crosses an explicit date, period, geography, population, domain, jurisdic-tion, or other scope boundary. 
+
+Formatting or mapping error 
+
+The required information exists but violates the required format or is attached to the wrong item, field, label, unit, column, or output slot. 
+
+Other error A concrete diagnostic defect outside the nine named categories. Use only when no named category applies; never for an absent type. 
+
+Table A5: Definitions and category boundaries of all ten diagnostic categories. Every category is defined here; the four selected cases illustrate a subset of the vocabulary. Stored labels remain automatic diagnostic assignments, including when the associated webpage observation itself is correct. 
+
+3. Source quality error. Nemotron-3-Ultra, 
+
+ds_075 , R41/G3. A third-party Outlet Mall Finder page is retained as an “Official Directory” for Tanger Outlets Cookstown. 4. Wrong entity. DeepSeek-V3.2, ds_009 ,R52/G1. The source describes Drayton Wiser HubR as a heating controller; the final selection includes it among smart thermostats. These panels provide concrete source–answer comparisons for retained answer groups; figure-internal round units and type descriptions are eval-uator interpretations. The separate corpus-level hu-man link audit uses the fixed 317-edge sample in Appendix I. 
+
+G.3 Development and Corpus Profile 
+
+A disjoint development set of 50 tasks and 500 trajectories fixes the vocabulary used for the 100-task, 1,600-run evaluation. For agreeing error verdicts, the consensus re-tains Judge A’s normalized type when available, otherwise Judge B’s. Differing verdicts use the ar-biter’s returned record. Type disagreement alone is not arbitrated. An absent normalized type remains unassigned; other error is an explicit tenth category and is not a missing-value code. Interpretation follows three levels: the recorded webpage observation, the agent’s emitted text, and the evaluator’s diagnostic assignment. Inspecting the linked final-answer group then places the round in the context of the retained outcome. The full evaluation retains 6,503 typed and 42 unassigned nodes among 6,545 automatic flags. Constraint violation, insufficient evidence, and missing required field together account for 5,128/6,503 typed nodes (78.86%). All ten cat-egories remain present, including one format-ting/mapping node. Model-specific shares use that model’s own typed-node count and exclude its unassigned nodes. The resulting shares describe the composition of the automatic diagnostic inven-tory. 
+
+H Extended Results and Diagnostics 
+
+The main comparison covers 16 LLMs from eight families on 100 tasks: 1,600 retained trajecto-ries, 7,685 answer groups, and 42,658 normalized rounds. Automatic evaluation flags 6,545 failure nodes, comprising 6,503 typed and 42 unassigned nodes. The retained associations comprise 3,664 answer-linked nodes and 5,798 round–group edges. These corpus totals anchor the model-level and con-25 error:  source_not_supporting  ds_006( qwen3.6-flash )
+
+Task : Find at least 6 cloud GPU providers that publicly list on-demand hourly pricing for 
+
+NVIDIA A100, H100, L40S, or RTX 4090 GPUs. For each provider, identify one eligible 
+
+GPU instance, its listed hourly price, the region or availability information if stated, and 
+
+the official pricing page. Exclude providers that require contacting sales to see any price. 
+
+Analysis : The saved official pricing table lists A100 at $3.09/hr and A100-80G at 
+
+$3.18/hr. However, the audited round unit pairs NVIDIA A100 (80 GB) with $3.09/hr, 
+
+and the final answer repeats exactly that GPU-variant and price combination while citing 
+
+the same page. The source therefore does not support the claimed combination. This 
+
+source not supporting  error is preserved in the final answer. 
+
+Process evidence · Round 9  Linked answer · Group 6 
+
+**Paperspace (DigitalOcean)** 
+
+- **Eligible GPU Instance: 
+
+** NVIDIA A100 (80 GB) 
+
+- **Listed Hourly Price: 
+
+** $3.09/hr 
+
+- **Region/Availability: 
+
+** Standard Paperspace cloud 
+
+regions 
+
+- **Official Pricing Page: 
+
+[https://docs.digitalocean.com 
+
+/products/paperspace/pricing/] 
+
+error:  constraint_violation  ds_010( glm-4.7-flash )
+
+Task : Find at least 8 museum memberships in the United States that cost under US$150 per 
+
+year and include reciprocal admission benefits through a national or regional museum reciprocity 
+
+network such as NARM, ROAM, ASTC, or a comparable program. For each membership, verify 
+
+the membership price and reciprocal benefit from official museum or reciprocity-program pages. 
+
+Analysis : The task requires an annual membership cost strictly below US$150. The saved 
+
+official  page lists the Family membership at $50 and the NARM add-on at $100. The 
+
+audited  round unit records the resulting $150 cost, and the final answer retains the same 
+
+Family  +NARM membership at $150/year while describing the selected memberships as 
+
+costing  under $150. The same boundary violation persists in the final answer, constituting a 
+
+constraint violation .
+
+Process evidence · Round 5  Linked answer · Group 1 
+
+**Wayne County Historical 
+
+Society (New York)** 
+
+- Family +NARM: $150/year 
+
+- Includes free admission to the 
+
+Museum  of Wayne County History 
+
+, free annual  guided tour, 10% 
+
+discount at the gift  shop, and 
+
+NARM reciprocal benefits to 
+
+hundreds of cultural institutions 
+
+across  the United States, 
+
+Bermuda, Canada,  El Salvador, 
+
+and Mexico. 
+
+- Source: [https:// www. 
+
+waynehistory.org/membership] 
+
+error:  source_quality_error  ds_075( nemotron-3-ultra) 
+
+Task : Find 5 Ontario outlet malls or outlet-style shopping centres with official store 
+
+directory pages that list at least one of these brands: Columbia, Lululemon, Ted Baker, 
+
+Michael Kors, Nike, Coach, or Adidas. For each mall found, summarize which of those 
+
+brands are listed in the official directory. 
+
+Analysis : The task requires official shopping-centre store directories.  The audited round 
+
+uses an Outlet Mall Finder page for Tanger Outlets  Cookstown, a third-party directory 
+
+rather than the mall operator's  official directory. The final answer retains the identical 
+
+outletmallfinder.com URL and labels it 'Official Directory'. The same  source fails the task's 
+
+official-source requirement at both endpoints,  constituting a  source quality error .
+
+Process evidence · Round 41  Linked answer · Group 3 
+
+Tanger Outlets Cookstown 
+
+(Cookstown, ON) 
+
+**Official Directory:** [https:// 
+
+outletmallfinder.com/outlet-mall/ 
+
+tanger-outlets-cookstown/ 
+
+**Brands Found (3 of 7):** 
+
+- Adidas 
+
+- Coach 
+
+- Columbia Factory Store 
+
+**Missing:** Lululemon, Ted Baker, 
+
+Michael Kors, Nike 
+
+error:  wrong_entity  ds_009( deepseek-v3.2 )
+
+Task : I want to buy a smart thermostat in the UK that supports OpenTherm and can integrate 
+
+with Apple Home, HomeKit, or Matter. Find at least 5 suitable thermostat models. For each 
+
+model, verify OpenTherm support and Apple Home/HomeKit/Matter compatibility from official 
+
+documentation or product pages, and find at least 2 UK online stores with current prices. 
+
+Analysis : The task asks for smart thermostat models. The saved observation from the 
+
+official smart home page describes the Drayton Wiser HubR as a heating controller to which 
+
+separate room and radiator thermostats connect. The audited round unit contains this HubR 
+
+controller, and the final answer includes the same device among its five smart thermostats. 
+
+The entity-category mismatch therefore remains in the final selection, making this a  wrong 
+
+entity error. 
+
+Process evidence · Round 52  Linked answer · Group 1 
+
+**Drayton Wiser 2nd Generation 
+
+HubR (1-Channel)** 
+
+> - OpenTherm support: Drayton 
+
+states "Designed for UK heating 
+
+systems and incorporating 
+
+OpenTherm" on their smart home 
+
+overview page. 
+
+[Source](https://www. 
+
+draytoncontrols.co.uk/products 
+
+/smart-home/smart-home) 
+
+case1:  source_not_supporting  case2:  constraint_violation 
+
+case4:  wrong_entity case3:  source_quality_error Figure A4: Illustrative source–answer comparisons: source not supporting, constraint violation, source quality error, and wrong entity. The original four-panel layout pairs returned observations with final-answer groups; round units and type descriptions reproduce evaluator interpretations. The accompanying case descriptions identify each model, task, round, and group. a Ranked type counts (typed n = 6,503)  b Type assignment coverage 
+
+6,545 
+
+consensus error nodes 
+
+Unassigned 
+
+42  (0.64%) 
+
+Typed 
+
+6,503  (99.36%) 
+
+The 42 unassigned nodes remain in localization and linking totals; they are not imputed as other error. 
+
+Typed candidate nodes 
+
+1.Constraint 
+
+violation 
+
+2. Insufficient evidence 
+
+3. Missing required field 
+
+4. Temporal / scope error 
+
+5. Wrong entity 
+
+6. Source not supporting 
+
+7. Source quality error 
+
+8. Count / grouping error 
+
+9. Other error 
+
+10. Formatting / mapping error 
+
+2,124 
+
+1,222 
+
+1,782 
+
+489 
+
+304 
+
+282 
+
+262 
+
+26 
+
+11 
+
+1
+
+500  1,000  1,500  2,000 
+
+Figure A5: Diagnostic-type composition and assignment coverage. (a) Counts over 6,503 typed candidate nodes; all ten categories are retained. (b) Among 6,545 automatically flagged nodes, 6,503 (99.36%) have a normalized type and 42 (0.64%) remain unassigned. The latter stay in localization and linking totals under a separate unassigned status. Consensus error nodes denote the automatic candidate flags defined in Appendix F. 
+
+ditional distributions below. Figure A6 gives a joint view of the linked candidate inventory, earliest re-turned associations, and execution markers. 
+
+H.1 Outcome Scores and Aggregation 
+
+The main paper provides the complete model-level outcome table. AS, AP, and Upper are unweighted 26 0 100 200 300 400 500 600 700 800 
+
+> Aggregated flagged candidate nodes (raw count)
+> GPT-6.1-Sol GPT-6-Luna-Pro GPT-5.4 GPT-5-Mini Gemini-3.1-Pro Gemini-2.5-Flash Kimi-K2.6 Kimi-K2.5 Qwen3.7-Plus Qwen3.6-Flash DeepSeek-V4-Flash DeepSeek-V3.2 GLM-5 GLM-4.7-Flash Grok-4.20 Nemotron-3-Ultra
+> 155 130 284 310 400 777 548 544 276 217 304 506 451 555 580 508
+
+a Status-filtered diagnostic links      
+
+> Linked Unlinked
+> 020 40 60 80 100
+> First linked round index
+> 020 40 60 80 100
+> Eligible trajectories (%)
+> 46.5% by round 5 88.7% by round 20
+
+b First linked round (n = 850)                                                    
+
+> Invalid final answer Final-only synthesis Premature answer Resume marker GPT-6.1-Sol GPT-6-Luna-Pro GPT-5.4 GPT-5-Mini Gemini-3.1-Pro Gemini-2.5-Flash Kimi-K2.6 Kimi-K2.5 Qwen3.7-Plus Qwen3.6-Flash DeepSeek-V4-Flash DeepSeek-V3.2 GLM-5 GLM-4.7-Flash Grok-4.20 Nemotron-3-Ultra
+> 00039 020901006153000354391101010241232307110000011006300910121505
+
+c Overlapping execution-audit markers 
+
+> 01235920 39
+> Trajectory count
+
+Figure A6: Extended trajectory and execution diagnostics for 1,600 retained runs. (a) Linked and unlinked candidate flags, including unassigned types. (b) Earliest returned association among 850 trajectories with links. (c) Separately recorded, overlapping execution markers. The marker totals are 25 invalid-final flags, 20 final-only syntheses, 11 premature-answer flags, and 99 resume-marked trajectories. 
+
+means over each model’s 100 saved reports. UGR pools unverifiable groups over all provided groups for that model. AP and UGR are displayed as percentages. The corpus contains 3,863 correct, 3,374 incorrect, and 448 unverifiable groups. The stored count modes comprise 1,294 exact , 164 min ,and 142 dynamic_all runs. The formulas in Ap-pendix E.6 reproduce all 1,600 saved scores from their original group counts; no labels or rubrics are changed. 
+
+H.2 Complete Model-Level Process Diagnostics 
+
+A linked node is a non-skipped consensus-error round whose proposed group IDs intersect the Stage 1 incorrect groups. One node may link to multiple groups; each retained edge is identified by its run, round, and group IDs. Table A6 separates these units. Of the 3,374 incorrect groups, 2,229 (66.06%) have at least one retained association and 1,145 have none. The 3,664 linked and 2,881 un-linked nodes partition all 6,545 failure nodes. These counts include all 42 unassigned nodes, with each node counted once in Figure A6(a). Failure-node count has pooled Spearman cor-relations of −0.427 with AS and −0.428 with AP (n = 1 , 600 trajectories); within-model coefficients are negative for all 16 models. These are outcome-aware associations: Stage 2 receives the final re-sponse and Stage 1 verdicts. 
+
+H.3 Earliest Returned Association 
+
+Of the 1,600 trajectories, 850 have a retained as-sociation. Their first linked round has median 6 (quartiles 3 and 13; range 1–100). The cumulative counts are 395/850 by round 5 (46.47%), 587/850 by round 10 (69.06%), and 754/850 by round 20 (88.71%). The 750 trajectories without an associ-ation remain outside this conditional distribution. These positions locate the earliest returned related content. Quantiles use linear interpolation at index 
+
+(n − 1) q in the ordered eligible observations. Fig-27 Model All rounds Evaluable rounds Flagged nodes Runs with flag Linked nodes Runs with link                                                                                                        
+
+> GPT-6.1-Sol 1,774 762 155 43 56 20 GPT-6-Luna-Pro 1,841 552 130 49 43 21 DeepSeek-V3.2 2,767 1,221 506 86 270 54 GPT-5.4 1,967 838 284 70 133 53 DeepSeek-V4-Flash 3,022 853 304 60 194 47 Kimi-K2.6 3,467 1,348 548 72 270 50 Kimi-K2.5 3,248 1,231 544 76 297 63 Qwen3.7-Plus 2,044 603 276 73 183 56 Grok-4.20 2,540 1,102 580 76 315 55 GLM-5 3,004 1,081 451 72 261 60 GPT-5-Mini 2,507 693 310 61 221 54 Nemotron-3-Ultra 3,569 1,122 508 80 341 64 Gemini-3.1-Pro 2,457 796 400 73 255 62 Qwen3.6-Flash 2,034 425 217 67 132 53 Gemini-2.5-Flash 3,237 1,215 777 79 354 67 GLM-4.7-Flash 3,180 892 555 79 339 71
+> Total 42,658 14,734 6,545 1,116 3,664 850 Table A6: Raw process counts over 100 trajectories per model. Evaluable rounds have an error or nonerror consensus verdict; final skipped rounds are excluded. Linked nodes and runs use the retained intersection with Stage 1 incorrect groups. Counts summarize observed activity and diagnostic coverage within each model’s retained trajectories.
+
+ure A6(b) visualizes this conditional distribution and reports the cumulative percentages rounded to one decimal. 
+
+H.4 Search Behavior and Outcomes 
+
+Table A7 reports per-trajectory tool-use means. Tool counts measure returned tool-result events, including unsuccessful returns; they do not count provider retries. Mean normalized trajectory length ranges from 17.74 to 35.69 rounds. Page-use summaries complement these tool counts. Across models, the mean number of distinct opened URLs ranges from 7.73 to 18.38 per trajec-tory, and distinct domains from 4.73 to 9.16. Mean read volume ranges from 4.78 to 48.02 thousand characters, including repeated or overlapping reads; final answers contain 7.43–14.34 URL occurrences on average. The archived model-level tables retain the full breakdowns. Across the eleven recorded behavior fields and the AS/AP outcomes, the largest absolute pooled Spearman coefficient is 0.140 (final-answer URL occurrences versus AS). The corresponding AP as-sociation is 0.128. Each pooled coefficient uses 1,600 trajectories; within-model summaries use 100 trajectories per model and report the median of 16 coefficients, with average ranks for ties. These summaries describe the relation between ob-servable search activity and the retained outcome scores. 
+
+H.5 Execution-Audit Summary 
+
+Figure A6(c) shows the model-level distribution of four execution markers. Each marker counts the trajectories where it is present; a trajectory can contribute to multiple columns. The final-answer source field partitions the cor-pus into 1,567 agent responses, 20 collection-time final-only syntheses, and 13 fallbacks. All retained trajectories contain a final answer. The four over-lapping execution markers in Figure A6(c) total 25 invalid-final flags, 20 final-only syntheses, 11 premature-answer flags, and 99 resume-marked tra-jectories. The resume indicator counts the literal marker across batch resumption and runtime con-tinuation. Collection-time validation records 1,573 valid-final flags and 25 invalid-final flags; two runs have neither flag. An invalid-reason field is present in 27 records, and 1,589 runs meet the evidence re-quirement. Among the 20 synthesis responses, 17 are marked valid and three invalid; no run has a maximum-iteration flag. These separately stored finalization fields describe execution checks, while Stage 1 evaluates source-constrained answer-group correctness. The evaluator preserves the collected answers. 
+
+I Human Validation 
+
+Human review assesses supplied answer-group la-bels, response scores, and returned round–group 28 Model Search Open Read Find Extract Tools Rounds                                                                                                                  
+
+> GPT-6.1-Sol 9.49 13.41 7.75 4.30 0.85 35.80 17.74 GPT-6-Luna-Pro 14.57 9.29 5.38 4.15 0.39 33.78 18.41 DeepSeek-V3.2 13.75 15.64 10.84 12.98 0.65 53.86 27.67 GPT-5.4 11.19 10.40 4.86 8.68 0.76 35.89 19.67 DeepSeek-V4-Flash 21.99 14.21 12.09 5.27 0.35 53.91 30.22 Kimi-K2.6 21.98 17.42 15.64 8.59 0.32 63.95 34.67 Kimi-K2.5 18.88 15.97 16.10 6.56 0.24 57.75 32.48 Qwen3.7-Plus 13.80 9.63 6.87 3.82 0.16 34.28 20.44 Grok-4.20 10.67 11.94 14.90 4.97 0.14 42.62 25.40 GLM-5 13.58 19.07 13.54 6.44 0.53 53.16 30.04 GPT-5-Mini 16.35 10.29 2.38 9.40 0.30 38.72 25.07 Nemotron-3-Ultra 13.76 23.75 11.86 9.46 0.62 59.45 35.69 Gemini-3.1-Pro 16.64 10.48 8.98 5.87 0.35 42.32 24.57 Qwen3.6-Flash 15.90 8.31 6.08 2.53 0.15 32.97 20.34 Gemini-2.5-Flash 11.42 12.87 11.88 15.12 0.94 52.23 32.37 GLM-4.7-Flash 20.85 10.83 3.87 13.79 0.12 49.46 31.80
+> Table A7: Mean tool use and normalized length over 100 trajectories per model. The Tools column sums the five tool categories; normalized rounds are counted separately from tool calls.
+
+correspondences. Each analysis uses its specified sample and denominator. 
+
+I.1 Sample and Review Protocol 
+
+The post-hoc audit uses two randomly selected responses from different models for each of the 100 tasks: 200 responses and 946 supplied answer groups, including four explicitly confirmed empty-group responses. Fifty randomly selected tasks con-tribute both trajectories to process review (100 tra-jectories; 2,642 normalized rounds). Reviewer H1 completes the primary audit; a different reviewer, H2, independently checks fixed subsets of 40 re-sponses from 20 tasks (172 groups) and 20 trajecto-ries from 10 tasks (499 rounds). The subsets form independent agreement checks within the primary samples. Sampling uses CPython’s MT19937 gen-erator with seed 20261004 and the frozen 16-model population; it is not stratified by scores, disagree-ments, or error counts. For Stage 1, reviewers receive the requirements, complete final response, supplied groups, and orig-inal cited URLs. Automatic labels, scores, reasons, separate model metadata, and the other reviewer’s annotations are withheld. Complete answer text may still contain self-identification. Reviewers as-sign C/I/U labels and scores are derived from the locked details; disagreements remain unchanged. Both reviewers self-report web-search expertise, rule familiarity, and no exposure to the withheld item-level results. This post-hoc protocol was clar-ified in the context of previously inspected com-parison results; item-level annotations follow the withholding and locking procedure described here. With group boundaries fixed, the audit evalu-ates supplied-group judgments and their derived scores. Reviewers check the original citation set at review time; webpage content may vary between accesses. Each reviewer’s annotations are locked before score comparison. Process labels and the answer endpoints used for link review are locked separately before candidates are shown, and later link judgments do not overwrite those endpoints. Process review follows an instruction to use the current and earlier rounds; the static workbooks retain the complete trajectories. Reported 95% intervals use 10,000 paired task-cluster percentile bootstrap draws (seed 20261009), preserving all observations and repeated-task weights. The cluster counts are 100 for primary answers, 50 for process and links, 20 for H2 an-swers, and 10 for H2 process review. Link resam-pling includes the 13 process-sample tasks with no candidate edge. 
+
+I.2 Answer-Group and Score Agreement 
+
+Automatic and H1 labels agree on 894/946 groups (94.50%, 95% CI [91 .96 , 96 .73] ; Cohen’s κ =0.8989 , [0 .8523 , 0.9392] ). H1 and H2 agree on 160/172 subset groups (93.02%, [87 .65 , 97 .66] ; κ = 0.8574 ,
+
+[0 .7464 , 0.9499] ). Table A9 compares automatic–H1 and indepen-dent H1–H2 response-score agreement. In the pri-mary automatic–H1 comparison, both sides retain their recorded quantity rules: N differs in 12 re-sponses and count mode in 11 (15 responses in 29 Automatic → H1 (946 groups) H1 → H2 (172 groups) Row label C I U Total Row label C I U Total C 475 21 2 498 C 103 5 1 109 I 22 373 1 396 I 6 51 0 57 U 1 5 46 52 U 0 0 6 6Total 498 399 49 946 Total 109 56 7 172  
+
+> Table A8: Supplied-group label matrices. Columns identify the second member of each comparison; C/I/U mean correct/incor-rect/unverifiable.
+
+the union). All 200 responses enter the comparison with their recorded scores. For the two sampled model responses per task, automatic and human or-derings agree on 56/60 tasks for AS and 57/61 for AP when both orderings are non-tied. Including 28 shared AS ties and 27 shared AP ties gives 84/100 matching relations for each metric. Each metric also has four reversed non-ties and 12 one-sided ties. 
+
+I.3 Returned-Link Feature Correspondence 
+
+Every retained link in the process sample is re-viewed: 317 candidate edges across 55 trajecto-ries and 37 tasks. Support requires a verified, lo-catable feature—such as an entity, URL, domain, model, provider, or price—with evidence on both the round and target sides. For a split or merged group, at least one explicitly mapped target must satisfy this rule. Review confirms 311/317 links, giving 98.11% feature-correspondence precision 
+
+([96 .15 , 99 .40] ), with six unsupported and no unde-termined links. Explicit group alignment yields 475 alignment records and 360 targets, while the evaluation unit remains the 317 original candidate edges. Three tar-gets retain reviewed machine-only text rather than a matched human group. The criterion applies to observable content features across process verdicts. It measures the precision of returned locations for retrospective inspection of answer-related content. 
+
+I.4 Commitment-Based Process Audit 
+
+The separate human process audit uses error for an explicit erroneous interpretation or commitment. Opening a candidate, observing third-party content, and collecting an incomplete set of fields are as-sessed as exploratory activity unless an erroneous commitment is present. Automatic flags instead assess candidate content against hard constraints. Table A10 reports these two annotation targets: the commitment-based audit assigns zero error labels, while the automatic candidate-content procedure flags 349 rounds. On the independent process subset, H1/H2 agree on 494/499 rounds (99.00%, [97 .74 , 100 .00] ; κ =0.9799 , [0 .9525 , 1.0000] ). The five disagreements are H1-skipped /H2-non_error . Both reviewers as-sign zero error labels; their agreement therefore describes the distinction between non-error and skipped rounds. Binary-error κ and conditional type agreement are undefined in this subset. For the 317 candidate links, locked human pro-cess endpoints comprise 289 non-error and 28 skipped labels. A separate strict conjunction re-quires the same target to have a human error node, a locked incorrect answer group, and supported fea-ture correspondence. It yields 0/317 edges because the reviewed process endpoints contain no human error label. The 311/317 feature-correspondence result and this conjunction retain their distinct defi-nitions and the same original edge denominator. 
+
+J Computational Resources and API Budget 
+
+Constructing and evaluating the corpus requires sustained model inference, web interaction, and source verification across 1,600 retained runs. The cumulative runtimes reported in the main paper are 1,037 hours for trajectory collection and 318 hours for automatic evaluation, totaling 1,355 hours .The upper-scenario API budget is approximately 
+
+USD 2,943 : USD 1,812.30 for collection and USD 1,130.69 for evaluation. Runtime, interaction vol-ume, and API workload together describe the in-vestment in collecting and verifying the retained corpus. 
+
+J.1 Accounting Scope and Workload 
+
+Runtime follows the main-paper totals and sums the time invested across runs; parallel execution determines the elapsed calendar schedule. API bud-gets use the archived price snapshot dated 23 Oc-30 Automatic–H1 H1–H2 Metric AS AP Upper AS AP Upper Pearson r 0.9054 
+
+> [0.8496, 0.9519]
+
+0.9132 
+
+> [0.8595, 0.9588]
+
+0.8798 
+
+> [0.8107, 0.9372]
+
+0.8961 
+
+> [0.7335, 0.9825]
+
+0.9022 
+
+> [0.7468, 0.9834]
+
+0.9215 
+
+> [0.8003, 0.9879]
+
+Spearman ρ 0.9035 
+
+> [0.8441, 0.9515]
+
+0.9103 
+
+> [0.8514, 0.9583]
+
+0.8816 
+
+> [0.8107, 0.9370]
+
+0.8614 
+
+> [0.6248, 0.9837]
+
+0.8679 
+
+> [0.6394, 0.9855]
+
+0.9003 
+
+> [0.7314, 0.9876]
+
+Kendall τ 0.8609 
+
+> [0.7931, 0.9204]
+
+0.8712 
+
+> [0.8054, 0.9299]
+
+0.8326 
+
+> [0.7557, 0.8992]
+
+0.8087 
+
+> [0.5839, 0.9578]
+
+0.8136 
+
+> [0.5899, 0.9623]
+
+0.8561 
+
+> [0.6881, 0.9675]
+
+MAE 4.8792 
+
+> [2.8749, 7.1625]
+
+4.4542 
+
+> [2.4832, 6.6833]
+
+6.2625 
+
+> [3.7458, 9.1167]
+
+5.0625 
+
+> [1.5625, 9.3958]
+
+5.0625 
+
+> [1.5625, 9.3958]
+
+4.5625 
+
+> [1.3333, 8.7297]
+
+Bias 0.8375 
+
+> [−1.4584 , 3.2500]
+
+0.4625 
+
+> [−1.7584 , 2.7833]
+
+2.0542 
+
+> [−0.7502 , 5.1333]
+
+0.8958 
+
+> [−3.3333 , 5.7500]
+
+0.8958 
+
+> [−3.3333 , 5.7500]
+
+0.3958 
+
+> [−3.5417 , 5.0625]
+
+Table A9: Response-score agreement on 200 automatic–H1 responses and the independent 40-response H1–H2 subset. Each cell gives the point estimate above its 95% confidence interval. AS is Answer Score, AP is Answer Precision, and Upper is Upper Score. AS/Upper errors are points on a 0–100 scale; AP errors are percentage points and AP correlations use 0–1 values. Bias is automatic minus H1 in the left block and H1 minus H2 in the right block. H2 labels do not replace H1 in the primary comparison. Human \ Automatic Error Non-error Skipped Total Error 0 0 0 0Non-error 329 589 353 1,271 Skipped 20 9 1,342 1,371 Total 349 598 1,695 2,642 
+
+Table A10: Complete process cross-tabulation on 100 trajec-tories from 50 tasks. The two sets of labels concern different annotation targets. 
+
+tober 2026. Collection uses the upper full-history workload scenario, while evaluation uses recorded token usage repriced under the paper’s fixed evalua-tor roles. All amounts are in USD and cover model API inference for the retained-run pipeline. Web-search services, hosting, labor, and development experiments are separate resource categories. The collection records contain 74,015 tool-result events: 24,482 searches, 21,351 page openings, 15,302 reads, 12,193 within-page searches, and 687 link extractions. These interactions expose 44.58 million read characters and produce the 42,658 nor-malized rounds used in evaluation. Reconstructing the model-request workload yields an estimated 75,622 calls. Long trajectories repeatedly present accumulated context to the model, so input pro-cessing is a substantial component of the collection budget. Evaluation records contain 40,455 structured model operations: 30,335 in Stage 1 and 10,120 in Stage 2. Recorded usage totals 422.56 million to-kens , comprising 259.23 million input and 163.32 million output tokens. The operation records also include 14,722 JSON-repair attempts, yielding at least 55,177 successful provider responses. Their usage is already included in the recorded token totals. Collection calls and evaluation operations retain their respective counting units. 
+
+J.2 Upper-Scenario Collection Budget 
+
+The upper workload scenario reconstructs full ac-cumulated input histories and allocates 800 out-put tokens per model request. Saved histories use 
+
+cl100k_base as a common token-count proxy, yielding 1,467,125,200 input tokens. For 72,913 tool-associated assistant-message slots, the sce-nario allocates 530 visible tokens per message; their repetition in subsequent requests contributes 2,482,483 history occurrences. Thus the aggregate input and output budgets are 
+
+T col in = 1 ,467 ,125 ,200 + 530 × 2,482 ,483 = 2 ,782 ,841 ,190 ,T col out = 75 ,622 × 800 = 60 ,497 ,600 .
+
+This is the upper full-history scenario in the re-source audit. Each model’s input and output work-loads are priced separately at its archived un-cached rates. The resulting collection budget is USD 1,812.30, of which input processing con-tributes USD 1,624.44 (89.63%) and output gen-eration USD 187.86. Each model contributes 100 retained trajectories. The largest collection bud-gets are USD 334.61 for Gemini-3.1-Pro, USD 278.07 for GPT-6.1-Sol, and USD 263.06 for GPT-5.4; GPT-6-Luna-Pro has the smallest budget at USD 9.82. This variation reflects both accumulated-context workload and the archived model-specific input/output rates. 
+
+J.3 Evaluation Budget and Stage Allocation 
+
+For role r, let T in  
+
+> r
+
+and T out  
+
+> r
+
+be recorded token counts, and pin  
+
+> r
+
+and pout  
+
+> r
+
+the reference prices in USD per million tokens. The budget is 
+
+BAPI = X
+
+> r
+
+T in  
+
+> r
+
+pin  
+
+> r
+
++ T out  
+
+> r
+
+pout 
+
+> r
+
+10 6 .
+
+31 The fixed roles use DeepSeek-V4-Pro for Stage 1 and Judge A, with input/output rates of USD 1.32/3.96 per million tokens. Judge B and the ar-biter use Qwen3.7-Max at USD 2.50/7.50. These are the audit’s peak/international reference rates with uncached input. Stage 1 comprises rubric construction, an-swer grouping, source verification, and recorded evidence-repair operations. Its budget is USD 676.66 (59.84% of evaluation). Stage 2’s two judges and arbitration account for USD 454.03 (40.16%). Table A11 summarizes the token work-loads and their corresponding upper-scenario bud-gets.                 
+
+> Phase Input (M) Output (M) USD
+> Collection 2,782.84 60.50 1,812.30 Stage 1 157.17 118.48 676.66 Stage 2 102.07 44.84 454.03
+> Budgeted total 3,042.07 223.82 2,942.98 Table A11: Token workload and upper-scenario API budget for the retained-run pipeline. M denotes one million tokens. Collection uses estimated workload; evaluation uses recorded usage. All API amounts are reference-price budgets. Totals are computed before rounding.
+
+Together, the runtime and workload breakdowns quantify the investment in collecting real inter-actions and verifying their outcomes. The bud-get includes repeated context processing, source-constrained verification, independent round judg-ments, and arbitration as distinct parts of the eval-uation pipeline. The resource audit records the se-lected workload scenario, price snapshot, and stage allocation for offline re-aggregation. 
+
+K Prompts, Schemas, Algorithms, and Reproduction 
+
+This section specifies the retained prompt and schema contracts, implementation procedure, and three reproduction modes. 
+
+K.1 Prompt Roles and Shared Information Boundaries 
+
+The seven prompt roles are the collection agent, three Stage 1 roles (rubric construction, extraction, verification), two Stage 2 judges, and the arbiter. Evaluator inputs exclude evaluated-model identity. Stage 1 accesses agent-cited URLs; Stage 2 uses the recorded audit tuple and arbitration adds both judge outputs. 
+
+K.2 Agent System Prompt and Tool Descriptions 
+
+The shared instruction defines the ReAct syntax, evidence-before-answer rule, and terminal format. The archived instruction is reproduced below with its wording unchanged: 
+
+> Agent instruction (archived source snapshot)
+
+You are a web research ReAct agent in a weak-tool evaluation setting. Every task requires web search. Use web_search to discover candidate URLs, but web_search returns only titles and URLs. You must open and inspect pages using open_url, read_page, find_on_page, and ex-tract_links. Do not answer from search result titles alone. Do not assume a page supports a claim unless you have read relevant page text. Use multiple pages when the task requires comparison or verification. When calling a tool, use exactly one tool call and no extra text after the Action Input. Use this format: Thought: ... Action: tool_name Action Input: {"arg": "value"} Never output only a JSON object or a fenced JSON block. The tool name must always ap-pear on an Action line before Action Input. Never output provider-style tool text such as [Tool call], function_call, function_calls, or standalone tool names followed by JSON. Those are not valid final answers and not valid ReAct steps in this experiment. Do not output chat role labels such as User:, Assistant:, or System:. Do not use Tool or Tool Input blocks. Do not use XML-style, angle-bracket, or provider-specific function-call markup. Do not place a new Thought or Action on the same line as Action Input. When you have enough evidence, use the offi-cial ReAct final format: Thought: I can answer without using any more tools. Answer: [final answer with source URLs] 32 After Answer, stop completely. Never re-quest read_page, web_search, open_url, find_on_page, or extract_links after Answer. Do not use Answer to explain that tools failed or that evidence is missing. A final Answer must directly satisfy the user’s task using veri-fied source URLs. If evidence is insufficient, continue using the available tools instead of ending with a refusal or noncompletion note. Do not use Action after Answer. The controller appends the five tool descriptions and arguments in Appendix C.3. 
+
+K.3 Stage 1 Prompt Contracts Rubric construction. The task yields N ,
+
+count_mode , hard constraints, and a grouping rule, preserving strict inequalities, dates, scope, source requirements, and conditional applicability. Count requirements govern task-level scoring; other con-straints govern eligible groups. 
+
+Answer-group extraction. The final response yields ordered task-defined units with stable IDs and associated URLs. Extraction resolves format-ting while preserving answer content and cited sources. 
+
+Group verification. The verifier uses each group, its usable cited texts, and answer-visible require-ments to return a verdict, failed criterion IDs, ev-idence references, inaccessible URLs where ap-plicable, and an evidence-grounded reason. The access-only rule follows Appendix E.5. 
+
+K.4 Stage 2 Judge and Arbiter Prompt Contracts 
+
+Each judge independently maps the tuple in Ap-pendix F.1 to a verdict, failed criteria, a diagnos-tic type, proposed group IDs, and a reason using the candidate-content checks. Links use observable entity, URL, date, price, or other task-field cor-respondences. The arbiter receives the tuple plus both judge records and returns the same round-evaluation schema for verdict disagreements. 
+
+Source bindings. The archived implementation snapshot records prompt builders and schemas un-der method_artifacts/prompts_and_schemas/: ag ent_system_prompt_current.txt; prompt_and_tool_ builder_inventory.json (source symbols and verba-tim builder bodies); and schemas_current.py (typed schema). These specify snapshot wording and se-rialization. Retained manifests govern historical execution settings; rendered provider requests and per-run environment overrides have partial archival coverage. 
+
+K.5 Structured Output Schemas 
+
+Machine-readable schemas specify exact types, op-tionality, enumerations, and validation rules for four object groups: 
+
+Collection objects. Run/task IDs, question, final response, ordered rounds, and model metadata; rounds contain IDs, model text, tool sequences, observations, URLs, and page-text context. 
+
+Stage 1 objects. Rubric fields above plus criterion IDs; group content, citations, and access states; evaluation verdicts, criterion results, evidence ref-erences, reasons, counts, and scores. 
+
+Stage 2 objects. Round ID, verdict, skip flag, failed criteria, type, links, and reason; consensus adds judge verdicts, arbiter-use status, and merged or arbiter-returned links before target-status filter-ing. 
+
+Final report. Stage outputs joined to linkage sum-maries, behavioral fields, and execution metadata by retained run IDs. 
+
+K.6 Implementation-Aligned Procedures 
+
+The implementation applies the Stage 2 rules in Appendix F in the following order, preserving pro-posed links before target-status filtering.       
+
+> Algorithm K.1: Dual-judge consensus and down-stream linkage summaries
+> 1. Pre-skip structurally empty rounds and configured background or navigation-pattern matches. 2. Send remaining rounds independently to both judges with identical audit tuples and output contracts. 3. On error agreement, retain A’s base record, union failed criteria, deduplicate the linked-ID union while preserving first occurrences, and use A’s normalized type or, if unavailable, B’s. 4. When both judges agree on nonerror or skipped, re-tain A’s record; on verdict disagreement, retain the arbiter record. Type disagreement alone does not in-voke arbitration. 5. Persist evaluable records and compact skipped-round aggregates. 6. Normalize only stored ID shape and retain Lsum
+> t=¯Lt∩ B , where tis a consensus error node and B
+> contains Stage 1-incorrect group IDs. 7. Aggregate total, evaluable, error, typed, linked, and first-linked diagnostics; links record diagnostic con-tent associations.
+
+33 K.7 Artifact Scope and Reproduction 
+
+The anonymized repository provides core imple-mentation, representative samples, and instructions identifying released materials and executable entry points. Credentials and private provider settings remain outside the public artifacts. 
+
+Offline re-aggregation. Join the 1,600 retained manifests and trajectories to tasks, Stage 1 rubrics, groups and verdicts, Stage 2 judge and consensus records, and behavioral and aggregation tables. Use the frozen run-selection manifest and task/run IDs, preserving one row per model–task pair, its scoring mode, and target-status filtering. All records come from the same frozen version. 
+
+Evaluator re-execution. Re-running either stage calls external providers under selected configura-tions. Provider revisions, prompt versions, serial-ization, and serving nondeterminism may alter out-puts. 
+
+Live-web re-verification. Stage 1 revisits agent-cited URLs under current access conditions: pages may change, redirect, disappear, or become blocked. Released page excerpts and report refer-ences preserve selected observations; live retrieval produces new ones. 
+
+L Evaluation Scope and Broader Impacts 
+
+L.1 Task and Execution Scope 
+
+The 100 public-web tasks evaluate multi-source search and constraint satisfaction through source-supported answer groups under a shared weak-tool interface. One retained run per model–task cell sup-ports paired task comparisons; reported uncertainty concerns task variation. Visual interaction, authenti-cated workflows, private context, transactions, and richer browser operations define complementary settings with different access and execution poli-cies. 
+
+L.2 Evaluator Configuration and Rubric Variation 
+
+Fixed evaluator roles standardize comparisons. Human-agreement statistics use separate primary-sample and independent-subset denominators (Ap-pendix I). Required counts are more consistent across run-specific rubrics than hard-constraint counts; field-level modal coverage and normalized text hashes characterize complementary aspects (Appendix E.7). Other judges, prompts, or provider versions provide configurations for sensitivity anal-ysis. 
+
+L.3 Process Interpretation 
+
+Link review measures returned feature correspon-dence; commitment review assesses explicit erro-neous commitments (Appendix I). Stage 2 condi-tions on final responses and Stage 1 verdicts, so flag–score associations are outcome-conditioned. The earliest linked-round index locates the first re-turned association (Appendix F.5); the taxonomy assigns one dominant category from ten labels and accounts separately for unassigned types. 
+
+L.4 Replication Conditions 
+
+Appendix K.7 distinguishes frozen-record aggre-gation from evaluator re-execution and live-web verification under new provider and source condi-tions. The budget snapshot fixes reference prices and upper workload assumptions (Appendix J). 
+
+L.5 Broader Impacts 
+
+Source-supported scores and inspectable trajec-tory associations support evaluation research and targeted agent improvement within this setting. Public-web excerpts require attention to licenses, privacy, and redistribution; improved browsing also enables large-scale scraping. Security, prompt-injection resilience, and deployment safety require dedicated evaluations. Offline aggregation reuses collected model and network outputs; energy use and emissions lie outside the reported resource ac-counting. 34

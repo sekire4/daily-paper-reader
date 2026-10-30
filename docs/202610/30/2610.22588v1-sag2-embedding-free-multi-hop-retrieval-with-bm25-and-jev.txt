@@ -1,0 +1,366 @@
+Title: SAG2: Embedding-Free Multi-Hop Retrieval with BM25 and JEV
+
+URL Source: https://arxiv.org/pdf/2610.22588v1
+
+Published Time: Mon, 19 Oct 2026 00:15:41 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# SAG2: EMBEDDING-FREE MULTI-HOP RETRIEVAL WITH BM25 AND JEV 
+
+Yuchao Wu ∗
+
+Zleap AI 
+
+jomy@zleap.com 
+
+ABSTRACT Strong multi-hop retrieval should be practical to deploy without expensive corpus preparation or com-plex database infrastructure. We present SAG2, an embedding-free retrieval architecture built around a single SQLite database, BM25, and contextual evidence decisions from JEV. SAG2 follows the query-time association principle of SAG (SQL-Retrieval Augmented Generation), while replacing its event– entity and dense indexes with a lexical index over original passages. Selected passages supply terms for further retrieval, and newly retrieved evidence guides subsequent decisions. This moves semantic evidence selection to query time, eliminating offline embedding computation, LLM-based event–entity extraction, and dedicated database servers. The resulting system combines lightweight preparation with strong retrieval accuracy: on 1,000-question subsets of MuSiQue, 2WikiMultiHopQA, and HotpotQA, SAG2 achieves the highest Recall@5 and Recall@10 among the compared methods, with Recall@10 of 86.62%, 97.43%, and 99.00%. It also reaches 81.10% document Recall@10 over the 511,962-document EnterpriseRAG-Bench corpus. Indexing all 11,656 MuSiQue passages takes 2.36 seconds, produces a 25.87 MiB database, and requires no model calls. SAG2 demonstrates that accurate multi-hop evidence retrieval can be supported by compact, rapidly prepared infrastructure, making it a practical foundation for knowledge retrieval applications. 1
+
+## 1 INTRODUCTION 
+
+Useful knowledge retrieval requires both accurate evidence and infrastructure that is easy to prepare and operate. Or-ganizational knowledge is distributed across documents, messages, and other text sources, and a single question may require facts from several passages. A passage naming a person’s birthplace can directly match a question, while a passage identifying the county containing that place becomes useful only after the birthplace is known. Independent similarity rankings can miss this intermediate connection. Multi-hop retrieval must therefore discover associations among passages as evidence accumulates (Trivedi et al., 2022). The practical challenge is to recover these connections without imposing an expensive preparation pipeline on every collection. Existing systems distribute this work between corpus preparation and query execution. Dense retrieval precomputes passage representations to support semantic matching (Karpukhin et al., 2020). Structure-augmented methods addi-tionally extract facts or construct connections among documents. SAG (SQL-Retrieval Augmented Generation) stores event–entity records, activates associations through shared entities at query time, and combines this structural path with dense retrieval and LLM selection (Wu et al., 2026). This design preserves original passages as evidence and avoids a global knowledge graph, but still requires semantic extraction and embedding computation before retrieval. A specialized decision model makes a different allocation of work possible. JEV accepts natural-language context and returns a yes-probability for each decision through its Noul interface (Almeida, 2026; TypeSafe AI, 2026). It evaluates candidate evidence directly, without generating intermediate reasoning text. A lexical index can then sup-ply inexpensive candidate access, while contextual model decisions determine which passages should guide further retrieval. This motivates our central question: can multi-hop retrieval retain strong accuracy with a single lexical database and semantic evidence selection performed at query time?  
+
+> ∗Correspondence to: jomy@zleap.com .
+> 1Benchmark and evaluation code: https://github.com/Zleap-AI/SAG-Benchmark
+
+1arXiv:2610.22588v1 [cs.CL] 15 Oct 2026 We propose SAG2 , a SQLite–BM25–JEV architecture built on SAG’s principle of query-specific passage association (Figure 1). SAG2 adopts a different indexed representation and retrieval procedure: it stores original passages and lexical occurrences, then forms associations online through passage-to-term-to-passage expansion. BM25 retrieves initial candidates; JEV selects useful evidence; selected passages supply terms for further retrieval. Later decisions consider both the original question and retrieved context. SAG2 thus carries forward SAG’s associative principle while removing its event–entity extraction and dense retrieval components. All returned evidence remains original text. Lexical feedback and neural reranking provide important foundations for this design. Relevance models expand queries from initial results (Lavrenko and Croft, 2001); BERT-QE uses neural judgments to select feedback text (Zheng et al., 2020); and GAR discovers candidates through a precomputed document graph (MacAvaney et al., 2022). SAG2 combines online lexical association with a shared evidence state: contextual scores choose expansion passages and weight their terms, while the new passages update the context for subsequent decisions. This interaction allows evidence to become relevant through an intermediate connection even when its direct match to the original question is weak. The local retrieval infrastructure consists of one SQLite database; semantic decisions use a hosted JEV endpoint. Cor-pus preparation requires only local text processing and index construction, with no vector database, separate database server, or offline model inference. On MuSiQue, the complete index is ready in 2.36 seconds and occupies 25.87 MiB. This simplicity does not require weaker benchmark retrieval: SAG2 obtains the highest R@5 and R@10 among the compared systems on all three multi-hop benchmarks, and reaches 81.10% document R@10 on EnterpriseRAG-Bench. Controlled MuSiQue comparisons further show that contextual expansion recovers more evidence than enlarging a one-shot candidate pool. Together, these results motivate SAG2 as a readily deployable retrieval architecture with low preparation cost and strong evidence recovery. Our contributions are threefold: 1. We introduce an embedding-free multi-hop retrieval architecture whose local infrastructure is a single SQLite database, eliminating offline model inference and dedicated database servers. 2. We specify a passage-to-term-to-passage retrieval procedure in which contextual evidence scores guide expansion and newly retrieved passages inform subsequent decisions. 3. We demonstrate strong retrieval accuracy on three multi-hop benchmarks and the full EnterpriseRAG-Bench corpus, and quantify the contributions of expansion and context alongside indexing time, storage, and model cost. 
+
+## 2 RELATED WORK 
+
+Candidate generation and reranking. BM25 obtains lexical candidates from an inverted index (Robertson and Zaragoza, 2009), while dense retrieval uses learned representations for semantic matching (Karpukhin et al., 2020). Neural reranking makes finer relevance decisions over the retrieved candidates (Nogueira and Cho, 2019). Its attain-able recall is bounded by that candidate pool. SAG2 uses evidence judgments to select expansion passages and thereby changes the candidates available to later rounds. 
+
+Feedback and adaptive retrieval. Relevance models derive query terms from retrieved documents (Lavrenko and Croft, 2001). BERT-QE uses neural judgments to select feedback text for contextualized reranking (Zheng et al., 2020). GAR expands the reranking pool through a precomputed corpus graph, showing that ranking and candidate discovery can interact (MacAvaney et al., 2022). SAG2 shares this adaptive principle. Its specific design obtains new passages through online term selection and lexical matching, and evaluates candidates in shared retrieved context. Our experiments use explicit RM3 and GAR-BM25 adaptations, whose configurations are described in Appendix B. 
+
+Structured and multi-step retrieval. SAG indexes events and entities, activates shared-entity associations, and combines them with dense retrieval and LLM selection (Wu et al., 2026). IRCoT interleaves generated reasoning with retrieval (Trivedi et al., 2023). SAG2 adopts a different persistent representation and online process: passages and lexical statistics form the index; original-passage evidence decisions guide each expansion. It requires neither generated intermediate retrieval text nor a precomputed document-neighbor graph. Its relationship to SAG is architectural: both activate query-specific passage associations, while SAG2 uses lexical occurrences for candidate access and contextual JEV scores to control expansion. 
+
+## 3 SAG2 
+
+SAG2 implements SAG’s query-time association principle through a different architecture. SAG uses extracted enti-ties as join keys between event records. SAG2 connects original passages through token and phrase occurrences in a 2Dense retrieval Question  
+
+> Vector index Offline embeddings Dense similarity Retrieved passages
+
+# SAG (Ours) Question 
+
+> Event–entity records + vectors LLM extraction + embeddings SQL associations LLM selection Retrieved passages
+
+# SAG2 (Ours) Question 
+
+> SQLite FTS5 Tokenize + lexical indexing BM25
+
+JEV 
+
+> Retrieved passages Terms Retrieved context Original question
+
+Figure 1: Retrieval architectures. Dense retrieval prepares passage embeddings. SAG stores event–entity records and dense rep-resentations, and activates shared-entity associations during retrieval. SAG2 stores lexical occurrences in SQLite and constructs associations online through BM25 and JEV. Solid arrows indicate retrieval or expansion; dashed arrows supply the question and retrieved context to JEV. 
+
+lexical index, and uses JEV to judge their contribution to the current evidence chain. These lexical units need no entity typing or disambiguation. The architecture separates local lexical indexing from query-time evidence retrieval (Figure 2). Indexing stores text and term occurrences in SQLite; retrieval alternates candidate access, contextual evidence se-lection, and term expansion. Associations are computed for the current question, so ingestion requires neither semantic extraction nor a passage-neighbor graph. 
+
+3.1 Passage representation and lexical indexing 
+
+Let 𝒟 denote the indexed text units, and let 𝑞 denote a question. Each indexed unit stores its source identity, title, body text, and mapping to the original benchmark passage. Text is normalized and tokenized before insertion into SQLite FTS5. The implementation uses Jieba with additional handling of connected Latin tokens and removes a fixed stopword set. A lightweight capitalization rule supplies multiword name phrases for expansion. These phrases are lexical units, without entity typing or disambiguation. The index contains title, heading, and body fields, with BM25 field weights (2, 2, 1) ; the benchmark heading field is empty. The same database stores the original text and provides body-level document frequencies for expansion. Ingestion consists of text processing and index writes, with no embedding computation or model-based extraction. Corpus-title aliases and token document frequencies are derived locally. They support lexical name repair and final ordering; neither requires a model call. Adjacent paragraphs are grouped up to a nominal 2,200-character threshold; a single oversized paragraph remains intact. Evaluation deduplicates retrieved units by original benchmark passage identity. In the MuSiQue cost run, the 11,656 corpus passages correspond to 11,656 indexed units. 31 Indexing (offline) Corpus Tokenize & Index SQLite FTS5 
+
+> Original text + terms
+
+2 Search (online) Original question BM25 candidates Build scoring pool Contextual JEV Ranked passages Retained candidates  
+
+> Initial top 5 + seeds + history
+> Shared context
+> Update
+> Select unexpanded seeds
+> Up to 10
+> Weighted lexical terms
+> Up to 20
+> Term-specific BM25
+> Interleave + deduplicate New candidates Up to 2 expansions Expand Stop
+> Local diversity ordering
+> Top 10
+> Retrieved evidence
+
+Figure 2: SAG2 indexing and retrieval workflow. Local processing builds one SQLite FTS5 index. Online, BM25 candidates and retained passages form a scoring pool, while the original question and shared evidence condition JEV. Selected, unexpanded passages supply terms for further retrieval. Initial scoring has empty context; if a third scoring round is reached, it uses the preceding top ten with tentative scores and admits at most twenty new candidates. Up to two expansions are allowed, stopping early when no usable expansion remains. Local diversity ordering preserves the first result and top-ten set, without another model call. 
+
+3.2 Initial candidates and contextual evidence decisions 
+
+The initial candidate list 𝐶 0 is the first 𝐵 BM25 matches to the tokenized question, with 𝐵 = 100 . The query expression joins up to 80 distinct query tokens with OR. A candidate must match this lexical expression to enter the initial list. A title-derived accent alias is substituted only when the original name has no lexical match and the alias does. The same check applies to expansion terms. If a multiword expansion name still has no unseen match, the longest contained corpus-title phrase with a match is used. These are lexical repairs, without entity typing or generated aliases. For a candidate 𝑑 , the evidence decision is 
+
+𝑠 𝑟 (𝑑) = 𝐽(𝑞, 𝑑; 𝐸 𝑟 ) ∈ [0, 1], 
+
+where 𝐽 is the JEV Noul interface and 𝐸 𝑟 is the shared retrieved context in round 𝑟 . The question supplied to JEV asks whether the candidate itself supplies a necessary fact in a fully supported answer chain, including an intermediate identification fact. Entity identities and relation constraints must be respected. Retrieved context can establish a con-nection, but facts appearing only in context cannot be attributed to the candidate. Mere topical association or optional background is insufficient. The instructions exclude inference from outside knowledge. The output is used as a ranking score. The initial scoring round uses 𝐸 0 = ∅ . In the first expansion round, context includes retained expansion seeds and the first 𝑠 = 10 newly retrieved candidates. The final round instead uses the previous ranking’s first ten passages and their tentative prior scores, with an instruction to reassess earlier judgments against the quoted facts. It contains only retrieved text, without gold labels or answer annotations. The score is conditioned on the current retrieval state. 43.3 Expansion seeds and term selection 
+
+After scoring round 𝑟 , SAG2 selects up to 𝑠 = 10 highest-ranked passages that have not previously been expanded. Let 
+
+𝑆 𝑟 be these seeds for retrieving round 𝑟 + 1 . Term selection uses their body text. Within each sentence, a matched multiword name is normalized and retained as one phrase; ordinary tokens are taken from the remaining text. Thus a name’s component tokens are not counted separately in the expansion-term frequency for that occurrence. Terms composed entirely of original-question tokens, and terms with zero body-level document frequency, are excluded. The term weight combines local frequency, corpus rarity, query overlap in the containing sentence, and the seed’s evidence score. Let 𝒰(𝑑) be the sentences in passage 𝑑 , and ℬ(𝑢) the multiset of expansion units constructed above. Then tf (𝑡, 𝑑) counts 𝑡 in ⨄𝑢∈𝒰(𝑑) ℬ(𝑢) . With 𝑁 = |𝒟| and df (𝑡) counting indexed units whose body matches token or phrase 𝑡 , define 
+
+𝐼(𝑡) = log (1 + 𝑁 − df (𝑡) + 0.5 
+
+df (𝑡) + 0.5 ) . 
+
+For a sentence 𝑢 , its query connection is the sum of rarity weights over distinct tokens shared with the original question. A term can occur in multiple sentences, so we retain the maximum such connection: 
+
+𝑔 𝑞 (𝑡, 𝑑) = max  
+
+> 𝑢∈𝒰(𝑑)∶ 𝑡∈ℬ(𝑢)
+
+∑
+
+> 𝑣∈𝑇(𝑢)∩𝑇(𝑞)
+
+𝐼(𝑣). 
+
+Here 𝑇 (⋅) contains distinct normalized tokens from the full text, including the individual words within names. Sentence–query overlap therefore uses ordinary tokenization, while expansion-term counts use ℬ(𝑢) . All logarithms are natural. Let 𝑚 𝑟 = max 𝑑∈𝑆 𝑟 𝑠 𝑟 (𝑑) . The seed weight is 
+
+𝑤 𝑟 (𝑑) = ⎧{⎨{⎩0.5 + 0.5𝑠 𝑟 (𝑑)/𝑚 𝑟 , 𝑚 𝑟 > 0, 0.5, 𝑚 𝑟 = 0. 
+
+The expansion priority is 
+
+𝑎 𝑟 (𝑡) = max    
+
+> 𝑑∈𝑆 𝑟 ∶tf (𝑡,𝑑)>0
+
+[(1 + log tf (𝑡, 𝑑))𝐼(𝑡)(1 + 𝑔 𝑞 (𝑡, 𝑑))𝑤 𝑟 (𝑑)] . 
+
+The top 𝐿 = 20 eligible terms are selected. Each term’s priority is the maximum of its seed-specific scores, with lexical order breaking ties. Since 𝑤 𝑟 (𝑑) ∈ [0.5, 1] , lower-scoring seeds are downweighted rather than discarded. The rule favors terms that are frequent in a useful seed, rare in the corpus, and occur in sentences sharing original-question tokens. 
+
+3.4 Lexical expansion and candidate retention 
+
+For every selected term 𝑡 , SAG2 retrieves a separate list of unseen passages that match 𝑡 . Within that list, BM25 scores the OR expression containing all selected expansion terms and the original-query terms. Matching the expansion term is required; matching an original-query term is not. The distinction allows a new passage to enter through a bridge term while the original question continues to influence ranking. The term-specific lists are interleaved by rank in term-priority order, with duplicate units removed, until at most 
+
+𝐵 = 100 new candidates have been collected. This distributes the candidate budget across expansion terms. JEV, rather than the interleaving score, determines the subsequent evidence ranking. Let 𝑃 contain the initial BM25 top 𝑝 = 5 passages, 𝐴 𝑟 the accumulated expansion seeds, and 𝐶 𝑟 the new candidates in round 𝑟 . Before the final-round adjustment, the deduplicated pool is 
+
+𝑈 0 = 𝐶 0, 𝑈 𝑟 = 𝑃 ∪ 𝐴 𝑟 ∪ 𝐶 𝑟 (𝑟 > 0). 
+
+The initial scoring pool is 𝑊 0 = 𝑈 0, and the first expansion uses 𝑊 1 = 𝑈 1. When both expansions are reached, the third scoring round admits at most twenty unseen passages. It fills the remaining |𝑈 2| slots with previously scored candidates: already-scored members of 𝑈 2 are kept first, followed by earlier candidates in descending order of their latest JEV scores. Candidates are deduplicated before truncation. Thus the last round can reconsider previously scored evidence while retaining a bounded incoming candidate budget. 5Context is constructed separately from the scored pool. The initial context is empty. The first expansion uses 𝐸 1 =𝐴 1 ∪ First 10 (𝐶 1); the final context contains the preceding retained ranking’s top ten, together with their tentative previous scores. Only retrieved text and model outputs enter these states. Gold evidence and answers are never supplied. Every member of 𝑊 𝑟 receives a new contextual score. Sorting uses descending JEV score, descending 1/(60+𝜌(𝑑)) ,and ascending indexed identifier, where 𝜌(𝑑) is the passage’s one-based rank when retrieved. The output retains at most 
+
+𝐵 = 100 passages. A greedy determinantal diversity rule then reorders only the first ten, using JEV scores and sparse token TF–IDF overlap (Appendix C). It preserves the first result and complete top-ten set, adds no model request, and leaves later passages in score order. These statistics are computed locally without an embedding encoder. Evaluation maps the output to unique original passages. 
+
+3.5 Bounded retrieval procedure 
+
+The default setting permits 𝐻 = 2 additional expansions after initial retrieval, giving at most three scoring rounds. The procedure stops earlier if there is no usable lexical expression, unexpanded seed, expansion term, or newly retrieved candidate. The last scoring round directly produces the final evidence ranking. 
+
+Algorithm 1 SAG2 retrieval                           
+
+> Input: question q, lexical index D; B=100, s=10, L=20, p=5, H=2 P, A, X, V, History, R <- empty For r = 0,...,H: C <- BM25(q, B) if r = 0, else term-specific expansion(q, S, V, B, L) If C is empty: stop If r = 0: P <- first p items of C A <- unique(A + S) if r > 0, else empty U <- C if r = 0, else unique(P + A + C) W <- U E <- empty if r = 0, else unique(A + first_s(C)) If r = 2: New <- first 20 items of Unot in History Old <- unique(already-scored items of U + History by latest score) W <- first (len(U)-len(New)) items of Old + New E <- first 10 items of previous R, with tentative prior scores R<- rank W using contextual JEV(q,d;E) and deterministic tie breakers History <- update History with the latest scores in R V<- V union identifiers(W) If r = H: stop S<- first s items of R whose identifiers are not in X If S is empty: stop X<- X union identifiers(S) If no usable expansion term from S: stop R <- first B items of R Return local top-ten diversity ordering of R, mapped to original passages
+
+The new-candidate limit and scored-pool size differ. Protected passages and seeds give at most 115 and 125 scored units in the two expansion rounds; the final history substitution respects the latter limit. With these default limits, the maximum number of passage judgments is 340 per question. This counts repeated scoring of retained passages and is a configuration-specific bound, rather than a bound on HTTP calls, tokens or runtime. Candidate shortages and early stopping can reduce consumption; long passages and shared context can increase token cost. 
+
+## 4 EXPERIMENTAL SETUP 
+
+4.1 Datasets and metrics 
+
+We evaluate 1,000-question development subsets of MuSiQue (Trivedi et al., 2022), 2WikiMultiHopQA (Ho et al., 2020), and HotpotQA (Yang et al., 2018). Following the SAG evaluation setting, each corpus pools the supporting and distractor passages associated with its subset. Corpus sizes and complete-evidence results are given in Table A2. The MuSiQue subset contains 518 two-hop, 316 three-hop, and 166 four-hop questions. All MuSiQue ablations use the same questions, corpus, and evidence annotations. We additionally evaluate the full EnterpriseRAG-Bench corpus using document-level recall (Section 5.2). For question 𝑖 , let 𝐺 𝑖 be the annotated source passages and 𝑅 (𝑘) 𝑖 the first 𝑘 unique retrieved source passages. We report macro-average evidence recall and complete-evidence coverage: 6Recall @𝑘 = 1𝑛 ∑
+
+> 𝑖
+
+|𝐺 𝑖 ∩ 𝑅 (𝑘) 𝑖 ||𝐺 𝑖 | ,
+
+AllEvidence @𝑘 = 1𝑛 ∑
+
+> 𝑖
+
+1[𝐺 𝑖 ⊆ 𝑅 (𝑘) 𝑖 ]. 
+
+We abbreviate these as R@k and AE@k. Recall measures the fraction of supporting evidence recovered, whereas AE measures whether every annotated passage is available within the cutoff. These are retrieval metrics; answer generation is outside the present evaluation. 
+
+4.2 Baselines and ablations 
+
+The main comparison includes BM25, Contriever, BGE-Large-EN-v1.5, GTE-Qwen2-7B, GritLM-7B, NV-Embed-v2, HippoRAG 2, and SAG. Results for dense and structure-augmented systems are taken from Wu et al. (2026). SAG uses BGE-Large-EN-v1.5 and Qwen3.6-Flash, with event–entity records in MySQL and dense representations in Elastic-search. SAG2 uses SQLite FTS5 and JEV. The comparison therefore evaluates complete systems with their respective decision models. BM25 uses the fixed lexical baseline on the same benchmark subsets. On MuSiQue, the main analysis examines three components: the number of expansion rounds, the use of a compara-ble passage-judgment budget, and shared scoring context. The expansion comparison uses BM25, BM25+JEV without expansion, and SAG2 after one or two expansions from the same retrieval trajectories. The budget control scores a one-shot BM25 pool using as many judgments as its SAG2 counterpart; it has no expansion or retrieved context. The context ablation removes shared evidence while retaining the candidate policy. Appendix B reports the full numerical results, an exactly matched budget subset, a final-only JEV strategy, and RM3 and GAR-BM25 alternatives. All JEV-ranked MuSiQue configurations apply the same local top-ten diversity ordering; pure lexical configurations retain their lexical order. Appendix C gives the retrieval parameters and decision instruction. 
+
+4.3 Implementation and statistical analysis 
+
+The implementation uses Python and SQLite FTS5. JEV is accessed through OpenRouter using its Noul interface; the returned model is typesafe/jev-1.13-20260917. Question and HTTP concurrency are both capped at twenty. A passage judgment is one candidate evaluated under a particular question and context. Rescoring a retained passage counts as another judgment; an HTTP request may contain many judgments. We report judgment counts, input and output tokens, and the corresponding model charges separately. Charges are computed from successful responses, including responses reused to resume an interrupted run. They exclude machine rental and answer generation. For MuSiQue comparisons, we report paired 95% percentile bootstrap intervals from 2,000 question resamples with seed 20261015. Each resample preserves question identities across methods and recomputes the mean difference. These intervals quantify variability across the evaluated questions; they do not quantify variation across repeated model runs. 
+
+## 5 RESULTS AND ANALYSIS 
+
+5.1 Retrieval across benchmarks 
+
+SAG2 achieves the highest R@5 and R@10 among the compared systems on all three benchmarks. Its R@10 is 86.62% on MuSiQue, 97.43% on 2WikiMultiHopQA, and 99.00% on HotpotQA, improving on SAG by 3.25, 3.86, and 1.30 percentage points. SAG retains higher R@1 and R@2 on MuSiQue, showing that the advantage is stronger when several passages are available to the reader. Relative to BM25, SAG2 improves R@10 by 32.21, 25.93, and 12.10 points on the three datasets. On MuSiQue, complete-evidence coverage increases from 17.40% to 69.50%. The results show that a lexical index, combined with contextual online expansion, can support strong multi-hop evidence recovery without persistent semantic representa-tions. 
+
+5.2 Retrieval over enterprise documents 
+
+EnterpriseRAG-Bench tests retrieval over a synthetic collection of company communications and records. We use all 511,962 released source documents, including messages, email, project tickets, meeting transcripts, and documenta-7Table 1: Passage recall on three multi-hop benchmarks, in percent. Each dataset contains 1,000 questions. Bold and underline indicate the best and second-best distinct values in each column. Results for the dense and structure-augmented baselines are from Wu et al. (2026). 
+
+MuSiQue 2WikiMultiHopQA HotpotQA Method 𝑅@1 𝑅@2 𝑅@5 𝑅@10 𝑅@1 𝑅@2 𝑅@5 𝑅@10 𝑅@1 𝑅@2 𝑅@5 𝑅@10 
+
+Simple Baselines 
+
+BM25 28.53 37.32 47.47 54.41 40.10 57.93 67.05 71.50 39.75 57.95 74.40 86.90 Contriever 24.50 33.54 45.32 53.58 34.40 48.60 59.25 65.20 39.30 57.45 74.85 82.75 
+
+Large Embedding Models 
+
+BGE-Large-EN-v1.5 29.42 41.68 56.32 64.08 41.48 62.28 69.83 73.75 45.45 76.20 89.20 93.35 GTE-Qwen2-7B 35.19 48.06 61.92 70.80 43.45 65.58 74.18 78.63 46.40 73.95 88.45 93.55 GritLM-7B 34.86 50.70 66.22 75.19 41.85 66.23 75.62 79.40 46.40 81.15 93.40 97.20 NV-Embed-v2 34.02 51.08 68.84 77.27 43.23 68.93 77.00 80.75 46.90 85.55 95.25 97.70 
+
+Structure-Augmented RAG 
+
+HippoRAG 2 30.65 49.52 65.13 73.76 42.38 76.55 90.35 93.40 44.40 78.35 94.35 97.15 SAG (Ours) 36.82 63.62 80.36 83.37 43.81 83.93 93.34 93.57 47.80 91.55 96.50 97.70 SAG2 (Ours) 34.30 62.18 80.68 86.62 43.55 85.50 97.35 97.43 48.30 93.60 98.45 99.00 
+
+tion. Of the 500 main questions, 470 have reference document identifiers and support document-recall evaluation; the remaining 30 are excluded from this metric (Sun et al., 2026). Documents are segmented into approximately 1,000-character chunks, with a maximum of 1,200 characters. Re-trieval uses the same BM25–JEV expansion procedure and parameters. Results are deduplicated by source document before selecting the top ten, and recall is measured against the released document identifiers. No answer generation or answer judging is performed. 
+
+Table 2: Document recall on EnterpriseRAG-Bench. BM25, Vector, and Bash Agent results are from Sun et al. (2026), Tables 6–7. BM25, Vector, and SAG2 use ten documents; †Bash Agent uses a variable-size set, so its value is document recall without a fixed top-ten cutoff.                                                   
+
+> Question type nBM25 Vector Bash Agent† SAG2 (Ours) Basic 175 77.7 48.6 61.7 86.86
+> Semantic 125 43.2 24.8 29.6 58.40
+> Intra-document reasoning 40 90.0 57.5 75.0 100.00
+> Project related 40 65.5 49.2 43.2 83.58
+> Constrained 30 85.0 83.3 78.3 96.67
+> Conflicting information 20 82.5 55.0 72.5 92.50
+> Completeness 20 46.5 33.4 59.0 76.24
+> Miscellaneous 20 90.0 75.0 100.0 100.00
+> Overall 470 68.4 46.0 55.8 81.10
+
+SAG2 reaches 81.10% document Recall@10. The published BM25 and vector baselines report 68.4% and 46.0%, respectively, while the Bash Agent reports 55.8% document recall. SAG2 reaches 83.58% on project-related questions and 76.24% on completeness questions, which require retrieving related information across documents. Semantic questions remain more difficult, with 58.40% recall. This evaluation extends the evidence beyond the smaller Wikipedia-derived corpora to a heterogeneous collection of more than half a million documents. The baseline figures use their published retrieval implementations and evaluation pipelines; in particular, the Bash Agent has a different output budget. The comparison describes retrieval performance and does not establish equivalent compute budgets or end-to-end answer quality. 8BM25 Vector Bash Agent †
+
+> SAG2 (Ours)
+
+020 40 60 80 100 Document recall (%)  68.40 46.00 55.80 81.10 
+
+(a) Overall retrieval 
+
+0 20 40 60 80 100 Document Recall@10 (%) Miscellaneous Completeness Conflicting info. Constrained Project related Intra-document Semantic Basic 
+
+(b) Retrieval by question type  
+
+> BM25 SAG2 (Ours)
+
+Figure 3: EnterpriseRAG-Bench: (a) overall document recall; (b) document Recall@10 by question type. Baseline values are those published with the benchmark. The overall average covers 470 questions with document labels. 
+
+5.3 Expansion, judgment budget, and scoring context 
+
+Figure 4 compares the three components that most directly test the retrieval design. All configurations use the same 1,000 MuSiQue questions; H denotes additional expansion rounds after initial retrieval. Exact values and judgment counts are reported in Appendix B. BM25 BM25+JEV H=0 SAG2 (Ours) H=1 SAG2 (Ours) H=2 020 40 60 80 100  
+
+> Evidence retrieval (%)
+> 54.41 67.93 83.36 86.62 17.40 36.00 63.10 69.50
+
+(a) Expansion depth 
+
+> BM25 + JEV matched budget SAG2 (Ours) 020 40 60 80 100
+> 69.82 86.62 39.60 69.50
+
+(b) Matched judgments 
+
+> SAG2 (Ours) No shared context 020 40 60 80 100
+> 86.62 76.25 69.50 52.20
+
+(c) Scoring context 
+
+R@10 AE@10 
+
+Figure 4: Core comparisons on MuSiQue: (a) expansion depth; (b) one-shot BM25+JEV and SAG2 under approximately matched passage-judgment budgets; (c) removal of shared scoring context. R@10 measures evidence recall and AE@10 measures complete-evidence coverage. Panels (b) and (c) each include full SAG2 as their reference. 
+
+Expansion depth. The first expansion raises R@10 from 67.93% to 83.36%, a gain of 15.43 points with a paired 95% interval of [14.09, 16.81]. The second reaches 86.62%, adding 3.26 points [2.52, 4.02]. One expansion uses 36.29% fewer judgments, providing a lower-cost operating point. The final output recovers supporting passages absent 9from the initial top 100 on 389 questions, confirming that expansion adds evidence beyond the original candidate pool. Hop-specific results and an example are in Appendix A. 
+
+Judgment budget. SAG2 reaches 86.62% R@10, compared with 69.82% for the larger one-shot BM25+JEV pool, a difference of 16.80 points [15.28, 18.33]. Their judgment counts are 331,325 and 329,194, respectively; the 0.64% shortfall arises from insufficient lexical matches. The exactly matched subset gives the same conclusion (Appendix B). Increasing the one-shot candidate budget therefore does not recover the benefit of the complete contextual expansion policy. This comparison matches judgments, rather than tokens or monetary cost. 
+
+Scoring context. Removing shared evidence lowers R@10 from 86.62% to 76.25%, a reduction of 10.37 points [9.11, 11.64], and AE@10 from 69.50% to 52.20%. Judgment counts remain close. Retrieved context thus contributes to evidence selection and the expansion decisions that follow. The final-only and lexical-feedback alternatives in Appendix B provide additional comparisons; GAR-BM25 with final JEV offers fewer judgments at lower recall. 
+
+5.4 Index construction and model cost           
+
+> Table 3: SAG2 preparation and query cost on MuSiQue. Indexing covers the entire corpus. The 100-query subset is the first 100 questions in evaluation-file order and is included in the 1,000-query total. Model charges exclude machine rental and answer generation.
+> Item Measurement Corpus / indexed units 11,656 / 11,656 Index construction 2.36 s SQLite file 25.87 MiB Offline model calls / charges 0 / $0 Model charges / 100 queries $0.433769 Model charges / 1,000 queries $4.326379
+
+SAG2 indexes 11,656 passages in 2.36 seconds and stores the result in a 25.87 MiB SQLite database, with no offline model calls. This short preparation step makes the corpus searchable without deploying an embedding model or a database server. Model computation is performed when questions arrive: the first 100 queries cost $0.433769, and the full 1,000-question evaluation costs $4.326379. Appendix D reports request counts, token usage, and accounting details. Online latency is not reported because service waiting time was not separated from concurrent execution. 
+
+5.5 Discussion and limitations Practical deployment. SAG2 combines a small local index, rapid corpus preparation, and strong evidence recall. It removes the need to operate a vector database, a separate relational database server, or local model inference. The application maintains a SQLite index and calls JEV for evidence decisions. This reduces deployment dependencies and avoids corpus-wide model computation before retrieval can begin. The resulting accuracy and preparation cost make the architecture useful for applications that can access a hosted decision service. 
+
+Dependence on the JEV service. The principal deployment limitation is the decision model. At the time of this study, the detailed architecture, parameter count, and weights of the evaluated JEV release were not publicly available. Public access is through a hosted API (TypeSafe AI, 2026). Consequently, the present system cannot be independently deployed entirely on premises using publicly released model artifacts, even though its retrieval index is local. It depends on the provider for model availability, throughput, and continued access to the evaluated release; questions and candi-date text must also be sent to that service. This limits deployment where external processing is prohibited. A locally deployable decision model is therefore an important direction, but its accuracy and resource requirements remain to be evaluated. 
+
+Scope of the evidence. The experiments establish the performance of the complete SQLite–BM25–JEV system and the contribution of expansion and shared context. They do not isolate every term-weight factor or establish that JEV is superior to other decision models. The SAG comparison uses different models and implementations, and the GAR-BM25 results apply to the stated BM25-based adaptation. Evaluation uses fixed development subsets whose supporting and distractor passages form the retrieval corpora. MuSiQue was also used during method development. Generalization to an unused split, private organizational corpora, and downstream answer generation remains to be evaluated. EnterpriseRAG-Bench broadens the evaluated scale and source types, but its corpus is synthetic. Lexical access can still miss paraphrases, aliases, and evidence without a useful 10 term connection. The low complete-evidence coverage on four-hop questions identifies this as an important remaining challenge. The cost study covers one corpus; scaling behavior and incremental updates require further measurements. 
+
+Additional semantic associations. A useful next step is to combine SAG2 with the LLM-based entity extraction principle in SAG. Optional ontology-enriched preprocessing could identify entities, aliases, semantic types, and re-lations, linking them to their source passages. These additional connections could support retrieval over fragmented text with little surface-term overlap. JEV would continue to select evidence in context. This extension would add preprocessing cost and extraction errors, so its value should be assessed against the present lightweight architecture. 
+
+## 6 CONCLUSION 
+
+SAG2 combines lightweight retrieval infrastructure with strong multi-hop accuracy. A single SQLite database provides lexical candidate access, while contextual JEV decisions guide passage-to-term-to-passage expansion at query time. This removes offline embeddings and model-based event–entity extraction. SAG2 achieves the highest R@5 and R@10 among the compared methods on three multi-hop benchmarks and retrieves evidence from more than half a million EnterpriseRAG-Bench documents. The measured indexing time, storage footprint, and model cost support its practical value: accurate evidence retrieval with a compact local index and a short preparation step. Reducing dependence on hosted JEV is the main remaining deployment requirement. 
+
+## AI USE STATEMENT 
+
+Large language models were used during the preparation of this manuscript for writing assistance, including grammar checking, sentence-level rephrasing, and LaTeX formatting. All scientific content, experimental design, data analysis, and technical claims were produced entirely by the author. The author takes full responsibility for the correctness and integrity of all reported results. 
+
+## CODE AVAILABILITY 
+
+Implementation and evaluation code are maintained in the SAG benchmark repository. The evaluation uses public benchmark passages. Questions and candidate text are sent to the configured JEV service; deployment on private corpora requires an appropriate data-access policy. 
+
+## REFERENCES 
+
+Almeida, D. (2026). Introducing System One Models & Jev. TypeSafe AI. Official article. Gutiérrez, B. J., et al. (2025). From RAG to Memory: Non-Parametric Continual Learning for Large Language Models. ICML. Paper. Ho, X., Nguyen, A.-K. D., Sugawara, S., and Aizawa, A. (2020). Constructing A Multi-hop QA Dataset for Comprehensive Evaluation of Reasoning Steps. COLING. Paper. Izacard, G., et al. (2022). Unsupervised Dense Information Retrieval with Contrastive Learning. TMLR. Paper. Karpukhin, V., et al. (2020). Dense Passage Retrieval for Open-Domain Question Answering. EMNLP. Paper. Lavrenko, V., and Croft, W. B. (2001). Relevance-Based Language Models. SIGIR. Paper. Lee, C., et al. (2024). NV-Embed: Improved Techniques for Training LLMs as Generalist Embedding Models. Paper. Li, Z., et al. (2023). Towards General Text Embeddings with Multi-stage Contrastive Learning. Paper. MacAvaney, S., Tonellotto, N., and Macdonald, C. (2022). Adaptive Re-Ranking with a Corpus Graph. CIKM. Paper. Muennighoff, N., et al. (2025). Generative Representational Instruction Tuning. ICLR. Paper. Nogueira, R., and Cho, K. (2019). Passage Re-ranking with BERT. arXiv:1901.04085. Paper. Robertson, S., and Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval. Paper. SQLite Development Team. SQLite FTS5 Extension. Documentation. Sun, Y., et al. (2026). EnterpriseRAG-Bench: A RAG Benchmark for Company Internal Knowledge. arXiv:2605.05253. Paper. Trivedi, H., et al. (2022). MuSiQue: Multihop Questions via Single-hop Question Composition. TACL. Paper. Trivedi, H., et al. (2023). Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions. 
+
+ACL. Paper. TypeSafe AI (2026). Models. Official API documentation, accessed October 15, 2026. Documentation. TypeSafe AI (2026). Noul. Official API documentation, accessed October 14, 2026. Documentation. Wu, Y., et al. (2026). SAG: SQL-Retrieval Augmented Generation with Query-Time Dynamic Hyperedges. arXiv:2606.15971. Paper. Xiao, S., et al. (2023). C-Pack: Packaged Resources to Advance General Chinese Embedding. Paper. Yang, Z., et al. (2018). HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering. EMNLP. Paper. Zheng, Z., et al. (2020). BERT-QE: Contextualized Query Expansion for Document Re-ranking. Findings of EMNLP. Paper. 
+
+11 A ADDITIONAL RETRIEVAL RESULTS 
+
+Table A1: Full ranking metrics on MuSiQue. Each configuration is evaluated on the same 1,000 questions. 
+
+Method R@1 R@2 R@5 R@10 AE@5 AE@10 BM25 28.53 37.32 47.47 54.41 12.20 17.40 BM25+JEV (H=0) 31.13 46.79 60.78 67.93 26.60 36.00 SAG2 (Ours), H=1 34.35 61.44 77.89 83.36 54.60 63.10 
+
+SAG2 (Ours), H=2 34.30 62.18 80.68 86.62 59.00 69.50 
+
+BM25+JEV, matched budget 30.64 46.58 61.57 69.82 29.10 39.60 SAG2 (Ours), no context 31.20 48.04 66.32 76.25 37.20 52.20 Lexical expansion, final JEV 31.23 45.43 57.17 61.34 25.50 29.60 RM3 21.79 28.50 39.69 47.83 9.80 15.70 RM3+final JEV 30.88 45.76 60.19 66.93 29.80 37.20 GAR-BM25 28.71 37.50 47.66 54.50 12.10 17.50 GAR-BM25+final JEV 30.91 48.61 64.63 73.11 34.70 46.10 
+
+Table A2: Corpus sizes and complete-evidence coverage on the three benchmarks. AE@10 is the fraction of questions whose entire annotated evidence set appears among the first ten unique source passages. 
+
+Dataset n Corpus Method R@5 R@10 AE@10 MuSiQue 1000 11,656 BM25 47.47 54.41 17.40 MuSiQue 1000 11,656 SAG2 (Ours) 80.68 86.62 69.50 2WikiMultiHopQA 1000 6,119 BM25 67.05 71.50 41.30 2WikiMultiHopQA 1000 6,119 SAG2 (Ours) 97.35 97.43 93.10 HotpotQA 1000 9,811 BM25 74.40 86.90 74.30 HotpotQA 1000 9,811 SAG2 (Ours) 98.45 99.00 98.10 
+
+Table A3: R@10 by annotated question hops, with AE@10 for full SAG2. Expansion rounds and question hops denote different quantities. 
+
+Hops n BM25 H=0 H=1 H=2 H=2 AE@10 2 518 61.68 75.00 90.54 92.86 87.07 3 316 51.37 66.88 82.07 85.34 62.34 4 166 37.50 47.89 63.40 69.58 28.31 BM25 BM25+JEV H=0 SAG2 (Ours) H=1 SAG2 (Ours) H=2 020 40 60 80 100 Recall@10 (%) 
+
+(a) Evidence recall 
+
+BM25 BM25+JEV H=0 SAG2 (Ours) H=1 SAG2 (Ours) H=2 020 40 60 80 100 AllEvidence@10 (%) 
+
+(b) Complete evidence coverage   
+
+> 2-hop questions 3-hop questions 4-hop questions
+
+Figure A1: Expansion depth by annotated question hops: (a) R@10 and (b) complete-evidence coverage. The corresponding values are given in Table A3. The second expansion adds 2.32, 3.27, and 6.17 R@10 points on two-, three-, and four-hop questions, respectively. The numerical gain is larger for four-hop questions, but their complete-evidence coverage reaches only 28.31%. 
+
+12 The full SAG2 output contains at least one supporting passage outside the initial BM25 top 100 on 389 questions, recovering 433 such passages in total. For example, the initial pool for the question about Erik Hort’s birthplace contains the Erik Hort passage but not Montebello, New York. The expansion includes the term “montebello,” and the final top ten contain both annotated passages, raising this question’s recall from 50% to 100%. 
+
+## B ADDITIONAL CONTROLLED COMPARISONS 
+
+B.1 Core comparisons and exact judgment matching 
+
+Table B1: Numerical results for the core comparisons in Figure 4. R@5 and R@10 are evidence recall; AE@10 is complete-evidence coverage. Judgment counts include rescoring retained passages.                             
+
+> Method R@5 R@10 AE@10 Judgments BM25 47.47 54.41 17.40 0BM25+JEV (H=0) 60.78 67.93 36.00 99,925 SAG2 (Ours), H=1 77.89 83.36 63.10 211,081
+> SAG2 (Ours), H=2 80.68 86.62 69.50 331,325 BM25+JEV, matched budget 61.57 69.82 39.60 329,194 SAG2 (Ours), no context 66.32 76.25 52.20 330,990
+
+The budget control receives each SAG2 query’s total judgment count and scores the corresponding number of one-shot BM25 candidates. Sixteen questions have too few lexical matches, resulting in 2,131 fewer judgments across the evaluation. On the remaining 984 questions with exactly matched counts, R@10 is 86.50% for SAG2 and 69.88% for the control. The difference remains 16.62 points [15.07, 18.16], consistent with the full-set result. 
+
+B.2 Final-only JEV selection 
+
+This variant uses BM25 to choose expansion seeds, assigns uniform seed weights, and applies JEV only to the final pool of at most 100 candidates. It reaches 61.34% R@10 with 98,836 judgments, 25.28 points below SAG2 [23.57, 27.02]. It jointly changes seed selection, weighting, retention, and context, so this difference cannot be attributed to intermediate scoring alone. 
+
+B.3 Lexical-feedback alternatives 
+
+RM3 and GAR-BM25 are each evaluated without JEV and with final-only JEV over at most 100 candidates. RM3 uses ten feed-back passages, ten terms, and original-query weight 0.5. GAR-BM25 uses eight precomputed BM25 neighbors per passage and interleaves batches of sixteen from the initial ranking and graph frontier. Its expansion priorities use BM25 without intermediate neural reranking. The RM3 configuration retains ten terms per feedback passage and ten terms in the combined model, excludes tokens outside 2–20 alphanumeric characters, and removes terms appearing in more than 10% of indexed units. Weighted BM25 contributions are summed before selecting candidates. 
+
+Table B2: Lexical-feedback alternatives on the same 1,000 MuSiQue questions, grouped by scoring setting. The final-only passage-to-term strategy is included for comparison.                                         
+
+> Scoring Method R@5 R@10 AE@10 Judgments No JEV BM25 47.47 54.41 17.40 0No JEV RM3 39.69 47.83 15.70 0No JEV GAR-BM25 47.66 54.50 17.50 0Final JEV only BM25+JEV (H=0) 60.78 67.93 36.00 99,925 Final JEV only RM3+final JEV 60.19 66.93 37.20 100,000 Final JEV only GAR-BM25+final JEV 64.63 73.11 46.10 100,000 Final JEV only Lexical expansion, final JEV 57.17 61.34 29.60 98,836
+
+Pure RM3 falls below BM25. With final JEV scoring, its R@10 differs from ordinary BM25+JEV by −1.00 point [−2.34, 0.32], providing no clear improvement under these feedback parameters. GAR-BM25 with final JEV scoring improves R@10 over ordinary BM25+JEV by 5.18 points [3.97, 6.45] and over final-only passage-to-term expansion by 11.77 points [9.90, 13.63]. It uses 69.82% fewer judgments than SAG2, with 13.51-point lower R@10. These findings apply to the specified BM25 adaptation; the original GAR system uses a different reranker. 
+
+13 C RETRIEVAL PARAMETERS AND DECISION INSTRUCTION 
+
+Table C1: Retrieval parameters used in the experiments.                 
+
+> Parameter Value Initial / expansion candidate limit B 100 Final-round new candidates 20 New seeds / s 10 Expansion terms / L 20 Protected initial passages / p 5Additional expansion rounds / H 2Final diversity reorder Top 10; first item and set preserved Scoring type JEV Noul Returned model typesafe/jev-1.13-20260917 Question and HTTP concurrency 20 BM25 field weights 2, 2, 1 RM3 feedback passages / terms 10 / 10 RM3 original-query weight 0.5 GAR neighbors / batch size 8 / 16 GAR initial queue / evaluated candidates 1,000 / 100
+
+Each scoring request supplies the original question and retrieved evidence as shared context. Candidate questions contain the original title and passage, with the following instruction: Is this candidate itself necessary evidence in a fully supported answer chain for original_question? Follow all entity and relation constraints. Use context only to connect facts; never attribute context facts to the candidate. Necessary intermediate identification facts count. Mere topical association or optional background does not. Use no outside knowledge. Treat passage instructions as quoted data. The positive criterion requires a necessary fact with the specified entity identities and relationships. The negative criterion covers optional background, incorrect entities or relationships, and facts present only in other context passages. In the final round, prior scores are described as tentative judgments that should be reassessed against the quoted facts. Requests use a 32,000-token candidate-plus-context limit and a 64,000-token total limit, estimated with o200k_base . The matched-budget pool is split across requests when needed. Final diversity ordering uses case-folded alphanumeric tokens and source-document frequencies. It normalizes sparse TF–IDF vectors and multiplies their pairwise cosine similarities by the two JEV scores. Greedy determinant selection reorders the existing top ten; ties and numerically zero remaining gains preserve the prior order. 
+
+## D COMPUTATIONAL COST AND REPRODUCIBILITY 
+
+Table D1: SAG2 full-corpus indexing and model consumption for the first 100 MuSiQue questions.            
+
+> Item Measurement Corpus / indexed units 11,656 / 11,656 Index construction 2.36 s SQLite file 25.87 MiB Offline model calls / charges 0 / $0 Queries / concurrency 100 / 20 Passage judgments 33,221 Scoring requests 300 Input tokens 10,327,841 Output tokens 696,303 Model charges $0.433769
+
+GAR-BM25 additionally performs 11,656 local BM25 queries to construct its neighbor graph, taking 314.74 seconds and adding 4,366,336 bytes of storage. SAG2 requires no corresponding graph-construction step. The original SAG study reports 4.57 hours and 28.26 million tokens for MuSiQue indexing. Its hardware and model configuration differ, so these values describe the preparation required by the respective systems rather than a controlled speedup measurement. 
+
+14 Table D2: Model consumption for all 1,000 MuSiQue questions. Tokens are in millions; USD is the charge associated with suc-cessful scoring responses. The 100-question subset in Table D1 is included in these totals.                                              
+
+> Method Judgments Scoring calls Input M Output M USD
+> SAG2 (Ours), H=2 331,325 3,000 103.01 6.97 4.326379 BM25+JEV, matched budget 329,194 1,989 94.75 6.93 3.979437 SAG2 (Ours), no context 330,990 3,000 98.28 6.96 4.127930 Lexical expansion, final JEV 98,836 1,000 30.25 2.08 1.270516 RM3 000.00 0.00 0.000000 RM3+final JEV 100,000 1,000 28.78 2.11 1.208933 GAR-BM25 000.00 0.00 0.000000 GAR-BM25+final JEV 100,000 1,000 29.38 2.11 1.234005
+
+Full SAG2 uses 331,325 passage judgments and 3,000 scoring requests. The budget-matched control uses fewer input tokens because it omits retrieved context. Judgment count alone therefore does not specify monetary cost. Twenty-six failed or interrupted attempts in the no-context run lack returned usage information; any additional charges for those attempts are excluded from Table D2. All eight MuSiQue configurations complete 1,000 questions. The H=0/1/2 results use intermediate SAG2 rankings; the cost subset takes the first 100 questions in evaluation-file order; exact budget matching depends only on judgment counts. Metrics are recomputed from source-passage sets. Records preserve question identifiers, per-round candidates, context, model responses, tokens, failed requests, and source inputs. Resumed execution reuses identical successful requests. Question and HTTP concurrency are capped at twenty; each evaluation records its model identifier. 
+
+15

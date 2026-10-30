@@ -1,0 +1,505 @@
+Title: DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering
+
+URL Source: https://arxiv.org/pdf/2610.36759v1
+
+Published Time: Wed, 28 Oct 2026 00:54:47 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering 
+
+## Jing Huang 1, Zhiya Tan 1,2 , Changtao Miao 1, Shutao Gong 1,Yang Wang 1, Joey Tianyi Zhou 3,4 , Jianshu Li 1, Ying Yan 1
+
+> 1
+
+Ant Digital Technologies, Ant Group 2Nanyang Technological University, Singapore 
+
+> 3
+
+Singapore Management University, Singapore 
+
+> 4
+
+Institute of Advanced Intelligence and Computing (IAIC), Agency for Science, Technology and Research (A*STAR), Singapore 
+
+## Abstract 
+
+Multilingual multi-hop document question answering (MMHop-DocQA) requires locating and integrating evidence across com-plex layouts, document pages, and diverse languages. Existing ap-proaches include single-pass processing and adaptive tool use, but learning to coordinate evidence acquisition, cross-page integration, and answer verification remains challenging. To address this chal-lenge, we present DocSkill , an agentic framework with a learned skill-orchestration policy for adaptive evidence acquisition and rea-soning . The policy selects, revisits, or skips skills according to the evolving evidence state. To construct supervision for skill orchestra-tion, bounded Monte Carlo Tree Search (MCTS) explores alternative skill trajectories offline. These trajectories provide demonstrations for supervised fine-tuning (SFT) and preference pairs for Direct Preference Optimization (DPO). We further introduce MMHop-DocBench , a multilingual multi-hop document QA dataset with training and test splits, containing 60K QA pairs across 10 lan-guages and eight document domains. Its HopGen pipeline builds hierarchical page–element graphs to derive traceable cross-page evidence paths and generate grounded QA pairs with page- and element-level evidence annotations. Experiments show that Doc-Skill with Qwen3-VL-8B achieves 41.0 accuracy and 49.2 F 1 on MMHop-DocBench, exceeding the strongest evaluated baseline by 5.5 and 6.3 points, respectively, and achieving competitive perfor-mance on MMLongBench-Doc and DocBench. 
+
+## CCS Concepts 
+
+• Computing methodologies → Artificial intelligence ; • In-formation systems → Information retrieval .
+
+## Keywords 
+
+Multilingual Vision-Language Models, Multilingual Multi-hop Doc-ument Question Answering, Agentic Reasoning, Skill Orchestration 
+
+## 1 Introduction 
+
+Multilingual multi-hop document question answering (MMHop-DocQA) is a cornerstone capability for intelligent systems that process multilingual, multi-page documents [16, 22, 24, 35, 37, 49]. The fundamental challenge lies in locating and integrating sparse, spatially distributed evidence across heterogeneous layouts and lan-guages, requiring iterative document navigation, structural ground-ing, and multi-step reasoning over long contexts. 
+
+Figure 1: Overview of DocSkill and its comparison with VLM-based and tool-augmented methods. DocSkill adaptively or-chestrates four skills, Locate , Inspect , Integrate , and Verify ,for cross-page document reasoning and answering. 
+
+As illustrated in Figure 1, recent approaches can be broadly grouped into two paradigms with progressively increasing reason-ing capabilities, yet each exhibiting inherent limitations. (a) VLM-based Methods directly encode document pages and queries into a Vision-Language Model (VLM) [3, 4, 11, 27]. Although these meth-ods benefit from end-to-end multimodal understanding, single-pass inference over long document contexts can suffer from context over-load, language inconsistency, and incomplete integration of sparse evidence across pages. (b) Tool-Augmented Methods enhance document processing through OCR [9], retrieval-augmented gener-ation [6, 10, 12, 45], or agentic tool use [13, 17, 33, 46]. While these mechanisms improve evidence access and support adaptive tool use, learning to jointly coordinate evidence acquisition, cross-page integration, and answer verification remains challenging. These arXiv:2610.36759v1 [cs.CL] 27 Oct 2026 Jing Huang et al. 
+
+limitations are further amplified in multilingual settings, which re-quire robust understanding across languages and reliable evidence grounding throughout the reasoning process. To address these limitations, we introduce DocSkill , an agentic framework for learned skill orchestration in multilingual multi-hop document QA. Its key design shifts agent control from operation-level tool selection to capability-level skill orchestration. Specifi-cally, we distinguish a skill from a tool : a skill is a reusable capability abstraction that specifies what the agent should accomplish given the current interaction state, whereas a tool is a concrete executable operation that specifies how part of that capability is carried out. Accordingly, a skill may combine model-native reasoning with one or more tool calls, decoupling orchestration decisions from specific tool implementations. As illustrated in Figure 1, DocSkill organizes document interaction into four reusable skills: Locate combines query refinement with page retrieval via Page_Retriever; Inspect 
+
+extracts and interprets fine-grained multimodal content, invoking Page_Parser or Zoom_In when needed; Integrate connects comple-mentary findings across pages; and Verify checks the grounding and consistency of candidate answers against accumulated evidence. Conditioned on the evolving interaction state, the learned policy adaptively selects, skips, repeats, and composes these skills. Learning adaptive skill orchestration requires trajectory-level supervision because the effectiveness of each skill decision depends on its downstream contribution to evidence acquisition, reasoning, and answer generation. We adopt an offline trajectory curation and preference optimization strategy. We use bounded Monte Carlo Tree Search (MCTS) [31, 43] to explore alternative trajectories over the skill space. The resulting trajectories are ranked by answer cor-rectness and overall quality, assessed through language consistency, logical soundness, and skill-orchestration effectiveness, to construct training data for supervised fine-tuning (SFT) and trajectory-level preference pairs. We optimize the orchestration policy through SFT followed by Direct Preference Optimization (DPO) [5, 29, 40], which learns from preferred and dispreferred skill trajectories. To address the scarcity of multilingual multi-hop document QA data, we introduce MMHop-DocBench with train and test splits to support policy learning and benchmark evaluation. The dataset is constructed using HopGen , an automatic curation pipeline that rep-resents long documents as hierarchical Page–Element Graphs [14, 39] and derives traceable cross-page evidence paths for grounded question generation. MMHop-DocBench contains 60K question– answer pairs across 10 languages and 8 document domains, together with explicit page- and element-level evidence annotations. Experiments show that DocSkill outperforms strong baselines on MMHop-DocBench and achieves competitive performance on both MMLongBench-Doc and DocBench. Our main contributions are summarized as follows: 
+
+• Agentic Skill-Orchestration Framework. We introduce DocSkill, which orchestrates four reusable reasoning and tool-use skills. Bounded MCTS generates trajectories for SFT and preference pairs for DPO. 
+
+• Multilingual Multi-Hop QA Dataset. We introduce Hop-Gen to construct MMHop-DocBench, comprising 60K QA pairs across 10 languages and eight domains with page- and element-level evidence annotations. 
+
+• Empirical Results and Analysis. Experiments on three benchmarks evaluate DocSkill against strong baselines, with comparisons and ablations analyzing skill orchestra-tion and trajectory supervision. 
+
+## 2 Related Work 2.1 Document Question Answering 
+
+Document Question Answering (DocQA) involves extracting and reasoning over textual and visual evidence in documents. VLM-based approaches process document images directly [4, 11, 27], while OCR-based pipelines [9] extract text and layout informa-tion for subsequent reasoning. Retrieval-augmented generation (RAG) [6, 10, 12, 45] selects relevant evidence from searchable doc-ument indexes to support answer generation. Document agents extend these approaches through iterative evidence acquisition and tool use [13, 17, 33, 48]. DeepRead [21] supports structure-aware retrieval and section reading, while ORCA [19] coordinates spe-cialized agents through routing and debate. Doc-𝑉 ∗ [47] combines OCR-free page navigation with working memory, using SFT and GRPO for policy training. Our work focuses on multilingual multi-hop DocQA, learning state-dependent orchestration over capability-level skills through SFT and DPO on offline MCTS trajectories. 
+
+## 2.2 Skill-integrated Agentic Reasoning 
+
+Skill learning for LLM agents focuses on acquiring structured rea-soning and action strategies. Prior work, including ReAct [44] and tool-oriented approaches such as Toolformer [30], ToolAlpaca [36], and Gorilla [28], demonstrates the effectiveness of interleaving rea-soning with tool use. These approaches establish reasoning and tool-use interfaces. Some recent works have explored skill-integrated agent frameworks, such as AutoSkill [42] and XSkill [18], where task-level skills and action strategies are explicitly defined and com-posed to solve complex tasks. In this work, we introduce DocSkill, a skill-integrated agentic framework for multilingual multi-hop document question answering that dynamically composes reason-ing actions and tool usage based on evolving interaction states for iterative evidence acquisition and structured document reasoning. 
+
+## 3 Method 
+
+Figure 2 summarizes DocSkill’s offline training and adaptive infer-ence. Conditioned on the interaction state, the policy selects among 
+
+Locate , Inspect , Integrate , and Verify , each combining reasoning with optional tool execution. To construct training data, bounded MCTS uses a frozen generator and evaluator to produce scored skill trajectories with explicit reasoning from MMHop-DocBench QA instances. The resulting trajectories provide SFT demonstrations and DPO preference pairs for policy training. At inference, the learned policy orchestrates document skills without tree search. 
+
+## 3.1 Skill-Orchestrated Document Agent 
+
+Given an input 𝑥 = (D , 𝑞 ), where D = {𝑝 𝑖 }𝑀 𝑖 =1 is an 𝑀 -page mul-tilingual document and 𝑞 is a question, the goal is to generate an answer 𝑦 grounded in cross-page evidence. Following ReAct [44], DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering 
+
+Figure 2: Overview of the DocSkill framework. During offline training, bounded MCTS explores alternative skill trajectories to construct training data for SFT and preference pairs for DPO. During inference, the learned policy adaptively orchestrates four skills, Locate , Inspect , Integrate , and Verify , each combining model reasoning with optional tool use. 
+
+we formulate DocSkill as a finite-step interaction with the docu-ment environment, in which the agent acquires evidence, updates its reasoning state, and determines its subsequent actions. 
+
+3.1.1 Skill Abstraction. In DocSkill, a skill is a reusable document-level capability that organizes model reasoning and optional tool execution around a specific objective. A tool, in contrast, provides an executable operation, such as page retrieval, document parsing, or region cropping. This distinction concerns the abstraction used for agent control: the policy selects the document capability to invoke and specifies its arguments, while the corresponding skill carries out the reasoning and tool execution needed for that invocation. Each skill is represented as 
+
+𝜎 𝑘 = ⟨𝑑 𝑘 , U𝑘 ⟩, (1) where 𝑑 𝑘 describes the capability and U𝑘 denotes its available tool set, which may be empty for reasoning-only execution. The skill library is 
+
+S = {Locate , Inspect , Integrate , Verify }. (2) All four skills are predefined and fixed during policy training. 
+
+3.1.2 Interaction State and Policy. At step 𝑡 , the interaction state is 
+
+𝑧 𝑡 = (𝑞, E𝑡 , ˆ𝑦 𝑡 , 𝑣 𝑡 , H𝑡 ) , (3) where 𝑞 is the original input question; E𝑡 contains accumulated page- and element-level evidence and connections across pages; ˆ𝑦 𝑡 denotes the current candidate answer; 𝑣 𝑡 records verification and reflection feedback; and H𝑡 is the ordered history of preced-ing actions and their returned observations. The input document 
+
+D remains accessible through the document environment and is consulted via skill executions and their associated tools. The policy operates over an action space A containing parame-terized skill invocations and terminal answer outputs: 
+
+𝑎 𝑡 ∼ 𝜋 𝜃 (· | 𝑧 𝑡 ), 𝑎 𝑡 ∈ A . (4) A skill invocation takes the form 𝑎 𝑡 = (𝑠 𝑡 , 𝜉 𝑡 ), where 𝑠 𝑡 ∈ S specifies the skill and 𝜉 𝑡 contains its arguments, such as a retrieval query, target pages, or regions of interest. Thus, invoking the same skill with different arguments constitutes different actions. Alternatively, the policy emits a terminal action, which returns the final answer 
+
+𝑦 and ends the interaction. 
+
+3.1.3 Document Skills. The four skills perform complementary operations on the interaction state. 
+
+Locate uses model reasoning to formulate or refine a query based on the question and interaction state, then invokes Page_Retriever 
+
+to identify candidate evidence pages. Returned page references and content are added to the accumulated evidence. The policy can revisit this skill when further evidence is needed. 
+
+Inspect invokes Page_Parser for layout-aware extraction and, when needed, Zoom_In for region cropping. Model-native reasoning interprets the returned content, and the resulting element-level findings are added to the accumulated evidence. Jing Huang et al. 
+
+Integrate uses model-native reasoning to connect facts across pages and synthesize accumulated evidence to construct or refine the candidate answer, without additional retrieval or extraction. 
+
+Verify uses model reasoning to assess the candidate answer for completeness, consistency, and evidence support. Its feedback guides further evidence acquisition and answer revision. 
+
+3.1.4 Execution and Composition. Executing a skill returns an ob-servation, updates the relevant state components, and records the action and observation in the interaction history. Trajectories retain the agent’s recorded reasoning, skill invocations, and native skill outputs, including candidate answers and verification feedback. Na-tive skill outputs serve as observations that condition subsequent decisions. Tools are invoked within skills rather than exposed as independent top-level actions. Skills compose sequentially through the shared state. At each step, the policy selects a skill invocation or a terminal answer. The updated state allows skills to be revisited or skipped without a prescribed order. These sequences are selected dynamically rather than defined as separate compound skills. A completed interaction with 𝑇 skill invocations is denoted as 
+
+𝜏 = (𝑧 0, 𝑎 0, 𝑜 1, 𝑧 1, . . . , 𝑎 𝑇 −1, 𝑜 𝑇 , 𝑧 𝑇 , 𝑦 ), (5) where 𝑎 𝑡 denotes a skill invocation, 𝑜 1, . . . , 𝑜 𝑇 are the observations, and 𝑦 is the final answer. Incomplete rollouts retain the recorded interaction prefix without a terminal answer. These trajectories define the space explored during offline supervision construction. 
+
+## 3.2 Offline MCTS-Based Skill Trajectory Curation 
+
+The parameterized interactions defined above induce a large tra-jectory space, where the value of a skill invocation may depend on its downstream effects on evidence acquisition, integration, and verification. Independent rollouts can repeatedly explore similar paths and provide limited coverage of alternative decisions. We therefore apply bounded Monte Carlo Tree Search (MCTS) [31, 43] to allocate a fixed search budget across candidate skill trajectories. For each training instance 𝑥 𝑖 = (D 𝑖 , 𝑞 𝑖 ), the root node 𝑛 0 rep-resents the initial state 𝑧 0, and each subsequent node represents an interaction state. An edge records a complete action. For a skill invocation 𝑎 𝑡 = (𝑠 𝑡 , 𝜉 𝑡 ), executing the edge produces an observation 
+
+𝑜 𝑡 +1 and transitions the agent from 𝑧 𝑡 to 𝑧 𝑡 +1. A terminal answer action ends the corresponding branch. Search depth counts policy decisions, with each edge representing one skill invocation or ter-minal answer. Each edge 𝑒 maintains an estimated value 𝑄 (𝑒 ) and a visit count 𝑁 (𝑒 ), while each node 𝑛 maintains a visit count 𝑁 (𝑛 ).
+
+Selection. Starting from the root, MCTS recursively selects the edge with the highest Upper Confidence Bound for Trees (UCT) score: UCT (𝑒 ) = 𝑄 (𝑒 ) + 𝜆 √︄ ln (𝑁 (𝑛 ) + 1)
+
+𝑁 (𝑒 ) + 1 , (6) where 𝑛 is the parent node of 𝑒 , 𝑄 (𝑒 ) is the mean return of pre-vious rollouts through the edge, and 𝜆 balances exploration and exploitation. Selection stops at an unexpanded or terminal node. 
+
+Expansion. At an expandable leaf, the generator proposes feasible actions conditioned on the current state. Skill invocations with different arguments form distinct branches, producing observations and child states through model reasoning and optional tool calls when executed. Answer actions create terminal children. 
+
+Simulation. From an expanded child, the generator proposes and executes actions until it emits a terminal answer, reaches the maxi-mum depth, or fails to acquire new page- or element-level evidence after an evidence-acquisition action. This evidence-stagnation crite-rion is used to truncate offline rollouts and is not an inference-time stopping rule. The evaluator assigns the trajectory quality score: 
+
+𝐶 (𝜏 ) = 𝑤 lang 𝑐 lang (𝜏 ) + 𝑤 logic 𝑐 logic (𝜏 ) + 𝑤 skill 𝑐 skill (𝜏 ), (7) where the three components measure language consistency, logical soundness, and skill-orchestration effectiveness, respectively. Each component takes a value in {0, 0.5, 1}. The weights are non-negative and sum to one; we assign equal weight to the three components. The evaluator assigns an outcome score 𝑂 (𝜏 ) ∈ { 1, −1, 0} for correct, incorrect, and incomplete trajectories, respectively. The rollout return combines the outcome score with trajectory quality: 
+
+𝐽 (𝜏 ) = 𝑂 (𝜏 ) + 𝐶 (𝜏 ). (8) 
+
+Backpropagation. The rollout return 𝐽 (𝜏 ) is propagated through the selected path. For each visited node 𝑛 𝑗 and edge 𝑒 𝑗 , we update 
+
+𝑁 (𝑛 𝑗 ) ← 𝑁 (𝑛 𝑗 ) + 1, (9) 
+
+𝑁 (𝑒 𝑗 ) ← 𝑁 (𝑒 𝑗 ) + 1, (10) and 
+
+𝑄 (𝑒 𝑗 ) ← 𝑄 (𝑒 𝑗 ) + 𝐽 (𝜏 ) − 𝑄 (𝑒 𝑗 )
+
+𝑁 (𝑒 𝑗 ) . (11) Thus, 𝑄 (𝑒 𝑗 ) maintains the empirical mean return of rollouts passing through the edge. We use up to 𝐵 = 3 candidate actions per expansion, a maximum search depth of 𝐷 = 6, and 𝑁 sim = 8 simulations per question. Both the generator and evaluator use frozen GPT-5.6-SOL [27] with role-specific prompts and separate inference contexts. The gener-ator proposes actions and performs model-native skill reasoning, while reference answers and evidence annotations are used only for offline evaluation. For each question, the search returns scored trajectories containing recorded explicit reasoning, skill invoca-tions, and execution outputs. Successful trajectories provide SFT demonstrations, while trajectories with different scores for the same question form DPO preference pairs. 
+
+## 3.3 Trajectory-Level Preference Learning 
+
+The scored trajectories produced by MCTS provide complementary supervision for imitation and preference learning. 
+
+Supervised fine-tuning. We supervise successful trajectories, in-cluding reasoning, skill invocations, native skill outputs, and termi-nal answers. External tool returns and deterministic state updates serve as context. Let DSFT denote these input–trajectory pairs and 
+
+𝑢 1: 𝐿 𝜏 the serialized tokens of 𝜏 . We set 𝑚 𝑗 = 1 for model-generated outputs and 𝑚 𝑗 = 0 for context tokens. The SFT objective is 
+
+LSFT = −E(𝑥,𝜏 )∼D SFT 
+
+" 𝐿 𝜏 ∑︁ 
+
+> 𝑗 =1
+
+𝑚 𝑗 log 𝑝 𝜃 (𝑢 𝑗 | 𝑐 𝑗 )
+
+#
+
+, (12) where 𝑝 𝜃 is the shared backbone’s token distribution and 𝑐 𝑗 con-tains the role-specific prompt, available interaction context, and preceding output tokens for the corresponding generation call. DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering                                                 
+
+> Benchmark #Langs. M-Hop #QA Avg. Pages Source
+> ChartQA [23] 1✗32.7K 1.0 Charts EST-VQA [38] 2✗28.2K 1.0 Scenes MTVQA [35] 9✗28.6K 1.0 Multi DocVQA [24] 1✗50.0K 1.0 Multi MP-DocVQA [37] 1✗46.2K 8.2 Multi SlideVQA [34] 1✓14.5K 20.0 Slides MMLongBench-Doc [22] 1✓1.1K 47.5 Multi DocBench [49] 1✗1.1K 66.0 Multi
+> MMHop-DocBench 10 ✓60.0K 68.2 Multi
+
+Table 1: Comparison of document QA datasets by language count, multi-hop support, number of QA pairs, average doc-ument length, and source. 
+
+Preference construction. For each input 𝑥 𝑖 , two generated trajec-tories form an ordered preference pair when one receives a higher rollout score than the other: 
+
+Dpref = (𝑥 𝑖 , 𝜏 + 
+
+> 𝑖
+
+, 𝜏 − 
+
+> 𝑖
+
+) 𝐽 (𝜏 + 
+
+> 𝑖
+
+) > 𝐽 (𝜏 − 
+
+> 𝑖
+
+) . (13) Both trajectories in each pair are generated for the same question, and equal-score pairs are discarded. 
+
+Trajectory-level DPO. Using the same supervision mask, we de-fine the conditional log-likelihood of the recorded model-generated content as 
+
+ℓ𝜃 (𝑥, 𝜏 ) =
+
+> 𝐿 𝜏
+
+∑︁ 
+
+> 𝑗 =1
+
+𝑚 𝑗 log 𝑝 𝜃 (𝑢 𝑗 | 𝑐 𝑗 ). (14) Terminal-answer tokens contribute only when present, so this defi-nition also applies to incomplete trajectory prefixes. We optimize trajectory preferences using 
+
+LDPO = −E(𝑥,𝜏 +,𝜏 − )∼D pref 
+
+h
+
+log 𝜎  𝛽 [𝑟 𝜃 (𝑥, 𝜏 +) − 𝑟 𝜃 (𝑥, 𝜏 − )] i
+
+, (15) where 𝑟 𝜃 (𝑥, 𝜏 ) = ℓ𝜃 (𝑥, 𝜏 ) − ℓref (𝑥, 𝜏 ), 𝜎 is the logistic sigmoid, and the reference model is the frozen SFT checkpoint. Both models use the same supervision mask and conditioning contexts. 
+
+## 4 MMHop-DocBench 
+
+We introduce MMHop-DocBench, a large-scale benchmark for mul-tilingual multi-hop document question answering. It contains long documents from diverse domains and provides page- and element-level evidence references for each question–answer pair. The bench-mark is constructed using HopGen , an automatic pipeline that gener-ates grounded questions from traceable cross-page evidence paths. 
+
+## 4.1 HopGen: MMHop-DocQA Pair Curation 
+
+Figure 3 provides an overview of HopGen . HopGen uses GPT-5.6-SOL [27] for both generation and evaluation, with role-specific prompts and separate inference contexts, while PP-OCR [9] pro-vides layout-aware parsing to extract fine-grained elements from document pages. For each document, the generator creates a compact profile of every page, including its summary, entities, topics, and layout struc-tures. It then assesses candidate page pairs for explicit semantic 
+
+Figure 3: Overview of HopGen, which constructs hierarchical page–element graphs to generate and verify multilingual multi-hop QA pairs with explicit evidence references. 
+
+dependencies to construct a Page Graph. The parser extracts fine-grained document elements and attaches them to their correspond-ing source pages, forming a hierarchical Page–Element Graph. Con-nected page sequences and their associated elements define candi-date cross-page evidence paths for grounded question generation and subsequent verification. Given an evidence path and parsed elements, the generator produces questions, answers, and support-ing page–element references in the document language using only the supplied evidence. The generator is instructed to create ques-tions requiring complementary evidence from at least two distinct pages, with no single page sufficient for the complete answer. The evaluator scores candidates for answer correctness, evidence suffi-ciency, cross-page necessity, and language consistency, retaining those meeting a predefined threshold. Normalized question–answer duplicates are resolved by retaining the higher-scoring candidate. 
+
+## 4.2 Dataset Statistics 
+
+MMHop-DocBench contains 60K question–answer pairs spanning ten languages: English (EN), Chinese (ZH), Cantonese (YUE), In-donesian (ID), Burmese (MY), Filipino (TL), Tamil (TA), Thai (TH), Vietnamese (VI), and Malay (MS). The documents cover eight do-mains: Business and Finance, Government, Academic, Education, Technical, Medical, Legal, and Media. Within the comparison in Table 1, MMHop-DocBench provides the widest language coverage and the highest average page count, at 68.2 pages per document. Each pair includes page- and element-level evidence annotations, enabling evaluation of evidence localization and answer grounding. 
+
+## 4.3 Human Audit of Dataset Quality 
+
+We conduct a human quality audit of 1,200 retained QA pairs, sam-pling 80 training and 40 test pairs from each of the ten languages, with stratification across document domains. Two target-language annotators independently assess each pair for question validity, reference-answer correctness, evidence sufficiency, and cross-page necessity. Disagreements are adjudicated by a third annotator. Of the 1,200 audited pairs, 1,144 (95.3%) satisfy all four criteria, while 56 (4.7%) fail at least one. 
+
+## 5 Experiments 
+
+Implementation Details. We train Qwen3-VL-4B and Qwen3-VL-8B using LoRA [15] on eight NVIDIA A100 80GB GPUs. SFT runs Jing Huang et al. 
+
+Method EN ZH YUE ID MS TL TA TH VI MY Acc. F1
+
+Vanilla VLM Methods 
+
+Naive VLM w/ Qwen3-VL-4B[4] 18.0/23.2 15.2/20.3 8.3/12.0 16.9/23.6 14.9/19.6 9.0/12.9 2.0/3.3 5.4/8.0 10.3/14.0 2.9/4.2 10.3 14.1 
+
+Naive VLM w/ Qwen3-VL-8B[4] 24.0/28.9 21.0/25.9 12.0/15.7 20.6/28.0 19.8/23.9 13.5/16.6 3.6/5.1 8.2/10.5 14.3/18.2 4.3/5.7 14.1 17.9 
+
+Naive VLM w/ Qwen3-VL-32B[4] 24.2/30.0 21.2/26.1 15.2/19.9 25.5/32.7 22.5/27.8 15.8/20.8 5.2/7.6 12.6/16.1 18.2/23.1 5.6/7.5 16.6 21.2 
+
+Naive VLM w/ Gemini-3.1-Pro[11] 25.0/31.3 24.3 /29.8 20.8/27.5 25.4/33.7 23.8/30.5 20.4/28.6 12.9/18.6 21.8 /28.2 22.0/29.3 6.1/11.8 20.3 26.9 
+
+Naive VLM w/ Claude-Sonnet-5[3] 25.6/32.0 23.8/29.5 22.1/29.2 26.0/34.5 24.8/31.4 22.5/31.8 13.5/19.8 20.8/28.1 22.4/29.8 6.4/12.5 20.8 27.9 
+
+Naive VLM w/ GPT-5.6-SOL[27] 26.2/32.6 24.0/ 30.1 21.8/28.8 26.5/35.2 24.5/31.2 22.2/31.5 14.6/20.5 21.4/ 28.4 22.7/30.1 6.7/12.9 21.1 28.1 
+
+OCR-Based Methods 
+
+Tesseract [32] w/ GPT-5.6-SOL[27] 23.2/30.1 21.5/27.6 14.8/20.5 23.9/31.2 22.5/28.8 19.8/26.9 11.8/16.5 17.5/23.4 18.9/25.6 7.4/11.6 18.1 24.2 
+
+PP-OCR [9] w/ GPT-5.6-SOL[27] 27.1/33.5 24.8/31.2 21.5/28.4 27.3/36.1 25.4/32.3 22.8/32.1 14.2/20.1 22.3/29.5 23.1/30.8 7.6/13.8 21.6 28.8 
+
+RAG-Based Methods 
+
+VisRAG [45] w/ GPT-5.6-SOL[27] 28.5/35.2 25.8/32.4 22.1/29.1 27.8/36.5 25.9/33.1 23.2/32.6 14.5/20.3 22.6/29.8 23.5/31.2 7.8/14.1 22.2 29.4 
+
+ColPali [10] w/ GPT-5.6-SOL[27] 29.2/36.1 26.4/33.2 23.1 /29.8 28.5/37.4 26.5/34.0 23.8/33.2 14.8/20.8 23.1/30.4 24.0/31.8 8.0/14.5 22.7 30.1 
+
+Qwen3-VL-Emb-8B [20] w/ GPT-5.6-SOL[27] 30.8/38.5 28.2/35.6 22.6/ 32.1 30.1/39.2 28.1/36.2 25.4/35.1 16.2/22.6 24.8/32.5 25.6/33.9 8.9/15.8 24.1 32.2 
+
+Agent-Based Methods 
+
+DocAgent [33] w/ GPT-5.6-SOL[27] 27.9/34.2 25.5/31.9 22.2/29.0 28.0/36.7 26.1/32.9 23.5/32.7 14.9/20.8 23.0/30.1 23.8/31.4 8.2/14.4 22.3 29.4 
+
+SimpleDoc [17] w/ GPT-5.6-SOL[27] 28.6/35.0 26.2/32.8 22.8/29.9 28.7/37.6 26.8/33.8 24.2/33.6 15.5/21.6 23.6/30.9 24.4/32.2 8.6/15.0 22.9 30.2 
+
+DocLens [48] w/ Gemini-3.1-Pro [11] 38.6/45.5 36.3/43.2 33.6/40.9 38.3/45.6 36.9/44.2 34.7/42.2 25.9/32.6 34.3/41.6 35.2/42.9 18.6/25.2 33.2 40.4 
+
+DocLens [48] w/ Claude-Sonnet-5 [3] 40.3/47.4 37.6/44.7 34.7/42.0 39.6/47.0 38.0/45.5 36.3/44.1 27.3/34.3 35.6/43.1 36.7/44.6 20.3/27.0 34.6 42.0 
+
+DocLens [48] w/ GPT-5.6-SOL [27] 41.0/48.3 38.3/45.6 34.5/41.7 41.4/49.0 39.1/46.7 37.3/45.1 28.1/35.3 36.3/43.7 37.6/45.6 21.1/27.9 35.5 42.9 
+
+DocSkill (Ours) 
+
+w/ Gemini-3.1-Pro[11] 41.2/48.5 38.5/45.8 35.8/43.2 40.8/48.2 39.1/46.5 37.2/44.8 28.5/35.6 36.8/44.2 37.5/45.6 21.2/28.5 35.7 43.1 w/ Claude-Sonnet-5[3] 42.5/49.8 39.8/47.2 36.5/44.1 42.1/49.5 40.5/47.8 38.5/46.2 29.8/37.2 37.8/45.5 38.6/46.8 22.5/30.1 36.9 44.4 w/ GPT-5.6-SOL[27] 43.8/51.2 41.2/48.6 36.2/43.8 43.5/51.0 41.8/49.2 39.8/47.8 31.2/38.8 37.5/45.2 39.8/48.2 23.8/31.6 37.9 45.5 w/ Qwen3-VL-4B [4] (SFT) 42.5/49.8 39.5/46.8 34.2/41.8 41.8/49.2 40.2/47.5 37.8/45.5 28.5/35.8 36.2/43.8 38.2/46.5 21.5/29.2 36.0 43.6 w/ Qwen3-VL-4B [4] (SFT + DPO) 44.2/51.8 41.5/49.2 35.8/43.5 43.8/51.5 42.5/50.2 39.5/47.8 30.8/38.5 38.2/46.2 40.2/48.8 23.5/31.8 38.0 45.9 w/ Qwen3-VL-8B [4] (SFT) 45.2/52.8 42.8/50.5 37.5/45.2 44.8/52.5 43.5/51.2 40.8/49.2 32.5/40.2 39.5/47.8 41.5/50.2 25.2/33.5 39.3 47.3 w/ Qwen3-VL-8B [4] (SFT + DPO) 46.8/54.5 44.5/52.2 39.2/47.1 46.2/54.2 45.2/53.1 42.5/51.2 34.2/42.5 41.2/49.5 43.2/52.1 27.1/35.8 41.0 49.2 
+
+Human Baseline 
+
+Human Experts – – – – – – – – – – 61.7 63.9 
+
+Table 2: Performance on MMHop-DocBench across ten languages, reported as per-language and macro-averaged Acc/ F1. Bold values indicate the best results within each method category, while underlined bold values denote the best model results overall. 
+
+Method MMLongBench-Doc DocBench Acc. F1 LASJ LASJ DocAgent [33] w/ GPT-4o [25] 51.8 49.1 – 79.9 
+
+DocAgent [33] w/ Claude-3.5-Sonnet [1] 57.3 54.1 – –
+
+DocDancer [46] w/ GPT-4o [25] 52.3 50.8 59.2 73.5 
+
+DocDancer [46] w/ Gemini-2.5-Pro [8] 56.3 55.3 65.9 79.9 
+
+DocDancer [46] w/ GPT-5.2 [26] 57.0 56.8 67.6 85.5 
+
+SimpleDoc [17] w/ Claude-4-Sonnet [2] 58.6 – – –
+
+SimpleDoc [17] w/ GPT-5.2 [26] 57.4 53.8 64.2 81.8 
+
+DocLens [48] w/ Claude-4-Sonnet [2] 63.3 – – –
+
+DocLens [48] w/ Gemini-2.5-Pro [8] 67.6 – – –
+
+DocLens [48] w/ GPT-5.2 [26] 67.8 55.0 68.2 83.9 
+
+DocSkill (Ours) 
+
+w/ Gemini-2.5-Pro [8] 68.0 66.4 67.8 84.5 w/ GPT-5.2 [26] 68.5 66.8 67.9 85.9 w/ GPT-5.6-SOL [27] 68.8 67.1 68.5 86.6 w/ Qwen3-VL-4B [4] (SFT + DPO) 65.8 64.5 64.8 82.6 w/ Qwen3-VL-8B [4] (SFT + DPO) 69.2 67.3 68.9 86.8 
+
+Table 3: Performance comparison on MMLongBench-Doc and DocBench. Underlined bold values indicate the best model results. Unreported results are marked with “–”. 
+
+for three epochs with an effective global batch size of 32 across all GPUs, an image resolution of 768 ×768, and AdamW with a learning rate of 2 × 10 −4. LoRA uses a rank of 16, a scaling factor of 32, and a dropout rate of 0.05. DPO uses the same LoRA configuration with an effective global batch size of 16 and 𝛽 = 0.1, where each preferred– dispreferred trajectory pair counts as one training instance. We use Qwen3-VL-Embedding-8B [20] for top-5 page retrieval and PP-OCR [9] for layout-aware parsing, while region-level zooming is implemented through programmatic cropping. 
+
+Benchmarks and Baselines. We evaluate DocSkill on the MMHop-DocBench test set and two public long-document QA benchmarks, MMLongBench-Doc [22] and DocBench [49]. On MMHop-DocBench, we compare against direct VLM inference, OCR-based pipelines, multimodal RAG systems, and document agents, using official im-plementations and recommended settings when available. Each DocSkill variant uses its listed backbone for both orchestration and skill execution, with the specified SFT/DPO checkpoints for Qwen variants and prompting for commercial variants. 
+
+Evaluation Metrics. For MMHop-DocBench, we report accuracy (Acc.) and token-level F 1 per-language, with macro averages over all ten languages. Accuracy is computed from normalized predictions and references, while language-aware tokenization is applied for multilingual F 1. For MMLongBench-Doc, we report accuracy, F 1,and LLM-as-a-Judge (LASJ), while DocBench is evaluated using LASJ. All LASJ scores follow the judge prompts and configurations provided in the respective official code repositories. DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering 
+
+Figure 4: Qualitative comparison of DocAgent and DocSkill on an Indonesian document. In this example, DocAgent returns an incorrect answer with incorrect evidence citations, whereas DocSkill produces the correct answer with supporting evidence through adaptive skill selection. Intermediate skill invocations and the terminal answer action are omitted for brevity. 
+
+Human Baseline. We establish a human baseline using 1,300 test questions, with 130 questions sampled from each of the ten languages. Model results are evaluated on the full test set, while human results provide a reference on this subset. 
+
+## 5.1 Main Results 
+
+Results on MMHop-DocBench. Table 2 reports results on MMHop-DocBench. In same-backbone comparisons across Gemini-3.1-Pro [11], Claude-Sonnet-5 [3], and GPT-5.6-SOL [27], DocSkill improves over the corresponding DocLens [48] variants by 2.3–2.5 Acc. and 2.4– 2.7 F 1 points. DocSkill with Qwen3-VL-8B [4], trained through SFT followed by DPO [29], achieves the highest macro-averaged scores among the evaluated model configurations: 41.0 Acc. and 49.2 F 1. It exceeds DocLens with GPT-5.6-SOL by 5.5 Acc. and 6.3 F 1 points. This comparison evaluates complete configurations with different backbones and training conditions. Human experts achieve 61.7 Acc. and 63.9 F 1 on the sampled test subset, providing a reference. 
+
+Generalization to Public Benchmarks. Table 3 reports results on MMLongBench-Doc and DocBench. DocSkill with Qwen3-VL-8B, trained on MMHop-DocBench through SFT followed by DPO, achieves 69.2 Acc., 67.3 F 1, and 68.9 LASJ on MMLongBench-Doc, and 86.8 LASJ on DocBench. Compared with the strongest competing base-line listed for each metric, these results yield gains of 1.4, 10.5, 0.7, and 1.3 points, respectively. Using GPT-5.2 as the controller, Doc-Skill exceeds the reported results of DocDancer [46] by 11.5 Acc., 10.0 F 1, and 0.3 LASJ on MMLongBench-Doc, and by 0.4 LASJ on DocBench. 
+
+## 5.2 Qualitative Analysis 
+
+Figure 4 illustrates a case from a 67-page Indonesian document. The question requires combining complementary evidence from text and tables across pages 18, 31, and 38. DocAgent searches and inspects pages sequentially but stops after collecting incomplete evidence from pages 17 and 31. Consequently, it introduces unsup-ported content and cites incorrect evidence. In contrast, DocSkill gathers and integrates evidence across all required pages and veri-fies the answer, enabling complete, grounded cross-page reasoning. 
+
+## 5.3 Ablation Studies 
+
+Effect of Skill Abstraction and Adaptive Orchestration. We com-pare DocSkill with adaptive direct tool selection, a fixed-order skill policy, and four leave-one-out variants. All variants use Qwen3-VL-8B with SFT and DPO. Direct tool selection exposes the underlying tools as actions while retaining reasoning for cross-page integra-tion, answer verification, and reflection, without explicit interfaces for the four document skills. The fixed policy allows repeated cy-cles of Locate →Inspect →Integrate →Verify , while maintaining the prescribed execution order. Each leave-one-out variant removes one skill during search and training. 𝑅 page and 𝑅 elem measure the percentages of annotated supporting pages and elements recovered, respectively. Table 4 shows that DocSkill outperforms direct tool selection by 11.2 Acc. and 11.0 F 1 points, and the fixed policy by 7.5 Acc. and 7.4 F 1 points. Removing Locate causes the largest Acc. drop (17.6 points), reducing page recall from 82.4 to 41.5; removing 
+
+Inspect lowers element recall to 43.5. This pattern suggests that Jing Huang et al. 
+
+Variant Acc. 𝑭 1 𝑹 page 𝑹 elem 
+
+Full DocSkill 41.0 49.2 82.4 68.5 
+
+Direct Tool Selection 29.8 38.2 68.5 49.3 Fixed Skill Order 33.5 41.8 70.4 56.5 DocSkill w/o Locate 23.4 30.2 41.5 33.2 DocSkill w/o Inspect 28.2 36.1 72.8 43.5 DocSkill w/o Integrate 31.8 39.5 76.2 59.8 DocSkill w/o Verify 36.5 44.8 79.6 65.2 
+
+Table 4: Ablation of DocSkill on MMHop-DocBench using Qwen3-VL-8B (SFT + DPO). Scores are percentages. 𝑅 page and 
+
+𝑅 elem denote supporting-page and supporting-element recall. 
+
+relevant-page retrieval alone is insufficient without fine-grained ev-idence inspection. Removing Integrate or Verify reduces Acc. by 9.2 and 4.5 points, respectively. These results support the effectiveness of the full DocSkill configuration under the evaluated settings. 
+
+Effect of Trajectory Preference Supervision. We examine whether suboptimal trajectories provide useful supervision by comparing SFT with SFT followed by DPO. Since MCTS naturally produces ranked trajectory pairs, DPO can directly optimize this offline su-pervision without additional on-policy rollouts or reward-model evaluations. As shown in Table 2, DPO improves Qwen3-VL-4B from 36.0 to 38.0 Acc. and from 43.6 to 45.9 F 1. For Qwen3-VL-8B, it improves Acc. from 39.3 to 41.0 and F 1 from 47.3 to 49.2. These gains show that preferences between successful and suboptimal trajectories provide complementary supervision beyond imitating successful trajectories alone. 
+
+Strategy Succ. (%) Seq. Div. Pairs/Q Acc. F1
+
+Best-of-𝑁 34 .5 ± 2.4 0.42 ± 0.03 1.2 ± 0.1 37.8 46.5 Beam Search 47 .2 ± 1.5 0.15 ± 0.02 0.6 ± 0.1 38.6 47.1 MCTS (Ours) 65 .8 ± 1.8 0.7 ± 0.02 3.0 ± 0.2 41.0 49.2 
+
+Table 5: Equal-budget trajectory construction comparison. Succ. means the questions with a correct trajectory (%). Search metrics are mean ± SD over three runs; Acc./ F1 are MMHop-DocBench scores for DocSkill w/ Qwen3-VL-8B (SFT + DPO). 
+
+Effect of MCTS-Based Trajectory Construction. Under matched rollout and evaluation budgets, we compare MCTS with Best-of-
+
+𝑁 sampling [7] and evaluator-guided beam search [41], using the same frozen GPT-5.6-SOL generator and evaluator. Seq. Div. is the mean per-question fraction of distinct skill sequences among valid trajectories, while Pairs/Q is the average number of preference pairs per question. Table 5 shows that MCTS leads in success rate (65.8%), diversity, and Pairs/Q. Its Qwen3-VL-8B policy trained through SFT and DPO reaches 41.0 Acc. and 49.2 F 1, outperforming Best-of-𝑁 
+
+and beam search by 3.2/2.7 and 2.4/2.1 Acc./F 1 points, respectively. These gains also reflect higher supervision yield from MCTS. 
+
+## 6 Conclusion 
+
+We presented DocSkill, a document agent that learns to orches-trate four reusable capability-level skills for multilingual multi-hop reasoning. Bounded MCTS constructs skill trajectories for SFT and DPO. We also introduced MMHop-DocBench, containing 60K grounded QA pairs across 10 languages and eight document do-mains, with page- and element-level evidence annotations. Experi-ments on MMHop-DocBench, MMLongBench-Doc, and DocBench demonstrate consistent improvements over strong baselines, while ablations support skill abstraction, adaptive orchestration, and tra-jectory supervision. Future work will expand language and do-main coverage and explore automatic discovery and refinement of reusable document skills for more complex document scenarios. 
+
+## References 
+
+[1] Anthropic. 2024. Claude 3.5 Sonnet Model Card. https://www.anthropic.com/ system-cards. [2] Anthropic. 2025. Claude 4 System Model Card. https://www.anthropic.com/ system-cards. [3] Anthropic. 2026. Claude Sonnet 5 System Card. https://www.anthropic.com/ system-cards. [4] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Junyang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu, Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jianqiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yuxuan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu, Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu, and Ke Zhu. 2025. Qwen3-VL Technical Report. arXiv:2511.21631 [cs.CV] https://arxiv.org/abs/2511.21631 [5] Guoxin Chen, Minpeng Liao, Chengxi Li, and Kai Fan. 2024. Step-level Value Preference Optimization for Mathematical Reasoning. arXiv:2406.10858 [cs.CL] https://arxiv.org/abs/2406.10858 [6] Jaemin Cho, Debanjan Mahata, Ozan Irsoy, Yujie He, and Mohit Bansal. 2024. M3DocRAG: Multi-modal Retrieval is What You Need for Multi-page Multi-document Understanding. arXiv:2411.04952 [cs.CV] https://arxiv.org/abs/2411. 04952 [7] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, and John Schulman. 2021. Training Verifiers to Solve Math Word Problems. arXiv:2110.14168 [cs.LG] https://arxiv.org/abs/2110.14168 [8] Gheorghe Comanici et al. 2025. Gemini 2.5: Pushing the Frontier with Ad-vanced Reasoning, Multimodality, Long Context, and Next Generation Agentic Capabilities. arXiv:2507.06261 [cs.CL] https://arxiv.org/abs/2507.06261 [9] Cheng Cui, Ting Sun, Manhui Lin, Tingquan Gao, Yubo Zhang, Jiaxuan Liu, Xueqing Wang, Zelun Zhang, Changda Zhou, Hongen Liu, Yue Zhang, Wenyu Lv, Kui Huang, Yichao Zhang, Jing Zhang, Jun Zhang, Yi Liu, Dianhai Yu, and Yanjun Ma. 2025. PaddleOCR 3.0 Technical Report. arXiv:2507.05595 [cs.CV] https://arxiv.org/abs/2507.05595 [10] Manuel Faysse, Hugues Sibille, Tony Wu, Bilel Omrani, Gautier Viaud, Céline Hudelot, and Pierre Colombo. 2025. ColPali: Efficient Document Retrieval with Vision Language Models. arXiv:2407.01449 [cs.IR] https://arxiv.org/abs/2407. 01449 [11] Google. 2026. Gemini 3.1 Pro Model Card. https://storage.googleapis.com/ deepmind-media/Model-Cards/Gemini-3-1-Pro-Model-Card.pdf. Published February 2026. [12] Zirui Guo, Xubin Ren, Lingrui Xu, Jiahao Zhang, and Chao Huang. 2025. RAG-Anything: All-in-One RAG Framework. arXiv:2510.12323 [cs.AI] https://arxiv. org/abs/2510.12323 [13] Siwei Han, Peng Xia, Ruiyi Zhang, Tong Sun, Yun Li, Hongtu Zhu, and Huaxiu Yao. 2025. MDocAgent: A Multi-Modal Multi-Agent Framework for Document Understanding. arXiv:2503.13964 [cs.LG] https://arxiv.org/abs/2503.13964 [14] Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. 2020. Constructing A Multi-hop QA Dataset for Comprehensive Evaluation of Reason-ing Steps. arXiv:2011.01060 [cs.CL] https://arxiv.org/abs/2011.01060 [15] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2021. LoRA: Low-Rank Adaptation of Large Language Models. arXiv:2106.09685 [cs.CL] https://arxiv.org/abs/2106.09685 DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering 
+
+[16] Jing Huang, Zhiya Tan, Shutao Gong, Fanwei Zeng, Joey Tianyi Zhou, Changtao Miao, Huazhe Tan, Weibin Yao, and Jianshu Li. 2025. LaV-CoT: Language-Aware Visual CoT with Multi-Aspect Reward Optimization for Real-World Multilingual VQA. arXiv:2509.10026 [cs.CV] https://arxiv.org/abs/2509.10026 [17] Chelsi Jain, Yiran Wu, Yifan Zeng, Jiale Liu, S hengyu Dai, Zhenwen Shao, Qingyun Wu, and Huazheng Wang. 2025. SimpleDoc: Multi-Modal Docu-ment Understanding with Dual-Cue Page Retrieval and Iterative Refinement. arXiv:2506.14035 [cs.CV] https://arxiv.org/abs/2506.14035 [18] Guanyu Jiang, Zhaochen Su, Xiaoye Qu, and Yi R. Fung. 2026. XSkill: Continual Learning from Experience and Skills in Multimodal Agents. arXiv:2603.12056 [cs.AI] https://arxiv.org/abs/2603.12056 [19] Aymen Lassoued, Mohamed Ali Souibgui, and Yousri Kessentini. 2026. ORCA: Or-chestrated Reasoning with Collaborative Agents for Document Visual Question Answering. arXiv:2603.02438 [cs.CV] https://arxiv.org/abs/2603.02438 [20] Mingxin Li, Yanzhao Zhang, Dingkun Long, Keqin Chen, Sibo Song, Shuai Bai, Zhibo Yang, Pengjun Xie, An Yang, Dayiheng Liu, Jingren Zhou, and Junyang Lin. 2026. Qwen3-VL-Embedding and Qwen3-VL-Reranker: A Unified Framework for State-of-the-Art Multimodal Retrieval and Ranking. arXiv:2601.04720 [cs.CL] https://arxiv.org/abs/2601.04720 [21] Zhanli Li, Huiwen Tian, Lvzhou Luo, Yixuan Cao, and Ping Luo. 2026. Deep-Read: Document Structure-Aware Reasoning to Enhance Agentic Search. arXiv:2602.05014 [cs.AI] https://arxiv.org/abs/2602.05014 [22] Yubo Ma, Yuhang Zang, Liangyu Chen, Meiqi Chen, Yizhu Jiao, Xinze Li, Xinyuan Lu, Ziyu Liu, Yan Ma, Xiaoyi Dong, Pan Zhang, Liangming Pan, Yu-Gang Jiang, Jiaqi Wang, Yixin Cao, and Aixin Sun. 2024. MMLongBench-Doc: Benchmarking Long-context Document Understanding with Visualizations. arXiv:2407.01523 [cs.CV] https://arxiv.org/abs/2407.01523 [23] Ahmed Masry, Do Xuan Long, Jia Qing Tan, Shafiq Joty, and Enamul Hoque. 2022. ChartQA: A Benchmark for Question Answering about Charts with Visual and Logical Reasoning. arXiv:2203.10244 [cs.CL] https://arxiv.org/abs/2203.10244 [24] Minesh Mathew, Dimosthenis Karatzas, and C. V. Jawahar. 2021. DocVQA: A Dataset for VQA on Document Images. arXiv:2007.00398 [cs.CV] https: //arxiv.org/abs/2007.00398 [25] OpenAI. 2024. GPT-4o System Card. https://openai.com/index/gpt-4o-system-card/. [26] OpenAI. 2025. Update to GPT-5 System Card: GPT-5.2. https://openai.com/ index/gpt-5-system-card-update-gpt-5-2/ [27] OpenAI. 2026. GPT-5.6 System Card. https://deploymentsafety.openai.com/gpt-5-6. Published July 2026. [28] Shishir G. Patil, Tianjun Zhang, Xin Wang, and Joseph E. Gonzalez. 2023. Gorilla: Large Language Model Connected with Massive APIs. arXiv:2305.15334 [cs.CL] https://arxiv.org/abs/2305.15334 [29] Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, and Chelsea Finn. 2024. Direct Preference Optimization: Your Language Model is Secretly a Reward Model. arXiv:2305.18290 [cs.LG] https://arxiv.org/ abs/2305.18290 [30] Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023. Toolformer: Language Models Can Teach Themselves to Use Tools. arXiv:2302.04761 [cs.CL] https://arxiv.org/abs/2302.04761 [31] David Silver, Thomas Hubert, Julian Schrittwieser, Ioannis Antonoglou, Matthew Lai, Arthur Guez, Marc Lanctot, Laurent Sifre, Dharshan Kumaran, Thore Grae-pel, Timothy Lillicrap, Karen Simonyan, and Demis Hassabis. 2017. Mastering Chess and Shogi by Self-Play with a General Reinforcement Learning Algorithm. arXiv:1712.01815 [cs.AI] https://arxiv.org/abs/1712.01815 [32] Ray Smith. 2007. An overview of the Tesseract OCR engine. 629–633 pages. [33] Li Sun, Liu He, Shuyue Jia, Yangfan He, and Chenyu You. 2025. DocAgent: An Agentic Framework for Multi-Modal Long-Context Document Understanding. 17701–17716 pages. doi:10.18653/v1/2025.emnlp-main.893 [34] Ryota Tanaka, Kyosuke Nishida, Kosuke Nishida, Taku Hasegawa, Itsumi Saito, and Kuniko Saito. 2023. SlideVQA: A Dataset for Document Visual Question Answering on Multiple Images. arXiv:2301.04883 [cs.CL] https://arxiv.org/abs/ 2301.04883 [35] Jingqun Tang, Qi Liu, Yongjie Ye, Jinghui Lu, Shu Wei, Chunhui Lin, Wan-qing Li, Mohamad Fitri Faiz Bin Mahmood, Hao Feng, Zhen Zhao, Yangfan He, Kuan Lu, Yanjie Wang, Yuliang Liu, Hao Liu, Xiang Bai, and Can Huang. 2025. MTVQA: Benchmarking Multilingual Text-Centric Visual Question Answering. arXiv:2405.11985 [cs.CV] https://arxiv.org/abs/2405.11985 [36] Qiaoyu Tang, Ziliang Deng, Hongyu Lin, Xianpei Han, Qiao Liang, Boxi Cao, and Le Sun. 2023. ToolAlpaca: Generalized Tool Learning for Language Models with 3000 Simulated Cases. arXiv:2306.05301 [cs.CL] https://arxiv.org/abs/2306.05301 [37] Rubèn Tito, Dimosthenis Karatzas, and Ernest Valveny. 2023. Hierarchical multimodal transformers for Multi-Page DocVQA. arXiv:2212.05935 [cs.CV] https://arxiv.org/abs/2212.05935 [38] Xinyu Wang, Yuliang Liu, Chunhua Shen, Chun Chet Ng, Canjie Luo, Lianwen Jin, Chee Seng Chan, Anton van den Hengel, and Liangwei Wang. 2020. On the General Value of Evidence, and Bilingual Scene-Text Visual Question Answering. arXiv:2002.10215 [cs.CV] https://arxiv.org/abs/2002.10215 [39] Yunxuan Xiao, Yanru Qu, Lin Qiu, Hao Zhou, Lei Li, Weinan Zhang, and Yong Yu. 2019. Dynamically Fused Graph Network for Multi-hop Reasoning. arXiv:1905.06933 [cs.CL] https://arxiv.org/abs/1905.06933 [40] Yuxi Xie, Anirudh Goyal, Wenyue Zheng, Min-Yen Kan, Timothy P. Lillicrap, Kenji Kawaguchi, and Michael Shieh. 2024. Monte Carlo Tree Search Boosts Reasoning via Iterative Preference Learning. arXiv:2405.00451 [cs.AI] https: //arxiv.org/abs/2405.00451 [41] Yuxi Xie, Kenji Kawaguchi, Yiran Zhao, Xu Zhao, Min-Yen Kan, Junxian He, and Qizhe Xie. 2023. Self-Evaluation Guided Beam Search for Reasoning. arXiv:2305.00633 [cs.CL] https://arxiv.org/abs/2305.00633 [42] Yutao Yang, Junsong Li, Qianjun Pan, Bihao Zhan, Yuxuan Cai, Lin Du, Jie Zhou, Kai Chen, Qin Chen, Xin Li, Bo Zhang, and Liang He. 2026. AutoSkill: Experience-Driven Lifelong Learning via Skill Self-Evolution. arXiv:2603.01145 [cs.AI] https://arxiv.org/abs/2603.01145 [43] Shunyu Yao, Dian Yu, Jeffrey Zhao, Izhak Shafran, Thomas L. Griffiths, Yuan Cao, and Karthik Narasimhan. 2023. Tree of Thoughts: Deliberate Problem Solving with Large Language Models. arXiv:2305.10601 [cs.CL] https://arxiv.org/abs/ 2305.10601 [44] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2023. ReAct: Synergizing Reasoning and Acting in Language Models. arXiv:2210.03629 [cs.CL] https://arxiv.org/abs/2210.03629 [45] Shi Yu, Chaoyue Tang, Bokai Xu, Junbo Cui, Junhao Ran, Yukun Yan, Zheng-hao Liu, Shuo Wang, Xu Han, Zhiyuan Liu, and Maosong Sun. 2025. VisRAG: Vision-based Retrieval-augmented Generation on Multi-modality Documents. arXiv:2410.10594 [cs.IR] https://arxiv.org/abs/2410.10594 [46] Qintong Zhang, Xinjie Lv, Jialong Wu, Baixuan Li, Zhengwei Tao, Guochen Yan, Huanyao Zhang, Bin Wang, Jiahao Xu, Haitao Mi, and Wentao Zhang. 2026. DocDancer: Towards Agentic Document-Grounded Information Seeking. arXiv:2601.05163 [cs.CL] https://arxiv.org/abs/2601.05163 [47] Yuanlei Zheng, Pei Fu, Hang Li, Ziyang Wang, Yuyi Zhang, Wenyu Ruan, Xiaojin Zhang, Zhongyu Wei, Zhenbo Luo, Jian Luan, Wei Chen, and Xiang Bai. 2026. Doc-V*:Coarse-to-Fine Interactive Visual Reasoning for Multi-Page Document VQA. arXiv:2604.13731 [cs.CL] https://arxiv.org/abs/2604.13731 [48] Dawei Zhu, Rui Meng, Jiefeng Chen, Sujian Li, Tomas Pfister, and Jinsung Yoon. 2025. DocLens : A Tool-Augmented Multi-Agent Framework for Long Visual Document Understanding. arXiv:2511.11552 [cs.CV] https://arxiv.org/abs/2511. 11552 [49] Anni Zou, Wenhao Yu, Hongming Zhang, Kaixin Ma, Deng Cai, Zhuosheng Zhang, Hai Zhao, and Dong Yu. 2024. DOCBENCH: A Benchmark for Evaluating LLM-based Document Reading Systems. arXiv:2407.10701 [cs.CL] https://arxiv. org/abs/2407.10701 Jing Huang et al. 
+
+## A More Details of MCTS Trajectory Generation A.1 Prompt for MCTS Rollout Generation 
+
+Figure 5: Instructions for generating MCTS rollouts. 
+
+Figure 6: Instructions for evaluating MCTS rollouts. 
+
+## B More Details of HopGen B.1 HopGen Construction Pipeline 
+
+HopGen automatically constructs grounded multilingual multi-hop QA pairs from long documents. Algorithm 1 formalizes the auto-matic curation procedure, comprising hierarchical graph construc-tion, cross-page evidence-path extraction, candidate generation, and quality-based filtering. The Page Graph captures semantic dependencies between page profiles, while the Page–Element Graph grounds them in localized text, tables, figures, captions, and equations. Each evidence path spans two to four pages, with edges retained only when supported by explicit semantic and grounded element-level relations. HopGen generates at most three QA candidates per path. The evaluator scores answer correctness, evidence sufficiency, cross-page neces-sity, and language consistency, retaining candidates with threshold 
+
+𝜏 = 0.875. After question and answer normalization, duplicates are merged by retaining the highest-scoring candidate. Each final QA pair preserves its supporting page and element annotations. 
+
+Algorithm 1 HopGen: MMHop-DocQA Curation 
+
+Require: Multilingual document 𝐷 , target language ℓ, OCR mod-ule 𝑓 ocr , generator 𝑓 gen , evaluator 𝑓 eval , quality threshold 𝜏 
+
+Ensure: Verified QA set Q = {⟨ 𝑞, 𝑎, 𝐸 𝑝 , 𝐸 𝑒 ⟩}  
+
+> 1:
+
+Q ← ∅  
+
+> 2:
+
+P ← SplitPages (𝐷 ) 
+
+> 3:
+
+for each page 𝑝 𝑖 ∈ P do  
+
+> 4:
+
+ℎ𝑖 ← CreatePageProfile (𝑝 𝑖 , ℓ ; 𝑓 gen ) 
+
+> 5:
+
+end for  
+
+> 6:
+
+H ← { ℎ𝑖 }| P |  
+
+> 𝑖 =1
+> 7:
+
+G𝑝 ← BuildPageGraph (P , H ; 𝑓 gen ) 
+
+> 8:
+
+for each page 𝑝 𝑖 ∈ P do  
+
+> 9:
+
+E𝑖 ← 𝑓 ocr (𝑝 𝑖 ) 
+
+> 10:
+
+end for  
+
+> 11:
+
+E ← 
+
+> | P |
+
+Ø
+
+> 𝑖 =1
+
+E𝑖  
+
+> 12:
+
+G𝑝𝑒 ← BuildPageElementGraph (G 𝑝 , E; 𝑓 gen ) 
+
+> 13:
+
+Π ← ExtractCrossPagePaths (G 𝑝𝑒 ) 
+
+> 14:
+
+for each evidence path 𝜋 ∈ Π do  
+
+> 15:
+
+C𝜋 ← GenerateCandidates (𝐷, 𝜋, ℓ ; 𝑓 gen ) 
+
+> 16:
+
+for each candidate 𝑐 = ⟨𝑞, 𝑎, 𝐸 𝑝 , 𝐸 𝑒 ⟩ ∈ C 𝜋 do  
+
+> 17:
+
+𝑟 ← EvaluateCandidate (𝐷, 𝑐, ℓ ; 𝑓 eval ) 
+
+> 18:
+
+if Quality (𝑟 ) ≥ 𝜏 then  
+
+> 19:
+
+Q ← Q ∪ { 𝑐 } 
+
+> 20:
+
+end if  
+
+> 21:
+
+end for  
+
+> 22:
+
+end for  
+
+> 23:
+
+return Q
+
+## B.2 Prompt for HopGen Pipeline 
+
+Figure 7: Instructions for HopGen QA generation. 
+
+## C More Details of MMHop-DocBench C.1 Dataset Size and Splits 
+
+Figure 10 summarizes the document and QA-pair counts across ten languages. MMHop-DocBench contains 2,299 documents and 60K QA pairs. The training split contains 1,599 documents and 40,924 QA pairs, while the test split contains 700 documents and 19,132 QA pairs. We split the dataset at the source-document level, DocSkill: Skill-Integrated Agentic Reasoning for Multilingual Multi-Hop Document Question Answering 
+
+Figure 8: Representative multilingual samples from MMHop-DocBench. Each example shows selected document pages, a target-language QA pair, its English translation, and supporting page- and element-level annotations. The examples illustrate cross-page evidence composition over text, tables, and images. 
+
+Figure 9: Instructions for HopGen QA evaluation. 
+
+assigning all QA pairs derived from each document to the same split. Training QA counts are approximately balanced across languages, although the number of retained questions per document varies after filtering. 
+
+## C.2 Dataset Samples 
+
+Figure 8 shows representative Chinese, Indonesian, Thai, and Viet-namese examples combining cross-page textual, tabular, and visual evidence. Each includes a target-language QA pair, its English trans-lation, and explicit page- and element-level evidence annotations. 
+
+Figure 10: Document and QA-pair counts by language in the training and test splits of MMHop-DocBench.

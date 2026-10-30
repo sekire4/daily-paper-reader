@@ -1,0 +1,1280 @@
+Gaussian Episodic Memory for Long-Term Spatiotemporal Reasoning
+Ling-Chia Chen*, Abdelrhman Werby*, Kaan Aytekin, Kai O. Arras
+...
+...
+Gaussian Episodic Memory
+Scene revisits
+...
+Answer:
+Yes, the cabinet was closed
+at t0 and was opened at t1.
+2. Render from the same pose at t1
+1. Find and ground a cabinet at t0
+Agent
+Question:
+Has the white cabinet been
+opened since t0?
+...
+Fig. 1.
+Overview of GEMS. A robot revisits a semi-static scene, yielding a posed RGB-D sequence Ot per visit (left). GEMS reconstructs the first visit
+into a Gaussian map G0 and records each later visit as a difference ∆Gt capturing only the regions that changed, so the scene at any past visit is recovered
+by rendering G0 together with the differences up to that visit (middle). Given a question (right), the agent explores the scene using its toolbox and answers
+based on the collected evidence.
+Abstract— Real-world environments undergo continual semi-
+static changes, requiring a memory representation that captures
+both the spatial and temporal evolution of a scene. Existing
+spatio-temporal memories for robots typically rely either on
+structured representations, which are limited to the entities
+and attributes captured during construction, or on image-
+based memories, which are constrained to previously observed
+viewpoints. We introduce GEMS, a framework that combines
+a persistent spatio-temporal 3D Gaussian Splatting (3DGS)
+map with an agentic reasoning pipeline. The 3DGS map is
+reconstructed once and subsequently updated only in regions
+where the scene changes, storing only these modifications
+while preserving visual detail across time. The agentic pipeline
+leverages this map to render novel views on demand, iteratively
+accumulating evidence to answer spatio-temporal questions and
+ground objects from natural-language queries. To advance future
+research, we introduce GEMS-Bench, a spatiotemporal question-
+answering benchmark focused on semi-static environments. It
+comprises 3 real-world and 12 synthetic environments, spanning
+473 question-answer pairs. We evaluate GEMS on novel-view
+synthesis quality across scene updates, 3D object grounding,
+spatiotemporal question answering, and storage efficiency.
+GEMS outperforms recent baselines in 3D object grounding and
+*These authors contributed equally to this work.
+L.
+Chen,
+A.
+Werby,
+K.
+Aytekin,
+and
+K.
+O.
+Arras
+are
+with
+the
+Socially
+Intelligent
+Robotics
+Lab,
+Institute
+for
+Artificial
+Intelligence,
+University
+of
+Stuttgart,
+Germany.
+Email:
+abdelrhman.werby@ki.uni-stuttgart.de
+The authors thank the International Max Planck Research School for
+Intelligent Systems (IMPRS-IS) for supporting Abdelrhman Werby and
+Kaan Aytekin.
+spatiotemporal question answering, while achieving rendering
+quality on par with dedicated scene-update methods.
+I. INTRODUCTION
+Robots operating for long periods in human-centered envi-
+ronments must model not only the geometry and semantics
+of their surroundings but also how those surroundings evolve
+over time. Real-world environments, such as homes and
+offices, experience frequent semi-static changes in which
+objects are moved, furniture is rearranged, and equipment
+may appear, disappear, or change state. Modeling these
+changes and building episodic memory that captures when
+and where they occurred enables robots to reason about
+the environment’s history and answer spatial, semantic, and
+temporal questions, such as where an object was previously
+located, when a change occurred, or how the current state of
+a scene differs from an earlier one.
+3D scene graphs (3DSGs) [1]–[3] have emerged as compact,
+structured representations that organize spatial-semantic con-
+cepts. However, typical 3DSGs represent a single snapshot of
+the environment. More recent 3DSG approaches incorporate
+temporal information into scene representations to model
+semi-static changes [4]–[7]. However, they either preserve
+only object-level states and textual descriptions, precommit-
+ting to objects segmented at construction time, or preserve
+observations only from fixed viewpoints, limiting access to the
+underlying visual evidence. Recently, 3D Gaussian Splatting
+arXiv:2610.33158v1  [cs.CV]  23 Oct 2026
+
+
+(3DGS) [8] has emerged as a high-fidelity representation
+that preserves fine-grained visual details, supports novel-view
+synthesis, and enables localized updates [9], [10], making
+it well suited for long-term embodied reasoning. Existing
+3DGS-based mapping and reasoning methods, however, either
+address static scenes [11], [12] or maintain only the latest
+scene state [13].
+To this end, we present GEMS, a persistent spatiotemporal
+episodic memory based on 3D Gaussian Splatting (3DGS),
+coupled with an agentic reasoning pipeline. GEMS construct
+an initial 3DGS map, then detect changes from observations
+collected during each subsequent scene revisit and locally
+update the Gaussian primitives in affected regions. Unchanged
+Gaussians are shared across temporal states, while additions,
+removals, and modifications are stored as temporal deltas. As
+a result, storage grows with environmental changes rather than
+the number of revisits. Given a query, the agentic pipeline
+can select informative viewpoints for reconstructed regions
+rather than being restricted to a fixed set of viewpoints.
+The 3DGS-based memory enables the agent to render the
+map from a consistent virtual camera pose across different
+timesteps. This controlled alignment supports cross-temporal
+visual comparison and reasoning about object motion and
+state changes. Moreover, photorealistic novel-view rendering
+enables the agent to perform on-demand segmentation of
+target objects from informative, query-dependent viewpoints.
+To foster future research, we introduce GEMS-Bench, a
+multi-revisit spatiotemporal embodied question-answering
+benchmark. It comprises 12 synthetic household scenes and 3
+real-world scenes, each with at least 3 revisits. GEMS-Bench
+spans 473 question-answer pairs categorized into 5 types, as
+well as posed RGB-D for each revisit.
+In summary, we make the following contributions:
+• We introduce GEMS, a 3DGS-based episodic memory
+framework that maintains long-term scene history via
+efficient, localized updates, enabling high-fidelity novel-
+view rendering over time.
+• We develop an agentic EQA pipeline that utilizes
+spatiotemporal novel-view synthesis for query-dependent
+viewpoint selection, visual alignment across time, and
+on-demand object grounding.
+• We introduce a new multi-visit spatiotemporal question-
+answering benchmark, GEMS-Bench, comprising semi-
+static environmental changes across 15 scenes and 473
+question-answer pairs.
+• We evaluate GEMS across four dimensions: novel-
+view synthesis quality under scene updates, 3D object
+grounding from natural-language queries, spatiotemporal
+question answering, and storage requirements.
+We
+provide
+code
+and
+data
+at:
+https://abwerby.
+github.io/GEMS/
+II. RELATED WORK
+A. Spatial-Semantic and Spatiotemporal Mapping
+Early works on robotics mapping [14] focused only
+on geometric modeling of the environment. Subsequent
+works [15], [16] augmented such 3D geometric maps with
+semantic and open-vocabulary language features, enabling
+object retrieval and language-guided navigation. Structured
+representations, such as 3D Scene Graphs (3DSGs) [2], [3],
+[17]–[20], have emerged as more efficient representations
+that encode both geometric and semantic information in
+a topological graph; however, they only maintain a single
+snapshot of the scene state.
+To extend robotics maps to also capture the temporal
+aspect of the environment, Khronos [4] performs spatio-
+temporal metric-semantic SLAM that jointly captures short-
+term dynamics and long-term changes and can be queried
+for the estimated scene state at any past timestamp. However,
+its metric-semantic map does not preserve photorealistic
+appearance, so visual evidence beyond that abstraction cannot
+be re-examined. Other methods maintain a persistent object-
+or point-level representation and revise it as the scene
+changes [21], [22], whereas [5], [7] additionally retain tempo-
+ral traces in the form of object trajectories and timestamped
+descriptions, respectively. The former keep only the current
+state and therefore cannot answer questions about earlier
+configurations, while all of them precommit to the objects
+and attributes instantiated at construction time and discard
+the underlying visual details.
+B. 3DGS-based Maps
+3D Gaussian Splatting (3DGS) [8] is an explicit rep-
+resentation for 3D scene reconstruction that enables pho-
+torealistic rendering while preserving fine-grained visual
+details. Because it stores explicit primitives, 3DGS also
+supports cheap local updates, unlike implicit representations
+such as NeRF [23]. Recent extensions [24] further enrich
+the Gaussian primitives with high-dimensional semantic
+attributes for semantic tasks. For long-term scene updates,
+O-SCD [9] localizes changes by directly comparing new
+observations against views rendered from the previous map,
+and others [10], [25] further show the gain in time and storage
+from updating only the changed area. A third line of work
+uses 3DGS as the map representation for embodied reasoning.
+SplatReasoner [12] synthesizes query-conditioned viewpoints
+that reveal evidence missing from fixed-view memories, and
+GSMem [11] renders informative viewpoints on demand for
+exploration; both reason over a single static capture. GS-
+LTS [13] instead keeps the map current across revisits, yet
+stores only the latest state and discards the scene’s history.
+GEMS renders query-conditioned views over a memory
+spanning visits, so the agent can hold a viewpoint fixed
+while varying the time.
+C. Embodied Question Answering and Episodic Memory
+Introduced by OpenEQA [26], Episodic Memory EQA
+(EM-EQA) evaluates an agent’s capability to answer questions
+based on past multimodal experiences. In this task, a key
+requirement for the agent is to correctly retrieve historical
+contexts during querying. ReMEmbR [27] retrieves by embed-
+ding similarity over textual descriptions of video segments,
+and so discards the visual and geometric evidence entirely;
+DAAAM [7] retrieves by matching per-node descriptions,
+GraphEQA [6] by traversing a semantic scene graph, and
+
+
+STaR [28] by task-conditioned retrieval over saved keyframes,
+textual descriptions, and object point clouds. In all cases the
+information granularity is fixed when the memory is built.
+3D-Mem [29] and Enter the Mind Palace [30] retain raw
+images, are constrained to pre-recorded views, and segment
+objects in advance, which makes queries about off-list objects
+unanswerable. Our method runs object segmentation only
+upon receiving a query, which makes it easy to adjust object
+granularity without being fixed to predefined lists, utilizing
+the photorealistic novel view synthesis capabilities of 3DGS.
+Beyond memory representations, existing works also
+diverge in their evaluation benchmarks. EM-EQA bench-
+marks [26] predominantly assume single-session explorations
+of static scenes, overlooking temporal evolution entirely. Other
+temporal benchmarks, such as NaVQA [27], assess reasoning
+over continuous navigation videos, focusing on when and
+where an event was observed along a continuous trajectory
+rather than how the environment altered between visits. While
+recent efforts begin to investigate dynamic environments,
+Situat3DChange [31] is confined to change understanding
+between paired static 3D point scans, whereas Enter the Mind
+Palace [30] focuses on multi-episode navigation in simulated
+settings with limited scene scale and question diversity.
+III. METHOD
+The goal of this work is to construct a photorealistic
+spatiotemporal memory of a semi-static scene observed over
+multiple revisits. The memory supports spatial and temporal
+reasoning and question answering over the scene’s history. As
+illustrated in Fig. 2, GEMS consists of two main components.
+First, the mapping component initializes a Gaussian splatting
+map and incrementally maintains its history by detecting
+and updating changes. This map represents a photorealistic
+episodic memory capable of on-demand rendering of query-
+related views and object segmentation across time and
+space (Sec. III-A). Second, the agentic reasoning component
+analyzes a query and iteratively gathers grounded evidence
+from the memory using retrieval, rendering, and segmentation
+tools (Sec. III-B). It then synthesizes the final answer from
+the collected evidence.
+A. Spatiotemporal Gaussian Map
+We consider a robot that observes a semi-static environment
+over T + 1 revisits. For each revisit t, the input is a posed
+RGB-D sequence:
+Ot =
+ It
+i, Dt
+i, Kt
+i, Pt
+i
+	nt
+i=1 ,
+t ∈{0, . . . , T}.
+(1)
+Where It
+i and Dt
+i denote the RGB image and depth map,
+Kt
+i denotes the camera intrinsics, Pt
+i ∈SE(3) denotes the
+camera pose in a common world coordinate frame, nt denotes
+the number of frames in revisit t.
+From the first visit O0, we construct the initial 3D Gaussian
+map G0 using gsplat [32]. We follow the loss formulation
+of GaME [10], including its photometric and geometric
+terms, but replace its isotropic regularizer with a normalized,
+thresholded penalty on the per-axis scales,
+Lscale =
+1
+|Ω| + ϵ
+X
+(i,k)∈Ω
+max
+
+0, |si,k −¯si|
+¯si + ϵ
+−τscale
+
+, (2)
+which penalizes extreme anisotropic elongation of the
+Gaussians.
+1) Cross-Visit Change Detection: Given the next revisit
+Ot, we first select a spatially diverse subset of keyframes. A
+frame i is considered keyframe if its pose distance d(Pt
+i, Pt
+j)
+from every previously selected keyframe j exceeds τpose. We
+denote the indices of the selected keyframes by Kt. For each
+i ∈Kt, we render a color image ¯It−1
+i
+and a depth image
+¯Dt−1
+i
+from the previous Gaussian map Gt−1 at the pose of
+the current observation. Because the new observation and
+the rendering share the same camera pose, their differences
+primarily capture changes in the scene rather than in the
+viewpoint. Then we score both visual and semantic changes.
+The visual term is the SSIM similarity map between the
+observed and the rendered images, and the semantic term
+is the cosine similarity between their DINOv3 [33] feature
+maps f t
+i and ¯f t−1
+i
+, bilinearly upsampled from patch to pixel
+resolution. Since both terms quantify similarity, the change
+score ct
+i is defined as their complement:
+ct
+i = 1 −[w SSIM
+ ¯It−1
+i
+, It
+i
+
++ (1 −w) cos
+ ¯f t−1
+i
+, f t
+i
+
+], (3)
+with w = 0.3. Both similarity terms are clamped to [0, 1],
+so that ct
+i ∈[0, 1]H×W . Thresholding it yields the binary
+change mask Mt
+i = I[ct
+i > τs].
+Using the observed and the rendered depth, we classify
+each connected component S of Mt
+i into three types of
+general object movement: Add, Remove, and Refine. We
+compute the relative depth error δDt
+i = ( ¯Dt−1
+i
+−Dt
+i)/Dt
+i. A
+positive error indicates newly observed geometry in front of
+the preceding map, whereas a negative error indicates that
+previously observed foreground geometry is no longer present.
+We therefore compute the fractions
+radd(S), rremove(S) = 1
+|S|
+X
+S
+I
+
+± δDt
+i > τd
+
+,
+(4)
+where I[·] is the indicator function and the positive and
+negative signs give radd and rremove, respectively.
+The Add operation is triggered if radd(S) > τm and the
+Remove operation is triggered if rremove(S) > τm. Both
+operations may be triggered for the same component, as com-
+monly occurs when an object is relocated. If neither condition
+is satisfied, the component is assigned a Refine operation to
+account for appearance changes or local reconstruction errors,
+thereby maintaining high-fidelity rendering over a long period
+of time.
+2) Local Map Updates and Temporal State Storage: We
+adopt distinct selection and initialization strategies tailored
+to the three mask types:
+Refine Mask: We project Gaussian primitives onto the
+camera plane and set the per-pixel depth threshold to
+τrefine(u) = max
+  ¯Dt−1
+i
+(u), Dt
+i(u)
+
+. Gaussian primitives that
+fall within the mask and lie closer to the camera than τrefine
+are selected and denoted as Gt−1
+refine.
+
+
+Spatiotemporal Gaussian mapping
+Agentic reasoning
+Initial 3DGS map G0
+Initial visit 0
+...
+Posed RGB-D
+Initialize
+3DGS
+Initialize memory
+Observed RGB
+Rendered RGB
+Observed
+Rendered
+Depth pair
+Depth classification
+Per connected component
+Add
+Remove
+Refine
+Local Gaussian update
+Gaussian
+episodic memory
+g1
+g2
+g3
+Lifespan [b, d)
+Visit t
+g
+0
+1
+2
+3
+g1
+g2
+g3
+∞
+Active when b ≤ t < d
+Query
+LLM planner
+Tool calls
+Evidence
+Memory toolbox
+Explore
+Retrieve
+Render in
+space + time
+Segment
++ ground
+Evidence report
+Answer synthesizer
+Answer
+Revisits
+Visit T
+...
+Visit t
+...
+Visit 1
+...
+Posed RGB-D
+Keyframe
+selection
+Change detection
+threshold
+   
+Binary change mask
+Render previous state at pose
+Fig. 2.
+Overview of GEMS. Left: mapping. On each revisit, keyframes rendered from the previous map are compared against the incoming observations
+to obtain a change mask, components of which are labeled as Add, Remove, or Refine based on the depth error. The affected Gaussian primitives are
+re-optimized. Each Gaussian carries a lifespan [b, d), so the state of scene at any past time can be retrieved as a temporal slice. Right: reasoning. An LLM
+planner answers a query through memory tools, and an answer synthesizer concludes from the gathered evidence.
+Add Mask: We back-project the pixels within the mask into
+3D space using Dt
+i, and follow gsplat [32] to initialize the
+parameters for these new Gaussian primitives. These newly
+created primitives are added to the set Gt
+new.
+Remove Mask: We apply the same selection strategy as in
+the Refine Mask, but set the depth threshold to τremove(u) =
+Dt
+i(u). The selected primitives are directly deleted from
+the map. Subsequently, we sample new Gaussians within
+these masked regions using the same sampling method to
+fill potential disocclusion holes caused by the removal of
+foreground objects. These newly sampled Gaussians are also
+added to Gt
+new.
+The remaining unselected primitives are designated as static
+Gaussians, denoted by Gt−1
+static. To accelerate the optimization
+procedure, we only update the active primitives in Gt
+new∪Gt−1
+refine,
+while keeping Gt−1
+static frozen, however, all primitives still partic-
+ipate in rendering. The active Gaussians are optimized using
+the same loss formulation as during initial map construction
+(Sec. III-A), but excluding the scale regularization term Lscale.
+Because each keyframe’s Gaussians are optimized for only
+100 iterations, the horizon is too short for significant shape
+distortion to accumulate, and enforcing the regularizer over
+so few steps merely adds computational overhead while
+prematurely constraining reconstruction quality.
+To avoid saving one map Gt per revisit, we keep a single
+set G of all Gaussian primitives ever created and attach to
+each primitive g a lifespan [bg, dg), where bg is the revisit at
+which g was added and dg the revisit at which it was removed,
+with dg = ∞while g is still present. An update writes only
+these two fields: primitives in Gt
+new are appended with bg = t,
+those selected by Remove are closed with dg = t, and those
+in Gt−1
+refine are closed with dg = t while their re-optimized
+copies are appended with bg = t. The map at any revisit is
+then recovered by a temporal slice,
+Gt = {g ∈G | bg ≤t < dg} .
+(5)
+Thus, the representation grows with accumulated changes
+rather than repeated visits. We iterate these steps for every
+subsequent revisit t ∈{1, . . . , T}. The resulting spatiotempo-
+ral memory retains only the Gaussian primitives G and the
+keyframe poses of each revisit:
+M =
+ G,
+
+Pt
+i | t ∈{0, . . . , T}, i ∈Kt	
+.
+(6)
+B. Agentic Spatiotemporal Question Answering
+Given a query q and our episodic memory M, we
+instantiate an agentic reasoning pipeline consisting of an
+LLM [34] planner π that iteratively calls a set of memory-
+interaction tools to collect query-related evidence. At each
+iteration k, the planner selects a tool ak and its arguments
+zk based on the query and the evidence collected so far:
+(ak, zk) = π(q, E1:k−1),
+ek = Tak(M, zk),
+(7)
+where Tak is the selected tool, ek its returned evidence, and
+E1:k−1 = {e1, . . . , ek−1} the evidence gathered so far. The
+available tools are restricted by an execution state machine
+
+
+Sinit
+Sreason
+Sretrieve
+Sreport
+Answer α
+conclude
+Aretrieve
+Areason
+exit
+report
+Fig. 3.
+Execution state machine. Each state exposes only its tool group
+(Areason or Aretrieve) plus the control tool on each outgoing edge.
+(Fig. 3). The process continues until the planner terminates
+the search or reaches a predefined tool-call budget.
+To speed up the agent’s search in episodic memory M,
+we render an RGB frame for every keyframe in K = S
+t Kt
+from G, and cache its OWLv2 [35] feature. Moreover, we
+group the keyframe poses of each revisit into spatial regions
+Ct by hierarchical agglomerative clustering [36]. This enables
+the agent to search for concepts at two levels of granularity
+in the memory.
+Agentic tools interact with M by rendering query-related
+color and depth frames, R(Gt, P) 7→(ˆI, ˆD), from query-
+selected poses, they fall into two groups:
+Retrieval tools (Aretrieve) locate relevant views: sweep
+gives a global scene overview from Ct; search retrieves
+query-relevant keyframe poses by OWLv2 [35] similarity
+to the cached features and renders one candidate per rele-
+vant viewpoint cluster; covisible prunes candidates by
+volumetric covisibility with a target frame; and recall
+re-renders the cited visual evidence in the report.
+Reasoning tools (Areason) inspect a located region in detail:
+time_view renders one camera pose across selected revisits
+for viewpoint-aligned comparison; relook refines a pose
+to clarify an ambiguous region; locate segments a queried
+entity with SAM3 [37] and lifts its mask to metric 3D;
+obj_view renders further views of a localized entity;
+compare compares two localized instances; and track
+associates instances across revisits.
+To structure decision-making and prevent early termination,
+the agentic pipeline is designed as a finite-state machine,
+in which each state restricts which tools are available
+(Fig. 3). The agent starts in Sinit with global retrieval (sweep,
+search), then alternates between detailed reasoning (Sreason)
+and retrieval (Sretrieve); one pass through both is a retrieval-
+reasoning round. conclude ends a round and purges raw
+visual context from the context history to limit the number of
+tokens used and speed up the process; exit ends the search;
+and report compiles the evidence report.
+The report, together with all cited visual and 3D evidence
+E, is passed to the answer synthesizer α, which returns the
+answer A = α(q, E), a rationale, and a confidence score.
+IV. DATASET
+We present GEMS-Bench, a spatiotemporal question-
+answering benchmark focused on reasoning across discrete
+revisits to the same semi-static environment. It comprises
+multi-visit RGB-D trajectories from real-world and synthetic
+environments, camera poses, object-level change annotations,
+TABLE I
+RECONSTRUCTION QUALITY AND UPDATE COST OF SCENE-UPDATE
+METHODS. TIME IS THE WALL-CLOCK COST OF A SINGLE MAP UPDATE.
+Method
+PSNR [dB] ↑
+SSIM ↑
+LPIPS ↓
+Depth L1 [cm] ↓
+Time [min] ↓
+(a) Evaluation on GaME [10] Aria Dataset
+O-SCD [9]
+32.32
+0.927
+0.121
+–
+2.79
+GaME [10]
+31.12
+0.916
+0.122
+1.15
+29.40
+GEMS (ours)
+29.23
+0.904
+0.128
+2.28
+1.12
+(b) Evaluation on CL-Splats Real-World [25] w/ DA3 [41] Depth
+O-SCD [9]
+32.04
+0.943
+0.056
+–
+2.03
+GaME [10]
+24.25
+0.887
+0.134
+10.79
+29.81
+GEMS (ours)
+27.87
+0.901
+0.089
+9.38
+1.67
+and question-answer pairs. The real-world split comprises
+three indoor environments, each with four visits, captured
+using an Intel RealSense D455f camera, estimates camera
+poses using COLMAP [38], and contains a total of 244
+question-answer (QA) pairs. The synthetic split comprises 12
+HSSD scenes [39] simulated using Habitat-Sim [40], with at
+least three visits per scene. It includes 97 annotated object-
+level changes and 229 QA pairs. Across both splits, all
+scene changes and questions are manually verified by a
+human expert to ensure correct ground-truth answers and
+unambiguous visual references.
+We categorize the benchmark questions into five distinct
+classes: (1) Counting, covering object quantities and event
+frequencies; (2) Movement and Presence, addressing spatial
+relocation and object appearance, disappearance, or persis-
+tence over time; (3) State Change, referring to non-spatial
+property changes such as articulation, orientation, color, or
+configuration; (4) Static, comprising questions that can be
+answered from a single visit without temporal context; and
+(5) Negative, comprising questions that test robustness to
+false premises, incorrectly presumed changes, or events that
+did not occur. Across all 473 questions, the distribution is
+30.7% Negative, 22.8% Movement and Presence, 20.5% State
+Change, 16.9% Static, and 9.1% Counting.
+V. EXPERIMENTS
+A. Reconstruction Quality
+We assess whether GEMS preserves rendering quality while
+updating the map incrementally, holding out every 10th input
+image as the test set, following the same evaluation protocol as
+GaME [10]. We compare against two dedicated scene-update
+methods: GaME [10], which uses depth to prune obsolete
+Gaussians and initialize primitives for newly introduced
+objects, and O-SCD [9], which updates the map from RGB-
+only change detection and therefore neither consumes nor
+predicts depth. We evaluate on two real-world benchmarks
+with one temporal update per scene: GaME-Aria [10], with
+two indoor scenes and dense posed RGB-D sequences, and
+CL-Splats Real-World [25], with five scenes, sparser views,
+and no ground-truth depth. Since GEMS and GaME both
+require depth, we synthesize depth for CL-Splats using Depth
+Anything 3 [41]. We report PSNR, SSIM [44], and LPIPS [45]
+for photometric quality, depth L1 error for geometric accuracy,
+and the wall-clock time of a single map update.
+Tab. I shows that GEMS preserves rendering quality on par
+with other methods while updating the map far more cheaply:
+an update takes about one minute on both benchmarks,
+
+
+TABLE II
+3D OBJECT GROUNDING RESULTS ON THE NR3D DATASET [42]. ACCURACY (%) BY QUERY CHARACTERISTICS (IOU THRESHOLD: 10 %)
+Overall
+w Spatial Lang.
+w/o Spatial Lang.
+w Color Lang.
+w/o Color Lang.
+w Shape Lang.
+w/o Shape Lang.
+w Target Mention
+w/o Target Mention
+Method
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+IoU≥0.10
+OpenFusion [43]
+10.7
+8.9
+22.3
+11.8
+10.5
+9.8
+10.9
+11.3
+4.9
+ConceptGraphs [19]
+16.0
+15.0
+22.3
+17.6
+15.7
+10.8
+16.9
+16.9
+6.6
+BBQ [20]
+28.3
+28.1
+29.8
+25.2
+29.0
+34.3
+27.3
+29.6
+14.8
+KeySG [3]
+49.8
+49.2
+57.0
+48.3
+50.7
+50.0
+50.3
+52.6
+25.4
+GEMS (ours)
+58.9
+57.0
+71.1
+63.2
+57.9
+58.7
+58.9
+62.2
+23.4
+Where was the black kettle at T=0?
+GT In the kitchen, in the sink.
+w/ All Images
+LLM-JUDGE SCORE
+3/5
+... Try to find where the black kettle is located at T=0...
+Black kettle found at T=0
+Answer The black kettle was located on the edge of the
+white countertop next to the sink.
+w/ GEMS
+LLM-JUDGE SCORE
+5/5
+... Found a black kettle, but need to look closer to verify
+its location...
+Black kettle found at T=0
+Closer view of the black kettle at T=0
+Answer The black kettle was located inside the sink basin
+on the kitchen counter.
+What happened to the Pepper robot between T=2
+and T=3?
+GT It looked up while remaining by the blue sofa.
+w/ All Images
+LLM-JUDGE SCORE
+1/5
+... Try to find where the Pepper robot is located at T=2
+and T=3...
+Pepper found at T=2
+Pepper found at T=3
+Answer A Pepper robot was observed standing upright at
+T=2 and lying on its back at T=3.
+w/ GEMS
+LLM-JUDGE SCORE
+4/5
+... Need to render views from the same pose to see
+what changed...
+Pepper found at T=2
+Rendered view from same pose at T=3
+Answer The Pepper robot stood up from a slumped,
+forward-leaning position and raised its head between T=2
+and T=3.
+What happened to the paper towel roll on the large
+black table between T=2 and T=3?
+GT Nothing, it remained laid flat.
+w/ All Images
+LLM-JUDGE SCORE
+1/5
+... Try to find where the paper towel roll is located at T=2
+and T=3...
+Paper towel roll found at T=2
+Paper towel roll found at T=3
+Answer The paper towel roll on the large black table was
+replaced by a single sheet of paper towel lying flat on the
+surface.
+w/ GEMS
+LLM-JUDGE SCORE
+5/5
+... Found a paper towel roll, but need to render views
+from the same pose to see what changed...
+Paper towel roll found at T=2
+Rendered view from same pose at T=3
+Answer The paper towel roll remained on the large black
+table in the same position between T=2 and T=3.
+Fig. 4.
+Qualitative comparison of GEMS against GEMS-all-images. Each column shows a question, the evidence each agent collected, and the
+LLM-judge score. Left: a synthesized closer view resolves a spatial ambiguity from an oblique camera angle. Middle and right: time_view lets GEMS
+compare both visits from one pose, where the baseline is restricted to two different stored viewpoints.
+between 18× and 26× faster than GaME. GEMS achieves
+the lowest depth error on CL-Splats and the second lowest
+on GaME-Aria, and stays within a few dB PSNR of the best
+photometric scores, which O-SCD achieves without producing
+any depth at all.
+B. Object Grounding from Natural-Language Queries
+To evaluate GEMS on grounding objects from natural-
+language queries in an indoor scene, we use the Nr3D
+dataset [42], which contains single-visit indoor scenes paired
+with a diverse set of natural-language queries grouped by
+query type. We adopt the same evaluation protocol and scene
+identifiers as BBQ [20]. Tab. II compares GEMS against
+recent methods that build structured representations, reporting
+grounding accuracy at IoU ≥0.1.
+GEMS achieves the best overall accuracy of 58.9% and
+outperforms all baselines in every query category except
+queries without a target mention. Both GEMS and KeySG [3]
+are substantially more accurate than the remaining methods,
+since both exploit (raw or rendered) visual evidence rather
+than abstracted object nodes. While KeySG retains a slight
+edge on queries that omit target mention, GEMS achieves
+superior performance across all other spatial, color, and shape
+categories.
+TABLE III
+BLOCKS (A) AND (B): SPATIOTEMPORAL EQA ACCURACY FROM AN LLM
+JUDGE (0–100%) BY QUESTION CATEGORY. BLOCK (C): NVS TOOL
+ABLATION ON THE QUESTIONS WHERE THE FULL AGENT INVOKED NVS.
+Method
+Count.
+Move./Pres.
+Neg.
+State Ch.
+Static
+Overall
+(a) Real-world benchmark
+Blind-Qwen3.5 [27]
+26.7
+21.2
+28.3
+18.7
+33.1
+25.0
+ReMEmbR [27]
+26.7
+25.5
+38.6
+26.2
+17.6
+28.3
+DAAAM [7]
+10.8
+22.8
+40.1
+25.4
+24.3
+27.1
+Mind Palace [30]
+34.2
+28.8
+30.2
+24.6
+45.3
+31.3
+STaR [28]
+39.2
+46.2
+45.2
+42.9
+50.0
+44.8
+GEMS-all-images
+63.3
+59.2
+65.4
+63.9
+62.8
+63.2
+GEMS (ours)
+65.0
+53.3
+60.3
+60.7
+68.2
+60.9
+(b) Synthetic benchmark
+Blind-Qwen3.5 [27]
+38.5
+39.1
+35.4
+16.9
+24.4
+31.8
+ReMEmbR [27]
+11.5
+42.3
+35.4
+30.9
+35.5
+35.3
+DAAAM [7]
+23.1
+37.1
+48.7
+22.8
+36.6
+38.0
+Mind Palace [30]
+15.4
+25.0
+31.8
+32.4
+58.7
+34.2
+STaR [28]
+23.1
+54.4
+26.0
+37.5
+27.3
+35.5
+GEMS-all-images
+48.1
+64.9
+65.6
+59.6
+66.9
+63.8
+GEMS (ours)
+63.5
+71.4
+74.7
+58.1
+76.2
+71.0
+(c) NVS tool ablation on questions invoking NVS (n = 245)
+number of questions
+17
+53
+87
+65
+23
+245
+GEMS-no-NVS
+52.9
+59.9
+65.2
+53.1
+48.9
+58.5
+GEMS (ours)
+66.2
+74.5
+65.5
+56.9
+64.1
+65.1
+C. Spatiotemporal Question Answering
+We evaluate GEMS on spatiotemporal question answering
+using our GEMS-Bench benchmark. For each scene, we first
+build the episodic memory M, then run the agentic pipeline to
+explore it and answer every question in that scene. Following
+OpenEQA [26], we score each predicted answer with an
+
+
+LLM matcher on a scale from 1 to 5, where 1 is completely
+wrong and 5 is a perfect answer, and report the mean score
+rescaled to [0, 1]. We use GPT-5.6-Luna as the judge.
+We compare against a range of memory representations.
+DAAAM [7] and Enter the Mind Palace [30] build 3D scene
+graphs, ReMEmbR [27] stores textual descriptions alone, and
+STaR [28] combines saved keyframes with textual descriptions
+and object point clouds. We additionally compare to GEMS-
+all-images, a variant that retains all posed RGB-D frames
+across revisits as its memory and runs the same agentic
+pipeline, except that it cannot use the NVS tools; it acts as an
+upper bound on the visual information available to the agent.
+We also compare against a blind LLM, Qwen3.5 [34], where
+the model is purely guessing at the answers to the questions; it
+serves as a lower bound. For fairness, every method, including
+GEMS, uses Qwen3.5 [34] as its underlying LLM. Tab. III
+breaks the results down by query type. GEMS attains the
+best overall score on both splits, 60.9% on the real-world and
+71.0% on the synthetic split, against 44.8% and 35.5% for
+the strongest baseline, STaR. On each question class, GEMS
+outperforms all the other baselines with around 10%.
+On the real-world split, GEMS slightly underperforms
+GEMS-all-images, yet it achieves higher performance on the
+synthetic split despite storing no images. The per-class break-
+down and overall metrics reveal that while GEMS-all-images
+exhibits consistent performance across both splits, GEMS
+shows a noticeable performance gap. Specifically, GEMS
+achieves nearly a 10% improvement on the synthetic split
+for movement and presence, negative, and static questions,
+while yielding nearly identical results on both splits for state
+change and counting questions. On the real-world split, sensor
+noise and pose estimation errors result in imperfect Gaussian
+maps. Although the synthesized views remain high quality
+when close to the training trajectories (Sec. V-A), our novel
+view synthesis (NVS) tools often query views far from the
+training poses, occasionally introducing visual artifacts. These
+degraded images lower the performance of GEMS on the
+real-world split. Conversely, perfect depth maps and poses in
+the synthetic split eliminate these artifacts, yielding significant
+gains. Overall, the performance benefits provided by NVS
+tools outweigh their potential drawbacks. A detailed isolation
+study on the impact of NVS is presented in (Sec. V-E).
+D. Storage Efficiency
+Finally, we compare the growth of GEMS’s episodic
+memory against two alternatives that retain images directly:
+all posed RGB-D frames, and the posed keyframes only.
+Fig. 5 reports all of them on one synthetic and one real-world
+scene of GEMS-Bench. Since GEMS re-optimizes and stores
+Gaussian primitives only where a change is detected, its
+memory grows in proportion to the change observed at each
+revisit rather than paying a fixed cost per visit. After four
+revisits of the real-world scene, GEMS occupies 1.95 GiB
+at single precision and 0.98 GiB at half precision, compared
+with 2.73 GiB for the keyframes alone and 3.94 GiB for
+the full-frame sequence. The absolute gap widens with each
+revisit, so GEMS is more efficient whenever changes are
+localized, the common case in semi-static environments.
+1
+2
+3
+Visits
+0
+1
+2
+3
+4
+Storage (GiB)
+Synthetic
+1
+2
+3
+4
+Visits
+Real-world
+All Images
+Keyframes only
+GEMS (fp32)
+GEMS (fp16)
+Fig. 5.
+Storage growth. Memory footprint against the number of revisits,
+for one synthetic and one real-world scene of GEMS-Bench. Retaining all
+posed RGB-D frames, or only the keyframes, costs a fixed amount per revisit,
+whereas GEMS stores only the Gaussian primitives affected by a change.
+We report GEMS at single (fp32) and half (fp16) precision.
+E. Ablation Studies
+To assess the contribution of NVS, we select the 245
+questions for which the full agent invoked time_view or
+relook, and rerun the complete pipeline on them with
+both tools disabled, using the same Gaussian memory and
+inference budget. Restricting to these questions separates
+the agent’s decision to invoke the tools from the tools’ own
+contribution. Access to the two tools improves the mean QA
+score by 6.6 percentage points, with gains across all five
+categories (Tab. III). This is the benefit of NVS, where the
+agent elects to use it, not across the whole benchmark. Fig. 4
+illustrates how viewpoint-aligned rendering supports temporal
+comparison: restricted to recorded viewpoints, the agent may
+fail to re-identify an object across perspective changes (right)
+or mistake a viewpoint difference for a physical state change
+(middle). Because both tools are removed jointly, the ablation
+does not separate spatial view refinement from temporal
+alignment.
+VI. CONCLUSION
+We presented GEMS, a persistent spatiotemporal memory
+built on 3D Gaussian Splatting that stores environmental
+change as compact temporal deltas and answers episodic-
+memory questions by rendering novel views across space and
+time. By updating and storing only the Gaussians in changed
+areas, GEMS achieves superior storage efficiency and is
+still able to re-render the required images on demand from
+arbitrary camera poses at any time. Experiments on our long-
+term spatiotemporal benchmark show that combining spatial
+viewpoint selection with cross-temporal rendering improves
+question-answering accuracy and consistently outperforms
+established baselines.
+VII. ACKNOWLEDGEMENTS
+This work was supported by the German Federal Ministry of Research,
+Technology, and Space (BMFTR) through the Robotics Institute Germany
+(RIG), and in part by the Deutsche Forschungsgemeinschaft (DFG, German
+Research Foundation) under Germany’s Excellence Strategy – EXC 2120/2
+– 390831618 – Cluster of Excellence Integrative Computational Design and
+Construction for Architecture (IntCDC).
+
+
+REFERENCES
+[1] D. Rotondi, F. Argenziano, S. Koch, N. Hughes, M. Büchner, J. Wald,
+L. Rosenberger Schmid, D. Nardi, A. Valada, L. Paull, F. Tombari,
+L. Carlone, and K. O. Arras, “3d scene graphs: Open challenges and
+future directions,” arXiv 2606.19383, 2026.
+[2] A. Werby, C. Huang, M. Büchner, A. Valada, and W. Burgard,
+“Hierarchical open-vocabulary 3D scene graphs for language-grounded
+robot navigation,” in Robotics: Science and Systems (RSS), 2024.
+[3] A. Werby, D. Rotondi, F. Scaparro, and K. O. Arras, “KeySG:
+Hierarchical keyframe-based 3D scene graphs,” in IEEE Int. Conf.
+Robot. Autom. (ICRA), 2026.
+[4] L. Schmid, M. Abate, Y. Chang, and L. Carlone, “Khronos: A unified
+approach for spatio-temporal metric-semantic SLAM in dynamic
+environments,” in Robotics: Science and Systems (RSS), 2024.
+[5] T. Behrens, R. Zurbrügg, M. Pollefeys, Z. Bauer, and H. Blum, “Lost &
+found: Tracking changes from egocentric observations in 3d dynamic
+scene graphs,” IEEE Robot. Autom. Lett., 2025.
+[6] S. Saxena, B. Buchanan, C. Paxton, P. Liu, B. Chen, N. Vaskevicius,
+L. Palmieri, J. Francis, and O. Kroemer, “Grapheqa: Using 3d semantic
+scene graphs for real-time embodied question answering,” in Conf.
+Robot Learn. (CoRL), 2025.
+[7] N. Gorlo, L. Schmid, and L. Carlone, “Describe anything anywhere
+at any moment,” in IEEE/CVF Conf. Comput. Vis. Pattern Recognit.
+(CVPR), 2026.
+[8] B. Kerbl, G. Kopanas, T. Leimkühler, G. Drettakis, et al., “3d gaussian
+splatting for real-time radiance field rendering.” ACM Trans. Graph.,
+2023.
+[9] C. J. Galappaththige, J. Lai, L. Windrim, D. Dansereau, N. Suenderhauf,
+and D. Miller, “Changes in real time: Online scene change detection
+with multi-view fusion,” in IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit. (CVPR), 2026.
+[10] V. Yugay, T. Kersten, L. Carlone, T. Gevers, M. R. Oswald, and
+L. Schmid, “Gaussian mapping for evolving scenes,” in IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit. (CVPR), 2026.
+[11] Y. Lu, Y. Du, D. Liu, Y. Zhou, C. Wang, and Y. Yin, “Gsmem: 3d
+gaussian splatting as persistent spatial memory for zero-shot embodied
+exploration and reasoning,” arXiv preprint arXiv:2603.19137, 2026.
+[12] Y.-J. Kim, D. Lee, J.-S. Kim, H.-W. Nam, G. Kim, Y. Kwon, Y.-C. F.
+Wang, J. Choe, and T.-H. Oh, “Splatreasoner: Enhancing embodied
+reasoning and grounding by novel view synthesis,” in Eur. Conf.
+Comput. Vis. (ECCV), 2026.
+[13] B. Fu, J. Li, B. Zhang, R. Wang, and X. Chen, “Gs-lts: 3d gaussian
+splatting-based adaptive modeling for long-term service robots,” arXiv
+preprint arXiv:2503.17733, 2025.
+[14] R. Mur-Artal and J. D. Tardós, “ORB-SLAM2: An open-source SLAM
+system for monocular, stereo, and RGB-D cameras,” IEEE Trans.
+Robot., 2017.
+[15] J. McCormac, A. Handa, A. Davison, and S. Leutenegger, “SemanticFu-
+sion: Dense 3D semantic mapping with convolutional neural networks,”
+in IEEE Int. Conf. Robot. Autom. (ICRA), 2017.
+[16] C. Huang, O. Mees, A. Zeng, and W. Burgard, “Visual language maps
+for robot navigation,” in IEEE Int. Conf. Robot. Autom. (ICRA), 2023.
+[17] I. Armeni, Z.-Y. He, J. Gwak, A. R. Zamir, M. Fischer, J. Malik, and
+S. Savarese, “3d scene graph: A structure for unified semantics, 3d
+space, and camera,” in IEEE/CVF Int. Conf. Comput. Vis. (ICCV),
+2019.
+[18] N. Hughes, Y. Chang, and L. Carlone, “Hydra: A real-time spatial
+perception system for 3D scene graph construction and optimization,”
+in Robotics: Science and Systems (RSS), 2022.
+[19] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, B. Sen,
+A. Agarwal, C. Rivera, W. Paul, K. Ellis, R. Chellappa, et al.,
+“Conceptgraphs: Open-vocabulary 3d scene graphs for perception and
+planning,” in IEEE Int. Conf. Robot. Autom. (ICRA), 2024.
+[20] S. Linok, T. Zemskova, S. Ladanova, R. Titkov, D. Yudin,
+M. Monastyrny, and A. Valenkov, “Beyond bare queries: Open-
+vocabulary object grounding with 3d scene graph,” in IEEE Int. Conf.
+Robot. Autom. (ICRA), 2025.
+[21] Z. Yan, S. Li, Z. Wang, L. Wu, H. Wang, J. Zhu, L. Chen, and J. Liu,
+“Dynamic open-vocabulary 3d scene graphs for long-term language-
+guided mobile manipulation,” IEEE Robot. Autom. Lett., 2025.
+[22] P. Liu, Z. Guo, M. Warke, S. Chintala, C. Paxton, N. M. M. Shafiullah,
+and L. Pinto, “Dynamem: Online dynamic spatio-semantic memory for
+open world mobile manipulation,” in IEEE Int. Conf. Robot. Autom.
+(ICRA), 2025.
+[23] B. Mildenhall, P. P. Srinivasan, M. Tancik, J. T. Barron, R. Ramamoor-
+thi, and R. Ng, “NeRF: Representing scenes as neural radiance fields
+for view synthesis,” in Eur. Conf. Comput. Vis. (ECCV), 2020.
+[24] J. Yu, K. Hari, K. Srinivas, et al., “Language-embedded gaussian splats
+(legs): Incrementally building room-scale representations with a mobile
+robot,” in IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS), 2024.
+[25] J. Ackermann, J. Kulhanek, S. Cai, H. Xu, M. Pollefeys, G. Wetzstein,
+L. J. Guibas, and S. Peng, “Cl-splats: Continual learning of gaussian
+splatting with local optimization,” in IEEE/CVF Int. Conf. Comput.
+Vis. (ICCV), 2025.
+[26] A. Majumdar, A. Ajay, X. Zhang, P. Putta, S. Yenamandra, M. Henaff,
+S. Silwal, P. Mcvay, O. Maksymets, S. Arnaud, et al., “Openeqa:
+Embodied question answering in the era of foundation models,” in
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2024.
+[27] A. Anwar, J. Welsh, J. Biswas, S. Pouya, and Y. Chang, “Remembr:
+Building and reasoning over long-horizon spatio-temporal memory for
+robot navigation,” in IEEE Int. Conf. Robot. Autom. (ICRA), 2025.
+[28] M. Yuan, H. Zhang, M. Mohammadi, R. Li, J. Shan, and S. L.
+Waslander, “Star: Scalable task-conditioned retrieval for long-horizon
+multi-modal robot memory,” IEEE Robot. Autom. Lett., 2026.
+[29] Y. Yang, H. Yang, J. Zhou, P. Chen, H. Zhang, Y. Du, and C. Gan,
+“3d-mem: 3d scene memory for embodied exploration and reasoning,”
+in IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2025.
+[30] M. F. Ginting, D.-K. Kim, X. Meng, et al., “Enter the mind palace:
+Reasoning and planning for long-term active embodied question
+answering,” in Conf. Robot Learn. (CoRL), 2025.
+[31] R. Liu, J. Zheng, Y. Chen, Z. Wang, K. Peng, K. Yang, J. Zhang,
+M. Pollefeys, and R. Stiefelhagen, “Situat3dchange: Situated 3d change
+understanding dataset for multimodal large language model,” in Adv.
+Neural Inf. Process. Syst. (NeurIPS), 2026.
+[32] V. Ye, R. Li, J. Kerr, M. Turkulainen, B. Yi, Z. Pan, O. Seiskari, J. Ye,
+J. Hu, M. Tancik, et al., “gsplat: An open-source library for gaussian
+splatting,” J. Mach. Learn. Res., 2025.
+[33] O. Siméoni, H. V. Vo, M. Seitzer, F. Baldassarre, M. Oquab, C. Jose,
+V. Khalidov, M. Szafraniec, S. Yi, M. Ramamonjisoa, et al., “Dinov3,”
+arXiv preprint arXiv:2508.10104, 2025.
+[34] Q.
+Team,
+“Qwen3.5-Omni
+technical
+report,”
+arXiv
+preprint
+arXiv:2604.15804, 2026.
+[35] M. Minderer, A. Gritsenko, and N. Houlsby, “Scaling open-vocabulary
+object detection,” in Adv. Neural Inf. Process. Syst. (NeurIPS), 2023.
+[36] D. Müllner, “Modern hierarchical, agglomerative clustering algorithms,”
+arXiv preprint arXiv:1109.2378, 2011.
+[37] N. Carion, L. Gustafson, Y.-T. Hu, S. Debnath, R. Hu, D. Suris Coll-
+Vinent, C. Ryali, K. V. Alwala, H. Khedr, A. Huang, et al., “Sam
+3: Segment anything with concepts,” in Int. Conf. Learn. Represent.
+(ICLR), 2026.
+[38] J. L. Schönberger and J.-M. Frahm, “Structure-from-motion revisited,”
+in IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2016.
+[39] M. Khanna, Y. Mao, H. Jiang, et al., “Habitat synthetic scenes dataset
+(HSSD-200): An analysis of 3D scene scale and realism tradeoffs
+for ObjectGoal navigation,” in IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit. (CVPR), 2024.
+[40] M. Savva, A. Kadian, O. Maksymets, Y. Zhao, E. Wijmans, B. Jain,
+J. Straub, J. Liu, V. Koltun, J. Malik, D. Parikh, and D. Batra, “Habitat:
+A platform for embodied AI research,” in IEEE/CVF Int. Conf. Comput.
+Vis. (ICCV), 2019.
+[41] H. Lin, S. Chen, J. Liew, D. Y. Chen, Z. Li, G. Shi, J. Feng, and
+B. Kang, “Depth anything 3: Recovering the visual space from any
+views,” arXiv preprint arXiv:2511.10647, 2025.
+[42] P. Achlioptas, A. Abdelreheem, F. Xia, M. Elhoseiny, and L. Guibas,
+“Referit3d: Neural listeners for fine-grained 3d object identification in
+real-world scenes,” in Eur. Conf. Comput. Vis. (ECCV), 2020.
+[43] K. Yamazaki, T. Hanyu, K. Vo, T. Pham, M. Tran, G. Doretto,
+A. Nguyen, and N. Le, “Open-fusion: Real-time open-vocabulary 3d
+mapping and queryable scene representation,” in IEEE Int. Conf. Robot.
+Autom. (ICRA), 2024.
+[44] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image
+quality assessment: from error visibility to structural similarity,” IEEE
+Trans. Image Process., 2004.
+[45] R. Zhang, P. Isola, A. A. Efros, E. Shechtman, and O. Wang, “The
+unreasonable effectiveness of deep features as a perceptual metric,” in
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR), 2018.

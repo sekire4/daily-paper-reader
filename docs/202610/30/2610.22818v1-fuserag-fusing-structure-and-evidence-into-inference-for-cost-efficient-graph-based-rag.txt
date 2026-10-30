@@ -1,0 +1,583 @@
+Title: FuseRAG: Fusing Structure and Evidence into Inference for Cost-Efficient Graph-based RAG
+
+URL Source: https://arxiv.org/pdf/2610.22818v1
+
+Published Time: Mon, 19 Oct 2026 00:36:51 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# FuseRAG: Fusing Structure and Evidence into Inference for Cost-Efficient Graph-based RAG 
+
+Tingqi Wang, Yingshu Li, Zhipeng Cai *
+
+Department of Computer Science, Georgia State University 
+
+Atlanta, GA, United States 
+
+{twang33, yili, zcai }@gsu.edu 
+
+Abstract —Graph-based retrieval-augmented generation (RAG) exploits relationships among evidence to support multi-hop ques-tion answering. However, conveying retrieved graphs through non-unique linear textual contexts to Large Language Models (LLMs) leads to graph-structure degradation and inefficient KV-cache reuse. Meanwhile, graph-structure order optimization is already NP-hard, and the additional KV-cache reuse objective further complicates the search by introducing potentially con-flicting orders. To tackle these issues, we propose FuseRAG, a cost-efficient graph-based RAG framework that shifts most retrieved evidence from explicit textual contexts to latent rep-resentations. Our main idea is to separate reusable evidence content from query-aware structural interactions in latent space, while retaining only a few explicit facts as semantic anchors. The resulting latent representations are injected into decoder self-attention, where they reshape attention over evidence and thereby influence hidden states and next-token probabilities. This design preserves graph structure through latent interactions, enables evidence reuse beyond exact token-prefix matching. Experiments on three multi-hop question-answering datasets with Llama-3-8B and Qwen3.5-9B show that FuseRAG improves answer quality while achieving up to 2.7 × and 2.2 × TTFT speedups over the fastest graph-based baseline, respectively. 
+
+Index Terms —Graph-based RAG, Large Language Model 
+
+I. I NTRODUCTION 
+
+Large Language Models (LLMs) [1], [2] have demonstrated significant capabilities in language understanding, greatly ad-vancing the development of Artificial General Intelligence (AGI). Despite their considerable success, LLMs still generate hallucinations and wrong answers due to the lack of domain-specific knowledge in pretraining data [3]–[6]. Retrieval-Augmented Generation (RAG) [7] methods have been widely adopted to mitigate this limitation by integrating external knowledge into LLMs [8]. Among these approaches, graph-based RAG [9]–[13] has attracted substantial attention. It constructs a knowledge graph from source documents and retrieves relevant entities and relations as evidence to aug-ment the LLM context. Graph captures complex relationships among entities, facilitating multi-hop reasoning along rela-tional paths. Although benefiting from graph-structure knowledge, exist-ing graph-based RAG still suffers from limited expressiveness. Specifically, before being fed into LLMs, the retrieved graph-structured evidence must be serialized into linear textual con-texts. This mechanism poses a major challenge to graph-based RAG: Graph Structure Degradation. After serialization, the 
+
+Fig. 1: The same retrieved graph with different evidence utilization. Serialization orders aligned with the graph struc-ture help LLMs utilize evidence effectively but reduce effi-ciency. However, orders optimized for KV-cache reuse weaken evidence utilization. relative positions of evidence implicitly describe the graph structure and influence evidence utilization [14]. However, a graph generally can be represented by multiple serialization orders, utilizing evidence with different pattern. As illustrated in Figure 1, a query asking for the author of a novel adapted into a film directed by Peter Jackson. When the retrieved evidence is serialized along the reasoning path related to the query, adjacent sentences share entities and form a continuous chain (from Peter Jackson to the film, the novel, and finally J. R. R. Tolkien). In contrast, factual entities separated by irrelevant content break the subgraph relationships and require LLMs to reason answers from multiple confusing information across distant contextual positions. Consequently, reasoning paths become harder to trace, even with the same retrieved results. Furthermore, the variability serialization of evidence hin-ders the KV-cache reuse efficiency . RAG typically introduces a large amount of external knowledge, increasing the prefill arXiv:2610.22818v1 [cs.DB] 16 Oct 2026 cost. As a common solution, KV-cache reuse accelerates LLM inference by caching the key-value states of previously processed tokens and reusing them. However, these approaches are inherently designed for sequential text and assume identi-cal token prefixes [15], [16]. In graph-based RAG, inconsistent serialization orders undermine KV-cache reuse across equiva-lent evidence contexts and increasing inference cost. The above issues motivate a method that effectively exploits graph structure while maintaining inference efficiency. An intuitive idea is to optimize the serialization order for both graph-structure representation and KV-cache reuse. Neverthe-less, as shown in Section II, structural ordering is already NP-hard, and the additional cache-reuse objective further compli-cates the optimization. The search cost grows rapidly with the graph size, making optimal serialization impractical for large-scale graph-based RAG. Therefore, we explore an alternative to textual serialization for conveying graph evidence to LLMs, aiming to alleviate these limitations. In LLMs, queries and retrieved evidence ultimately interact through attention over their internal representations. Inspired by this mechanism, we embed query-evidence interactions into latent space and integrate it with the LLM’s internal represen-tations, avoiding information missing in textual serialization. To this end, we propose FuseRAG ( FU sing Structure and 
+
+Evidence into transformer inference), a novel framework for efficient graph-based RAG, which shift the primary evidence interface from textual serialization to latent representations. FuseRAG consists of three stages: In the stage 1, FuseRAG retrieves query-aware evidence from the knowledge graph with greedy heuristic search, preserving the retrieved sub-graph structure for subsequent fusion. In the next stage, dual-Path Evidence Fusion embeds the retrieved evidence into latent space and constructs compact explicit evidence. Cross-attention between the query and evidence tokens produces query-specific node representations , which are further fused by graph propagation, obtaining an auxiliary state for each node. These auxiliary states are appended to the original evidence states as structural supplements. In parallel, from the retrieved subgraph, a lightweight scoring mechanism selects a small set of facts based on their relevance to the query. To maximize the total relevance score under a strict token budget of 32, 64, or 128 tokens, the 0-1 Knapsack Algorithm is adopted for selection. In Stage 3, FuseRAG projects the node representations into memory KV, which are integrated with text KV in the decoder’s self-attention. Node representations remain reusable across queries, while memory KV is reused throughout each answer generation. By integrating reusable evidence representations and query-aware graph interactions into LLM attention, FuseRAG moves beyond purely textual context construction. This design enables faster inference and more accurate answer generation in graph-based RAG. Our contributions are summarized as follows:  
+
+> •
+
+We reveal two key limitations of evidence serialization in graph-based RAG: graph structure degradation and inefficient KV-cache reuse. Jointly optimizing serializa-tion order to address both limitations is NP-hard, as the TABLE I: Summary of important notations.                                             
+
+> Notation Description
+> G= ( V,E)Knowledge graph
+> qInput query
+> Gq= ( Vq,Eq)Retrieved subgraph for query q
+> BqRetrieved textual evidence set
+> πSerialization order
+> XπSerialized evidence context
+> Cstr (π)Graph structural cost
+> Rcache (π)KV-cache reuse benefit
+> GtSelected subgraph at retrieval step t
+> AtCandidate retrieval actions
+> st(a)Heuristic score of action aKRetrieval budget
+> HiToken-level representation of evidence bi
+> zqQuery representation
+> ziQuery-aware evidence representation
+> fiGraph-aware structural representation
+> MqLatent evidence memory
+> SqExplicit semantic anchors
+> τExplicit evidence token budget
+> Lmem Memory injection layers
+> Kmem
+> l, V mem
+> lMemory keys and values at layer lKtext
+> l, V text
+> lTextual keys and values at layer lrMemory projection rank
+> deEvidence encoder hidden dimension
+> dKV ,l Decoder KV projection dimension
+> LMNumber of latent memory positions
+> LQA Answer generation loss
+
+optimization subsumes an NP-hard ordering problem as a special case. Moreover, the two objectives introduce additional trade-offs.  
+
+> •
+
+We propose FuseRAG, a cost-efficient graph-based RAG framework that integrates graph evidence and structural interactions into LLM inference through latent repre-sentations, reducing dependence on textual serialization. By retaining only a small amount of explicit evidence as semantic anchors, FuseRAG significantly improves inference efficiency.  
+
+> •
+
+We conduct comprehensive experiments on Llama-3-8B and Qwen3.5-9B across three multi-hop QA datasets, demonstrating that FuseRAG consistently improves in-ference efficiency while enhancing QA performance, with up to 2.7 × and 2.2 × inference speedups over the fastest graph-based baseline, respectively. II. P RELIMINARIES AND MOTIVATION 
+
+A. Graph-based RAG 
+
+Let G = ( V, E) denote a knowledge graph constructed from text corpus T , where V and E are the sets of nodes and edges. Each node v ∈ V has a corresponding textual evidence unit 
+
+xv . Given a query q, a graph-based RAG system retrieves a subgraph Gq = ( Vq , Eq ) from G, where Vq ⊆ V and Eq ⊆ E .
+
+Gq with supplementary information enhances LLM generation. Since LLMs take sequential textual inputs, conventional graph-based RAG methods serialize Gq according to an order π =(π1, π 2, . . . , π |V q |). Therefore, the textual context is written as 
+
+Xπ = Serialize( Gq , π ). Then, LLM generates an answer y
+
+with system instructions, query q and evidence context Xπ .Naturally, a retrieved subgraph Gq has multiple serialization orders. LLMs exhibit positional biases in long contexts, uti-lizing information near the beginning or end more effectively [14]. Moreover, the connected evidence in Gq becomes more difficult to integrate when scattered across distant positions in the serialized context. Consequently, although these orders preserve the same underlying graph evidence, different textual sequences and relevant positions lead to substantial differences in LLM inference. 
+
+B. KV-Cache Reuse in LLM Inference 
+
+Mordern decode-only LLMs employ multiple Transformer layers. Each layer mainly consists of a self-attention module and a feed-forward network (FFN). At l-th layer, hidden representations H(l) are projected into queries Q(l), keys K(l),and values V (l) with trainable weights. Self-attention aggre-gates value representations according to query-key relevance, capturing contextual information among tokens. The resulting representations are further transformed by the FFN before being passed to the next layer. LLM inference stage contains two phases: prefill and decod-ing [17]. During prefill, LLMs process the entire input context in parallel and compute key-value states for all Transformer layers, which are stored in the KV cache for subsequent decoding. The prefill cost increases with the context length, as longer inputs require more attention computation. This overhead is particularly pronounced in RAG, where retrieved evidence constitutes the majority of the input context [18]. In the decoding phase, LLMs generate tokens autoregressively. At each step, LLM reuses the cached key-value states of previous tokens and computes only new generated token. Beyond within request reuse, if the current input shares an identical token prefix with a previously request, the corresponding cached key-value states can be directly reused to avoid repeated prefill computation. This mechanism significantly reduce redundant computation in LLM inference. However, KV-cache reuse requires exact prefix matching. In graph-based RAG, same evidence admits multiple serialization order, resulting in dif-ferent token prefixes and fewer opportunities for cache reuse [19]. 
+
+C. Challenges in Serialization-Order Optimization 
+
+For a serialization order π, pos π (v) is the position of node 
+
+v in the serialized sequence. Keeping connected evidence close in text facilitates LLMs to capture their relationships. For effectiveness estimation, the structural cost is defined as 
+
+Cstr (π) = P 
+
+> (u,v )∈E q
+
+wuv |pos π (u) − pos π (v)| , where wuv 
+
+denotes the importance of relation (u, v ). A smaller Cstr (π)
+
+indicates that connected evidence is placed closer together, better preserving relational locality [20]. The optimization of 
+
+Cstr (π) is NP-hard by reduction from the Minimum Linear Arrangement (MinLA) problem. 
+
+Theorem 1. Finding a serialization order that minimizes 
+
+Cstr (π) is NP-hard. Proof. The MinLA problem is NP-hard. By setting wuv =1 for all (u, v ) ∈ E q , minimizing Cstr (π) becomes exactly MinLA. Therefore, minimizing Cstr (π) is NP-hard. Meanwhile, KV-cache reuse benefits from serialization or-ders that maximize shared token prefixes across requests. We use C for the set of cached input sequences and LCP( Xπ , X c)
+
+for the longest common prefix length between the serialized context Xπ and a cached sequence Xc ∈ C. Therefore, cache-reuse benefit is Rcache (π) = max Xc∈C LCP( Xπ , X c),
+
+measuring KV-cache reuse efficiency. To improve both the effectiveness and efficiency, the seri-alization order needs to balance graph-structure preservation and KV-cache reuse. An intuitive solution is to jointly optimize these two objectives: 
+
+π∗ = arg min  
+
+> π
+
+[λC str (π) − (1 − λ)Rcache (π)] , (1) where λ ∈ [0 , 1] controls the trade-off between structural preservation and cache reuse. Equivalently, the goal is to identify a Pareto-efficient order that improves one objective without unnecessarily sacrificing the other. Unfortunately, this joint optimization is computationally intractable. Optimizing structural locality is already NP-hard. The difficulty is further compounded by KV-cache reuse, which may conflict with structural locality. Exact joint optimization requires navigating a search space under competing objectives, making it impracti-cal for large-scale graph-based RAG. Therefore, we move be-yond the limitations of textual serialization and encode graph evidence into reusable latent representations. The important notiations used in this paper is shown in Table I. III. M ETHODOLOGY 
+
+In this section, we propose FuseRAG, which shifts the primary representation of graph evidence from textual seri-alization to latent representations, preserving graph structure and enabling efficient KV-cache reuse simultaneously. Next, we describe its design in detail. 
+
+A. Overview 
+
+Following the execution flow, FuseRAG consists of three stages: Evidence Retrieval, Dual-Path Evidence Representa-tion, and LLM Integration:  
+
+> •
+
+Stage 1: Evidence Retrieval. Given a query q and a knowledge graph G, FuseRAG retrieves a set of relevant evidence Bq together with the corresponding subgraph 
+
+Gq . FuseRAG is compatible with general graph retrieval methods. In our implementation, we adopt a greedy heuristic search strategy to construct (Bq , Gq ). Specifi-cally, a lightweight scorer sequentially selects evidence according to the query and selected evidence. Fig. 2: Overview of FuseRAG. The framework consists of three stages: evidence retrieval, dual-path evidence representation, and LLM integration. Reusable latent evidence and graph interactions are integrated into decoder self-attention through additional memory key-value states, while compact explicit facts provide semantic anchors.  
+
+> •
+
+Stage 2: Dual-Path Evidence Representation. 
+
+FuseRAG represents the retrieved evidence through a latent path and an explicit path. The latent path independently encodes each retrieved evidence unit into reusable token-level representations. These representations are then pass messages by graph encoder over the retrieved subgraph to capture query-relevant structural dependencies. The resulting latent memory Mq therefore combines detailed evidence semantics with query-aware graph information without requiring the full retrieved graph to be serialized as text. In parallel, the explicit path extracts a compact set of query-aware facts Sq under a strict token budget, providing concise semantic anchors to the LLM. Since only a small amount of evidence is serialized into text, the positional effects associated with long contexts are less pronounced.  
+
+> •
+
+Stage 3: LLM Integration. FuseRAG incorporates the two evidence representations into LLM inference. The latent memory Mq is projected into memory key-value states with an adapter and then combined with the prompt key-value states in self-attention. The compact evidence 
+
+Sq is concatenated with the query to form the prompt. During decoding, the LLM attends to both the latent memory and the prompt context to compute the prob-ability distribution over the next token. In addition, we describe the training and inference procedures, including how the components are optimized and reused. 
+
+B. Evidence Retrieval 
+
+Although FuseRAG is compatible with common graph retrieval methods, we implement a lightweight selector for evidence retrieval. Our selector constructs Gq by progressively expanding the currently selected subgraph, as shown in Algo-rithm 1. Starting from an intial node, the selector maintains a partial subgraph Gt = ( Vt, Et) at step t. Then, each candidate action a ∈ A t = {(u, r, v ) ∈ E | u ∈ V t, v / ∈ V t} ∪ { STOP }
+
+corresponds to adding an unselected neighbor in knowledge graph G or stopping, where (u, r, v ) is an edge from u to v
+
+with relation r. Specifically, we define the score for a as 
+
+st(a) = 
+
+
+
+αR q (v) + βR q (r) + γN t(v), a = ( u, r, v ),Sstop (q, Gt), a = STOP .
+
+(2) 
+
+Rq (v) and Rq (r) measure the relevance of the candidate evi-dence and relation to the query computed by cosine similarity. 
+
+Nt(v) = 1 − max v′∈V t cos( ev , ev′ ) is the complementary information introduced by v to the currently selected subgraph. 
+
+Sstop (q, Gt) = δ − max v∈C t Sselect (v | q, Gt) estimates the maximum utility of the remaining candidates. Retrieval stops when Sstop (q, Gt) is nonnegative. At each step, the selector greedily chooses the highest-scoring action at = arg max a∈A t st(a). For at = ( u, r, v ),the selected subgraph is expanded as Vt+1 = Vt ∪ { v}, Et+1 =
+
+Et ∪ { (u, r, v )}. The process continues until STOP is selected or a predefined retrieval budget is reached. Then, we set 
+
+Vq = Vt, Eq = {(u, r, v ) ∈ E | u, v ∈ V q } . Both Bq and 
+
+Gq = ( Vq , Eq ) are passed to the subsequent dual-path evidence representation stage. 
+
+C. Dual-Path Evidence Representation 1) Latent Evidence Encoding: The latent path preserves fine-grained evidence semantics and query-aware structural information without serializing the retrieved subgraph into a long text sequence [21]–[23]. For each retrieved evidence unit 
+
+bi ∈ B q , we independently encode its text into token-level representations: Hi = Eϕ(bi) = [ hi, 1, . . . , h i,T i ] ∈ RTi×de ,where Ti is the number of valid tokens and de is the hidden dimension. Token-level states preserve fine-grained semantic information for the decoder to access during generation. Since 
+
+Hi is computed independently of the query and other evidence, it can be cached and reused across queries. To identify information relevant to the current query, cross-attention bewteen query representation zq from q and Hi
+
+is conducted, ai,t = Cross-Attn t (hi,t , z q ). Then, zi =
+
+PTi 
+
+> t=1
+
+ai,t Wv hi,t summarizes the queay-aware evidence bi for 
+
+q. Next, message passing by graph encoder over the retrieved subgraph Gq aggregates information from node’s neighbors: 
+
+fi = GraphEncoder  Gq , z i, {zj∈N (i)}. The graph structure is absorbed by the auxiliary fi, capturing cross-evidence interactions. It should be noted that, graph encoder can be in-stantiated with various message-passing architectures, such as GCN [24], GraphSAGE [25], and GAT [26]. We adopt GAT in our implementation. Finally, the latent memory combines the token-level evidence representations Hi with the graph-aware auxiliary representations fi: Mq = [ H1; f1; . . . ; HK ; fK ].
+
+2) Explicit Fact Anchoring: Although latent representations capture rich evidence semantics and graph structure, they lack direct textual grounding for the LLM. FuseRAG therefore extracts a small set of query-aware facts as semantic anchors, explicitly presenting key entities and relations to guide answer generation. For each retrieved passage bi ∈ Bq , we split it into candidate clauses Fq . Each clause c ∈ Fq is assigned a score that considers both query relevance and cross-evidence connections: r(c, q ) = |W (c) ∩ W (q)|+λlink Links( c), where 
+
+W(·) is the set of normalized content words, and Links( c) = P  
+
+> j̸=i
+
+1 [W(c) ∩ W (title( bj )) ̸ = ∅] counts how many other retrieved passages are lexically connected to c through their titles. We remove duplicates, and select complete clauses by solving a 0-1 knapsack problem under a strict token budget 
+
+|Tok D (Sq )| ≤ τ , where Sq is the resulting anchor text, and 
+
+Tok D (Sq ) denotes its token sequence produced by the target decoder’s tokenizer. The resulting Sq contains only a small amount of explicit evidence, so positional effects associated with long serialized contexts are less pronounced. Evidence not included in Sq
+
+remains available through the latent path. 
+
+D. LLM Integration 
+
+FuseRAG integrates latent and explicit evidence into LLM inference through complementary mechanisms. The latent memory Mq is projected into additional key-value states at se-lected decoder layers, enabling the LLM to access fine-grained evidence semantics and structural information through self-attention. Meanwhile, the explicit facts Sq are incorporated into the textual prompt and processed through the standard decoder path, providing direct semantic grounding for answer generation. 
+
+1) Memory Projection: The latent memory Mq ∈ RLM ×de
+
+resides in the evidence encoder’s representation space and is not directly compatible with decoder attention. We there-fore introduce a lightweight adapter that maps the latent representations into the decoder’s key-value space [27], [28]. For each selected layer l ∈ Lmem , the adapter employs separate low-rank projections for memory keys and values: 
+
+Kmem  
+
+> l
+
+= (LN( Mq )AKl )BKl , V mem  
+
+> l
+
+= (LN( Mq )AVl )BVl ,where AK/V l ∈ Rde×r and BK/V l ∈ Rr×dKV ,l are trainable 
+
+Algorithm 1 Greedy Subgraph Retrieval 
+
+Require: Query q, graph G = ( V, E), initial node v0, retrieval budget K
+
+Ensure: Retrieved subgraph Gq and evidence set Bq 
+
+> 1:
+
+V0 ← { v0}, E0 ← ∅ , t ← 0 
+
+> 2:
+
+while t < K do  
+
+> 3:
+
+At ← { (u, r, v ) ∈ E | u ∈ V t, v / ∈ V t} ∪ { STOP } 
+
+> 4:
+
+at ← arg max a∈A t st(a) 
+
+> 5:
+
+if at = STOP then  
+
+> 6:
+
+break  
+
+> 7:
+
+end if  
+
+> 8:
+
+(u, r, v ) ← at 
+
+> 9:
+
+Vt+1 ← V t ∪ { v}, Et+1 ← E t ∪ { (u, r, v )} 
+
+> 10:
+
+t ← t + 1  
+
+> 11:
+
+end while  
+
+> 12:
+
+Vq ← V t, Eq ← { (u, r, v ) ∈ E | u, v ∈ V q } 
+
+> 13:
+
+Gq ← (Vq , Eq ), Bq ← { Text( v) | v ∈ V q } 
+
+> 14:
+
+return Gq , Bq
+
+projection matrices, with r denoting the projection rank. Each decoder layer uses independent adapter parameters to align latent evidence with its attention space. The key and value projections use independent parameters, enabling each decoder layer to learn how latent evidence should be matched and read in its own attention space. Importantly, the projection changes only the feature space while preserving the token-level memory positions. For a given query, the projected memory key-value states are computed once and reused throughout autoregressive decoding. 
+
+2) Joint Attention: The textual input is constructed as Xq =Template( q, S q ), and processed using the decoder’s standard attention mechanism. At an injection layer l, the textual and memory states are concatenated along the key–value sequence dimension: eKl = [ Ktext  
+
+> l
+
+; Kmem  
+
+> l
+
+], eVl = [ V text  
+
+> l
+
+; V mem  
+
+> l
+
+]. The attention output is then computed as 
+
+Ol = softmax Ql eK⊤
+
+> l
+
+pdhead ,l 
+
++ Al + Bl
+
+!eVl, (3) where Al applies the causal and memory-validity masks, and 
+
+Bl controls the relative preference for memory positions [29]. Textual and memory states share the same softmax nor-malization. Therefore, the memory keys directly influence the attention weights assigned to their corresponding values. The weighted memory values are then aggregated into the decoder hidden states, which further affect the output logits and ultimately the probability distribution over generated tokens. As decoding proceeds, the decoder queries evolve while the latent memory remains fixed, allowing different generation steps to dynamically attend to different evidence positions and structural information. 
+
+E. Training and Inference a) Training: FuseRAG is trained to make the decoder ef-fectively utilize both explicit and latent evidence. The evidence retrieval and explicit anchoring procedures are deterministic and require no additional training. We optimize the trainable components in the latent path, including the adapted evidence encoder, query-conditioned graph fusion, memory projectors, and decoder adaptation parameters. Given a target answer 
+
+y = ( y1, . . . , y T ), we minimize the standard autoregressive language-modeling loss: 
+
+LQA = −
+
+> T
+
+X
+
+> t=1
+
+log pθ (yt | y<t , q, S q , M q ) . (4) This objective jointly trains the latent representations and their integration into decoder attention to provide evidence useful for answer generation. 
+
+b) Inference: At inference time, FuseRAG first retrieves 
+
+(Bq , Gq ) and extracts the explicit anchors Sq . For each re-trieved evidence unit bi, its cached token-level states Hi are reused when available; otherwise, Hi is computed once and inserted into the evidence cache. FuseRAG then performs query-conditioned graph fusion to construct Mq , projects it into memory key-value states, and generates the answer autoregressively together with the textual input Xq .FuseRAG therefore supports two levels of reuse. Across queries, the query-independent evidence states Hi can be shared whenever the same evidence is retrieved. Within a generation, the query-specific memory key-value states are computed once and reused across decoding steps. As decoding proceeds, only the decoder queries and textual KV cache evolve, while the latent evidence memory remains fixed. IV. C OMPLEXITY ANALYSIS 
+
+Let k = |V q | and m = |E q | denote the numbers of retrieved evidence units and edges. The evidence contains 
+
+N = Pki=1 Ti tokens, and the latent memory contains LM =
+
+N + k positions. Let n and a be the textual prompt length and the number of generated tokens. Only the explicit anchor portion of n is bounded by τ . Le, Lg , and L is the depths of the evidence encoder, graph encoder, and decoder. Let de
+
+and d be the evidence and decoder representation dimensions, respectively. The memory interface uses J injection layers, projection rank r, as well as key and value (KV) dimension 
+
+dKV . We assume dense Transformer computation, a fixed number of GAT heads, and a common decoder KV dimension. 
+
+a) Stage 1: Evidence Retrieval. : Let ct be the number of candidate expansion actions at step t, and ds be the retrieval embedding dimension. With precomputed node and relation embeddings, query relevance costs O(ctds), and novelty eval-uation against the selected nodes costs O(ct|V t|ds). Therefore, 
+
+C1 = Cinit + Cadj + O (ds
+
+P 
+
+> t
+
+ct(1 + |V t|)) , where Cinit 
+
+is the initial-node retrieval cost and Cadj covers candidate enumeration and induced-subgraph construction. With at most 
+
+K expansion steps and ct ≤ cmax , direct candidate scoring has an upper bound of O(cmax K2ds).
+
+b) Stage 2: Dual-Path Evidence Representation. : For latent encoding, Uq contains the retrieved passages without cached states. Independent evidence encoding costs Cenc =
+
+O
+
+
+
+Le
+
+P 
+
+> i∈U q
+
+(Tid2 
+
+> e
+
++ T 2 
+
+> i
+
+de)
+
+
+
+. This computation is avoided when all retrieved evidence states are cached. With dense pro-jections, attention between query and evidence pooling costs 
+
+O(N d 2
+
+> e
+
+). Meanwhile, GAT message passing costs O(Lg (kd 2 
+
+> e
+
++
+
+md e)) . For explicit fact extraction, F is the number of candidate clauses, W is their total word count, and Waux 
+
+represents the word count of the query and passage titles. Word membership tests, clause extraction, relevance scoring, cross-passage matching, and deduplication require expected 
+
+O(Waux + kW ) computation. Let UD denote tokenization and final budget-checking costs. Dynamic programming for the 0-1 knapsack problem requires O(F τ ) time. Thus, Canchor =
+
+O (Waux + kW + UD + F τ ) . Therefore, including the query representation cost Cq , the total Stage 2 cost is C2 =
+
+Cenc + Canchor + Cq + O  N d 2 
+
+> e
+
++ Lg (kd 2 
+
+> e
+
++ md e) . Query-aware pooling and graph encode are recomputed for each question. 
+
+c) Stage 3: LLM Integration. : Normalization and low-rank memory adaptation across the injection layers cost Cproj = O (JL M [de + r(de + dKV )]) . The projected KV is computed once per question and reused through-out generation. With text KV caching, standard decoder computation for the prompt and answer costs Ctext =
+
+O  L (n + a)d2 + ( n2 + an + a2)d . At the selected lay-ers, memory attention adds Cmem = O (J(n + a)LM d) . Al-though memory KV is fixed, matching each new query against memory keys and aggregating values still incur computation. Therefore, C3 = Cproj + Ctext + Cmem . Output vocabulary projection is not considered, which is shared by the compared methods. 
+
+d) Overall Cost and Efficiency Comparison. : The total online computation is CFuseRAG = C1 + C2 + C3. For a full-text RAG baseline using the same retrieved evidence, 
+
+p represents its complete prompt length under the decoder tokenizer. Its retrieval and decoder cost is Cfull = C1 +
+
+O  L (p + a)d2 + ( p2 + ap + a2)d . FuseRAG reduces tex-tual prefill attention from O(Lp 2d) to O(Ln 2d) and token-wise computation from O(Lpd 2) to O(Lnd 2). Meanwhile, it introduces additional memory attention cost of O(J(n +
+
+a)LM d) across prefill and decoding. Unlike serialized evi-dence, memory positions do not traverse the decoder’s token-wise projections and feed-forward networks at every layer. Moreover, their evidence encodings can be amortized across queries through caching without requiring identical serial-ized prefixes. During decoding, all L layers attend to the shorter textual context, while only J layers additionally access latent memory. Assuming comparable per-position attention costs, FuseRAG reduces decoding attention computation when 
+
+L(p − n) > JL M . This condition is typically achievable in FuseRAG, as latent memory is injected into only a small subset of decoder layers ( J ≪ L). 
+
+e) Storage Cost. : FuseRAG requires SFuseRAG =
+
+O (N d e + JL M dKV + L(n + a)dKV ) excluding temporary activations, where N is the total number of cached evidence tokens considered in this analysis. The three terms corre-spond to evidence representations, memory KV states, and the textual KV cache, respectively. The knapsack algorithm requires O(τ ) working space, or O(F τ ) additional space when storing traceback decisions. In comparison, full-text RAG requires O(L(p + a)dKV ) for its decoder KV cache. Although FuseRAG reduces textual KV-cache storage, it introduces additional evidence and memory states. Therefore, lower total storage is not guaranteed. Cache lookup and data transfer may also affect practical latency but are excluded from the computation analysis. V. E XPERIMENTS 
+
+A. Experimental Setup 1) Datasets: we evaluate effectiveness and efficiency of FuseRAG on three public multihop Question Answering (QA) datasets, including MusiQue [30], HotpotQA [31] and 2Wiki-MultiHopQA [32]: MuSiQue consists of questions constructed by composing single-hop questions into multi-hop reasoning chains. HotpotQA contains questions that require reasoning over multiple Wikipedia articles and provides sentence to support facts. 2WikiMultiHopQA combines information from Wikipedia and Wikidata to construct questions with explicit reasoning paths. These datasets are widely utilized in graph-based RAG. Following prior work [33]–[37], 1,000 questions are sampled from the validation split of each dataset. Mean-while, we adopt two open-source backbone LLMs: Llama-3-8B and Qwen3.5-9B. Llama-3-8B has been widely adopted in recent RAG studies, facilitating comparison with prior work. Qwen3.5-9B is a newly released model that has attracted con-siderable attention, allowing us to further assess effectiveness. 
+
+2) Metrics: a) Effectiveness Metrics: We report accuracy (Acc) and F1. Acc measures the proportion of questions for which the generated answer contains a reference answer. F1 measures the token-level overlap between the generated and reference answers and is computed as the harmonic mean of precision and recall. We report both metrics averaged over the evaluated questions. 
+
+b) Efficiency Metrics: Efficiency is measured by token consumption and runtime latency. We primarily focus online query processing, following the existing works. Token con-sumption includes input and output tokens. Runtime latency is the total time required to construct the index and the average end-to-end latency per online query. We additionally report time to first token (TTFT), defined as the time costs from query submission until the first answer token is produced. TTFT captures the initial response delay, while end-to-end latency reflects the total time required to complete a query. 
+
+3) Comparison Methods: We compare FuseRAG with two basic baselines and a range of graph-based RAG methods, covering the classic approches and the state-of-the-art (SOTA) 
+
+methods recently:  
+
+> •
+
+Zero-shot. The backbone LLM directly answers each question without retrieving external evidence. This base-line evaluates the model’s ability to answer questions using its internal knowledge.  
+
+> •
+
+VanillaRAG. A conventional RAG baseline retrieves text chunks based on their semantic similarity to the query and provides the retrieved chunks to the LLM for answer generation.  
+
+> •
+
+KGP. Knowledge Graph Prompting constructs a graph over document structures, with edges capturing semantic and structural associations. An LLM-based agent navi-gates the graph to collect supporting passages for answer generation.  
+
+> •
+
+ToG. An KG-based GraphRAG for online query reason-ing. ToG conducts inference on manually designed KG.  
+
+> •
+
+RAPTOR. RAPTOR recursively embeds, clusters, and summarizes text chunks to construct a hierarchical tree. It retrieves information at different levels of abstrac-tion, combining detailed passages with higher-level sum-maries.  
+
+> •
+
+G-Retriever. G-Retriever retrieves a query-relevant sub-graph from a textual graph and integrates graph represen-tations with an LLM through soft prompting for answer generation.  
+
+> •
+
+LGraphRAG. The local search variant of GraphRAG retrieves query-relevant entities and combines their as-sociated graph information with supporting text chunks to construct the context for answer generation.  
+
+> •
+
+FastGraphRAG. FastGraphRAG uses personalized PageRank to explore a knowledge graph and identify relevant evidence for answering the query.  
+
+> •
+
+LLightRAG. The local retrieval mode of LightRAG focuses on query-relevant entities and their associated in-formation, providing context for questions about specific facts.  
+
+> •
+
+GLightRAG. The global retrieval mode of LightRAG focuses on relationships associated with high-level query keywords, retrieving broader relational context.  
+
+> •
+
+HLightRAG. The hybrid retrieval mode of LightRAG combines local and global retrieval results, incorporating both entity-specific information and broader relational context.  
+
+> •
+
+GFM-RAG. GFM-RAG employs a pretrained graph neural network to model query-knowledge relationships and retrieve supporting evidence through reasoning over graph structure.  
+
+> •
+
+KET-RAG. KET-RAG constructs a knowledge graph skeleton from selected text chunks and a lightweight text– keyword bipartite graph over the corpus. Retrieval com-bines evidence from both structures to balance retrieval quality and indexing cost.  
+
+> •
+
+Clue-RAG. Clue-RAG constructs a multi-partite graph linking text chunks, knowledge units, and entities, and re-trieves supporting evidence through query-driven iterative retrieval. We evaluate two configurations: Clue-RAG-0.5 and Clue-RAG-1.0, with extraction budget coefficients 
+
+α = 0 .5 and α = 1 .0, respectively. Clue-RAG-0.5 uses LLM-based knowledge unit extraction for chunks within a budget of 50% of the corpus tokens and lightweight NLP tools for the remainder, whereas Clue-RAG-1.0 TABLE II: QA performance and time-to-first-token (TTFT) across three datasets. 
+
+MuSiQue HotpotQA 2Wiki Method F1 (%) ↑ Acc. (%) ↑ TTFT (ms) ↓ F1 (%) ↑ Acc. (%) ↑ TTFT (ms) ↓ F1 (%) ↑ Acc. (%) ↑ TTFT (ms) ↓
+
+> Llama-3-8B
+
+Zero-shot 7.21 ± 1.32 5.52 ± 0.94 21.07 29.34 ± 2.87 26.53 ± 1.24 22.25 18.88 ± 1.76 33.78 ± 1.60 19.97 VanillaRAG 12.28 ± 1.14 14.21 ± 1.43 86.23 40.83 ± 2.09 53.87 ± 2.78 89.52 34.22 ± 2.54 41.06 ± 2.87 92.75 KGP 8.13 ± 0.26 9.43 ± 0.80 3291.84 22.48 ± 0.42 23.57 ± 0.67 3467.37 15.78 ± 1.37 25.84 ± 1.73 3753.40 ToG 3.86 ± 0.78 5.25 ± 0.53 4053.57 3.76 ± 0.67 28.79 ± 1.76 4267.35 6.37 ± 0.89 42.84 ± 2.48 4553.16 RAPTOR 10.42 ± 1.21 16.76 ± 1.33 107.25 34.46 ± 1.57 57.12 ± 1.11 110.48 19.62 ± 1.71 45.42 ± 1.64 132.55 G-Retriever 12.25 ± 1.28 14.76 ± 1.57 2916.84 35.78 ± 2.31 53.56 ± 2.78 3137.67 24.64 ± 2.87 44.58 ± 2.41 3266.33 LGraphRAG 9.46 ± 2.52 14.77 ± 2.68 167.35 24.81 ± 1.63 43.90 ± 1.78 189.72 15.23 ± 2.02 42.34 ± 2.14 213.15 FastGraphRAG 18.24 ± 2.53 17.68 ± 2.78 973.79 29.42 ± 2.41 45.76 ± 3.21 1032.65 18.35 ± 2.37 29.89 ± 2.56 1075.30 LLightRAG 7.91 ± 1.09 6.89 ± 1.48 971.23 25.66 ± 1.62 36.72 ± 1.81 962.46 17.47 ± 1.35 33.85 ± 1.56 968.57 GLightRAG 5.25 ± 0.77 5.73 ± 0.96 984.69 17.48 ± 1.12 27.72 ± 1.49 979.16 11.67 ± 1.56 23.66 ± 1.73 987.35 HLightRAG 8.57 ± 0.71 9.24 ± 0.84 1013.77 25.93 ± 1.31 38.61 ± 1.64 1214.25 14.32 ± 1.48 28.60 ± 1.79 1265.32 GFM-RAG 29.67 ± 1.26 28.64 ± 1.34 2721.32 61.92 ± 1.48 63.26 ± 1.72 2836.15 44.28 ± 1.75 45.80 ± 1.66 2987.57 KET-RAG 24.25 ± 2.32 22.51 ± 2.88 1186.14 51.75 ± 2.57 53.16 ± 3.14 1212.31 27.90 ± 2.79 41.40 ± 3.43 1394.28 Clue-RAG-0.5 29.27 ± 1.40 28.32 ± 1.83 4219.46 55.96 ± 1.73 62.08 ± 1.56 4524.77 35.83 ± 1.64 48.20 ± 1.79 4667.38 Clue-RAG-1.0 28.56 ± 2.30 28.70 ± 2.81 3463.22 56.74 ± 2.66 61.95 ± 2.76 3626.41 36.53 ± 2.52 50.40 ± 3.20 3789.67 
+
+Ours-32 23.23 ± 1.04 24.17 ± 1.62 58.13 51.19 ± 1.92 59.38 ± 2.71 44.26 38.95 ± 2.94 48.67 ± 3.13 47.37 Ours-64 30.40 ± 1.58 28.72 ± 2.03 61.48 58.92 ± 2.84 62.64 ± 3.10 48.91 45.73 ± 3.03 41.50 ± 3.10 51.87 
+
+Ours-128 41.08 ± 1.74 34.50 ± 2.52 65.74 63.05 ± 2.74 64.12 ± 3.26 57.13 55.35 ± 2.98 51.70 ± 3.20 62.25 Qwen3.5-9B Zero-shot 7.90 ± 0.53 5.94 ± 0.77 77.23 19.77 ± 1.02 20.20 ± 1.34 75.37 23.64 ± 1.64 24.62 ± 1.60 62.26 VanillaRAG 30.71 ± 1.24 25.40 ± 1.45 166.54 59.66 ± 2.03 51.30 ± 2.31 176.22 46.12 ± 1.79 48.60 ± 1.64 181.67 KGP 23.62 ± 1.58 16.91 ± 1.12 4991.32 41.74 ± 3.06 30.55 ± 2.85 5433.74 31.61 ± 2.88 30.04 ± 2.84 5666.83 ToG 8.98 ± 0.36 12.10 ± 1.53 5029.18 8.88 ± 0.81 35.64 ± 2.97 5294.68 11.49 ± 1.98 49.69 ± 3.10 5655.44 RAPTOR 22.76 ± 2.62 23.13 ± 3.53 247.36 45.57 ± 3.09 60.92 ± 3.02 255.53 28.24 ± 2.79 47.82 ± 3.19 306.28 G-Retriever 22.87 ± 1.74 22.25 ± 1.63 3331.69 55.04 ± 3.25 60.54 ± 2.78 4916.75 40.47 ± 3.04 48.78 ± 3.07 4930.02 LGraphRAG 9.12 ± 0.67 32.60 ± 2.85 278.92 44.07 ± 3.12 50.88 ± 2.87 297.55 31.06 ± 2.68 46.54 ± 3.02 322.89 FastGraphRAG 28.86 ± 1.53 25.16 ± 1.78 1204.88 48.68 ± 3.62 52.74 ± 3.01 1618.57 34.18 ± 2.94 41.49 ± 3.05 1623.67 LLightRAG 23.04 ± 1.09 19.30 ± 1.48 1505.72 55.75 ± 2.87 50.20 ± 3.05 1513.67 46.47 ± 1.31 45.50 ± 1.54 1465.92 GLightRAG 18.53 ± 1.47 16.10 ± 2.17 1513.67 36.74 ± 2.89 34.70 ± 2.95 1525.41 31.61 ± 1.35 40.10 ± 1.48 1485.98 HLightRAG 28.86 ± 1.22 25.85 ± 1.64 1636.49 46.22 ± 3.14 55.34 ± 3.06 1960.91 34.61 ± 2.99 45.21 ± 3.03 2043.28 GFM-RAG 27.96 ± 1.45 33.20 ± 2.03 2676.18 60.21 ± 3.03 67.82 ± 2.90 1692.36 42.57 ± 3.18 50.36 ± 3.26 1782.18 KET-RAG 18.29 ± 2.57 22.06 ± 3.21 1398.55 36.53 ± 2.98 31.66 ± 2.87 1838.76 38.42 ± 3.01 45.88 ± 3.09 2114.42 Clue-RAG-0.5 39.87 ± 3.56 35.80 ± 4.27 4926.88 62.46 ± 2.91 53.71 ± 2.83 5075.57 45.26 ± 3.00 50.16 ± 3.08 5131.92 Clue-RAG-1.0 40.62 ± 3.21 36.20 ± 4.10 5027.59 60.75 ± 2.59 55.40 ± 3.10 4326.24 50.36 ± 2.89 46.60 ± 3.10 4487.03 
+
+Ours-32 37.59 ± 1.78 29.45 ± 1.84 164.57 41.35 ± 2.78 33.60 ± 3.00 141.82 33.56 ± 2.78 29.70 ± 2.80 143.13 Ours-64 41.94 ± 2.27 34.60 ± 2.52 168.45 53.22 ± 2.82 45.60 ± 3.20 143.78 39.71 ± 2.87 36.30 ± 3.00 149.86 
+
+Ours-128 44.64 ± 2.76 37.90 ± 2.91 174.52 64.51 ± 2.72 56.20 ± 3.20 147.49 51.63 ± 2.93 48.80 ± 3.10 154.77 
+
+applies LLM-based extraction to all chunks.  
+
+> •
+
+FuseRAG (ours). We evaluate FuseRAG with short-fact budgets of 32, 64, and 128 (Ours-32, Ours-64, and Ours-128), respectively. Each budget specifies the maximum number of short facts provided to the LLM through the explicit path as semantic anchors. These configurations allow us to examine how the amount of explicit factual evidence affects QA effectiveness, token consumption, and response latency. 
+
+4) Implementation: To ensure a fair comparison, we im-plement all methods within a unified experimental framework with their default configurations [37]. All experiments are conducted on two NVIDIA RTX PRO 6000 GPUs. 
+
+B. Main Results 
+
+Table II reports the QA performance and TTFT of all methods. The results demonstrate that FuseRAG achieves superiority on QA quality. With Llama-3-8B, Ours-128 gains the highest F1 and accu-racy on all three datasets. Specifically, it obtains F1 scores of 41.08%, 63.05%, and 55.35% on MuSiQue, HotpotQA, and 2WikiMultiHopQA (2Wiki), respectively. Compared with the strongest competing F1 score on other methods, these results represent improvements of 11.41, 1.13, and 19.52%. Ours-128 also has an accuracy of 34.50%, 64.12%, and 51.70%, improving 5.86%, 0.86%, and 1.30%. Qwen3.5-9B shows the same trend. On MuSiQue, FuseRAG’s F1 and accuracy reach 44.64% and 37.90%, improving over the SOTA scores by 4.02 and 1.70%. The significant improvement indicates that FuseRAG is effective at integrating evidence for multi-hop question answering. FuseRAG also has substantially lower TTFT than all other RAG methods on both backbone LLMs. With Llama-3-8B, its TTFT ranges from 44.26 to 65.74 ms across the three datasets and budget configurations. In comparison, RAPTOR, the fastest graph-based RAG method in these experiments, re-(a) MuSiQue: time–F1 (b) HotpotQA: TTFT–F1 (c) 2Wiki: time–F1   
+
+> (d) MuSiQue: Tokens–F1 (e) HotpotQA: Tokens–F1 (f) 2Wiki: Tokens–F1
+
+Fig. 3: QA quality versus inference cost using Llama-3-8B. The horizontal axes show TTFT or token cost on a logarithmic scale, and the vertical axes show F1. The upper-left region indicates higher quality with lower cost. Stars denote our methods. quires 107.25–132.55 ms. With Qwen3.5-9B, FuseRAG main-tains a TTFT of 141.82-174.52 ms, again below RAPTOR’s 247.36-306 ms. Notably, all FuseRAG configurations also achieve lower TTFT than VanillaRAG in the corresponding settings. These results show that FuseRAG provides strong QA performance while keeping the initial response delay low. We observe that FuseRAG reaches competitive QA per-formance even with a small explicit evidence budget. For example, on HotpotQA with Llama-3-8B, FuseRAG with 32 tokens has an F1 of 51.19%, comparable to KET-RAG (51.75%), while reducing TTFT from 1212.31 ms to 44.26 ms. This indicates that latent evidence effectively supplements the limited textual context. Increasing the token budget generally improves F1, but the gains vary across datasets and backbone models. Notably, increasing the budget from 64 to 128 tokens improves F1 from 30.40% to 41.08% on MuSiQue with Llama-3-8B, and from 53.22% to 64.51% on HotpotQA with Qwen3.5-9B. However, larger budgets also increase TTFT, and Accuracy does not always improve monotonically. These observations suggest that different tasks and models require different amounts of explicit textual grounding. We further investigate this effect in Section V-D. Overall, a 64-token bud-get strikes a balance between QA performance and inference efficiency in our experiments. 
+
+C. Efficiency 
+
+To further evaluate the efficiency of FuseRAG, we compare its token consumption and inference time with representative graph-based RAG methods across three QA datasets. Figure 3 illustrates the trade-off between QA performance and inference cost, while Figure 4 reports token consumption and end-to-end inference time on both backbone models. As shown in Figure 3, FuseRAG exhibits a strong trade-off between answer quality and inference cost. Across all three datasets, its configurations are generally concentrated in the upper-left region, indicating competitive or higher F1 scores with lower TTFT and token consumption. In particular, the 128-token configuration obtains the highest F1 scores across all three datasets on Llama-3-8B, while maintaining substan-tially lower inference costs than competing methods. Even with only 32 explicit tokens, FuseRAG delivers competitive QA performance at significantly lower cost. Increasing the explicit evidence budget further improves F1, with relatively small increases in TTFT. These results indicate that latent evidence effectively supplements limited textual grounding. Figure 4 further compares textual token consumption and end-to-end inference time across Llama-3-8B and Qwen3.5-9B. FuseRAG consistently reduces both costs compared with representative graph-based RAG baselines. Methods relying on extensive evidence serialization or iterative LLM processing incur considerably higher overhead. In contrast, FuseRAG Fig. 4: Token and time costs. 
+
+TABLE III: Ablation study of FuseRAG.                                                                               
+
+> Variant Explicit Token-level Query Graph Reuse QA Performance Efficiency Anchors Memory Conditioning Fusion Enabled F1 Acc TTFT Speedup
+> FuseRAG ✓✓✓✓✓30.40 28.72 61.48 1.00× w/o Explicit Anchors ×✓✓✓✓23.14 23.88 58.13 1.06× w/o Latent Memory ✓××××22.63 18.50 27.81 2.21× w/o Query Conditioning ✓✓×✓✓23.46 20.33 60.81 1.01× w/o Graph Fusion ✓✓✓×✓26.48 22.20 59.42 1.03× Passage-level Memory ✓×✓✓✓23.91 20.45 46.37 1.33× w/o Evidence Reuse ✓✓✓✓×30.40 28.72 81.49 0.75×
+
+retains only compact explicit facts in the prompt while in-corporating richer evidence and graph structure through latent representations. These improvements stem from two complementary mech-anisms. First, shorter textual contexts reduce decoder com-putation, while latent memory is accessed only at selected Transformer layers. Second, reusable evidence representations eliminate redundant encoding across queries without requir-ing identical serialized prefixes. Together, these mechanisms improve inference efficiency while maintaining competitive performance on multi-hop QA. Notably, the reduction in tex-tual token consumption is accompanied by lower end-to-end inference time, indicating that the additional latent processing overhead does not offset the computational savings. 
+
+D. Parameters E. Ablation Study 
+
+Table III examines how FuseRAG’s components contribute to answer quality and inference efficiency. Removing explicit anchors lowers F1 from 30.40% to 23.14% and accuracy from 28.72% to 23.88%, while providing only a 1.06 × speedup. These anchors supply compact, directly readable facts in the prompt, complementing the richer evidence accessed through latent memory. The substantial quality decrease suggests that latent evidence benefits from a small amount of explicit textual context. Conversely, removing latent memory reduces F1 to 22.63 and accuracy to 18.50, despite achieving a 2.21 ×
+
+speedup. This variant retains the textual anchors but removes the latent evidence branch, including its query conditioning and graph fusion. The result shows that compact facts alone Fig. 5: Answer quality across explicit token budgets τ .are insufficient to match the full model and highlights the con-tribution of the additional evidence available through memory. Query conditioning and graph fusion serve distinct roles within the latent branch. Query conditioning directs atten-tion pooling toward question-relevant evidence tokens and conditions cross-passage message computation on the current question. Removing it lowers F1 by 6.94% and accuracy by 8.39%, with only a 1.01 × speedup. This suggests that adapting evidence representations to the question is important for effective memory use. Graph fusion allows connected pas-sages to exchange information and produces auxiliary struc-tural representations alongside the original evidence states. Without it, F1 decreases to 26.48 and accuracy to 22.20%, while the speedup is limited to 1.03 ×. Thus, structural fusion provides additional benefits beyond independently encoded, query-conditioned passage representations, at a relatively small observed latency cost. Memory granularity also affects the quality–efficiency trade-off. Replacing token-level memory with passage-level memory gains a 1.33 × speedup, but reduces F1 to 23.91% and accuracy to 20.45%. Token-level memory exposes multiple evidence positions to the decoder, enabling selective access to finer-grained information rather than relying on a passage-level summary. The results support retaining this granularity when answer quality is the priority. Finally, disabling evidence reuse leaves both F1 and accuracy unchanged but increases TTFT 
+
+Fig. 6: answer quality across graph encoder layers Lg .from 61.48 to 81.49. Caching query-independent passage representations therefore reduces TTFT by 24.6% relative to online re-encoding without changing answer quality. Taken together, the ablations show complementary quality contri-butions from textual anchors, fine-grained latent evidence, and query-conditioned structural fusion, while evidence reuse improves efficiency. We examine the sensitivity of FuseRAG to the explicit evidence token budget τ and the number of graph message-passing rounds Lg on Llama-3-8B and Qwen3.5-9B across three datasets. Figure 5 varies τ from 0 to 256. Increasing the budget generally improves both accuracy and F1, indicating that addi-tional explicit facts complement latent evidence. With τ = 0 ,the models rely on the latent evidence branch without textual anchors. Qwen3.5-9B is particularly sensitive to this setting on MuSiQue, whereas Llama-3-8B retains higher performance. Adding textual anchors improves both models across the datasets. The gains generally diminish between 128 and 256 tokens, suggesting that a moderate budget captures much of the benefit of explicit context. Smaller budgets provide a more compact prompt, although the corresponding efficiency trade-off requires latency measurements. Figure 6 varies Lg from 0 to 3. For both models, accuracy and F1 improve as the number of rounds increases from 0 to 2 across all three datasets. Additional rounds allow node representations to incorporate information propagated over longer graph paths. Performance peaks at two rounds and decreases slightly at three, suggesting diminishing returns from further propagation. Although excessive mixing of node information is a possible explanation, these results alone do not establish oversmoothing as the cause. Overall, two message-passing rounds provide the best answer quality among the evaluated settings. VI. R ELATED WORK 
+
+A. Graph-based RAG 
+
+Graph-based RAG organizes external corpora through en-tities, relationships, and associations, thereby capturing de-pendencies that go beyond isolated text blocks [38], [39]. A majority of existing work focuses on leveraging hierarchical or relational graph structures to enhance the indexing and retrieval processes [40]–[42]. For example, RAPTOR [43] recursively embeds, clusters, and summarizes text blocks to construct a hierarchical retrieval tree. GraphRAG [44] and LightRAG [45] construct graphs and community summaries to support local, global, and hybrid retrieval modes for document collections. To balance indexing overhead and improve multi-hop retrieval, recent methods such as HippoRAG [33], KET-RAG [46], and Clue-RAG [37] explore more efficient graph retrieval and indexing strategies. These methods adopt person-alized PageRank, knowledge graph skeletons combined with text-keyword bipartite graphs, and multi-partite graph indexes connecting text chunks, knowledge units, and entities [47]. Another perspective focuses on performing explicit traversal or multi-step reasoning directly on graph structures during the online reasoning phase [48]. Typical methods include KGP [49] using LLM agents for graph navigation, ToG [50] iterative reasoning on knowledge graphs and GFM-RAG [8], which utilizes pre-trained graph neural networks to model query-knowledge relationships. Despite their strong retrieval capabilities, most graph-based RAG methods still serialize graph evidence [51], leading to structural degradation and positional biases. G-Retriever [52] mitigates this issue through graph-based soft prompts but does not explicitly preserve reusable token-level evidence. In contrast, FuseRAG separates reusable evidence content from query-dependent graph interactions and integrates both into decoder attention alongside compact textual anchors. 
+
+B. Latent Evidence Integration 
+
+Encoding external context into continuous latent repre-sentations offers a highly promising technical approach as an alternative to processing full-length text. Early research, such as Prefix-Tuning [53], AutoCompressors [54], and ICAE [55], used autoencoder or language modeling objectives to compress long contexts into compact summary vectors or a fixed number of memory slots, which served as soft prompts to reduce the computational overhead of self-attention [56]. In RAG scenarios, xRAG [57] uses a learned modality bridge to directly project pre-trained offline document embeddings into the representation space of large language models, thereby en-abling the reuse of offline document embeddings and reducing the consumption of text tokens. Relatively few studies have explored latent representations for graph-based RAG. Exist-ing approaches often compress evidence into a few vectors, potentially losing fine-grained semantics, while overlooking graph relationships. In contrast, FuseRAG integrates evidence semantics and graph structure in latent space, supporting multi-hop reasoning without full textual serialization. 
+
+C. Efficient RAG Inference 
+
+Accelerating the prefill phase of large language models in RAG scenarios has become a critical research focus in the systems community, with mainstream approaches centering on the cross-query reuse of KV caches [58]–[60]. Systems such as RAGCache [61] organize intermediate knowledge states in a knowledge tree and manage cache reuse for shared prefixes across GPU and host memory. Since standard KV-cache reuse requires strict exact token-prefix matching, recent research has explored reuse mechanisms that overcome these prefix constraints [62], [63]. For example, CacheBlend [64] combines precomputed chunk KV caches with selective token recomputation to restore cross-chunk attention interactions between the current block and its preceding context, while Cache-Craft [65] further evaluates chunk-cache reusability to jointly schedule selective recomputation, storage, and eviction strategies. Furthermore, recent efforts such as MatKV [66] and SubGCache [67] extend caching efficiency by leveraging matrix-level KV transformations for modular state alignment or exploiting overlapping subgraph structures to facilitate reuse in graph-based retrieval. Existing caching methods primarily reuse or adapt decoder KV states derived from serialized text. However, varying graph structures and serialization orders complicate such reuse in graph-based RAG. In contrast, FuseRAG caches query-independent evidence representations and incorporates graph interactions in latent space, reducing redundant computation and prefill overhead without requiring identical token prefixes. VII. C ONCLUSION 
+
+We presented FuseRAG, an efficient graph-based RAG framework that integrates retrieved evidence and structural interactions into decoder attention. Its dual-path design com-bines compact textual anchors with latent evidence, preserving independently encoded passage states while augmenting them with question-dependent graph representations. By reusing evidence states across queries and memory K/V across decod-ing steps, FuseRAG reduces repeated encoding and long-text prefill without requiring the complete retrieved graph to be verbalized. Experiments across three multi-hop QA datasets and two LLM backbones demonstrate favorable trade-offs between answer quality and inference efficiency. These results support latent evidence integration as a practical direction for efficient graph-based RAG. REFERENCES [1] Y. Chang, X. Wang, J. Wang, Y. Wu, L. Yang, K. Zhu, H. Chen, X. Yi, C. Wang, Y. Wang et al. , “A survey on evaluation of large language models,” ACM transactions on intelligent systems and technology ,vol. 15, no. 3, pp. 1–45, 2024. [2] X. Wu, S.-h. Wu, J. Wu, L. Feng, and K. C. Tan, “Evolutionary computation in the era of large language model: Survey and roadmap,” 
+
+IEEE Transactions on Evolutionary Computation , vol. 29, no. 2, pp. 534–554, 2024. [3] P. Lewis, E. Perez, A. Piktus, F. Petroni, V. Karpukhin, N. Goyal, H. K¨ uttler, M. Lewis, W.-t. Yih, T. Rockt¨ aschel et al. , “Retrieval-augmented generation for knowledge-intensive nlp tasks,” Advances in neural information processing systems , vol. 33, pp. 9459–9474, 2020. [4] J. Li, J. Chen, R. Ren, X. Cheng, X. Zhao, J.-Y. Nie, and J.-R. Wen, “The dawn after the dark: An empirical study on factuality hallucination in large language models,” in Proceedings of the 62nd annual meeting of the association for computational linguistics (volume 1: Long papers) ,2024, pp. 10 879–10 899. [5] A. Asai, Z. Wu, Y. Wang, A. Sil, and H. Hajishirzi, “Self-rag: Learning to retrieve, generate, and critique through self-reflection,” in Interna-tional conference on learning representations , vol. 2024, 2024, pp. 9112–9141. [6] P. Li, C. Chen, H. Yuan, Z. Fu, H. Shen, X. Yang, Q. Wang, X. Ai, Y. Zhang, Y. Wen et al. , “Neutronrag: Towards understanding the effectiveness of rag from a data retrieval perspective,” in Companion of the 2025 International Conference on Management of Data , 2025, pp. 163–166. [7] W. Fan, Y. Ding, L. Ning, S. Wang, H. Li, D. Yin, T.-S. Chua, and Q. Li, “A survey on rag meeting llms: Towards retrieval-augmented large language models,” in Proceedings of the 30th ACM SIGKDD conference on knowledge discovery and data mining , 2024, pp. 6491–6501. [8] L. Luo, Z. Zhao, R. Haffari, D. Phung, C. Gong, and S. Pan, “Gfm-rag: graph foundation model for retrieval augmented generation,” Advances in Neural Information Processing Systems , vol. 38, pp. 36 371–36 405, 2026. [9] Z. Zhu, T. Huang, K. Wang, J. Ye, X. Chen, and S. Luo, “Graph-based approaches and functionalities in retrieval-augmented generation: A comprehensive survey,” ACM Computing Surveys , vol. 58, no. 10, pp. 1–38, 2026. [10] L. Luo, Y.-F. Li, R. Haffari, and S. Pan, “Reasoning on graphs: Faithful and interpretable large language model reasoning,” in International Conference on Learning Representations , vol. 2024, 2024, pp. 14 400– 14 423. [11] Y. Zhou, Y. Su, Y. Sun, S. Wang, T. Wang, R. He, Y. Zhang, S. Liang, X. Liu, Y. Ma, and Y. Fang, “In-depth analysis of graph-based rag in a unified framework,” Proc. VLDB Endow. , vol. 18, no. 13, p. 5623–5637, Sep. 2025. [12] B. Tong, Y. Zhou, C. Zhang, Z. Yin, and J. Li, “Galaxyrag: Graph retrieval-augmented generation for enterprise knowledge systems,” in 
+
+2026 IEEE 42nd International Conference on Data Engineering (ICDE) .IEEE, 2026, pp. 4047–4059. [13] Y. Li, D. Song, Y. Tian, H. Wang, C. Zhou, and S. Zhang, “A framework of knowledge graph-enhanced large language model based on global planning,” IEEE Transactions on Knowledge and Data Engineering ,vol. 38, no. 2, pp. 736–748, 2025. [14] N. F. Liu, K. Lin, J. Hewitt, A. Paranjape, M. Bevilacqua, F. Petroni, and P. Liang, “Lost in the middle: How language models use long contexts,” 
+
+Transactions of the association for computational linguistics , vol. 12, pp. 157–173, 2024. [15] Y. Lu, M. Bartolo, A. Moore, S. Riedel, and P. Stenetorp, “Fantastically ordered prompts and where to find them: Overcoming few-shot prompt order sensitivity,” in Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,2022, pp. 8086–8098. [16] L. Zheng, L. Yin, Z. Xie, C. Sun, J. Huang, C. H. Yu, S. Cao, C. Kozyrakis, I. Stoica, J. E. Gonzalez et al. , “Sglang: Efficient execution of structured language model programs,” Advances in neural information processing systems , vol. 37, pp. 62 557–62 583, 2024. [17] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” Advances in neural information processing systems , vol. 30, 2017. [18] H. Zhang, X. Ji, Y. Chen, F. Fu, X. Miao, X. Nie, W. Chen, and B. Cui, “Pqcache: Product quantization-based kvcache for long context llm inference,” Proceedings of the ACM on Management of Data , vol. 3, no. 3, pp. 1–30, 2025. [19] J. Lin, J. Mi, Z. Hong, H. Wang, Q. Liu, H. Zhang, P. Li, and S. Guo, “Kvdrive: A holistic multi-tier kv cache management system for long-context llm inference,” Proceedings of the ACM on Management of Data ,vol. 4, no. 3 (SIGMOD, pp. 1–25, 2026. [20] H. Wei, J. X. Yu, C. Lu, and X. Lin, “Speedup graph processing by graph ordering,” in Proceedings of the 2016 International Conference on Management of Data , 2016, pp. 1813–1828. [21] H. Jiang, Q. Wu, C.-Y. Lin, Y. Yang, and L. Qiu, “Llmlingua: Com-pressing prompts for accelerated inference of large language models,” in Proceedings of the 2023 conference on empirical methods in natural language processing , 2023, pp. 13 358–13 376. [22] X. Liu, R. Zhao, P. Huang, X. Liu, J. Xiao, T. Xiao, S. Gao, Z. Yu, J. Zhu et al. , “Autoencoding-free context compression for llms via contextual semantic anchors,” in International Conference on Learning Representations , vol. 2026, 2026, pp. 138 643–138 665. [23] H. Ke, J. Morris, K. Oguchi, X. Cao, Y. Liu, H. Wang, and Y. Ding, “Mambev: Enabling state space models to learn birds-eye-view rep-resentations,” in The Thirteenth International Conference on Learning Representations , 2025. [24] T. N. Kipf and M. Welling, “Semi-supervised classification with graph convolutional networks,” arXiv preprint arXiv:1609.02907 , 2016. [25] W. Hamilton, Z. Ying, and J. Leskovec, “Inductive representation learning on large graphs,” Advances in neural information processing systems , vol. 30, 2017. [26] P. Veliˇ ckovi´ c, G. Cucurull, A. Casanova, A. Romero, P. Lio, and Y. Ben-gio, “Graph attention networks,” arXiv preprint arXiv:1710.10903 , 2017. [27] N. Houlsby, A. Giurgiu, S. Jastrzebski, B. Morrone, Q. De Laroussilhe, A. Gesmundo, M. Attariyan, and S. Gelly, “Parameter-efficient transfer learning for nlp,” in International conference on machine learning .PMLR, 2019, pp. 2790–2799. [28] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen, “Lora: Low-rank adaptation of large language models,” 
+
+arXiv preprint arXiv:2106.09685 , 2021. [29] H. Ke, J. Morris, Y. Liu, S. Kitai, K. Oguchi, Y. Ding, and H. Wang, “Tinybev: Compact temporal fusion for multi-view 3d perception,” in 
+
+Proceedings of the Tenth ACM/IEEE Symposium on Edge Computing ,2025, pp. 1–6. [30] H. Trivedi, N. Balasubramanian, T. Khot, and A. Sabharwal, “musique: Multihop questions via single-hop question composition,” Transactions of the Association for Computational Linguistics , vol. 10, pp. 539–554, 2022. [31] Z. Yang, P. Qi, S. Zhang, Y. Bengio, W. Cohen, R. Salakhutdinov, and C. D. Manning, “Hotpotqa: A dataset for diverse, explainable multi-hop question answering,” in Proceedings of the 2018 conference on empirical methods in natural language processing , 2018, pp. 2369–2380. [32] X. Ho, A.-K. D. Nguyen, S. Sugawara, and A. Aizawa, “Constructing a multi-hop qa dataset for comprehensive evaluation of reasoning steps,” in Proceedings of the 28th International Conference on Computational Linguistics , 2020, pp. 6609–6625. [33] B. J. Guti´ errez, Y. Shu, Y. Gu, M. Yasunaga, and Y. Su, “Hipporag: Neurobiologically inspired long-term memory for large language mod-els,” Advances in neural information processing systems , vol. 37, pp. 59 532–59 569, 2024. [34] O. Press, M. Zhang, S. Min, L. Schmidt, N. A. Smith, and M. Lewis, “Measuring and narrowing the compositionality gap in language mod-els,” in Findings of the Association for Computational Linguistics: EMNLP 2023 , 2023, pp. 5687–5711. [35] H. Trivedi, N. Balasubramanian, T. Khot, and A. Sabharwal, “Interleav-ing retrieval with chain-of-thought reasoning for knowledge-intensive multi-step questions,” in Proceedings of the 61st annual meeting of the association for computational linguistics (volume 1: long papers) , 2023, pp. 10 014–10 037. [36] N. Zhang, P. K. Choubey, A. Fabbri, G. Bernadett-Shapiro, R. Zhang, P. Mitra, C. Xiong, and C.-S. Wu, “Sirerag: Indexing similar and related information for multihop reasoning,” in International Conference on Learning Representations , vol. 2025, 2025, pp. 100 413–100 432. [37] Y. Su, Y. Fang, Y. Zhou, and C. Yang, “Clue-rag: Towards accurate and cost-efficient graph-based rag via multi-partite graph-based index,” in 
+
+2026 IEEE 42nd International Conference on Data Engineering (ICDE) .IEEE, 2026, pp. 2390–2404. [38] H. Han, L. Ma, Y. Wang, H. Shomer, K. Guo, Y. Lei, Z. Qi, Z. Hua, B. Long, H. Liu et al. , “Rag vs. graphrag: A systematic evaluation and key insights,” in Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , 2026, pp. 8966–8977. [39] S. Pan, L. Luo, Y. Wang, C. Chen, J. Wang, and X. Wu, “Unifying large language models and knowledge graphs: A roadmap,” IEEE Transactions on Knowledge and Data Engineering , vol. 36, no. 7, pp. 3580–3599, 2024. [40] B. J. Guti´ errez, Y. Shu, W. Qi, S. Zhou, and Y. Su, “From RAG to mem-ory: Non-parametric continual learning for large language models,” in 
+
+Proceedings of the 42nd International Conference on Machine Learning ,ser. Proceedings of Machine Learning Research, vol. 267. PMLR, 13– 19 Jul 2025, pp. 21 497–21 515. [41] C. Wu, Z. Xiang, Y. Tang, Z. Chen, Q. Zhang, and J. Su, “Memgraphrag: Memory-based multi-agent system for graph retrieval-augmented gen-eration,” in Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , 2026, pp. 5407–5418. [42] Z. Cui, Y. Weng, X. Tang, P. Liu, S. Li, B. He, J. Chen, Y. Zhang, X. He, R. Zhang, and C. Ma, “Less is more: Elevating RAG via performance-driven context compression,” in Proceedings of the 43rd International Conference on Machine Learning , ser. Proceedings of Machine Learning Research, vol. 306. PMLR, 06–11 Jul 2026, pp. 22 030–22 046. [43] P. Sarthi, S. Abdullah, A. Tuli, S. Khanna, A. Goldie, and C. Manning, “Raptor: Recursive abstractive processing for tree-organized retrieval,” in 
+
+International Conference on Learning Representations , vol. 2024, 2024, pp. 32 628–32 649. [44] D. Edge, H. Trinh, N. Cheng, J. Bradley, A. Chao, A. Mody, S. Truitt, D. Metropolitansky, R. O. Ness, and J. Larson, “From local to global: A graph rag approach to query-focused summarization,” arXiv preprint arXiv:2404.16130 , 2024. [45] Z. Guo, L. Xia, Y. Yu, T. Ao, and C. Huang, “Lightrag: Simple and fast retrieval-augmented generation.” in EMNLP (Findings) , 2025, pp. 10 746–10 761. [46] Y. Huang, S. Zhang, and X. Xiao, “Ket-rag: A cost-efficient multi-granular indexing framework for graph-rag,” in Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , 2025, pp. 1003–1012. [47] Z. Sheng, R. Sun, J. Xu, H. Luo, P. Chen, W. Zhang, and B. Cui, “Qa-graphrag: Query-adaptive plug-and-play retrieval integration for graph-based retrieval-augmented generation,” Proceedings of the VLDB Endowment , vol. 19, no. 9, pp. 2224–2233, 2026. [48] S. Chen, C. Zhou, Z. Yuan, Q. Zhang, Z. Cui, H. Chen, Y. Xiao, J. Cao, and X. Huang, “You don’t need pre-built graphs for rag: Retrieval augmented generation with adaptive reasoning structures,” in 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 36, 2026, pp. 30 270–30 278. [49] Y. Wang, N. Lipka, R. A. Rossi, A. Siu, R. Zhang, and T. Derr, “Knowledge graph prompting for multi-document question answering,” in Proceedings of the AAAI conference on artificial intelligence , vol. 38, no. 17, 2024, pp. 19 206–19 214. [50] J. Sun, C. Xu, L. Tang, S. Wang, C. Lin, Y. Gong, L. Ni, H.-Y. Shum, and J. Guo, “Think-on-graph: Deep and responsible reasoning of large language model on knowledge graph,” in International Conference on Learning Representations , vol. 2024, 2024, pp. 3868–3898. [51] L. Zhuang, S. Chen, Y. Xiao, H. Zhou, Y. Zhang, H. Chen, Q. Zhang, and X. Huang, “Linearrag: Linear graph retrieval augmented genera-tion on large-scale corpora,” in International Conference on Learning Representations , vol. 2026, 2026, pp. 147 053–147 075. [52] X. He, Y. Tian, Y. Sun, N. V. Chawla, T. Laurent, Y. LeCun, X. Bresson, and B. Hooi, “G-retriever: Retrieval-augmented generation for textual graph understanding and question answering,” Advances in Neural Information Processing Systems , vol. 37, pp. 132 876–132 907, 2024. [53] X. L. Li and P. Liang, “Prefix-tuning: Optimizing continuous prompts for generation,” in Proceedings of the 59th annual meeting of the association for computational linguistics and the 11th international joint conference on natural language processing (volume 1: Long papers) , 2021, pp. 4582–4597. [54] A. Chevalier, A. Wettig, A. Ajith, and D. Chen, “Adapting language models to compress contexts,” in Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , 2023, pp. 3829– 3846. [55] T. Ge, H. Jing, L. Wang, X. Wang, S.-Q. Chen, and F. Wei, “In-context autoencoder for context compression in a large language model,” in 
+
+International Conference on Learning Representations , vol. 2024, 2024, pp. 2591–2607. [56] H. Ke, J. Morris, Y. Liu, S. Kitai, K. Oguchi, Y. Ding, and H. Wang, “Deformba: Vision state space model with adaptive state fusion,” arXiv preprint arXiv:2605.21308 , 2026. [57] X. Cheng, X. Wang, X. Zhang, T. Ge, S.-Q. Chen, F. Wei, H. Zhang, and D. Zhao, “xrag: Extreme context compression for retrieval-augmented generation with one token,” Advances in Neural Information Processing Systems , vol. 37, pp. 109 487–109 516, 2024. [58] Y. Liu, J. Fu, S. Liu, Y. Zou, S. Zhang, and J. Zhou, “Kv cache compres-sion for inference efficiency in llms: A review,” in Proceedings of the 4th International Conference on Artificial Intelligence and Intelligent Information Processing , 2025, pp. 207–212. [59] H. Yuan, X. Ai, Q. Wang, P. Li, J. Yu, C. Chen, X. Yang, Y. Zhang, Z. Fu, Y. Wen, and G. Yu, “Depcache: A kv cache management framework for graphrag with dependency attention,” Proc. ACM Manag. Data , vol. 3, no. 6, Dec. 2025. [60] Y. Wang, H. Li, and L. Chen, “Mgrag: Semantic subgraph matching and graph-aware caching for multimodal retrieval-augmented generation,” vol. 19, no. 9, p. 2480–2493, Aug. 2026. [61] C. Jin, Z. Zhang, X. Jiang, F. Liu, S. Liu, X. Liu, and X. Jin, “Ragcache: Efficient knowledge caching for retrieval-augmented generation,” ACM Transactions on Computer Systems , vol. 44, no. 1, pp. 1–27, 2025. [62] J. Yang, B. Hou, W. Wei, Y. Bao, and S. Chang, “Kvlink: Accelerating large language models via efficient kv cache reuse,” Advances in Neural Information Processing Systems , vol. 38, pp. 133 797–133 824, 2026. [63] J. Wang, W. Xie, M. Zhang, B. Zhang, J. Dong, Y. Zhu, C. Lin, J. Tang, Y. Han, Z. Ai, X. Chen, Y. Wu, and C. Jiang, “From prefix cache to fusion rag cache: Accelerating llm inference in retrieval-augmented generation,” Proc. ACM Manag. Data , vol. 4, no. 1, Apr. 2026. [64] J. Yao, H. Li, Y. Liu, S. Ray, Y. Cheng, Q. Zhang, K. Du, S. Lu, and J. Jiang, “Cacheblend: Fast large language model serving for rag with cached knowledge fusion,” in Proceedings of the twentieth European conference on computer systems , 2025, pp. 94–109. [65] S. Agarwal, S. Sundaresan, S. Mitra, D. Mahapatra, A. Gupta, R. Sharma, N. J. Kapu, T. Yu, and S. Saini, “Cache-craft: Managing chunk-caches for efficient retrieval-augmented generation,” Proceedings of the ACM on Management of Data , vol. 3, no. 3, pp. 1–28, 2025. [66] K.-W. Shin, J. H. Park, M. Oh, Y. Jo, J. Do, and S.-W. Lee, “Matkv: Trading compute for flash storage in llm inference,” in 2026 IEEE 42nd International Conference on Data Engineering (ICDE) . IEEE, 2026, pp. 877–890. [67] Q. Zhu, L. Zhang, Q. Xu, C. Long, and J. Zhang, “Subgcache: Accel-erating graph-based rag with subgraph-level kv cache,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 41, 2026, pp. 35 204–35 212.
