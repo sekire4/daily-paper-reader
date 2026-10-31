@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-30</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-31</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 21 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 19 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>9</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-30 22:56:59 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-31 22:19:01 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精读 9 篇、速读 12 篇，共处理 21 篇论文，重点集中在智能体长期记忆与 RAG 幻觉治理。最值得看的是《Long-Term Agent Memory through Complementary Curation and Consolidation》（10.0/10），它讨论如何通过互补整理与巩固实现长期记忆；《CalibraRL》（9.0/10）则用置信度校准强化学习降低 RAG 幻觉。普通读者可先读这两篇的精读摘要，再沿 Librarian Agents、SAG2 等 8 分速读条目了解检索与长上下文工作。</p>
+<p>今日筛选19篇、精读7篇、速读12篇，聚焦Agentic RAG可信度与智能体记忆两大前沿。最值得关注的是《Adaptive Retrieval, Selective Answers》与《OA-RAG》双双以9.0分提出的“按需检索、选择性作答”思路，直指减少幻觉、提升事实性。普通读者可优先了解这两篇的评测方法，再顺带浏览速读中GLOBE与MemJoin关于结构化记忆和跨会话隐私的结论。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">9 篇</strong>
+    <strong class="dpr-home-dashboard-count">7 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Long-Term Agent Memory through Complementary Curation and Consolidation">Long-Term Agent Memory through Complementary Curation and Consolidation</span></li><li><span class="dpr-home-dashboard-paper-title" title="CalibraRL: Confidence-Calibrated Reinforcement Learning for Mitigating Hallucinations in RAG">CalibraRL: Confidence-Calibrated Reinforcement Learning for Mitigating Hallucinations in RAG</span></li><li><span class="dpr-home-dashboard-paper-title" title="Stratum: Repository Memory for Coding Agents Beyond the Context Window">Stratum: Repository Memory for Coding Agents Beyond the Context Window</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Adaptive Retrieval, Selective Answers: Evaluating Conformal Factuality in Agentic RAG">Adaptive Retrieval, Selective Answers: Evaluating Conformal Factuality in Agentic RAG</span></li><li><span class="dpr-home-dashboard-paper-title" title="OA-RAG: Ontology-based Agentic RAG for Faithful LLM Reasoning">OA-RAG: Ontology-based Agentic RAG for Faithful LLM Reasoning</span></li><li><span class="dpr-home-dashboard-paper-title" title="DeFT-RAG: Incrementally Decomposing Multi-Hop Questions into Self-Contained Sub-Questions with Reusable Answers">DeFT-RAG: Incrementally Decomposing Multi-Hop Questions into Self-Contained Sub-Questions with Reusable Answers</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>7</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>5</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>2</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -94,9 +94,9 @@
     <strong class="dpr-home-dashboard-count">12 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate Future Queries">Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate Future Queries</span></li><li><span class="dpr-home-dashboard-paper-title" title="SAG2: Embedding-Free Multi-Hop Retrieval with BM25 and JEV">SAG2: Embedding-Free Multi-Hop Retrieval with BM25 and JEV</span></li><li><span class="dpr-home-dashboard-paper-title" title="FuseRAG: Fusing Structure and Evidence into Inference for Cost-Efficient Graph-based RAG">FuseRAG: Fusing Structure and Evidence into Inference for Cost-Efficient Graph-based RAG</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="GLOBE: Evolving Structured Agentic Memory for E-commerce Product Optimization in Generative Search">GLOBE: Evolving Structured Agentic Memory for E-commerce Product Optimization in Generative Search</span></li><li><span class="dpr-home-dashboard-paper-title" title="Can Agents Keep Secrets They Were Never Told? Benchmarking Latent Privacy Risks Across Sessions with MemJoin">Can Agents Keep Secrets They Were Never Told? Benchmarking Latent Privacy Risks Across Sessions with MemJoin</span></li><li><span class="dpr-home-dashboard-paper-title" title="Write Once, Query Many: Evolving Compact Reusable Memory for Long Videos">Write Once, Query Many: Evolving Compact Reusable Memory for Long Videos</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>7</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>5</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>8</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>4</strong></span></div>
 </section>
 </div>
 

@@ -1,0 +1,2925 @@
+4DMemory: Benchmarking Long-Horizon Spatiotemporal Memory
+with Harness-Augmented Agents
+Yanhao Jia1, Yi Zhu2†, Yiran Zhong2†, Weigao Sun2, Feida Zhu2,
+Pengkun Jiao2, Sihan Yang3, Ming Ma4,5, Steven Hoi2, Erik Cambria1
+1 Nanyang Technological University 2 Token Foundry, Alibaba
+3 The Chinese University of Hong Kong
+4 Institute of Neuroscience, Chinese Academy of Sciences
+5 University of Chinese Academy of Sciences
+Abstract
+Humans efficiently process multimodal streams
+spanning hours to years, building persistent,
+fine-grained spatiotemporal memories that sup-
+port reasoning about and predicting long-
+horizon events. In contrast, existing bench-
+marks focus on short- and medium-context
+tasks, and most foundation models struggle
+to preserve fine-grained information over long
+horizons.
+To evaluate and improve long-
+horizon spatiotemporal reasoning, we intro-
+duce the LongVideo dataset and the 4DMem-
+oryBench. LongVideo comprises about 900
+hours of video and over 5,000 manually re-
+viewed questions covering visual, textual, and
+spatiotemporal reasoning across diverse con-
+text lengths. We further develop the 4DMem-
+ory Harness, which integrates four comple-
+mentary skills, 22+ specialized tool models,
+and a model-specific retrieval-augmented gen-
+eration system. Evaluating 13 leading mod-
+els, we find that standalone foundation mod-
+els struggle with long-horizon tasks, while the
+4DMemory Harness improves all of them by
+over 50%. Compared to previous benchmark,
+the same models exhibit a performance drop of
+more than 10% on 4DMemoryBench. We hope
+4DMemory will facilitate the development of
+spatiotemporal agents capable of addressing
+complex, long-horizon tasks.
+1
+Introduction
+Humans do not always know in advance which
+aspects of an unfolding experience will matter to
+a future goal. They form long-term memories as
+the world evolves and, once a concrete goal arises,
+selectively retrieve relevant experiences, integrate
+them with new observations, and update their cur-
+rent understanding (Tulving and Thomson, 1973;
+Hupbach et al., 2007). This interaction between
+persistent memory and goal-directed recall enables
+reasoning across long temporal horizons. As multi-
+modal large language models (MLLMs) advance
+†Corresponding authors.
+from static-image perception toward video under-
+standing and multimodal reasoning (Maaz et al.,
+2024; Li et al., 2024a; Gemini Team, 2024; Wang
+et al., 2024a), developing an analogous capability
+becomes increasingly important for artificial sys-
+tems. Long-horizon 4D tasks require models to
+preserve how entities, spatial relations, states, and
+events evolve over time, so that observations made
+hours earlier can inform later reasoning.
+Although modern MLLMs perform strongly on
+many vision-language tasks, they remain poorly
+matched to long-horizon 4D reasoning. First, a
+nominally long context window does not imply
+an equally long effective video context, as dense
+video generates long sequences of visual tokens
+that impose substantial computational and memory
+costs during visual encoding and attention. Practi-
+cal systems therefore depend on sparse frame sam-
+pling or token compression, which may discard
+fine-grained evidence before the eventual task is
+known (Wu et al., 2024; Fu et al., 2025). Second,
+strong long-text reasoning does not by itself pro-
+vide the multimodal alignment, temporal reasoning,
+and spatial understanding needed to connect events
+across changing scenes (Liu et al., 2024; Yang et al.,
+2025). As a result, directly processing hours of
+video with an MLLM remains unreliable for com-
+plex 4D tasks whose evidence is distributed across
+distant moments, scenes, and temporal scales.
+Prior work has addressed these limitations
+through complementary interventions at the sys-
+tem, model, and method levels. At the system
+level, agentic harnesses iteratively retrieve query-
+relevant frames, maintain structured temporal and
+object memories, and orchestrate multi-granular
+search or specialist tools (Wang et al., 2024b; Fan
+et al., 2024; Ma et al., 2025; Zhang et al., 2026). At
+the model level, long-video MLLMs extend their
+effective visual horizon through long-context train-
+ing, compact per-frame tokenization, and explicit
+temporal encoding (Chen et al., 2025; Li et al.,
+1
+arXiv:2610.32332v1  [cs.CV]  23 Oct 2026
+
+
+Titanic (1997)
+Tens of hours
+of video
+Illustrative film example
+01:28.00
+...
+01:40.02
+...
+01:58.03
+...
+02:08.00
+...
+02:16.01
+...
+02:24.02
+Task: After Jack stands behind Rose, what does she do?
+(a) Traditional model
+Past observations
+...
+...
+...
+Key details may fade
+Model
+Missing evidence
+Earlier actions may be
+missing from context.
+Sequence may be incomplete
+(b) 4DMemory Agent
+Model + Harness
+Video
+observations
+Encode
+& store
+4DMemory Agent
+Harness
+Memory
+Persistent events & relations
+Retrieve relevant evidence
+01:40.02
+Eyes closed
+01:58.03
+Jack behind
+02:16.01
+Arms wide
+Skills
+Video
+processing
+Visual
+grounding
+Text
+statistics
+Model
+Retrieve
+Call tools
+Retrieve
+Reason
+Execute
+Evidence-grounded result
+She spreads both arms wide.
+01:58.03
+02:16.01
+Retrieved evidence supports
+the action sequence
+At the bow
+Eyes closed
+Jack stands behind
+Arms rise
+Arms spread
+Eyes open
+✓
+Limited
+active context
+×
+Figure 1: Motivation for 4DMemory Agent. (a) Traditional models with limited active context may lose access to
+earlier observations, leaving relevant evidence unavailable for temporal reasoning. (b) 4DMemory Agent coordinates
+persistent memory and task-specific skills through a harness to retrieve evidence and reason over events and their
+relations.
+2024b; Bai et al., 2025).
+At the method level,
+adaptive spatiotemporal compression removes re-
+dundant frames and visual tokens, sparse mem-
+ory consolidates dense observations into long-term
+representations, and query-adaptive hierarchical
+selection allocates computation across temporal
+granularities (Shen et al., 2025; Song et al., 2024;
+Wang et al., 2025b). Together, these advances im-
+prove access to long-range evidence, but their gains
+are typically evaluated under different datasets, in-
+terfaces, and access conditions, making it diffi-
+cult to isolate improvements in the base model,
+evidence acquisition, memory, and final reason-
+ing. Moreover, these components are not readily
+composable across systems, since methods such
+as LongVU require access to the internal vision-
+token pipeline, whereas LongVT learns its tool-
+use protocol through model-specific post-training
+of Qwen2.5-VL-7B rather than through a model-
+agnostic plug-in interface (Shen et al., 2025; Yang
+et al., 2026).
+Moreover, expanding a model’s nominal context
+window determines how much input it can accept,
+but not how much distributed evidence it can use
+effectively, as performance degrades with increas-
+ing context length and task complexity even when
+all relevant evidence is perfectly retrieved (Hsieh
+et al., 2024; Du et al., 2025). External memory and
+RAG reduce the raw context presented at once, but
+shift the bottleneck to deciding what to store, com-
+press, update, retrieve, and ultimately use; current
+systems can lose visual fidelity during memory con-
+struction and remain far below human performance
+on long-term temporal and causal reasoning (Maha-
+rana et al., 2024; Ren et al., 2026). Reusable skills
+and tools provide procedural guidance and special-
+ist capabilities, but their gains depend strongly on
+the task and harness, while reliable execution re-
+quires correct routing and parameter grounding and
+deteriorates as tool catalogs, tool outputs, and inter-
+action histories grow (Li et al., 2026c; Kate et al.,
+2025; Shen et al., 2026). Consequently, as task
+horizons and dependency depth grow by orders
+of magnitude, errors accumulate across memory
+construction, retrieval, skill selection, and reason-
+ing, and current systems have yet to demonstrate
+stable and reliable performance on complex multi-
+modal tasks that demand human-like episodic re-
+call, temporal integration, memory updating, and
+coordinated action.
+Therefore, we introduce LongVideo, a dataset
+comprising over 1,000 standalone long videos
+and two multi-season television series, with ap-
+proximately 900 hours of video in total. Based
+on LongVideo, we build LongVideo, which con-
+tains more than 5,000 question-answer pairs and
+combines multi-evidence questions on individual
+videos with episode-, season-, and complete-series
+queries across visual, textual, and spatiotemporal
+reasoning. To support a broad range of LLMs and
+2
+
+
+Benchmark
+Corpus (h)
+Temporal extent (Max)
+Multi-History Scope?
+Harness Support?
+Video-MME (Fu et al., 2025)
+254
+1 h
+✗
+✗
+LongVideoBench (Wu et al., 2024)
+NR
+1 h
+✗
+✗
+HourVideo(Chandrasegaran et al., 2024)
+381
+2 h
+✗
+✗
+LVBench (Wang et al., 2025a)
+117
+68.4 min
+✗
+✗
+InfiniBench (Ataallah et al., 2025)
+> 1,000
+52.6 min
+✗
+✗
+EgoMonth (Chen et al., 2026)
+301
+4-5 hoursa
+✓
+✓
+MemLens (Ren et al., 2026)
+N/A
+32K–256K tokens
+✓
+✓
+4DMemoryBench (Ours)
+≈887
+97.98 h
+✓
+✓
+Table 1: Comparison with representative long-video and multimodal-memory benchmarks. Corpus hours measure
+total source-video duration, whereas temporal extent describes the video input or history scale, not the minimum
+evidence needed to answer a question. The final column summarizes documented evaluation or harness functionality,
+rather than whether third-party agents could be integrated.
+MLLMs, we further develop the 4DMemory Har-
+ness. Following the principle of task-independent
+storage and goal-directed recall, the harness first
+constructs reusable, question-independent mem-
+ories of long video streams and then performs
+question-conditioned retrieval and specialized ev-
+idence acquisition when a concrete task arrives.
+This design decouples the temporal scope of a task
+from the model’s native context window, allowing
+the foundation model and the harness to operate
+together as the 4DMemory Agent.
+Our contributions are summarized as below:
+1. We curate the LongVideo and the 4DMemory-
+Bench, which is, to our knowledge, the first mul-
+timodal video benchmark in which an individual
+question can bind more than 100 hours of ordered
+source video.
+The benchmark contains 1,000+
+videos, 5,000+ manually reviewed QA pairs, and
+850+ hours of source video across visual, textual,
+and spatiotemporal reasoning.
+2. We develop the 4DMemory Agent, a model-
+flexible inference framework that integrates mul-
+tiple complementary skills and tools, a memory-
+centric RAG system, and more than 20 sup-
+porting models. It constructs reusable question-
+independent memories and performs question-
+conditioned retrieval and specialized evidence ac-
+quisition, decoupling task duration from the native
+context window of the underlying LLM or MLLM.
+3. Through a comprehensive evaluation of leading
+LLMs and MLLMs, we show that standalone mod-
+els struggle with complex long-horizon 4D tasks,
+while harness-equipped 4DMemory Agent consis-
+tently improve their performance across task types
+and temporal scales.
+2
+The 4DMemory Benchmark
+Existing long-video benchmarks primarily evalu-
+ate reasoning over individual videos lasting one
+to two hours. Even for LLMs and MLLMs with
+Figure 2: Comparison of previous Video-MME (top)
+and LVBench (bottom) scores with 4DMemory results
+for the same models. All models shown score lower on
+4DMemory, with dashed arrows indicating the decrease
+in percentage points.
+context windows exceeding 1M tokens, these set-
+tings alone do not establish whether models can
+match human abilities to extract and retain fine-
+grained evidence, or preserve, integrate, and use
+key information after receiving tens of hours of
+additional video. Recent work has begun to eval-
+uate cross-day recall from egocentric video (Chen
+et al., 2026), but its source content remains rela-
+tively homogeneous and its task coverage limited.
+We therefore construct LongVideo and 4DMem-
+oryBench using temporally connected videos and
+multi-season television series to evaluate visual,
+linguistic, and spatiotemporal reasoning grounded
+in long-horizon memory. As shown in Table 1,
+LongVideo extends prior benchmarks along four
+dimensions: corpus duration, question-level tempo-
+ral coverage, the scope of multi-evidence integra-
+3
+
+
+1  Audio-Text Screening
+2  Clip Construction
+3  Evidence Refinement
+4  Timestamp Alignment & Evidence Chains
+5  Evidence-Linked QA
+The Truman Show
+Long-form movie input
+Audio extraction
+Segment-level ASR
+Transcript normalization
+Informativeness filtering
+Coarse partitioning
+Early
+Middle
+Ending
+Scene-boundary splitting
+Clip captioning
+Fallen
+light
+Studio
+room
+Exit +
+farewell
+Caption-content scoring
+Coherent clips
+Keyframe selection
+Representative frames from each clip
+Visual-quality
+filtering
+✓
+Text-quality
+filtering
+✓
+Retained clips +
+grounded captions
+Video /
+keyframes
+Visual caption
+Audio waveform
+Transcript
+excerpt
+Audio caption
+E1  Early
+[start, end]
+Truman inspects
+a fallen studio light.
+“What is it?”
+Truman asks
+about the object.
+E2  Middle
+An elevator reveals
+a backstage room.
+“Just tell me
+what’s happening.”
+Truman asks for
+an explanation.
+E3  Ending
+Truman bows
+at the studio exit.
+“Good afternoon, good
+evening, and good night.”
+Truman delivers
+his familiar farewell.
+Chronological multimodal records
+Compose from 2–4 evidence chains
+E1
+E2
+E3
+Q Which clues expose the set, and
+how does Truman say goodbye?
+A E1  A fallen studio light.
+E2  An exposed backstage room.
+E3  “Good afternoon, good evening, and good night.”
+Verify correctness, clip necessity, and shortcuts
+Target: 3–5 verified QA per video
+EXTENSION TO TENS OF HOURS
+TV-series pathway: episodes, seasons, series
+✓
+✓
+✓
+Video + timed ASR
+[start, end]
+[start, end]
+Source time
+Original source timestamps
+...
+...
+✓
+Figure 3: Overview of the LongVideo construction pipeline. Hours-level videos undergo audio-text screening, clip
+construction, and evidence refinement to obtain coherent clips with grounded captions. Visual evidence, audio
+captions, and transcripts are aligned to original source timestamps and organized into chronological multimodal
+evidence chains. QA pairs are then constructed from multiple evidence chains and checked for answer correctness,
+clip necessity, and potential shortcuts.
+tion, and harness support1.
+Task definition.
+In 4DMemoryBench, each item
+can be represented as
+xi = (di, qi, τi, Vi; ai, Ei, pi, ci),
+(1)
+where di is a unique identifier, qi is the ques-
+tion, τi specifies the answer format, and Vi =
+(vi,1, . . . , vi,ni) is the ordered set of source videos.
+The private annotations comprise the reference an-
+swer ai, supporting evidence Ei, an optional exe-
+cutable program pi, and task metadata ci. Given
+qi, τi, and access to the complete scope Vi, a
+model must produce ˆai without these private an-
+notations. Standalone questions connect distant
+moments within one video (ni = 1), whereas se-
+rialized questions bind the ordered episodes of an
+episode-, season-, or series-level scope. Each item
+is assigned to one mutually exclusive task family:
+visual perception and aggregation, text understand-
+ing grounded in linguistic evidence, or spatiotempo-
+ral reasoning about relations, order, state changes,
+1NR: no corpus-hour total stated in the cited source; N/A: not a video
+corpus. areports calendar recording spans per participant, not continuous video
+hours or maximum per-question input duration. MemLens evaluates image–text
+conversations, and its memory-agent comparison uses a 195-question subset.
+and cross-modal dependencies. The task label is
+used for reporting, not provided as an oracle tool
+route. Here, 4D reasoning concerns evolving vi-
+sual and image-plane spatial evidence, rather than
+metric 3D reconstruction.
+2.1
+Dataset collection and processing
+Source collection.
+To broaden the corpus and
+evaluate current models across diverse knowledge
+domains and tasks, we construct our dataset from
+two complementary sources with different tempo-
+ral structures. Our dataset comprises 1,025 stan-
+dalone web videos and 402 television episodes
+from 2 series, totaling 887.480 hours of distinct
+source video. Standalone videos support reason-
+ing along continuous timelines, while serialized
+episodes extend memory across recurring charac-
+ters and settings, with the longest complete-series
+scope reaching 97.98 hours. Detailed distributions
+of video content categories and QA task types are
+presented in Appdendix Figure S1.
+Aligned multimodal records.
+As shown in Fig-
+ure 4, we organize video, audio, and textual anno-
+tations into chronological records linked by source
+identifiers and timestamps. For standalone videos,
+each record associates sampled frames and vi-
+4
+
+
+LongVideo
+example
+66 min 04 s
+Video: ZRGzc9iz0mY
+02:12
+Paved road
+15:00
+Dirt / gravel track
+59:30
+Paved forest road
+···
+···
+Question (abridged): How does the road surface change from the
+earliest drive, through the middle of the trip, to the last drive?
+4DMemory Agent: Model + 4DMemory Harness
+(a) Observe and store
+Question-independent
+(b) Retrieve and reason
+Inspect
+& split
+Multimodal
+observer
+Persistent
+memory
+Video or timestamped
+frames
+ASR when available
+02:12
+Paved two-lane road
+15:00
+Unpaved forest track
+59:30
+Paved road in forest
+Events • entities • spatial relations
+Source + timestamps
+Foundation model
+LLM / MLLM
+Retrieve → Reason → Refine
+1
+Retrieve road changes
+2
+Verify the final drive
+video_memory_query × 2
+Skill library
+Video
+processing
+Visual
+grounding
+Text
+statistics
+TV scopes
+Query
+Timestamped
+evidence
+Optional
+tools
+Refine
+Reusable across questions
+Evidence-grounded
+answer
+Paved two-lane road
+Unpaved dirt / gravel 
+track
+Paved forest road
+Paved → unpaved → paved
+Matches the dataset reference
+Answer
+Solid: example path
+Dashed: available tools
+✓
+Figure 4: Illustration of 4DMemory Agent framework. (a) The harness builds persistent, question-independent
+memory of events, entities, and spatial relations, preserving source timestamps for reuse across questions. (b) A
+foundation model retrieves timestamped evidence and iteratively refines its queries and reasoning, with optional
+tools provided by a skill library.
+sual captions with the corresponding audio seg-
+ments and available ASR transcripts.
+For tele-
+vision sources, multimodal annotation addition-
+ally provides scene summaries, speaker-labelled
+dialogue, and utterance-level temporal boundaries.
+Segment-local timestamps are mapped back to the
+original source timeline to preserve temporal cor-
+respondence across modalities. This representa-
+tion supports both continuous video timelines and
+episode–season–series hierarchies. Records pass-
+ing a unified quality threshold are retained for com-
+positional QA construction and verification, while
+reference answers, annotated evidence locations,
+and reasoning programs remain private during eval-
+uation. Preprocessing and alignment details can be
+referred in the Section S2.2.
+2.2
+Compositional QA construction
+We turn the aligned records into questions that re-
+quire combining evidence, rather than recalling
+an isolated fact. For standalone videos, the gen-
+erator receives time-ordered evidence cards con-
+taining clip summaries, available ASR, and tempo-
+ral bounds. Each candidate connects 2 to 4 clips
+through an explicit operation such as comparison,
+temporal ordering, state change, cross-modal bind-
+ing, or distributed counting. A separate verifier
+checks the answer and the joint necessity of the
+evidence by removing each supporting clip in turn.
+Only 3 to 5 accepted questions are retained per
+video, yielding 4,388 QA pairs.
+For serialized video, we first compute reference
+answers with deterministic programs over validated
+dialogue, ASR, and visual statistics at the requested
+scope. A language model rewrites each program as
+a self-contained question, and an independent veri-
+fication call checks that the wording preserves the
+program’s meaning and answer. This produces 826
+questions covering episode, season, and complete-
+series aggregation, comparison, ordering, and trend
+analysis. Visual counts denote tracker identities
+within a clip, summed across clips, rather than glob-
+ally deduplicated people or objects.
+Both
+pathways
+apply
+clarity,
+evidence-
+sufficiency, compositionality, and difficulty checks;
+standalone
+candidates
+additionally
+undergo
+question-only shortcut screening.
+The current
+release excludes 15 TV questions affected by
+invalid zero-duration visual clips and contains
+5,214 globally unique QA pairs.
+A shared
+schema assigns every question to exactly one task
+partition, and release validation checks identifiers,
+partition consistency, file sizes, and content hashes.
+Construction details are provided in Section S2.1.
+2.3
+Compositional QA construction
+To evaluate reasoning over evidence distributed
+across time, we construct compositional questions
+that require an explicit relation or operation. For
+standalone videos, the generator receives time-
+ordered evidence cards containing clip summaries,
+available ASR transcripts, and temporal bounds.
+5
+
+
+Candidates combine 2 to 4 clips through opera-
+tions such as comparison, temporal ordering, state
+change, cross-modal binding, or distributed count-
+ing. A separate verifier checks answer correctness
+and evidence sufficiency, and assesses each clip’s
+necessity by judging whether the complete answer
+would remain derivable without it. Each retained
+video contributes 3 to 5 accepted questions, yield-
+ing 4,388 QA pairs.
+For television sources, deterministic programs
+derive reference answers from dialogue, ASR, and
+clip-level visual statistics within the requested tem-
+poral scope. Questions are instantiated from fixed
+templates or written by a language model to ex-
+press the specified computation. Model-authored
+questions undergo separate verification of their con-
+sistency with the underlying program, while the
+long-duration extension additionally uses blind ex-
+pression reconstruction and program-equivalence
+checks. The resulting 826 questions cover aggre-
+gation, comparison, ordering, and trend analysis
+across episode, season, and series scopes. Visual
+counts represent tracked instances within individ-
+ual clips and are summed across clips, so the same
+person or object may contribute multiple times
+across the source timeline.
+We combine deterministic structural and pro-
+gram checks with model-based assessments of clar-
+ity, evidence support, compositionality, and dif-
+ficulty.
+Question-only shortcut audits addition-
+ally screen standalone candidates and original TV
+rewrites for answers recoverable from the ques-
+tion wording or prior knowledge. After excluding
+15 TV questions affected by invalid zero-duration
+visual clips, the current release contains 5,214 glob-
+ally unique QA pairs. Each question is assigned to
+exactly one task partition under a shared schema,
+and release validation checks identifier uniqueness,
+partition consistency, file sizes, and content hashes.
+Further construction details are provided in Sec-
+tion S2.1.
+2.4
+4DMemory Harness
+Complex tasks over long multimodal histories re-
+quire both access to diverse evidence and selec-
+tive recall of earlier observations. Although mod-
+ern LLMs can compress context and invoke skills,
+these capabilities do not remove the constraints im-
+posed by native input support and finite context
+windows. Repeated compression may also omit
+details that become relevant to subsequent ques-
+tions. We therefore introduce 4DMemory Har-
+ness, which separates media processing, persis-
+tent memory, and question-conditioned reasoning.
+The harness exposes three processing skills—video
+processing, visual grounding, and text statistics—
+and stores question-independent, timestamped ob-
+servations in persistent structured memory.
+A
+lightweight retrieval layer selects relevant records
+and their temporal neighbors to provide bounded
+evidence for reasoning. When the visual input path-
+way does not carry audio, an internal transcription
+module processes the available source audio and
+incorporates timestamped speech evidence into the
+corresponding memory records.
+Video-processing skill.
+The video-processing
+skill prepares bound sources for model observation
+through size inspection and temporal segmentation
+under request constraints. It preserves source-time
+references so that evidence from separate chunks
+can be related along the original timeline.
+Visual-grounding skill.
+The visual-grounding
+skill uses SAM 3.1 to provide tracking evidence
+for supported TV scopes. It returns ordered person
+and object counts within episodes and person-count
+aggregates over longer scopes, supporting counting,
+comparison, and temporal reasoning.
+Text-statistics skill.
+The text-statistics skill pro-
+vides deterministic counts, speaker rankings, and
+aggregates derived from TV dialogue and ASR an-
+notations. A complementary episode-analysis tool
+produces bounded semantic summaries and topic
+information when richer textual evidence is needed.
+All three skills expose typed operations, with
+source configuration and execution policies con-
+trolled by 4DMemory Harness.
+Multimodal observation.
+After media prepara-
+tion, an observer converts temporal units into struc-
+tured observations without access to the benchmark
+question. It receives native video or timestamped
+frames according to the configured input pathway.
+When enabled, an internal transcription module
+adds timestamped speech evidence from the source
+audio.
+Question-independent memory construction.
+Observations are stored as persistent documents
+with source identities, temporal bounds, and
+structured multimodal fields. Their construction
+excludes question-specific supervision, allowing
+provenance-matched records to be reused across
+questions and temporal scopes. Memory reuse fol-
+lows the configuration of the actual observer, in-
+cluding any separately configured observer used by
+a text-only reasoner.
+6
+
+
+Invocation
+Ordered
+Order-relaxed
+Overall
+Model
+3 judges Opus-5 3 judges Opus-5 3 judges Opus-5
+Gemini 3.1-Pro
+99.81
+58.38
+63.82
+58.38
+63.82
+58.27
+63.69
+GPT-5.6 Sol
+100.00
+70.14
+71.29
+70.46
+71.61
+70.46
+71.61
+Opus-4.8
+98.70
+71.96
+73.22
+72.76
+74.02
+71.81
+73.05
+MiMo-V2.5
+100.00
+58.59
+60.84
+64.06
+66.36
+64.06
+66.36
+Grok-4.6
+100.00
+72.04
+74.11
+75.55
+77.64
+75.55
+77.64
+Muse Spark-1.1
+99.88
+70.89
+71.79
+77.88
+78.82
+77.79
+78.73
+Seed 2.1-Pro
+99.69
+44.61
+45.48
+55.41
+56.29
+55.24
+56.12
+Gemini 3.7-Flash
+100.00
+73.34
+74.66
+73.34
+74.66
+73.34
+74.66
+GLM 5.3-Flash
+99.81
+55.76
+57.15
+65.20
+66.60
+65.07
+66.47
+Qwen3.8-Max
+99.87
+72.69
+73.67
+72.69
+73.67
+72.59
+73.57
+DeepSeek V4-Pro
+99.85
+68.69
+69.36
+68.69
+69.36
+68.58
+69.26
+Qwen3.8-Flash
+94.13
+63.00
+63.55
+68.99
+69.58
+64.94
+65.50
+Qwen3.7-Plus
+99.81
+57.72
+60.34
+66.99
+69.64
+66.86
+69.51
+Table 2: The overall performance on the 4DMemory Benchmark among 13 SOTA methods.
+Retrieval and memory-guided reasoning.
+At
+question time, 4DMemory Harness retrieves
+bounded evidence from the documents associated
+with the current item. The reasoner can request ad-
+ditional evidence through video_memory_query
+and invoke available specialists to support its an-
+swer. Final reasoning operates on the question,
+retrieved memory, and tool outputs, separating the
+stored history from the model’s active context. Ob-
+servation, retrieval, and execution details are pro-
+vided in Section S2.3.
+3
+Experiments
+Experimental setup.
+We evaluate 13 API-served
+models on all 5,214 questions in 4DMemoryBench
+using 4DMemory Harness, without benchmark-
+specific parameter updates.
+Each system uses
+Gemini 3.1 Pro as a separate media observer, en-
+abling evaluated models to access evidence from
+modalities they cannot process directly.
+To re-
+duce dependence on a single judge, we assess the
+same model responses under two independent judg-
+ing protocols: an Opus-5 judge and a majority-
+vote panel comprising Kimi K3, GLM 5.3, and
+Qwen3.8-Max. Tool invocation and execution are
+assessed separately, and performance is summa-
+rized through four complementary metrics. Invoca-
+tion measures the fraction of questions with at least
+one accepted tool call, while Ordered measures
+the fraction of these questions answered correctly
+with all required operations successfully executed
+in the prescribed order. Order-relaxed removes the
+execution-order constraint, while Overall measures
+the resulting joint success rate over all benchmark
+questions.
+Skills/Tools is crucial for LLMs in complex tasks.
+The overall results in Table 2 show that frequent
+tool invocation leaves substantial room for improv-
+ing joint success. Twelve of the 13 systems invoke
+tools on at least 98.70% of questions, yet the high-
+est observed Overall score is 77.79%, achieved by
+Muse Spark-1.1, followed by Grok-4.6 (75.55%)
+and Gemini 3.7-Flash (73.34%). Execution-order
+requirements also change the ranking: Gemini 3.7-
+Flash leads Ordered at 73.34%, whereas Muse
+scores 70.89% Ordered and 77.88% Order-relaxed,
+both conditional on invocation. The latter differ-
+ence corresponds to 364 correctly answered ques-
+tions with successful required operations but an
+ordering violation. These results distinguish initiat-
+ing tool use, satisfying execution requirements, and
+reaching a correct answer, motivating evaluation of
+both the process and its outcome.
+Spatiotemporal task needs fine-grained reason-
+ing ability.
+The standalone-video subtype results
+reveal a consistent weakness in distributed count-
+ing across six subtypes covering 2,785 questions.
+Every system has a lower observed counting score
+than ordering score, and the best counting result
+is only 47.58% (Muse; 177/372), with complete
+judging. This gap also holds for fully evaluated
+systems: GPT-5.6 Sol scores 72.49% on order-
+ing versus 44.35% on counting, while Gemini 3.7-
+Flash scores 82.17% versus 45.43%. Thus, order-
+ing events does not ensure reliable accumulation
+of counts across separated observations. Other
+subtypes expose complementary strengths: Grok
+leads observed ordering and cross-modal binding
+at 83.19% and 81.58%, Muse leads state-change
+tracking at 73.80%, and Qwen3.8-Max leads tra-
+7
+
+
+Model
+Ordering State Counting Trajectory CM reason CM bind
+Gemini 3.1-Pro
+68.85
+50.18
+30.91
+42.86
+55.43
+61.18
+GPT-5.6 Sol
+72.49
+67.16
+44.35
+57.14
+70.11
+72.37
+Opus-4.8
+75.40
+66.42
+45.97
+50.93
+75.54
+76.97
+MiMo-V2.5
+71.76
+55.90
+36.02
+43.48
+65.22
+57.24
+Grok-4.6
+83.19
+69.74
+45.70
+54.66
+78.80
+81.58
+Muse Spark-1.1
+82.02
+73.80
+47.58
+62.73
+78.80
+78.95
+Seed 2.1-Pro
+67.25
+51.29
+28.23
+38.51
+55.98
+56.58
+Gemini 3.7-Flash
+82.17
+66.61
+45.43
+53.42
+72.83
+78.29
+GLM 5.3-Flash
+76.06
+55.54
+34.41
+47.20
+63.59
+69.74
+Qwen3.8-Max
+78.89
+69.37
+40.32
+66.46
+69.02
+71.71
+DeepSeek V4-Pro
+77.58
+60.15
+31.72
+49.69
+64.67
+68.42
+Qwen3.8-Flash
+69.87
+68.08
+37.90
+57.76
+67.93
+71.71
+Qwen3.7-Plus
+73.00
+54.24
+39.25
+42.86
+67.93
+67.11
+Table 3: Six selected standalone-video spatiotemporal subtypes. Columns denote multi-event ordering, state-change
+tracking, distributed counting, path and trajectory tracking, cross-modal reasoning, and cross-modal binding,
+respectively.
+jectory tracking at 66.46%. Some leading entries
+remain provisional, as marked in 3. Together, these
+results identify both a shared counting weakness
+and distinct capability profiles that aggregate accu-
+racy would obscure.
+Aggregate margins reflect task composition.
+Standalone spatiotemporal questions constitute
+77.46% of the benchmark, yet this group does not
+explain Muse’s lead over Grok: their scores are
+nearly identical at 74.92% and 74.97%. Across all
+standalone videos, Grok leads by eight successes,
+whereas Muse leads by 125 on television questions,
+giving a net advantage of 117. Episode-level visual
+questions alone contribute a difference of 116 suc-
+cesses, with Muse solving 163/172 and Grok solv-
+ing 47/172. The aggregate lead therefore should
+not be interpreted as a uniform advantage across
+task groups.
+Temporal scope does not produce a uniform
+performance trend. GPT-5.6 Sol’s television spa-
+tiotemporal accuracy decreases from 87.86% at
+episode scope to 38.98% at season scope and
+12.50% at complete-series scope. Gemini 3.7-Flash
+shows the opposite pattern: 72.86%, 84.75%, and
+100.00%. Both systems have complete judging in
+these groups. Since the groups differ in reasoning
+operations and evidence requirements as well as
+temporal extent, the results do not isolate an effect
+of increasing duration. Temporal scope must there-
+fore be interpreted together with task composition.
+Local comparisons and sequence-wide aggrega-
+tion separate sharply. GPT solves all 64 person-
+minus-object comparisons and 107/108 person-
+to-object ratios, but only 1/17 above-mean unit-
+count questions. Similarly, it solves all 64 first-
+appearance ordering and localization questions,
+but only 1/16 temporal-half comparisons and 1/17
+trend-reversal questions. Grok exhibits a different
+profile: 25.93% on person-to-object ratios, com-
+pared with 82.35% on above-mean counting and
+94.12% on trend reversals. These differences dis-
+tinguish retrieving selected occurrences and com-
+paring quantities from aggregating an ordered se-
+quence. Joint accuracy alone cannot isolate re-
+trieval, execution, or computation as the cause of
+failure. Additional task-by-scope analyses and eval-
+uation qualifications are provided in Section S4.
+4
+Conclusion
+We introduced LongVideo and 4DMemoryBench
+to evaluate long-horizon multimodal memory
+across dozens of hours of video. The benchmark
+comprises approximately 887 hours of video and
+covers visual, textual, and spatiotemporal reason-
+ing. Our 4DMemory Harness combines question-
+independent persistent memory, bounded retrieval,
+and specialized tools, with separate metrics for
+tool invocation, execution order, and joint answer
+success. Across 13 evaluated models, high invo-
+cation rates coexist with substantial differences in
+workflow compliance and final-answer correctness,
+with the highest observed joint success reaching
+77.79% under judging. Task-level analyses reveal
+persistent difficulties in distributed counting and
+multi-scope aggregation, while differences across
+sources and temporal scopes expose complemen-
+tary system strengths. These findings establish a
+basis for studying how observation, memory access,
+and tool-mediated computation jointly support reli-
+able reasoning over extended multimodal histories.
+8
+
+
+Limitations
+Our study does not include agent fine-tuning on our
+data, leaving the potential benefits of such adapta-
+tion unexplored. Consequently, the reported results
+do not establish the effectiveness of these data as a
+training resource for agents. Evaluation across ad-
+ditional downstream tasks is also beyond the scope
+of this work, and the broader applicability of our
+approach remains to be established. Tasks with
+different objectives and interaction settings may re-
+quire further adaptation and dedicated evaluation.
+References
+Kirolos Ataallah, Eslam Mohamed Bakr, Mahmoud
+Ahmed, Chenhui Gou, Khushbu Pahwa, Jian Ding,
+and Mohamed Elhoseiny. 2025.
+Infinibench: A
+benchmark for large multi-modal models in long-
+form movies and tv shows. In Proceedings of the
+2025 Conference on Empirical Methods in Natural
+Language Processing, pages 19496–19523.
+Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wen-
+bin Ge, Sibo Song, Kai Dang, Peng Wang, Shi-
+jie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu,
+Mingkun Yang, Zhaohai Li, Jianqiang Wan, Pengfei
+Wang, Wei Ding, Zheren Fu, Yiheng Xu, and 8 others.
+2025. Qwen2.5-VL technical report. arXiv preprint
+arXiv:2502.13923.
+Yuanchen Bei, Tianxin Wei, Xuying Ning, Yanjun Zhao,
+Zhining Liu, Xiao Lin, Yada Zhu, Hendrik Hamann,
+Jingrui He, and Hanghang Tong. 2026. Mem-gallery:
+Benchmarking multimodal long-term conversational
+memory for mllm agents. In Proceedings of the 64th
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pages 40750–
+40784.
+Keshigeyan Chandrasegaran, Agrim Gupta, Lea M
+Hadzic, Taran Kota, Jimming He, Cristóbal Eyza-
+guirre, Zane Durante, Manling Li, Jiajun Wu, and
+Li Fei-Fei. 2024. Hourvideo: 1-hour video-language
+understanding. Advances in Neural Information Pro-
+cessing Systems, 37:53168–53197.
+Weitao Chen, Hu Jiaxin, Xie Tianyidan, Yang Li, Yuyi
+Qian, Banghao Xu, Ziheng Tang, Shenyi Wang,
+Mingyue Yu, Duo Li, et al. 2026.
+Egomonth:
+A month-level egocentric video benchmark for
+long-term spatiotemporal memory. arXiv preprint
+arXiv:2608.13113.
+Yukang Chen, Fuzhao Xue, Dacheng Li, Qinghao Hu,
+Ligeng Zhu, Xiuyu Li, Yunhao Fang, Haotian Tang,
+Shang Yang, Zhijian Liu, et al. 2025. Longvila: Scal-
+ing long-context visual language models for long
+videos. In International Conference on Learning
+Representations, volume 2025, pages 18227–18246.
+Xiangchen Cheng, Yunwei Jiang, Jianwen Sun, Zizhen
+Li, Chuanhao Li, Xiangcheng Cao, Yihao Liu, Fanrui
+Zhang, Li Jin, and Kaipeng Zhang. 2026. Agentic-
+sts: A bounded-memory testbed for long-horizon llm
+agents. arXiv preprint arXiv:2607.02255.
+Yufeng Du, Minyang Tian, Srikanth Ronanki, Subendhu
+Rongali, Sravan Bodapati, Aram Galstyan, Azton
+Wells, Roy Schwartz, Eliu A Huerta, and Hao
+Peng. 2025.
+Context length alone hurts llm per-
+formance despite perfect retrieval. arXiv preprint
+arXiv:2510.05381.
+Yue Fan, Xiaojian Ma, Rujie Wu, Yuntao Du, Jiaqi
+Li, Zhi Gao, and Qing Li. 2024. Videoagent: A
+memory-augmented multimodal agent for video un-
+derstanding. In European Conference on Computer
+Vision, pages 75–92. Springer.
+Xinyu Fang, Kangrui Mao, Haodong Duan, Xiangyu
+Zhao, Yining Li, Dahua Lin, and Kai Chen. 2024.
+Mmbench-video: A long-form multi-shot benchmark
+for holistic video understanding. Advances in Neural
+Information Processing Systems, 37:89098–89124.
+Chaoyou Fu, Yuhan Dai, Yongdong Luo, Lei Li,
+Shuhuai Ren, Renrui Zhang, Zihan Wang, Chenyu
+Zhou, Yunhang Shen, Mengdan Zhang, et al. 2025.
+Video-mme: The first-ever comprehensive evaluation
+benchmark of multi-modal llms in video analysis. In
+2025 IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR), pages 24108–24118.
+IEEE.
+Gemini Team. 2024. Gemini 1.5: Unlocking multi-
+modal understanding across millions of tokens of
+context. arXiv preprint arXiv:2403.05530.
+Zexue He, Yu Wang, Churan Zhi, Yuanzhe Hu, Tzu-
+Ping Chen, Lang Yin, Ze Chen, Tong Arthur Wu,
+Siru Ouyang, Zihan Wang, et al. 2026.
+Memo-
+ryarena: Benchmarking agent memory in interde-
+pendent multi-session agentic tasks. arXiv preprint
+arXiv:2602.16313.
+Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shan-
+tanu Acharya, Dima Rekesh, Fei Jia, Yang Zhang,
+and Boris Ginsburg. 2024. Ruler: What’s the real
+context size of your long-context language models?
+arXiv preprint arXiv:2404.06654.
+Chengsong Huang, Zifeng Wang, Rujun Han, Jun Yan,
+Yanfei Chen, Zoey CuiZhu, Ke Jiang, Peng Xia, Han
+Yu, Yufan Zhuang, et al. 2026a. Envharness: Awak-
+ening static worlds for agent learning. arXiv preprint
+arXiv:2608.19880.
+Yue Huang, Wenjie Wang, Han Bao, Yuchen Ma, Xi-
+aonan Luo, Yi Nian, Haomin Zhuang, Zheyuan Liu,
+Yue Zhao, and Xiangliang Zhang. 2026b. Memo-
+harness: Agent harnesses that learn from experience.
+arXiv preprint arXiv:2607.14159.
+Almut Hupbach, Rebecca Gomez, Oliver Hardt, and
+Lynn Nadel. 2007. Reconsolidation of episodic mem-
+ories: A subtle reminder triggers integration of new
+information. Learning & memory, 14(1-2):47–53.
+9
+
+
+Yanhao Jia, Jiepeng Wang, Haibin Huang, Chi Zhang,
+Erik Cambria, and Xuelong Li. 2026a. Mmoe: Mod-
+ernizing diffusion transformers with efficient expert
+design. arXiv preprint arXiv:2607.24665.
+Yanhao Jia,
+Xinyi Wu,
+Li Hao,
+QinglinZhang
+QinglinZhang, Yuxiao Hu, Shuai Zhao, and Wenqi
+Fan. 2025.
+Uni-retrieval: A multi-style retrieval
+framework for stem’s education.
+In Proceedings
+of the 63rd Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers),
+pages 10182–10197.
+Yanhao Jia, Xinyi Wu, Jayant Teotia, Junhao Dong,
+Shuai Zhao, Piotr Koniusz, and Erik Cambria. 2026b.
+Towards spatial reasoning and understanding via
+modeling modality conflict, bias and alignment. re-
+searchgate.
+Yanhao Jia, Ji Xie, S Jivaganesh, Li Hao, Xu Wu, and
+Mengmi Zhang. 2026c. Seeing sound, hearing sight:
+Uncovering modality bias and conflict of ai models in
+sound localization. Advances in neural information
+processing systems, 38:148468–148499.
+Kiran Kate, Tejaswini Pedapati, Kinjal Basu, Yara
+Rizk, Vijil Chenthamarakshan, Subhajit Chaudhury,
+Mayank Agarwal, and Ibrahim Abdelaziz. 2025.
+Longfunceval: Measuring the effectiveness of long
+context models for function calling. arXiv preprint
+arXiv:2505.10570.
+Bo Li, Yuanhan Zhang, Dong Guo, Renrui Zhang,
+Feng Li, Hao Zhang, Kaichen Zhang, Peiyuan
+Zhang, Yanwei Li, Ziwei Liu, et al. 2024a. Llava-
+onevision: Easy visual task transfer. arXiv preprint
+arXiv:2408.03326.
+Chenglin Li, Qianglong Chen, Feng Han, Yikun Wang,
+Xingxi Yin, Yan Gong, Ruilin Li, Yin Zhang, and
+Jiaqi Wang. 2026a. Videothinker: Building agentic
+videollms with llm-guided tool reasoning. In Pro-
+ceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition (CVPR) Findings,
+pages 8226–8236.
+Keliang Li, Yansong Li, Hongze Shen, Mengdi Liu,
+Hong Chang, and Shiguang Shan. 2026b. Lenswalk:
+Agentic video understanding by planning how you
+see in videos. In Proceedings of the IEEE/CVF Con-
+ference on Computer Vision and Pattern Recognition
+(CVPR), pages 19518–19528.
+Xiangyi Li, Yimin Liu, Wenbo Chen, Bingran You,
+Zonglin Di, Yifeng He, Shenghan Zheng, Ky-
+oung Whan Choe, Jiankai Sun, Shuyi Wang, et al.
+2026c. Skillsbench: Benchmarking how well agent
+skills work across diverse tasks.
+arXiv preprint
+arXiv:2602.12670.
+Yanwei Li, Chengyao Wang, and Jiaya Jia. 2024b.
+Llama-vid: An image is worth 2 tokens in large lan-
+guage models. In European conference on computer
+vision, pages 323–340. Springer.
+Yuanxin Liu, Shicheng Li, Yi Liu, Yuxiang Wang,
+Shuhuai Ren, Lei Li, Sishuo Chen, Xu Sun, and
+Lu Hou. 2024. Tempcompass: Do video llms really
+understand videos? In Findings of the Association
+for Computational Linguistics: ACL 2024, pages
+8731–8772.
+Lin Long, Yichen He, Wentao Ye, Yiyuan Pan, Yuan Lin,
+Hang Li, Junbo Zhao, and Wei Li. 2026. Seeing, lis-
+tening, remembering, and reasoning: A multimodal
+agent with long-term memory. In International Con-
+ference on Learning Representations, volume 2026,
+pages 146197–146246.
+Ziyu Ma, Chenhui Gou, Hengcan Shi, Bin Sun,
+Shutao Li, Hamid Rezatofighi, and Jianfei Cai. 2025.
+Drvideo: Document retrieval based long video under-
+standing. In 2025 IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition (CVPR), pages
+18936–18946. IEEE.
+Muhammad Maaz, Hanoona Rasheed, Salman Khan,
+and Fahad Khan. 2024.
+Video-chatgpt: Towards
+detailed video understanding via large vision and
+language models. In Proceedings of the 62nd An-
+nual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pages 12585–
+12602.
+Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov,
+Mohit Bansal, Francesco Barbieri, and Yuwei Fang.
+2024.
+Evaluating very long-term conversational
+memory of llm agents. In Proceedings of the 62nd
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pages 13851–
+13870.
+Karttikeya Mangalam, Raiymbek Akshulakov, and Ji-
+tendra Malik. 2023. Egoschema: A diagnostic bench-
+mark for very long-form video language understand-
+ing.
+Advances in Neural Information Processing
+Systems, 36:46212–46244.
+Tingyu Qu, Weigao Sun, Yuecheng Liu, Yucheng
+Zhao, Yi Zhu, Yifeng Ding, Qiyi Wang, Sihan Cao,
+Pengkun Jiao, Hanlei Xie, et al. 2026.
+Qwen-
+planner-agent: A closed-loop ai-for-ai framework
+for real-world mobile planner agents. arXiv preprint
+arXiv:2609.29892.
+Xiyu Ren, Zhaowei Wang, Yiming Du, Zhongwei Xie,
+Chi Liu, Xinlin Yang, Haoyue Feng, Wenjun Pan,
+Tianshi Zheng, Baixuan Xu, et al. 2026.
+Mem-
+lens: Benchmarking multimodal long-term mem-
+ory in large vision-language models. arXiv preprint
+arXiv:2605.14906.
+Xiaoqian Shen, Yunyang Xiong, Changsheng Zhao,
+Lemeng Wu, Jun Chen, Chenchen Zhu, Zechun Liu,
+Fanyi Xiao, Balakrishnan Varadarajan, Florian Bor-
+des, Zhuang Liu, Hu Xu, Hyunwoo J. Kim, Bilge
+Soran, Raghuraman Krishnamoorthi, Mohamed Elho-
+seiny, and Vikas Chandra. 2025. Longvu: spatiotem-
+poral adaptive compression for long video-language
+understanding. In Proceedings of the 42nd Interna-
+tional Conference on Machine Learning. JMLR.org.
+10
+
+
+Yiting Shen, Kun Li, Wei Zhou, and Songlin Hu. 2026.
+Mem2actbench: A benchmark for evaluating long-
+term memory utilization in task-oriented autonomous
+agents. In Proceedings of the 64th Annual Meet-
+ing of the Association for Computational Linguistics
+(Volume 1: Long Papers), pages 8173–8190.
+Enxin Song, Wenhao Chai, Guanhong Wang, Yucheng
+Zhang, Haoyang Zhou, Feiyang Wu, Haozhe Chi,
+Xun Guo, Tian Ye, Yanting Zhang, et al. 2024.
+Moviechat: From dense token to sparse memory for
+long video understanding. In 2024 IEEE/CVF Con-
+ference on Computer Vision and Pattern Recognition
+(CVPR), pages 18221–18232. IEEE.
+Endel Tulving and Donald M Thomson. 1973. Encod-
+ing specificity and retrieval processes in episodic
+memory. Psychological review, 80(5):352.
+Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhi-
+hao Fan, Jinze Bai, Keqin Chen, Xuejing Liu, Jialin
+Wang, Wenbin Ge, Yang Fan, Kai Dang, Mengfei
+Du, Xuancheng Ren, Rui Men, Dayiheng Liu,
+Chang Zhou, Jingren Zhou, and Junyang Lin. 2024a.
+Qwen2-VL: Enhancing vision-language model’s per-
+ception of the world at any resolution. arXiv preprint
+arXiv:2409.12191.
+Weihan Wang, Zehai He, Wenyi Hong, Yean Cheng, Xi-
+aohan Zhang, Ji Qi, Ming Ding, Xiaotao Gu, Shiyu
+Huang, Bin Xu, et al. 2025a.
+Lvbench: An ex-
+treme long video understanding benchmark. In 2025
+IEEE/CVF International Conference on Computer
+Vision (ICCV), pages 22958–22967. IEEE.
+Xiaohan Wang, Yuhui Zhang, Orr Zohar, and Serena
+Yeung-Levy. 2024b. Videoagent: Long-form video
+understanding with large language model as agent.
+In European Conference on Computer Vision, pages
+58–76. Springer.
+Ziyang Wang, Shoubin Yu, Elias Stengel-Eskin, Jae-
+hong Yoon, Feng Cheng, Gedas Bertasius, and Mo-
+hit Bansal. 2025b. Videotree: Adaptive tree-based
+video representation for llm reasoning on long videos.
+In 2025 IEEE/CVF Conference on Computer Vision
+and Pattern Recognition (CVPR), pages 3272–3282.
+IEEE.
+Jinming Wen, Xinyi Wu, Yuwen Li, Yanhao Jia, and
+Shuai Zhao. 2026. Vulnerabilities and defenses in
+audio-visual attacks: A survey from audio to multi-
+modal models. ACM Computing Surveys.
+Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-
+Wei Chang, and Dong Yu. 2025a. Longmemeval:
+Benchmarking chat assistants on long-term interac-
+tive memory. In International Conference on Learn-
+ing Representations, volume 2025, pages 86809–
+86836.
+Haoning Wu, Dongxu Li, Bei Chen, and Junnan Li.
+2024.
+Longvideobench: A benchmark for long-
+context interleaved video-language understanding.
+Advances in Neural Information Processing Systems,
+37:28828–28857.
+Xinyi Wu, Yanhao Jia, Luwei Xiao, Shuai Zhao,
+Fengkuang Chiang, and Erik Cambria. 2025b. From
+query to explanation:
+Uni-rag for multi-modal
+retrieval-augmented learning in stem. arXiv preprint
+arXiv:2507.03868.
+Haochen Xue, Feilong Tang, Ming Hu, Yexin Liu, Qi-
+dong Huang, Yulong Li, Chengzhi Liu, Zhongx-
+ing Xu, Chong Zhang, Chun-Mei Feng, et al. 2025.
+Mmrc: A large-scale benchmark for understanding
+multimodal large language model in real-world con-
+versation. In Proceedings of the 63rd Annual Meet-
+ing of the Association for Computational Linguistics
+(Volume 1: Long Papers), pages 22477–22503.
+Jihan Yang, Shusheng Yang, Anjali W Gupta, Rilyn
+Han, Li Fei-Fei, and Saining Xie. 2025. Thinking
+in space: How multimodal large language models
+see, remember, and recall spaces. In 2025 IEEE/CVF
+Conference on Computer Vision and Pattern Recog-
+nition (CVPR), pages 10632–10643. IEEE.
+Zuhao Yang, Sudong Wang, Kaichen Zhang, Keming
+Wu, Sicong Leng, Yifan Zhang, Bo Li, Chengwei
+Qin, Shijian Lu, Xingxuan Li, et al. 2026. Longvt:
+Incentivizing" thinking with long videos" via native
+tool calling. In Proceedings of the IEEE/CVF Con-
+ference on Computer Vision and Pattern Recognition,
+pages 33816–33826.
+Jinhui Ye, Zihan Wang, Haosen Sun, Keshigeyan Chan-
+drasegaran, Zane Durante, Cristobal Eyzaguirre,
+Yonatan Bisk, Juan Carlos Niebles, Ehsan Adeli,
+Li Fei-Fei, et al. 2025.
+Re-thinking temporal
+search for long-form video understanding. In 2025
+IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition (CVPR), pages 8579–8591. IEEE.
+Woongyeong Yeo, Kangsan Kim, Jaehong Yoon, and
+Sung Ju Hwang. 2026. Worldmm: Dynamic multi-
+modal memory agent for long video reasoning. In
+Proceedings of the IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition, pages 25599–
+25609.
+Yufei Yin, Qianke Meng, Minghao Chen, Jiajun Ding,
+Zhenwei Shao, and Zhou Yu. 2026. Videoarm: Agen-
+tic reasoning over hierarchical memory for long-
+form video understanding. In Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition, pages 24042–24051.
+Xiaoyi Zhang, Zhaoyang Jia, Zongyu Guo, Jiahao Li,
+Bin Li, Houqiang Li, and Yan Lu. 2026. Deep video
+discovery: Agentic search with tool use for long-form
+video understanding. Advances in Neural Informa-
+tion Processing Systems, 38:89863–89895.
+Shuai Zhao, Qika Lin, Yanhao Jia, Xinyi Wu, Yuwen
+Li, and Luu Anh Tuan. 2026. Unifle: Uniform fusion
+of multiple lora experts for backdoor defense in large
+language models. IEEE Transactions on Dependable
+and Secure Computing.
+11
+
+
+Junjie Zhou, Yan Shu, Bo Zhao, Boya Wu, Zhengyang
+Liang, Shitao Xiao, Minghao Qin, Xi Yang, Yong-
+ping Xiong, Bo Zhang, et al. 2025. Mlvu: Bench-
+marking multi-task long video understanding. In
+2025 IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR), pages 13691–13701.
+IEEE.
+Bin Zhu, Yanhao Jia, Kexin Zhao, Jie Wang, Munan
+Ning, Hao Li, Yuwei Niu, Tanqing Sun, Huangchong
+Yan, Mingjun Pan, et al. 2026. Chronophybench: Do
+mllms truly understand the world or merely exploit
+language priors? arXiv preprint arXiv:2606.07962.
+12
+
+
+Supplementary Material
+S1
+Related Work
+Long-video benchmarks.
+Long-video bench-
+marks increasingly test evidence integration over
+extended temporal spans (Zhu et al., 2026).
+EgoSchema measures intrinsic evidence span
+with temporal certificate sets, while MMBench-
+Video uses free-form questions over multi-shot
+videos (Mangalam et al., 2023; Fang et al., 2024).
+LongVideoBench and Video-MME extend evalu-
+ation to hour-long inputs and multiple modality
+streams, while MLVU broadens video genres and
+task formats (Wu et al., 2024; Fu et al., 2025;
+Zhou et al., 2025). TempCompass and VSI-Bench
+isolate fine-grained temporal reasoning and spa-
+tial memory, respectively (Liu et al., 2024; Yang
+et al., 2025). At longer scales, LVBench evaluates
+multi-hour videos and InfiniBench covers long-
+form movies and television episodes, highlight-
+ing persistent difficulty in temporal grounding and
+cross-event reasoning (Wang et al., 2025a; Ataal-
+lah et al., 2025; Wen et al., 2026). EgoMonth ex-
+tends this direction to month-level per-participant
+continuity and cross-video egocentric QA over a
+301-hour longitudinal corpus (Chen et al., 2026).
+Agentic long-video understanding.
+Agentic ap-
+proaches treat long-video understanding as itera-
+tive evidence acquisition through observation se-
+lection, tool use, and reasoning-state updates. The
+two VideoAgent systems exemplify query-driven
+frame retrieval and structured temporal or object
+memory, respectively (Wang et al., 2024b; Ataal-
+lah et al., 2025; Jia et al., 2026c,a). Retrieval-
+and planning-centered systems convert videos into
+searchable evidence, zoom across space and time,
+and control the scope and density of each observa-
+tion (Ma et al., 2025; Ye et al., 2025; Zhang et al.,
+2026; Li et al., 2026b). Memory-centric agents
+organize episodic, semantic, visual, or hierarchical
+representations for iterative retrieval and reason-
+ing (Yeo et al., 2026; Yin et al., 2026). LongVT
+and VideoThinker internalize multi-step tool use
+through model-specific post-training or synthetic
+tool-interaction trajectories (Yang et al., 2026; Li
+et al., 2026a). Beyond video-specific systems, Skill
+Retrieval Augmentation decomposes scalable skill
+use into retrieval, incorporation, and end-task ex-
+ecution, while AgenticSTS uses typed retrieval to
+bound long-horizon decision contexts and isolate
+memory layers (Li et al., 2026c; Cheng et al., 2026).
+More generally, EnvHarness reshapes static agent
+environments through Stage, Contract, and Chain
+plug-ins while retaining their original verifiers, and
+EnvRigger uses black-box policy rollouts to diag-
+nose weaknesses and validate targeted customiza-
+tions (Huang et al., 2026a). MemoHarness instead
+adapts six harness control dimensions from accu-
+mulated execution experience and reports selective
+transfer across unseen task suites and base mod-
+els (Huang et al., 2026b).
+Multimodal long-term memory.
+Long-term
+memory research mainly evaluates sustained, multi-
+session interactions (Zhao et al., 2026). LoCoMo
+covers question answering, event summarization,
+and multimodal dialogue generation, while Long-
+MemEval tests extraction, cross-session and tem-
+poral reasoning, knowledge updates, and absten-
+tion (Maharana et al., 2024; Wu et al., 2025a).
+MMRC evaluates memory abilities in real-world
+multimodal conversations, whereas MemLens com-
+pares long-context vision-language models with
+memory-augmented agents (Xue et al., 2025; Ren
+et al., 2026). Mem-Gallery assesses memory ex-
+traction, reasoning, and knowledge management,
+while M3-Agent builds entity-centric episodic and
+semantic memories from continuous visual and au-
+ditory observations (Bei et al., 2026; Long et al.,
+2026; Jia et al., 2025; Wu et al., 2025b; Jia et al.,
+2026b). Mem2ActBench extends evaluation be-
+yond recall to using stored information for tool se-
+lection and parameter grounding (Shen et al., 2026).
+MemoryArena couples memory formation with ac-
+tion across interdependent sessions and exposes
+failures missed by recall-oriented benchmarks (He
+et al., 2026). Harness the Memory compares het-
+erogeneous memory substrates under a common
+evaluation harness and finds that their effective-
+ness depends on task regime, retrieval breadth, and
+history scale (Huang et al., 2026a).
+S2
+Dataset & Harness Details
+The standalone collection comprises 1,025 web
+videos
+sourced
+from
+Qwen-Planner-Agent’s
+datasets (Qu et al., 2026), including 899 base
+videos and 126 extension videos.
+Sources are
+deduplicated by identifier and selected for compo-
+sitional QA construction following Section 2.2,
+with durations ranging from 19.93 minutes to
+3.86 hours.
+Content covers crafts and DIY,
+food and cooking, travel and culture, nature and
+environment, games and hobbies, science and
+13
+
+
+technology, programming and software, business
+and finance, and history, politics, and law. The
+serialized collection comprises 402 episodes from
+the Chinese-language series iPartment and the
+English-language series The Big Bang Theory,
+spanning 17 seasons and 193.299 hours. Their
+story themes include romantic relationships, mar-
+riage and family life, friendships, and workplace
+experiences.
+We preserve episode identifiers,
+original timestamps, and chronological order.
+For composition analysis, content labels are
+derived from standalone video descriptions and
+episode-level story summaries, with semantically
+related low-frequency categories merged for
+reporting.
+S2.1
+QA construction
+The resulting benchmark contains 5,214 question–
+answer pairs, comprising 826 TV questions and
+4,388 Video questions, designed to assess evi-
+dence retrieval, aggregation, and relational reason-
+ing across temporal scales. TV questions span indi-
+vidual episodes, seasons, and entire series, with a
+single question covering up to 278 episodes. Their
+42 task subtypes fall into three families: visual
+perception and aggregation (27.4%), textual under-
+standing and statistics (45.6%), and spatiotemporal
+reasoning (27.0%). Representative tasks include
+person–object count comparisons, speaker-level
+dialogue statistics, first-appearance ordering, and
+tracking temporal changes across episodes. Video
+questions cover 12 task subtypes that require inte-
+grating evidence from multiple clips within a con-
+tinuous timeline, including multi-event ordering,
+multi-evidence comparison, state-change tracking,
+distributed counting, and cross-modal reasoning.
+S2.2
+Multimodal preprocessing and
+alignment.
+For standalone videos, scene-change detection de-
+termines the initial clip boundaries, with additional
+splitting for scenes exceeding the configured dura-
+tion limit. Audio is extracted and transcribed only
+for clips containing audio tracks, while sampled
+frames are used to generate visual captions. For
+television episodes, coarse segments are formed by
+placing boundaries at ASR sentence endings clos-
+est to the target partition times. Multimodal analy-
+sis subsequently divides these segments into coher-
+ent units according to changes in scene, dialogue
+topic, and speaker interaction. Where available,
+the audio-analysis branch additionally produces se-
+mantic summaries, topic and emotion annotations,
+and audio-quality assessments.
+Post-processing merges consecutive utterances
+attributed to the same speaker, retaining the first
+utterance’s start time and the last utterance’s end
+time. Both clip and utterance timestamps are con-
+verted from segment-local coordinates to the origi-
+nal source timeline by adding the parent segment’s
+start-time offset. The resulting intervals guide the
+extraction of fine-grained video clips and utterance-
+level audio segments, together with frame sampling
+from the video clips. For television sources, this
+conversion is performed within each episode, pre-
+serving its original temporal reference. An optional
+calibration utility matches annotated utterances to
+ASR segments using text similarity and can further
+refine their boundaries using voice activity detec-
+tion. The selected calibration method is recorded
+in the processing metadata.
+Quality screening uses a shared rubric cover-
+ing description accuracy, temporal coherence, de-
+tail richness, and language quality. Each candi-
+date record receives an overall quality score, and a
+single predefined acceptance threshold is applied
+across standalone and television sources. Records
+below this threshold are excluded before QA con-
+struction.
+S2.3
+Harnees Details
+Video-processing skill.
+The agent first calls
+inspect_video_size, which reports the sizes
+of its bound sources and estimates request
+sizes with base64 expansion and serialization
+overhead.
+When segmentation is required,
+video_process_split accepts only indices iden-
+tifying those sources. Splitting is mandatory when
+request limits are exceeded and can also be required
+by the configured audio-transcription pathway. The
+FFmpeg adapter transcodes contiguous intervals
+and recursively bisects outputs that exceed the con-
+figured byte limit. Its manifest records source-
+relative temporal bounds, file sizes, and content
+hashes, and validation checks interval continuity
+and coverage. The current adapter permits an ex-
+plicit exception for a final interval of at most two
+seconds containing no decodable video frames; any
+such omission is recorded in the manifest.
+The separate offline run workflow combines
+Faster-Whisper large-v3 transcription with local
+Qwen3.6 annotation of speakers, emotions, scenes,
+and dialogue boundaries. ASR text, timestamps,
+and sentence identifiers form the transcript back-
+14
+
+
+V-A
+3.7%
+V-B
+2.8%
+T-A
+6.0%
+T-B
+3.0%
+T-C
+2.8%
+S-A
+9.8%
+S-B
+8.9%
+S-C
+7.1%
+S-D
+7.1%
+S-E
+6.1%
+S-F
+5.4%
+S-G
+5.4%
+S-H
+5.2%
+S-I
+5.1%
+S-J
+3.7%
+S-K
+3.5%
+S-L
+3.4%
+S-M
+3.1%
+S-N
+2.9%
+S-O
+2.9%
+S-P
+2.1%
+A
+9.3%
+B
+7.5%
+C
+7.5%
+D
+6.2%
+E
+5.4%
+F
+5.4%
+G
+5.3%
+H
+4.1%
+I
+3.9%
+J
+3.9%
+K
+3.9%
+L
+3.8%
+M
+3.7%
+N
+3.5%
+O
+3.2%
+P
+3.1%
+Q
+3.1%
+R
+2.9%
+S
+2.9%
+T
+2.5%
+U
+2.5%
+V
+2.4%
+W
+2.2%
+X
+2.1%
+LongVideo Composition
+QA tasks
+Video content
+Visual
+V-A
+Visual counts & comparison
+3.7%
+V-B
+Visual ratios & shares
+2.8%
+Text
+T-A
+Text counts & differences
+6.0%
+T-B
+Text comparison & conditions
+3.0%
+T-C
+Speaker & text proportions
+2.8%
+Spatiotemporal
+S-A
+Cross-moment comparison
+9.8%
+S-B
+Qualitative state tracking
+8.9%
+S-C
+Distributed event counting
+7.1%
+S-D
+Visual appearance ordering
+7.1%
+S-E
+Event & state chronology
+6.1%
+S-F
+Temporal landmarks & order
+5.4%
+S-G
+Temporal constraint matching
+5.4%
+S-H
+Procedure / workflow ordering
+5.2%
+S-I
+Discourse / topic ordering
+5.1%
+S-J
+Contrastive temporal reasoning
+3.7%
+S-K
+Cross-modal reasoning
+3.5%
+S-L
+Long-range temporal aggregation
+3.4%
+S-M
+Path / trajectory tracing
+3.1%
+S-N
+Cross-modal evidence binding
+2.9%
+S-O
+Physical action ordering
+2.9%
+S-P
+Quantitative change tracking
+2.1%
+A
+Crafts, textiles & style
+9.3%
+B
+History, politics & law
+7.5%
+C
+Friendships & social life
+7.5%
+D
+Games & hobbies
+6.2%
+E
+Children's stories & play
+5.4%
+F
+Dating & romance
+5.4%
+G
+Comedy & talk shows
+5.3%
+H
+Nature & environment
+4.1%
+I
+Arts, media & language
+3.9%
+J
+Food & cooking
+3.9%
+K
+Technology & engineering
+3.9%
+L
+Science & research
+3.8%
+M
+Business & finance
+3.7%
+N
+Travel & culture
+3.5%
+O
+Family & parenting
+3.2%
+P
+Careers & workplace
+3.1%
+Q
+Religion & philosophy
+3.1%
+R
+Couple relationships
+2.9%
+S
+Health & fitness
+2.9%
+T
+Home & workshop DIY
+2.5%
+U
+Marriage & commitment
+2.5%
+V
+Personal stories & reflection
+2.4%
+W
+Vehicles & transport
+2.2%
+X
+Programming & software
+2.1%
+Figure S1: The composition details of LongVideo dataset. The inner ring shows the distribution of QA pairs across
+fine-grained tasks, with blue, purple, and green representing visual, textual, and spatiotemporal tasks, respectively.
+The outer ring shows video content categories derived from TV episode story summaries and standalone video
+descriptions. Semantically related low-frequency categories are merged for readability. Percentages are normalized
+independently within each ring over all QA pairs and all videos, respectively, with each TV episode counted as one
+video.
+bone. The annotation response must cover every
+supplied sentence identifier exactly once and in or-
+der, including lines explicitly marked for exclusion
+from dialogue outputs. The accompanying check,
+plan, and validate commands inspect readiness,
+preview execution, and verify generated metadata
+and media artifacts. These are offline CLI oper-
+ations; the evaluated agent accesses the narrower
+inspection and splitting interfaces.
+Visual-grounding skill.
+The agent-facing oper-
+ations
+are
+visual_grounding_run_episode,
+visual_grounding_run_season,
+and
+visual_grounding_run_series,
+using
+the
+configured sam3_1_multiplex model.
+The
+current
+interface
+restricts
+episode
+calls
+to
+episode_complex_summary, which returns clip
+counts, person and object totals, and ordered
+per-clip counts.
+Season and series calls use
+scope_person_temporal_summary,
+which
+returns the total person-instance count and chrono-
+logically ordered episode or season aggregates,
+depending on the bound scope.
+The harness
+supplies the source set, checkpoint, and execution
+settings; the agent cannot substitute arbitrary paths
+or alter the bound visual scope.
+Fresh episode inference uses trusted prepared
+frame inputs, while longer-scope inference recon-
+structs frames from the bound raw videos using the
+retained temporal boundaries. Counts represent dis-
+tinct tracker identities within individual clips and
+are summed across clips, without global identity
+deduplication. The underlying library also supports
+spatial histograms using normalized image coordi-
+nates with a top-left origin, but these projections are
+not exposed by the current agent-facing schemas.
+With skill caching enabled, hybrid mode reuses
+provenance-matched artifacts and performs local
+inference on a cache miss. Cold mode requests
+fresh computation, whereas warm mode requires
+a valid cached artifact. This specialist is currently
+TV-scoped; standalone visual evidence is supplied
+through the media observer and memory retrieval.
+Text-statistics skill.
+The offline build com-
+mand derives dialogue-block counts, dialogue-
+line counts, ASR-sentence counts, and normal-
+ized speaker statistics from the configured TV
+annotations.
+The validate command checks
+source fingerprints, corpus coverage, aggregate
+15
+
+
+consistency, and provenance. The agent-facing
+text_statistics_query exposes bounded pro-
+jections through the episode, season, and info
+actions, with info addressing the full configured
+series. These deterministic CPU queries return
+counts, means, leading speakers, and relevant ex-
+trema without model inference.
+For
+semantic
+analysis,
+text_statistics_analyze
+operates
+on
+one
+episode.
+It first retains a bounded set of non-
+empty dialogue lines, using uniform sampling
+when the episode exceeds the configured limit.
+Qwen3-Embedding-0.6B
+then
+matches
+these
+lines to predefined topic descriptions and ranks
+representative lines by embedding similarity.
+Qwen3-4B-Instruct-2507
+receives
+bounded
+dialogue evidence and topic statistics to generate
+a structured summary containing themes, key
+events, speaker dynamics, and supporting sentence
+identifiers. The output is validated against the sup-
+plied identifiers, and reusable analyses follow the
+configured provenance-aware cache policy. These
+embeddings serve episode-level text analysis; the
+memory retriever separately uses lexical matching
+and temporal-neighbor expansion.
+Across the three skills, the harness controls
+source locations, checkpoint paths, execution set-
+tings, and output budgets. The agent selects only
+exposed operations and validated arguments, and
+returned evidence excludes reference answers and
+private QA evidence pointers.
+Multimodal observation.
+On a cache miss, the
+observation stage processes one prepared temporal
+unit using the actual observer’s supported media
+interface. Native-video input is used where sup-
+ported; otherwise, a compatibility adapter supplies
+a timestamped sequence of sampled frames. Text-
+only evaluated models use a separately configured
+multimodal observer while retaining responsibility
+for retrieval, tool use, and final reasoning. The ob-
+server receives neither the benchmark question nor
+reference answers or private evidence annotations.
+For frame-based observation, the visual prompt
+requires the transcript field to remain empty.
+When the audio observer is enabled, a resident
+Faster-Whisper large-v3 runtime independently
+transcribes the source audio, using automatic lan-
+guage detection under the current configuration.
+Chunk-local transcription times are converted to
+source-relative times by adding the chunk’s start-
+time offset. The transcript is then attached to the
+corresponding visual memory document. Missing
+audio tracks or the absence of detected speech pro-
+duce explicitly empty transcription results. Audio
+and visual artifacts are cached independently, al-
+lowing valid visual observations to be reused when
+speech evidence is added to unchanged temporal
+units. The resulting evidence is accessed through
+memory retrieval; the agent is not given a separate
+transcription interface accepting filesystem paths.
+Question-independent memory construction.
+Successful observations are normalized into docu-
+ments containing a summary, transcript, on-screen
+text, entities, actions, events, and spatial relations,
+together with source identity and temporal bounds.
+Unavailable fields remain empty. Cache keys bind
+the source and temporal-unit hashes to the actual
+observer, observation prompt, input adapter, pro-
+cessing configuration, and generation settings. The
+audio cache additionally records the local ASR
+checkpoint and runtime identity.
+A combined
+audio-visual document derives its identity from
+both component artifacts.
+When enabled, episode, season, and series mani-
+fests reference the underlying document keys and
+retain aggregate scope metadata. Matching obser-
+vations can therefore be reused across questions
+and broader temporal scopes, while newly encoun-
+tered units require observation. Different reason-
+ers may share memory when the source units and
+actual observation configurations match. Hybrid
+mode reuses valid artifacts and constructs miss-
+ing ones; cold mode bypasses persistent reuse,
+whereas warm mode requires valid cached artifacts
+for mandatory operations. The cache policies are
+summarized in next paragraph.
+Retrieval and memory-guided reasoning.
+Re-
+trieval is restricted to the documents bound to the
+current evaluation item. The initial query contains
+the question and any provided answer options. The
+retriever ranks the bounded textual representations
+of structured memory using term-frequency and
+inverse-document-frequency weights, with an ad-
+ditional bonus for exact query matches. It selects
+up to 12 seed documents and expands each seed
+by a 1-unit neighborhood on either side within the
+same source. The expanded set is deduplicated and
+packed under the configured record and text bud-
+gets. If the initial retrieval score falls below the
+configured threshold, the harness instead supplies
+a bounded set of evenly spaced temporal units.
+The reasoner can issue further textual queries
+16
+
+
+through video_memory_query within the config-
+ured execution budget.
+Each response retains
+source indices and temporal bounds and searches
+the same item-bound document collection. Un-
+der the cached evaluation protocol, a successful
+memory query is required before the final answer.
+Available visual-grounding and text-statistics oper-
+ations provide additional evidence within their sup-
+ported scopes. The final reasoning stage receives
+textual memory and tool results, without receiving
+the full raw-video history. Because observation and
+retrieval are bounded, persistent storage neither en-
+larges the native context window nor guarantees
+lossless retention or complete recall.
+S3
+Experimental Details
+S3.1
+Implementation Details
+Evaluation scope and infrastructure.
+The eval-
+uation comprises 4,388 standalone-video questions
+and 826 television questions. Results are grouped
+into visual, textual, and spatiotemporal task fam-
+ilies, with television results further organized by
+episode, season, and complete-series scope. All
+models listed in Table 2 are evaluated on the com-
+plete question set under the staged 4DMemory
+Harness. API inference is hosted remotely, while
+orchestration, media preparation, caching, retrieval,
+and specialist inference run on a node equipped
+with eight NVIDIA H100 GPUs.
+Observation and caching.
+All staged profiles
+use hybrid caching, reusing artifacts whose prove-
+nance matches the requested configuration and con-
+structing missing memory without access to bench-
+mark questions, reference answers, or private evi-
+dence annotations. Most multimodal profiles use
+the evaluated model itself as the media observer.
+Qwen3.8-Max, DeepSeek-V4-Pro, and the GLM-
+5.3-Flash recovery profile instead use Gemini 3.1
+Pro Preview to construct visual memory. We there-
+fore compare complete reasoner–observer systems
+and record both roles explicitly. Run manifests
+preserve model identities, decoding and runtime
+settings, configuration and implementation hashes,
+and cache provenance to support reproducibility.
+Answer and skill assessment.
+Answer correct-
+ness and skill use are evaluated separately. An-
+swer judges receive the question, candidate re-
+sponse, and private reference answer. Skill-use
+assessment instead receives the required operations,
+tool traces, and execution metadata without access
+to the reference answer. We report two answer-
+judging protocols: a single Opus-5 judge and a
+three-model panel comprising Kimi-K3, GLM-5.3,
+and Qwen3.8-Max. The Opus-5 score follows its
+answer verdict without deterministic exact-match
+overrides. The panel requires three valid decisions
+and applies a two-of-three majority rule. Both pro-
+tocols evaluate the same model responses and share
+the same tool-execution records.
+Reported metrics.
+Tool invocation and execu-
+tion are determined from recorded traces. Let N
+denote the number of evaluated questions and B
+the number with at least one accepted tool invo-
+cation. For each answer-judging protocol, let C
+count questions answered correctly with all re-
+quired call groups successfully executed in the pre-
+scribed order. Let D count additional correctly
+answered questions whose successful calls cover
+the required groups but do not satisfy their ordering
+constraints. We report Invocation as B/N, Ordered
+as C/B, Order-relaxed as (C + D)/B, and Over-
+all as (C + D)/N. An accepted invocation may
+encounter a tool error; only successful calls sat-
+isfy execution requirements. Invocation is reported
+once because it is identical across the two judging
+protocols.
+The run matrix contains Gemini 3.1 Pro Pre-
+view, Gemini 3.7 Flash, GPT-5.6 Sol, Claude
+Opus 4.8, MiMo-V2.5, Grok-4.6, Muse-Spark-1.1,
+Doubao Seed 2.1 Pro (260628), GLM-5.3-Flash,
+Qwen3.8-Max, DeepSeek-V4-Pro, Qwen3.8-Flash,
+and Qwen3.7-Plus. Exact endpoint model iden-
+tifiers and resolved reasoner and observer routes
+are preserved in the run manifests. Most multi-
+modal routes use the evaluated model itself as the
+observer, whereas Qwen3.8-Max and DeepSeek-
+V4-Pro use Gemini 3.1 Pro Preview to construct
+visual memory; the current GLM-5.3-Flash repair
+profile uses the same external observer.
+The local tool stack uses the SAM 3.1 mul-
+tiplex checkpoint for visual grounding, Qwen3-
+Embedding-0.6B and Qwen3-4B-Instruct-2507 for
+text analysis, and Faster-Whisper 1.2.1 with the
+large-v3 checkpoint for audio transcription. Text
+analysis uses bfloat16 inference, a batch size of 16,
+and an 8,192-token input limit. Audio transcription
+uses float16 inference, beam size 5, voice-activity
+detection, and automatic language identification.
+Persistent tool daemons retain model weights, and
+trusted GPU locks coordinate local inference across
+concurrent evaluation processes.
+17
+
+
+S3.2
+Media preparation, caching, and
+retrieval
+The media adapter targets 24-second chunks with
+a 3.4 MB chunk-size bound and recursively splits
+oversized units, subject to a 20 MB request-body
+limit. Claude Opus 4.8, GPT-5.6 Sol, and Grok-4.6
+use timestamped JPEG frame sequences sampled at
+three-second intervals, capped at eight frames per
+chunk with a maximum image edge of 768 pixels.
+Native-video routes receive bounded video inputs,
+and standalone frame-based observations are sup-
+plemented with local ASR. All current staged pro-
+files use hybrid caching, reusing only provenance-
+matched artifacts and constructing missing memory
+from the media without the question or reference
+answer. Lexical retrieval selects 12 seed memory
+units and expands one temporal neighbor on either
+side within the same source. Individual observa-
+tion notes are bounded to 4,000 characters and the
+combined evidence summary to 64,000 characters.
+S3.3
+Inference budgets and execution
+The preparation and reasoning loops allow four
+and eight rounds, respectively, with an eight-call
+tool budget for each loop and a 16,000-character
+tool-output limit. The default API request uses tem-
+perature 0, a 2,048-token output budget, and a 600-
+second timeout. Model-specific request adapters
+retain the required token and reasoning controls,
+including an 8,192-token minimum output budget
+for Muse-Spark-1.1. The evaluator selection seed
+is 42; local visual and text tools use seed 0, with-
+out assuming deterministic behavior from hosted
+APIs. Current recovery runs use 8–48 item workers
+and 16–32 in-flight evaluated requests per model,
+with shared provider gates enforcing 60–300 re-
+quests per minute. GPU-capable work is separately
+limited to four candidate workers. Retries and re-
+sumed runs are tracked by question identifier and
+source/configuration provenance, and completed
+model answers can be rescored without rerunning
+inference.
+S3.4
+Scoring and run manifests
+Answer correctness and skill use are evaluated sep-
+arately. Private reference answers are restricted to
+the answer judge, while tool traces and provenance
+are supplied to the skill-use judge. The current
+online scoring route uses claude-opus-5, while
+a separate judge-only track obtains votes from
+kimi-k3, glm-5.3, and qwen3.8-max for both di-
+mensions. The three-judge track requires three
+valid decisions before applying a two-of-three ma-
+jority rule. Missing or failed judge calls remain
+pending rather than being converted into negative
+votes, and these results are kept separate from the
+Opus-only scores. Each run records the selected
+question identifiers, resolved model and observer
+routes, decoding and concurrency settings, code
+and configuration hashes, cache policy, and termi-
+nation status.
+S4
+Task-Level Experimental Results and
+Analysis
+S4.1
+Evaluation snapshot and reporting
+metric
+We analyze the September 25, 2026, 08:36 UTC
+snapshot of 13 systems on 5,214 questions, us-
+ing each system’s current primary answer set with-
+out selecting historical best-of runs. This evalua-
+tion snapshot expands the earlier 5,214-question
+dataset release to 826 television questions and
+4,388 standalone-video questions; it is used consis-
+tently in Table 2 and all tables below. The tabulated
+difference is confined to complete-series text and
+spatiotemporal group sizes, which are 36 and 24
+here, compared with 36 and 24 in the earlier re-
+lease; episode, season, and standalone group sizes
+are unchanged. We use the explicit snapshot de-
+nominators below for every reported result.
+For group g and judging protocol j, let Ng be
+the full question count, Cg,j the number of correct
+answers with all required tools successfully exe-
+cuted in the prescribed order, and Dg,j the number
+with successful required tools and a correct answer
+but an ordering-only violation. The reported joint
+accuracy is
+Ag,j = 100 Cg,j + Dg,j
+Ng
+.
+(2)
+Missing or failed required tools do not qualify for
+either numerator term. Unfinished executions and
+pending or invalid judgments remain in Ng with-
+out contributing to the numerator. A dagger marks
+any such unresolved items, whereas a dash denotes
+no valid judgments and must not be read as zero
+accuracy. Task-by-scope tables retain both Opus-
+only and three-judge results; subsequent numeri-
+cal comparisons and subtype tables use the three-
+judge protocol unless stated otherwise. Provisional
+scores describe observed joint success at this snap-
+shot, so unequal completion and judging coverage
+18
+
+
+limit comparisons of model capability. GPT-5.6,
+MiMo-2.5, and Gemini-3.7 are fully executed and
+judged under both protocols. Qwen3.8-Flash and
+Qwen3.7-Plus have 4,506 and 5,181 valid three-
+judge decisions, respectively; their overall joint
+accuracies are 64.94% and 66.86%. Changes from
+earlier snapshots include additional executions and
+judgments and must not be interpreted as gains in
+model capability.
+S4.2
+Task families and temporal scopes
+Visual rankings change across scopes.
+Table S1
+shows that success on episode-level visual ques-
+tions does not predict the same ranking on season-
+level questions.
+GPT-5.6 scores 99.42% on
+episodes and 56.00% on seasons, whereas Grok-4.6
+scores 27.33% and 80.00%, respectively. Muse-
+1.1 is comparatively strong on both, at 94.77%
+and 76.00%. On standalone visual questions, the
+highest observed three-judge score is 54.95% from
+Grok-4.6, indicating substantial remaining head-
+room in that group. Complete-series visual results
+contain only four questions, so one answer changes
+the score by 25 percentage points and a 100% result
+provides limited evidence of robustness.
+Episode-level text questions offer limited sep-
+aration.
+In Table S2, all 12 systems other than
+Qwen3.8-Flash score at least 98.14% on episode-
+level text questions, although several entries remain
+provisional. Other scopes expose larger differences:
+GPT-5.6 scores 96.03% on season-level text and
+72.22% on complete-series text, while MiMo-2.5
+scores 92.86% and 91.67%. Standalone text accu-
+racy also varies substantially, from a provisional
+31.93% for Seed-2.1 to 78.15% for Gemini-3.7.
+Thus, near-saturation on episode-level text ques-
+tions does not imply uniformly reliable aggregation
+or reasoning across the other text groups.
+Spatiotemporal difficulty depends on both scope
+and task composition.
+GPT-5.6 has complete
+three-judge results across all groups; its televi-
+sion spatiotemporal accuracy falls from 87.86%
+at episode scope to 38.98% at season scope and
+12.50% at complete-series scope (Table S3). This
+decline is not explained by pending judgments, but
+the groups contain different reasoning operations,
+so it cannot be attributed solely to temporal span.
+Other systems follow different profiles: Muse-1.1
+scores 100.00% on episodes and 86.44% on sea-
+sons, while Grok-4.6 scores 91.43% and 86.44%.
+Standalone spatiotemporal questions account for
+4,039 of the 5,214 snapshot items (77.46%); conse-
+quently, a single micro-averaged benchmark score
+would primarily reflect this group. The task-by-
+scope breakdown exposes differences that such an
+aggregate could obscure.
+S4.3
+Fine-grained television reasoning
+We next examine six visual and six temporal sub-
+types, pooling each television subtype across its
+available scopes. These tables are selected break-
+downs rather than an exhaustive account of all 64
+reported subtypes. All 13 systems are included,
+with provisional results marked as above.
+Arithmetic success does not generalize across
+aggregation operations.
+Table S4 localizes the
+reversal between GPT-5.6 and Grok-4.6. GPT-5.6
+solves all 64 person-minus-object count questions
+and scores 99.07% on person-to-object count ratios,
+but solves only one of 17 above-mean unit-count
+questions (5.88%). Grok-4.6 scores 29.69% and
+25.93% on the first two subtypes, but 82.35% on
+above-mean counting. Muse-1.1 scores 98.44%,
+92.59%, and 70.59%, respectively. These results
+distinguish direct count comparisons from opera-
+tions that require computing a threshold and apply-
+ing it across temporal units. Because subtype and
+scope are not controlled independently, the con-
+trast identifies an operation-specific performance
+gap without isolating its cause.
+First-appearance reasoning and temporal ag-
+gregation separate sharply.
+GPT-5.6 solves all
+64 first-appearance ordering and localization ques-
+tions, yet solves only one of 16 temporal-half
+count comparisons (6.25%) and one of 17 trend-
+reversal questions (5.88%; Table S5). Grok-4.6
+scores 98.44%, 75.00%, and 94.12% on the same
+subtypes; Muse-1.1 scores 100.00%, 75.00%, and
+94.12%. The contrast suggests that retrieving and
+ordering a small set of first occurrences is insuffi-
+cient for reliable aggregation over an ordered se-
+quence of counts. It does not establish whether the
+failing stage is evidence retrieval, tool execution, or
+final computation, because joint accuracy requires
+all of these stages to succeed. The five-question
+maximum/minimum visual subtype and other small
+groups should likewise be interpreted at their stated
+sample sizes rather than as stable rankings.
+19
+
+
+Table S1: Visual-task joint accuracy by temporal scope in the September 25, 2026 snapshot. Each cell reports
+Opus-only / three-judge accuracy (%). Video denotes standalone videos; the other columns denote television scopes.
+† marks incomplete execution or judging, and — indicates no valid judgments.
+Model
+Episode
+(n = 172)
+Season
+(n = 50)
+Entire series
+(n = 4)
+Video
+(n = 111)
+Gemini-3.1
+70.93 / 70.35
+— / —
+— / — 36.04 / 34.23
+GPT-5.6
+100.00 / 99.42 58.00 / 56.00
+75.00 / 75.00 48.65 / 45.95
+Opus-4.8
+95.35 / 94.77 62.00 / 60.00
+— / — 49.55 / 52.25
+MiMo-2.5
+68.02 / 68.02 58.00 / 56.00
+50.00 / 25.00 42.34 / 39.64
+Grok-4.6
+27.33 / 27.33 82.00 / 80.00 100.00 / 100.00 54.95 / 54.95
+Muse-1.1
+95.35 / 94.77 80.00 / 76.00 100.00 / 100.00 52.25 / 50.45
+Seed-2.1
+58.72 / 58.72 80.00 / 78.00 100.00 / 100.00 45.95 / 45.05
+Gemini-3.7
+36.63 / 36.63 82.00 / 80.00 100.00 / 100.00 48.65 / 45.95
+GLM-5.3
+62.79 / 62.79 78.00 / 76.00 100.00 / 100.00 47.75 / 45.95
+Qwen3.8-Max
+100.00 / 99.42 82.00 / 80.00 100.00 / 100.00 46.85 / 46.85
+DeepSeek-V4
+99.42 / 99.42 82.00 / 80.00 100.00 / 100.00 40.54 / 41.44
+Qwen3.8-Flash
+88.95 / 88.37
+8.00 / 6.00
+— / — 50.45 / 50.45
+Qwen3.7-Plus
+98.26 / 97.67 82.00 / 80.00
+— / — 50.45 / 45.95
+Table S2: Text-task joint accuracy by temporal scope in the September 25, 2026 snapshot. Each cell reports
+Opus-only / three-judge accuracy (%). Video denotes standalone videos; the other columns denote television scopes.
+† marks incomplete execution or judging, and — indicates no valid judgments.
+Model
+Episode
+(n = 215)
+Season
+(n = 126)
+Entire series
+(n = 36)
+Video
+(n = 238)
+Gemini-3.1
+99.53 / 99.53
+— / —
+50.00 / 50.00 59.24 / 53.36
+GPT-5.6
+100.00 / 100.00
+96.83 / 96.03
+75.00 / 72.22 71.01 / 69.33
+Opus-4.8
+98.14 / 98.14
+85.71 / 85.71
+50.00 / 50.00 72.69 / 72.69
+MiMo-2.5
+100.00 / 100.00
+93.65 / 92.86
+91.67 / 91.67 60.08 / 60.50
+Grok-4.6
+100.00 / 100.00 100.00 / 100.00 100.00 / 100.00 76.47 / 75.21
+Muse-1.1
+100.00 / 100.00
+100.00 / 99.21 100.00 / 100.00 75.21 / 74.79
+Seed-2.1
+100.00 / 100.00
+95.24 / 95.24
+97.22 / 97.22 32.35 / 31.93
+Gemini-3.7
+100.00 / 100.00
+98.41 / 98.41
+97.22 / 97.22 77.31 / 78.15
+GLM-5.3
+100.00 / 100.00 100.00 / 100.00 100.00 / 100.00 57.56 / 55.88
+Qwen3.8-Max
+100.00 / 100.00
+98.41 / 98.41 100.00 / 100.00 68.49 / 67.65
+DeepSeek-V4
+100.00 / 100.00 100.00 / 100.00 100.00 / 100.00 57.98 / 57.98
+Qwen3.8-Flash
+87.44 / 87.44
+9.52 / 9.52
+13.89 / 13.89 67.23 / 67.23
+Qwen3.7-Plus
+100.00 / 100.00 100.00 / 100.00
+97.22 / 97.22 66.39 / 64.71
+Table S3: Spatiotemporal-task joint accuracy by temporal scope in the September 25, 2026 snapshot. Each cell
+reports Opus-only / three-judge accuracy (%). Video denotes standalone videos; the other columns denote television
+scopes. † marks incomplete execution or judging, and — indicates no valid judgments.
+Model
+Episode
+(n = 140)
+Season
+(n = 59)
+Entire series
+(n = 24)
+Video
+(n = 4, 039)
+Gemini-3.1
+90.00 / 90.00
+- / -
+37.50 / 37.50 58.65 / 55.31
+GPT-5.6
+87.86 / 87.86 37.29 / 38.98
+12.50 / 12.50 69.20 / 67.96
+Opus-4.8
+77.86 / 77.86 66.10 / 66.10
+41.67 / 41.67 71.58 / 69.94
+MiMo-2.5
+87.86 / 87.86 57.63 / 55.93
+79.17 / 70.83 63.88 / 61.10
+Grok-4.6
+91.43 / 91.43 86.44 / 86.44 100.00 / 100.00 77.57 / 74.97
+Muse-1.1
+100.00 / 100.00 86.44 / 86.44 100.00 / 100.00 75.96 / 74.92
+Seed-2.1
+22.14 / 22.14 84.75 / 84.75 100.00 / 100.00 53.92 / 52.86
+Gemini-3.7
+72.86 / 72.86 84.75 / 84.75 100.00 / 100.00 74.20 / 72.54
+GLM-5.3
+94.29 / 94.29 86.44 / 86.44
+95.83 / 95.83 62.94 / 61.30
+Qwen3.8-Max
+100.00 / 100.00 84.75 / 84.75
+95.83 / 95.83 69.72 / 68.56
+DeepSeek-V4
+100.00 / 100.00 86.44 / 86.44
+95.83 / 95.83 64.89 / 64.03
+Qwen3.8-Flash
+90.71 / 90.71
+1.69 / 1.69
+41.67 / 41.67 66.82 / 66.15
+Qwen3.7-Plus
+43.57 / 43.57 84.75 / 84.75
+87.50 / 87.50 66.65 / 63.51
+20
+
+
+Table S4: Television visual subtypes, pooled across temporal scopes. Entries are three-judge joint accuracies (%).
+Difference and Ratio compare person instances with instances of the most frequent non-person object; Above mean
+counts units whose person count exceeds the mean; the remaining columns give the maximum/minimum count ratio,
+range divided by total count, and the share contributed by the two highest-count units. † and — follow Table S1.
+Model
+Difference
+(n = 64)
+Ratio
+(n = 108)
+Above mean
+(n = 17)
+Max/min
+(n = 5)
+Range/total
+(n = 16)
+Top two
+(n = 16)
+Gemini-3.1
+87.50
+60.19
+—
+—
+—
+—
+GPT-5.6
+100.00
+99.07
+5.88
+60.00
+87.50
+81.25
+Opus-4.8
+92.19
+96.30
+64.71
+40.00
+56.25
+50.00
+MiMo-2.5
+78.12
+62.04
+41.18
+60.00
+75.00
+43.75
+Grok-4.6
+29.69
+25.93
+82.35
+60.00
+87.50
+81.25
+Muse-1.1
+98.44
+92.59
+70.59
+60.00
+87.50
+81.25
+Seed-2.1
+65.62
+54.63
+82.35
+60.00
+87.50
+75.00
+Gemini-3.7
+28.12
+41.67
+82.35
+60.00
+87.50
+81.25
+GLM-5.3
+70.31
+58.33
+70.59
+60.00
+87.50
+81.25
+Qwen3.8-Max
+100.00
+99.07
+82.35
+60.00
+87.50
+81.25
+DeepSeek-V4
+100.00
+99.07
+82.35
+60.00
+87.50
+81.25
+Qwen3.8-Flash
+92.19
+86.11
+11.76
+0.00
+6.25
+0.00
+Qwen3.7-Plus
+98.44
+97.22
+76.47
+40.00
+81.25
+75.00
+Table S5: Television temporal subtypes over visual evidence, pooled across scopes. Entries are three-judge joint
+accuracies (%). First pair compares the first appearances of two object types; First order orders first appearances
+and localizes their clips; Extrema gap measures ordinal distance between person-count extrema; Half diff. compares
+counts in the two temporal halves; Adj. change measures the largest adjacent-unit count change; Reversals counts
+changes in trend direction.
+Model
+First pair
+(n = 76)
+First order
+(n = 64)
+Extrema gap
+(n = 14)
+Half diff.
+(n = 16)
+Adj. change
+(n = 16)
+Reversals
+(n = 17)
+Gemini-3.1
+85.53
+95.31
+—
+—
+—
+—
+GPT-5.6
+77.63
+100.00
+71.43
+6.25
+81.25
+5.88
+Opus-4.8
+77.63
+78.12
+71.43
+50.00
+50.00
+76.47
+MiMo-2.5
+82.89
+93.75
+78.57
+62.50
+62.50
+23.53
+Grok-4.6
+85.53
+98.44
+100.00
+75.00
+81.25
+94.12
+Muse-1.1
+100.00
+100.00
+100.00
+75.00
+81.25
+94.12
+Seed-2.1
+18.42
+26.56
+100.00
+68.75
+81.25
+94.12
+Gemini-3.7
+55.26
+93.75
+100.00
+75.00
+81.25
+88.24
+GLM-5.3
+89.47
+100.00
+100.00
+75.00
+81.25
+94.12
+Qwen3.8-Max
+100.00
+100.00
+100.00
+68.75
+81.25
+94.12
+DeepSeek-V4
+100.00
+100.00
+100.00
+75.00
+81.25
+88.24
+Qwen3.8-Flash
+89.47
+92.19
+7.14
+0.00
+0.00
+0.00
+Qwen3.7-Plus
+30.26
+59.38
+100.00
+75.00
+81.25
+82.35
+S4.4
+Standalone-video spatiotemporal
+reasoning
+Distributed counting remains difficult across sys-
+tems.
+The six selected video subtypes in Table 3
+reveal a common gap between event ordering and
+distributed counting. GPT-5.6 scores 72.49% on
+1,374 multi-event ordering questions but 44.35% on
+372 distributed-counting questions, a 28.14-point
+difference with both groups fully judged. Opus-4.8
+also has fully judged distributed-counting results
+and scores 45.97%; the highest observed score in
+that column is Muse-1.1’s 47.58%, also with com-
+plete judging. Every system with a reported three-
+judge score performs worse on distributed counting
+than on event ordering. This pattern is consistent
+with difficulty accumulating evidence across sepa-
+rated events, although aggregate scores alone can-
+not distinguish omissions, duplicate counting, and
+arithmetic errors.
+Other subtypes reveal complementary strengths.
+The highest observed trajectory-tracking score is
+Qwen3.8-Max’s provisional 66.46%, while Muse-
+1.1 has the highest observed state-change score
+at a provisional 73.80%. Grok-4.6 and Muse-1.1
+both score 78.80% on fully judged cross-modal
+reasoning, and Grok-4.6 scores 81.58% on fully
+judged cross-modal binding. These profiles support
+21
+
+
+evaluating evidence accumulation, temporal order,
+trajectories, and modality binding separately, rather
+than treating spatiotemporal reasoning as a single
+uniform capability.
+Judge choice and coverage bound the conclu-
+sions.
+The paired task-by-scope scores also ex-
+pose sensitivity to the evaluation protocol. For
+MiMo-2.5 on complete-series spatiotemporal ques-
+tions, Opus-only and three-judge scores are 79.17%
+and 70.83%, with complete judging under both
+protocols. GPT-5.6 also has complete judging un-
+der both protocols, but its standalone spatiotempo-
+ral score changes from 69.20% to 67.96%. These
+aggregate differences do not quantify inter-judge
+agreement, which requires a separate comparison
+of matched item-level votes. The results charac-
+terize the evaluated reasoner–observer–tool sys-
+tems under the stated metric; without matched
+standalone-model runs or component ablations,
+they do not measure a causal gain from the har-
+ness or identify a unique failure mechanism.
+S5
+Discussion
+S5.1
+Limitations
+Our findings should be interpreted within the bench-
+mark’s current coverage and evaluation setting.
+The serialized collection covers two sitcoms, and
+the task distribution emphasizes spatiotemporal rea-
+soning over video-derived evidence. Automated
+annotation and model-based judging introduce un-
+certainty, while performance depends on observa-
+tion quality, retrieval budgets, and tool execution.
+The reported scores therefore characterize the eval-
+uated reasoner–observer–tool systems as a whole.
+S5.2
+Future Work
+Future work will explore broader domains and con-
+tinuous streams to evaluate memory updates, entity
+persistence, and reasoning across temporal scales.
+Matched evaluations with controlled observation
+inputs and inference budgets can clarify the contri-
+butions of memory representations, retrieval poli-
+cies, and specialist tools. Promising directions in-
+clude quantity-aware memory with explicit tempo-
+ral provenance, uncertainty-guided retrieval, and
+source-level human verification to strengthen eval-
+uation reliability.
+22

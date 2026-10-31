@@ -1,0 +1,1085 @@
+Nothing Left Behind: Embedding Retrieval and Language Model
+Screening for High Recall Evidence Search
+Giuliano Martinelli*, Abelardo Carlos Martinez Lorenzo, Satvik Garg, Linxi Wang,
+Riccardo Orlando, Piriyakorn Piriyatamwong, Samuel Paul Fraiberger†
+Development Impact AI Lab, World Bank Group
+*Lead author. †Correspondence: sfraiberger@worldbankgroup.org
+Abstract
+AI systems that ground their answers from re-
+trieved documents usually need only a few rele-
+vant passages, but applications such as system-
+atic reviews and legal discovery need nearly all
+of them, because their conclusions rest on the
+full body of evidence. These applications have
+traditionally searched with curated taxonomies,
+which can only find what their vocabulary de-
+scribes. We compare taxonomy-based retrieval
+with an alternative neural retrieval based on sen-
+tence embeddings and followed by language
+model screening in ImpactAI, an evidence syn-
+thesis application built on 7,354 randomized
+trials. Measured against the studies included
+in 29 systematic reviews, the share of studies
+found rises from 45% to 85%, and the screen-
+ing model agrees with human annotators as
+well as annotators agree with each other. This
+gain comes at a cost in speed: at the median,
+retrieving and screening evidence for a query
+takes 77 seconds, against 6 seconds for tax-
+onomy retrieval. The results suggest finding
+evidence with embeddings, organizing it with
+taxonomy labels, and setting how many candi-
+dates to screen according to the time available
+for each query.
+1
+Introduction
+Language models that answer from retrieved doc-
+uments, the setup known as retrieval augmented
+generation (RAG) (Lewis et al., 2020), usually
+need only a few relevant passages to answer a
+question. Some applications, however, need ev-
+ery relevant document, because their output is a
+conclusion about the whole body of evidence. A
+systematic review, for example, pools all trials of
+an intervention to estimate its effect, so a missed
+trial can shift both the estimate and the conclu-
+sion drawn from it. Similarly, in legal discovery a
+party must produce every document responsive to
+a request, and in patent search a single overlooked
+publication can invalidate a patent. Using software
+to find documents for this kind of review is known
+as technology assisted review, and has been studied
+in both legal and medical settings (Cormack and
+Grossman, 2014; Kanoulas et al., 2017). In all of
+these applications, missing a relevant document is
+costly, but so is returning too many, because every-
+thing returned must still be read.
+These applications have traditionally relied on
+curated taxonomies. Each document is tagged with
+labels from a controlled vocabulary, each query
+is mapped to the same labels, and the documents
+that carry them are returned. Systematic review
+guidance still recommends this, combined with
+free text search (Lefebvre et al., 2025), for good
+reasons: labels normalize terminology, make each
+search inspectable, and group results for compari-
+son and pooling. Until recently, taxonomies were
+also the only reliable option, since embedding re-
+trievers (Karpukhin et al., 2020) performed poorly
+on specialized collections (Thakur et al., 2021).
+The weakness of this approach is that the same
+labels serve both to find documents and to orga-
+nize them. Labels compress every document and
+every query into a few categories, which makes
+them good for organizing but limits them for find-
+ing. A question narrower than its label returns
+everything under that label, so many of the results
+do not answer it. Worse, a concept missing from
+the vocabulary cannot be matched at all, and no
+amount of additional searching will find it. The
+share of relevant documents a taxonomy can find is
+therefore capped by the coverage of its vocabulary.
+The alternative separates the two jobs. Docu-
+ments and queries are embedded in the same vector
+space, the documents closest to the query are re-
+trieved, and a language model then screens each
+of these candidates against the full question. This
+follows the multistage retrieval pattern, in which a
+fast model selects candidates and a slower, more
+accurate one examines them (Wang et al., 2011;
+Nogueira and Cho, 2019), here with a language
+1
+arXiv:2610.36910v2  [cs.CL]  28 Oct 2026
+
+
+(a) Taxonomy retrieval
+(b) Semantic retrieval and relevance filtering
+What is the impact of mRDT testing for malaria in Uganda?
+Detect concepts
+LM
+Find candidate entities
+malaria (outcome)
+1
+Malaria
+2
+Severe malaria
+3
+Parasite density
+top 50 by similarity and BM25
+Select entities
+LM
+broader
+than asked
+one entity per phrase
+Return tagged pairs
+all pairs tagged with them
+Embed question
+[0.09, −0.14, 0.32, …]
+the full question as a vector
+Retrieve K closest pairs
+question,
+K closest pairs
+Screen candidates
+LM
+Does this pair answer
+the question?
+1
+2
+3
+4
+Return relevant pairs
+pair 1
+pair 2
+pair 4
+mRDT testing
+intervention
+malaria
+outcome
+Uganda
+geography
+Malaria treatment
+Malaria
+Uganda
+Figure 1: The two retrieval designs, applied to the same question. (a) Taxonomy retrieval: the question is linked to
+entities in a catalog, and the pairs tagged with them are returned. (b) Semantic retrieval: the pairs closest to the
+question in embedding space are retrieved, then screened for relevance by a language model. Shaded steps marked
+LM call a language model.
+model as the second stage (Sun et al., 2023). Since
+the application needs a set of relevant documents
+and their order does not matter, the language model
+keeps or drops each candidate instead of reorder-
+ing them. Taxonomy labels can still be applied
+afterward, to organize what was found.
+We compare the two designs in ImpactAI,1 an ev-
+idence synthesis application built on 7,354 random-
+ized controlled trials in development economics.
+We measure how much of the evidence included
+in 29 systematic reviews each design finds, how
+well the screening model agrees with human anno-
+tators, and how long each design takes to retrieve
+evidence for a query. The share of included studies
+found rises from 45% to 85%, and the screening
+model agrees with annotators as well as they agree
+with each other. In exchange, the median time to
+retrieve evidence for a query rises from 6 to 77
+seconds. The number of candidates screened per
+query therefore becomes the main design choice,
+trading completeness against waiting time.
+2
+Retrieval Designs for High Recall
+This section describes the evidence ImpactAI re-
+trieves, then the two retrieval designs, shown side
+by side in Figure 1.
+1https://impactai.worldbank.org
+Pair
+Intervention
+Outcome
+76717
+Malaria rapid
+diagnostic tests
+Societal cost per 1,000
+fever episodes
+76718
+Malaria rapid
+diagnostic tests
+Children with malaria
+treated appropriately
+Table 1: Two pairs from one study, The impact of mRDT
+malaria tests in Uganda. Each pair holds the study’s
+results for that intervention and outcome. The descrip-
+tions indexed with each pair are omitted.
+2.1
+Evidence and Task
+ImpactAI is built on 7,354 studies across sec-
+tors including health, education, agriculture, pub-
+lic finance, and social protection, each report-
+ing a randomized controlled trial (RCT). A study
+usually tests one or more interventions on sev-
+eral outcomes, so ImpactAI splits each study
+into intervention–outcome pairs, each holding the
+study’s results for one intervention on one outcome
+(Table 1). The corpus contains 74,826 pairs, and the
+same structured evidence underlies Query2Effect,
+a benchmark for predicting effects from natural
+language questions (Martinelli et al., 2026).
+Pairs are the unit of retrieval. Given a question,
+the task is to return every pair that addresses it, and
+each returned pair carries its results, along with
+the population, context, and design of its study.
+Retrieving pairs instead of whole studies matters
+because a study often reports several results, of
+2
+
+
+which only some answer a given question. Each
+pair also stays linked to its study, so the share of
+relevant evidence found can be measured in studies
+as well as in pairs.
+2.2
+Taxonomy Retrieval
+The first design, shown in Figure 1a, uses one tax-
+onomy both to find and to organize evidence. Of-
+fline, every pair is tagged with entities, the con-
+cepts of a development economics catalog. At
+query time, a language model identifies the phrases
+in the question that name a concept and assigns
+each a type, such as intervention, outcome, pop-
+ulation group, or geography.
+For each phrase,
+the system then retrieves up to 50 candidate en-
+tities of that type, combining semantic similar-
+ity with BM25 keyword matching (Robertson and
+Zaragoza, 2009), and a language model selects the
+entity that best fits the phrase in the context of the
+full question. Finally, the pairs tagged with the
+selected entities are returned.
+This design has the benefits described in Sec-
+tion 1: results arrive grouped by shared categories,
+users can see which concepts their question was
+linked to, and a lookup returns every pair tagged
+with a given label. It also has the limits described
+there. In Figure 1a, for example, a question about
+rapid diagnostic tests for malaria is linked to the
+broader concept of malaria treatment, and returns
+all the evidence tagged with it. In addition, because
+the pipeline chains phrase detection, typing, entity
+selection, and tagging, an error at any step loses
+evidence. Finally, for a fixed catalog the result is a
+fixed set, so no amount of additional searching can
+add to it.
+2.3
+Semantic Retrieval and Relevance
+Filtering
+The second design, shown in Figure 1b, separates
+finding from organizing. Each pair is represented
+by its text, the intervention and outcome names
+and descriptions together with the study context,
+which is embedded once, offline. At query time,
+the question is embedded into the same space, and
+the K pairs closest to it form the candidate set,
+where K is a fixed number. Retrieval thus draws
+on the text of the evidence itself, with no taxonomy
+in between.
+Closeness in the embedding space, however, is
+only a proxy for relevance. Close candidates of-
+ten share a topic with the question but differ in
+the intervention, outcome, population, or context
+the user asked about. A language model therefore
+screens each candidate: given the question and a
+pair’s text, it decides whether the pair answers the
+question, and pairs that do not are discarded.
+Screening is applied only to the K closest pairs
+because it is far more expensive than retrieval.
+Comparing a question with every precomputed em-
+bedding is fast, whereas each screening decision
+requires a language model call at query time. Re-
+trieval therefore narrows the corpus to a number
+of candidates that screening can afford, following
+the usual logic of a cascade: a cheap step over
+everything, then an expensive step over a few. Sec-
+tion 4.4 measures how this cost grows with K.
+The two steps play distinct roles, which is why
+we evaluate them separately. Retrieval sets the ceil-
+ing on what can be found: screening cannot recover
+a pair that was never retrieved, and when more than
+K pairs are relevant, some are necessarily missed.
+Screening then decides how much of the retrieved
+evidence is kept, and how much irrelevant material
+remains. Taxonomy labels can be applied to the
+resulting set afterward, to group and compare what
+was found.
+3
+Experimental Setup
+Following Section 2, we evaluate the semantic
+design one step at a time, then as a whole. We
+first measure retrieval quality, which bounds what
+screening can keep, then how well screening agrees
+with human judgment, then how much evidence the
+full pipeline recovers, and finally how long it takes.
+Table 2 summarizes the datasets used at each step.
+Two kinds of questions recur throughout: user ques-
+tions, submitted to ImpactAI during its beta, and
+synthetic questions, each generated from one study
+in the corpus.
+3.1
+Models
+We compare four embedding models for retrieval:
+Gemini embeddings (Lee et al., 2025), Voy-
+age (Voyage AI, 2025), E5-large-v2 (Wang et al.,
+2022), and Granite (Awasthy et al., 2025). Screen-
+ing uses Gemini 2.5 Flash (Comanici et al., 2025),
+which taxonomy retrieval also uses for phrase de-
+tection and entity selection. The deployed taxon-
+omy service timed in Section 4.4 uses Gemini 3
+Flash Preview instead.
+3.2
+Retrieval Quality
+Retrieval is evaluated on 374 user questions and
+1,000 synthetic questions. Labeling every pair in
+3
+
+
+Dataset
+Questions
+Items labeled
+Labeled by
+Relevant per question
+Retrieval quality
+User questions
+374
+1,000 closest pairs from Gemini and from
+Voyage, and taxonomy results
+Language model
+150 pairs
+Synthetic questions
+1,000
+1,000 closest pairs from Gemini and from
+Voyage, and taxonomy results
+Language model
+141 pairs
+Screening agreement
+User questions
+100
+30 closest pairs
+One annotator
+24.0 pairs
+Synthetic questions
+100
+30 closest pairs
+One annotator
+23.8 pairs
+User questions
+10
+30 closest pairs
+Two annotators
+—
+Full pipeline
+Systematic reviews
+348
+Included studies in the corpus
+Review authors
+4.07 studies
+User feedback
+45
+Pairs returned by semantic retrieval
+Users
+17 pairs
+Table 2: Evaluation datasets, grouped by the question each answers. Relevant counts for screening agreement
+include pairs labeled potentially relevant.
+the corpus for each question is infeasible, so rele-
+vance is judged on a pool of candidates. For each
+question, the pool combines the 1,000 closest pairs
+under Gemini embeddings, the 1,000 closest un-
+der Voyage, and all pairs returned by taxonomy
+retrieval, and a separate language model, Gemini 3
+Pro, labels each pooled pair for relevance. Scores
+are therefore relative to this pool. Because E5 and
+Granite did not contribute to it, relevant pairs that
+only they retrieve go unlabeled, which may under-
+state their scores (Zobel, 1998).
+For each embedding model, we report three
+scores among the K closest pairs, for K between
+10 and 1,000: recall, the share of relevant pairs re-
+trieved; precision, the share of retrieved pairs that
+are relevant; and F1, which combines the two. Tax-
+onomy retrieval returns the same set at any K, so
+its scores do not vary with depth.
+3.3
+Screening Agreement
+Screening is evaluated on 100 user questions and
+100 synthetic questions. For each question, an an-
+notator labeled the 30 pairs closest to it under Gem-
+ini embeddings as relevant, potentially relevant, or
+not relevant. Most of these candidates are on topic,
+with 24.0 and 23.8 of the 30 labeled relevant or po-
+tentially relevant on average, so the test focuses on
+the fine distinctions screening has to make. Gemini
+2.5 Flash screens the same pairs, and we compare
+its decisions with the human labels, counting only
+relevant as positive.
+To put this agreement in context, ten additional
+user questions were labeled independently by two
+annotators, and we measure their agreement on the
+276 of 300 pairs that received both labels. An-
+notators were assigned per question, so the two
+annotators in Table 4 are not the same two people
+throughout. In both comparisons, we report Co-
+hen’s κ, which measures agreement beyond what
+chance would produce, along with Pearson correla-
+tion and F1 scores.
+3.4
+Full Pipeline
+The full pipeline is evaluated against systematic re-
+views, which serve only as a reference and play no
+part in the system. The authors of a systematic re-
+view search the literature exhaustively and decide,
+study by study, which ones answer the review’s
+question. Many of the studies they include are also
+in ImpactAI, so asking the system a review’s ques-
+tion reproduces the search a review team would run,
+with the authors’ decisions as the expert answer.
+From 29 reviews, we derived 348 questions: the
+questions the reviews address, and narrower ver-
+sions of them. The relevant studies for each ques-
+tion are the studies the review included that are
+also in the ImpactAI corpus. Reviews were not
+required to have all their studies in the corpus; in-
+cluded studies outside it are simply left out of the
+reference. For the narrower questions, a language
+model helped decide which of these studies apply.
+Each question has 4.07 relevant studies on average.
+Returned pairs are mapped to their studies, and
+we report the share of relevant studies found, aver-
+aged over questions (macro recall), for K of 100,
+500, 1,000, and 2,500. Results at smaller K are
+computed from the 2,500 closest pairs. We also re-
+port a combination of the two designs, which adds
+the taxonomy results, unscreened, to the screened
+semantic results. A review’s list contains only the
+studies its authors included, so a returned study
+outside the list is not counted as an error. These
+4
+
+
+K = 10
+K = 100
+K = 150
+K = 300
+K = 500
+K = 1,000
+Model
+R
+P
+F1
+R
+P
+F1
+R
+P
+F1
+R
+P
+F1
+R
+P
+F1
+R
+P
+F1
+User questions
+Taxonomy retrieval
+.15
+.36
+.21
+.15
+.36
+.21
+.15
+.36
+.21
+.15
+.36
+.21
+.15
+.36
+.21
+.15
+.36
+.21
+Gemini embeddings
+.09
+.65
+.16
+.47
+.52
+.49
+.62
+.43
+.51
+.84
+.33
+.47
+.90
+.27
+.41
+.93
+.13
+.24
+Voyage
+.05
+.36
+.09
+.27
+.26
+.27
+.33
+.23
+.27
+.46
+.17
+.25
+.55
+.13
+.21
+.67
+.09
+.15
+E5-large-v2
+.05
+.33
+.08
+.19
+.20
+.20
+.23
+.17
+.20
+.32
+.13
+.18
+.39
+.09
+.15
+.50
+.06
+.11
+Granite
+.05
+.40
+.09
+.26
+.26
+.26
+.32
+.23
+.26
+.42
+.17
+.24
+.50
+.12
+.20
+.62
+.08
+.14
+Synthetic questions
+Taxonomy retrieval
+.24
+.61
+.35
+.24
+.61
+.35
+.24
+.61
+.35
+.24
+.61
+.35
+.24
+.61
+.35
+.24
+.61
+.35
+Gemini embeddings
+.14
+.81
+.24
+.53
+.54
+.53
+.65
+.48
+.55
+.84
+.35
+.49
+.92
+.24
+.38
+.96
+.13
+.23
+Voyage
+.09
+.46
+.15
+.34
+.29
+.31
+.41
+.25
+.31
+.53
+.19
+.28
+.63
+.14
+.24
+.76
+.09
+.17
+E5-large-v2
+.09
+.41
+.15
+.35
+.30
+.33
+.33
+.19
+.24
+.42
+.11
+.18
+.49
+.11
+.17
+.60
+.07
+.13
+Granite
+.09
+.44
+.14
+.30
+.25
+.28
+.36
+.22
+.27
+.46
+.16
+.24
+.55
+.12
+.20
+.67
+.08
+.14
+Table 3: Retrieval quality: recall (R), precision (P), and F1 among the K closest pairs, judged on the pooled labels.
+Taxonomy retrieval returns a fixed set, so its scores do not change with K. Best score per column in bold.
+lists therefore measure recall but not precision.
+Precision is measured instead through user feed-
+back. On 45 questions, users rated the pairs re-
+turned by semantic retrieval in the deployed appli-
+cation with an upvote or a downvote, and we report
+the share rated relevant.
+3.5
+Latency
+We time each module on 30 questions from the
+systematic review benchmark, run one at a time:
+taxonomy retrieval, semantic retrieval alone, and
+semantic retrieval with screening, at the same four
+values of K. Taxonomy retrieval and K = 2,500
+are timed on all 30 questions, while times at smaller
+K are estimates calibrated on three of them. In the
+timed configuration, screening groups candidates
+from the same study, up to 15 per prompt, with
+a separate decision for each pair. This configura-
+tion is more recent than the one used in the recall
+and agreement experiments. We report the mean,
+median, and 95th percentile.
+4
+Results
+4.1
+Retrieval Quality
+Among the embedding models, Gemini embed-
+dings retrieve the most complete candidate sets
+at every depth (Table 3). On user questions, Gem-
+ini recall reaches 0.47 at K = 100 and 0.93 at
+K = 1,000, against 0.67 at K = 1,000 for Voyage,
+the next best model. Synthetic questions give the
+same ranking, with Gemini recall reaching 0.96 at
+K = 1,000. We therefore use Gemini embeddings
+in the remaining experiments.
+Taxonomy retrieval, by contrast, finds only a
+F1
+Comparison
+κ
+Pearson
+All
+Rel.
+Not rel.
+User questions (100)
+Model vs. annotator
+.50
+.50
+.75
+.76
+.74
+Synthetic questions (100)
+Model vs. annotator
+.50
+.51
+.75
+.75
+.75
+User questions (10)
+Annotator vs. annotator
+.43
+.47
+.71
+.67
+.74
+Table 4: Screening agreement. The model is Gemini 2.5
+Flash; only pairs labeled relevant count as positive. F1
+is reported over all pairs and for each class.
+small share of the relevant pairs, and searching
+deeper cannot raise it: its fixed set recovers 15% of
+relevant pairs on user questions and 24% on syn-
+thetic ones. On user questions, Gemini at K = 100
+already does better on both recall (0.47 against
+0.15) and precision (0.52 against 0.36). On syn-
+thetic questions, the taxonomy keeps higher preci-
+sion (0.61 against 0.54 at K = 100), but its recall
+stays far lower.
+Going deeper, however, brings in irrelevant pairs
+much faster than relevant ones. On user questions,
+Gemini precision falls from 0.52 at K = 100 to
+0.13 at K = 1,000, so most of a deep candidate set
+is irrelevant. This is the gap screening has to close.
+4.2
+Screening Agreement
+Screening agrees with human annotators about as
+well as annotators agree with each other (Table 4).
+Gemini 2.5 Flash reaches a Cohen’s κ of 0.50 on
+both user and synthetic questions, against 0.43 be-
+tween two annotators, and an overall F1 of 0.75,
+against 0.71. In absolute terms, agreement is mod-
+erate on both sides, which shows how hard these
+5
+
+
+100
+500
+1,000
+2,500
+Candidates K
+40
+50
+60
+70
+80
+90
+100
+Relevant studies found (%)
+96.7
+87.9
+85.0
+45.1
+Semantic, before screening
+Screened semantic + taxonomy
+Semantic, after screening
+Taxonomy retrieval
+Figure 2: Share of relevant studies found on the sys-
+tematic review benchmark (macro recall), by number of
+candidates K. Screened semantic + taxonomy adds the
+taxonomy results, unscreened, to the screened semantic
+results.
+fine distinctions are to judge, even for people. The
+comparison between annotators rests on only ten
+questions, and clearer annotation guidelines could
+reduce this disagreement.
+4.3
+Full Pipeline
+Semantic retrieval with screening finds nearly twice
+as many of the studies included in systematic re-
+views as taxonomy retrieval: 85.0% at K = 2,500,
+against 45.1% (Figure 2). The gain comes from
+retrieval: before screening, the candidates already
+contain 96.7% of the relevant studies. Screening
+then discards some relevant studies along with ir-
+relevant ones, lowering recall by 11.7 points.
+Recall grows with the number of candidates, but
+with diminishing returns. After screening, it rises
+from 61.3% at K = 100 to 82.7% at K = 1,000,
+and only to 85.0% at K = 2,500, although the last
+step more than doubles the candidates to screen.
+The two designs also find partly different stud-
+ies. Adding the taxonomy results, unscreened, to
+the screened semantic results raises recall by 12.6
+points at K = 100, to 73.8%, but by only 2.9
+points at K = 2,500, to 87.9%. The taxonomy is
+therefore most useful as a complement when the
+candidate budget is small.
+Finally, the review lists measure recall but not
+precision. In user feedback on 45 questions, users
+rated 94.7% of the returned pairs as relevant, so the
+pairs that reach users are mostly on target.
+Module
+K
+Mean
+Median
+95th pct.
+Taxonomy retrieval
+—
+6.87
+6.00
+10.05
+Semantic retrieval
+100
+1.11
+1.11
+1.12
+500
+1.18
+1.17
+1.22
+1,000
+1.26
+1.25
+1.35
+2,500
+1.52
+1.48
+1.73
+Semantic retrieval
+100
+7.01
+6.94
+7.53
+and screening
+500
+18.98
+18.66
+21.59
+1,000
+33.95
+33.30
+39.17
+2,500
+78.86
+77.22
+91.91
+Table 5: Time per question, in seconds, for each module.
+Times at K below 2,500 are estimates calibrated on
+three questions; the others are measured on 30.
+4.4
+Latency
+Screening accounts for almost all of the time, and
+that time grows with the number of candidates (Ta-
+ble 5). Semantic retrieval alone takes between 1.1
+and 1.5 seconds per question at the median, what-
+ever K. With screening, the median rises from 6.9
+seconds at K = 100 to 33.3 seconds at K = 1,000
+and 77.2 seconds at K = 2,500, against 6.0 sec-
+onds for taxonomy retrieval. At this rate, screening
+all 74,826 pairs would take roughly 40 minutes per
+question, which is why retrieval must narrow the
+set first.
+Read together with recall, these times show what
+depth costs. At K = 100, semantic retrieval with
+screening takes about as long as taxonomy retrieval
+(6.9 against 6.0 seconds) and finds more of the
+relevant studies (61.3% against 45.1%). Going
+from K = 1,000 to K = 2,500, by contrast, adds
+2.3 points of recall and 44 seconds per question.
+Because the two services use different models (Sec-
+tion 3), these times compare deployed modules
+rather than the designs themselves.
+5
+Discussion
+Use meaning to find evidence and labels to or-
+ganize it.
+Semantic retrieval with screening finds
+nearly twice as many of the studies included in
+systematic reviews as taxonomy retrieval. Because
+it matches the full question against the text of the
+evidence, it can find concepts that are missing from
+the catalog or narrower than its labels, which is the
+likely source of the gain. Labels remain useful once
+the evidence is found: they normalize terminology,
+make results inspectable, and group them for com-
+parison, which pooling requires. They also remain
+the right tool when a user wants everything under
+a known category, and at small candidate budgets
+6
+
+
+they add studies that semantic retrieval misses. The
+two designs are therefore best used together, each
+for the job it does well.
+Depth is the main design choice.
+With seman-
+tic retrieval in place, the remaining choice is how
+many candidates to screen. Each additional can-
+didate costs time while recall gains shrink, so a
+comprehensive search, such as one feeding a meta-
+analysis, may justify a long wait, whereas an ex-
+ploratory search can use a smaller budget. Two
+directions could lower this cost: setting the depth
+for each question, since broad questions have more
+relevant pairs than narrow ones, and screening with
+smaller, faster models.
+Maintenance and scale.
+The two designs also
+differ in upkeep. A taxonomy must be extended
+and the evidence retagged as the collection grows,
+while semantic retrieval only needs new embed-
+dings, along with monitoring of the screening
+model, whose decisions are harder to audit as a
+whole than explicit labels. As the collection grows,
+broad questions will also have more relevant pairs,
+so a fixed budget will miss a larger share of them,
+and depth, with its cost, will need to grow too.
+6
+Conclusion
+Applications such as systematic reviews, legal dis-
+covery, and patent search need every relevant docu-
+ment, and a taxonomy caps how many it can find.
+In ImpactAI, embedding retrieval followed by lan-
+guage model screening raised the share of system-
+atic review studies found from 45% to 85%, with
+screening that agrees with people as well as peo-
+ple agree with each other, at the cost of a longer
+wait that the number of candidates controls. Our
+evidence comes from one collection, but the mech-
+anism is general: wherever labels are used to find
+documents, separating finding from organizing is
+likely to raise recall in the same way.
+Limitations
+Our results come from one collection of RCTs in
+development economics, and both the taxonomy la-
+bels and the text of each pair depend on the quality
+of the information extracted from each study. The
+systematic review benchmark measures how many
+of a review’s included studies are found within this
+collection, not coverage of the literature as a whole,
+and its narrower questions rely on study assign-
+ments made with the help of a language model.
+The retrieval benchmarks are labeled by a Gemini
+model over a pool built partly from Gemini embed-
+dings, which may favor them (Zobel, 1998), and
+the human samples are small, particularly the ten
+questions labeled by two annotators. The latency
+comparison covers deployed modules with differ-
+ent configurations: the timed taxonomy service
+uses Gemini 3 Flash Preview, and the timed screen-
+ing configuration is more recent than the one used
+to measure recall and agreement. Throughput un-
+der concurrent load, monetary cost, and the effect
+of more complete evidence on pooled estimates
+remain to be measured. Finally, the exact versions
+of Voyage and Granite used were not recorded.
+Acknowledgments
+We are deeply grateful to the Development Im-
+pact AI Lab’s ground truth experts, Nihaa Sajid,
+Clémence Gall, Rida Ali Khan, Saqib Hussain,
+Aarushi Aggarwal, and Ejigayehu Diriba. Their rel-
+evance judgments are the human reference against
+which screening is measured, and this evaluation
+would not have been possible without them. We
+also thank Google.org for its generous support of
+this work.
+References
+Parul Awasthy, Aashka Trivedi, Yulong Li, Mihaela
+Bornea, David Cox, Abraham Daniels, Martin Franz,
+Gabe Goodhart, Bhavani Iyer, Vishwajeet Kumar,
+Luis Lastras, Scott McCarley, Rudra Murthy, Vi-
+gnesh P, Sara Rosenthal, Salim Roukos, Jaydeep
+Sen, Sukriti Sharma, Avirup Sil, and 3 others.
+2025. Granite embedding models. arXiv preprint
+arXiv:2502.20204.
+Gheorghe Comanici et al. 2025. Gemini 2.5: Pushing
+the frontier with advanced reasoning, multimodality,
+long context, and next generation agentic capabilities.
+arXiv preprint arXiv:2507.06261.
+Gordon
+V.
+Cormack
+and
+Maura
+R.
+Grossman.
+2014. Evaluation of machine-learning protocols for
+technology-assisted review in electronic discovery.
+In Proceedings of the 37th International ACM SI-
+GIR Conference on Research and Development in
+Information Retrieval.
+Evangelos Kanoulas, Dan Li, Leif Azzopardi, and Rene
+Spijker. 2017. CLEF 2017 technologically assisted
+reviews in empirical medicine overview. In CEUR
+Workshop Proceedings, volume 1866.
+Vladimir Karpukhin, Barlas O˘guz, Sewon Min, Patrick
+Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and
+Wen-tau Yih. 2020. Dense passage retrieval for open-
+domain question answering. In Proceedings of the
+7
+
+
+2020 Conference on Empirical Methods in Natural
+Language Processing, pages 6769–6781.
+Jinhyuk Lee, Feiyang Chen, Sahil Dua, Daniel Cer,
+Madhuri Shanbhogue, et al. 2025. Gemini embed-
+ding: Generalizable embeddings from Gemini. arXiv
+preprint arXiv:2503.07891.
+Carol Lefebvre, Julie Glanville, Simon Briscoe, Robin
+Featherstone, Anne Littlewood, Maria-Inti Metzen-
+dorf, Anna Noel-Storr, Robin Paynter, Tamara Rader,
+James Thomas, and L. Susan Wieland. 2025. Chapter
+4: Searching for and selecting studies. In Julian P. T.
+Higgins, James Thomas, Jacqueline Chandler, Mi-
+randa Cumpston, Tianjing Li, Matthew J. Page, et al.,
+editors, Cochrane Handbook for Systematic Reviews
+of Interventions, version 6.5.1 edition. Cochrane.
+Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio
+Petroni, Vladimir Karpukhin, Naman Goyal, Hein-
+rich Küttler, Mike Lewis, Wen-tau Yih, Tim Rock-
+täschel, Sebastian Riedel, and Douwe Kiela. 2020.
+Retrieval-augmented generation for knowledge-
+intensive NLP tasks. In Advances in Neural Informa-
+tion Processing Systems.
+Giuliano
+Martinelli,
+Piriyakorn
+Piriyatamwong,
+Abelardo Carlos Martinez Lorenzo, Jasmin Baier,
+Riccardo Orlando, Satvik Garg, Sharif Kazemi, Linxi
+Wang, Arianna Legovini, and Samuel Fraiberger.
+2026.
+Predicting causal effects from natural
+language queries using structured representations.
+arXiv preprint arXiv:2605.29631.
+Rodrigo Nogueira and Kyunghyun Cho. 2019. Pas-
+sage re-ranking with BERT.
+arXiv preprint
+arXiv:1901.04085.
+Stephen Robertson and Hugo Zaragoza. 2009.
+The
+probabilistic relevance framework: BM25 and be-
+yond. Foundations and Trends in Information Re-
+trieval, 3(4):333–389.
+Weiwei Sun, Lingyong Yan, Xinyu Ma, Shuaiqiang
+Wang, Pengjie Ren, Zhumin Chen, Dawei Yin, and
+Zhaochun Ren. 2023. Is ChatGPT good at search?
+investigating large language models as re-ranking
+agents. In Proceedings of the 2023 Conference on
+Empirical Methods in Natural Language Processing.
+Nandan Thakur, Nils Reimers, Andreas Rücklé, Ab-
+hishek Srivastava, and Iryna Gurevych. 2021. BEIR:
+A heterogeneous benchmark for zero-shot evaluation
+of information retrieval models. In Thirty-fifth Con-
+ference on Neural Information Processing Systems
+Datasets and Benchmarks Track.
+Voyage AI. 2025. Text embeddings. https://docs.
+voyageai.com.
+Liang Wang, Nan Yang, Xiaolong Huang, Binxing
+Jiao, Linjun Yang, Daxin Jiang, Rangan Majumder,
+and Furu Wei. 2022. Text embeddings by weakly-
+supervised contrastive pre-training. arXiv preprint
+arXiv:2212.03533.
+Lidan Wang, Jimmy Lin, and Donald Metzler. 2011. A
+cascade ranking model for efficient ranked retrieval.
+In Proceedings of the 34th International ACM SI-
+GIR Conference on Research and Development in
+Information Retrieval.
+Justin Zobel. 1998.
+How reliable are the results of
+large-scale information retrieval experiments?
+In
+Proceedings of the 21st Annual International ACM
+SIGIR Conference on Research and Development in
+Information Retrieval, pages 307–314.
+8
