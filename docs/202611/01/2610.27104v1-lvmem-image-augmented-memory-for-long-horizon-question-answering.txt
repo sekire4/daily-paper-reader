@@ -1,0 +1,292 @@
+Title: LVMem: Image-Augmented Memory for Long-Horizon Question Answering
+
+URL Source: https://arxiv.org/pdf/2610.27104v1
+
+Published Time: Wed, 21 Oct 2026 00:10:06 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# LVMem: Image-Augmented Memory for Long-Horizon Question Answering 
+
+Victoria Khoruzhaya 1, Maksim Kalmykov 1, Tuong Do Minh 1, Tatiana Zemskova 1,2, Yixin Zhu 3, Dmitry Yudin 1,2
+
+Abstract — Reliable language-guided perception is essential for embodied agents, where questions about objects, events, and their locations must be answered from long observation histories. Unlike conventional visual question answering, real-istic robotic settings require reasoning over extended temporal horizons and persistent scene memory. We build upon the view-based memory paradigm and propose an efficient framework for long-horizon spatio-temporal question answering. While existing view-based systems typically store either text captions or visual embeddings, we extend the ReMEmbR-style memory with image paths that link each stored description to its original visual content. To make the stored annotations more informa-tive, we replace uniform sampling during memory construction with an optical-flow-based frame selection strategy (PSFR) and store an object-centric descriptive scene representation instead of plain captions. We further equip a VLM-based agent with an adaptive retrieval tool that returns the image associated with the most relevant caption, allowing the agent to decide when visual inspection is needed. On the OC-NaVQA benchmark, LVMem outperforms ReMEmbR on binary and positional metrics with both backbones and matches or exceeds a 4D scene graph DAAAM baseline on binary accuracy, while operating on a lightweight view-based memory that requires no explicit graph construction. Our code is available at https://github.com/comprock15/LVMem. 
+
+I. I NTRODUCTION 
+
+Embodied agents that operate over hours or days accumu-late vast streams of visual experience. A warehouse robot, for example, may be asked: “Which shelf had the damaged box?” or “What did the loading dock look like when you passed it?”. Answering such queries goes beyond retrieving a text snippet: the agent must recall what it actually saw, where, and when. This demands a memory that preserves visual evidence across long horizons, remains spatially and temporally consistent, and can be queried efficiently as it grows. We formalize the problem of long-horizon spatio-temporal question answering as follows. Given a continuous stream of RGB observations with associated poses and timestamps, and a natural language query about objects, events, or states in the environment, the goal is to produce an accurate answer. This requires building a memory representation from the observation stream and reasoning jointly over visual appearance, spatial locations, and temporal ordering. 
+
+> 1
+
+Moscow Independent Research Institute of Artificial Intelligence, Moscow, Russia 
+
+> 2
+
+Cognitive AI Systems Lab, Moscow, Russia 
+
+> 3
+
+Peking University, Beijing, China Text query:  «What's the name of the coffee shop? » 
+
+> Memory
+> Long-horizon robot observations
+> VLM-agent
+> retrieve image
+> «coffee shop storefront sign
+> showing the name»
+> :
+> «The illuminated sign above the counter in the image reads
+> 'LONGHORN COFFEE CO.', so the shop name is clearly visible.»
+> : « The coffee shop is called Longhorn Coffee Co. »
+> Patchwise Sparse-Flow
+> Retention Algorithm
+> Оbject-centric scene
+> representation generator
+
+Fig. 1. Proposed LVMem approach. A long video sequence is divided into fixed-length segments, from which PSFR selects the most informative frames. An object-centric textual scene representation generator produces one scene description per segment from its selected frames, which is stored in memory alongside the segment’s timestamp, pose, and image path. For a given query, the VLM agent calls the image retrieval tool to obtain the image linked to the most relevant description, enabling joint reasoning over visual and textual evidence. 
+
+This challenge becomes especially difficult in realistic robotic scenarios, where the environment evolves over time and the robot must reason over extended temporal hori-zons. A robot may observe the same object from multiple viewpoints, encounter changes in object locations, and need to combine information collected at different moments in time. Multimodal large language models have demonstrated strong capabilities in visual reasoning and language under-standing [1], [2], but they still struggle with long video sequences [3], [4], persistent scene memory [5], and effi-cient retrieval of relevant information from large observation histories. Structured scene representations offer a promising direc-arXiv:2610.27104v1 [cs.CV] 19 Oct 2026 tion for addressing these limitations. In particular, scene graphs provide a compact and interpretable representation of objects, their attributes and interactions [6], and have been extended to dynamic 4D settings where nodes correspond to entities, edges encode semantic and spatial relations, and temporal information captures scene evolution [7], [8]. Recent approaches such as DAAAM [9] have explored 4D scene graphs for robotics, yet they rely on explicit geo-metric reconstruction and per-object description generation. Such representations are attractive for robotics because they support persistent memory and enable reasoning across long horizons. However, constructing and maintaining explicit 4D scene graphs in large-scale environments remains computa-tionally demanding. An alternative line of work stores annotated observations in a structured memory index, such as a vector database, which can be queried efficiently without explicit 3D re-construction. Recent approaches like ReMEmbR [10] have shown promising results on spatio-temporal question answer-ing using this paradigm, achieving efficient retrieval through text-based indexing of frame annotations. However, these methods rely solely on textual descriptions for retrieval and reasoning, which limits the agent’s ability to verify visual details or resolve ambiguities that require direct inspection of the original image content. In this work, we build upon the view-based memory paradigm of ReMEmbR [10] and propose an extension that improves long-horizon question answering by providing the agent with access to visual evidence beyond textual descriptions and by selecting more informative frames during memory construction. Our contribution can be summarized as follows:  
+
+> •
+
+We introduce LVMem, a view-based framework for long-horizon spatio-temporal question answering over recorded robot observations. LVMem represents obser-vations as object-centric scene descriptions and links each to its source image, timestamp, and pose, equip-ping a VLM agent with a selectively invoked visual retrieval tool. This enables the agent to inspect visual details omitted from the stored descriptions while retain-ing text-, position-, and time-based access to memory, without explicit 3D reconstruction.  
+
+> •
+
+We propose motion-guided memory construction under a fixed frame budget by integration of the existing Patchwise Sparse-Flow Retention (PSFR) method into segment-level scene description generation and evaluate it against uniform sampling with identical segment lengths and frame counts. With six frames per 10-second segment, PSFR improves binary accuracy by 8.96 percentage points and reduces mean positional error from 89.98 m to 68.16 m, demonstrating the importance of frame selection for downstream memory-based question answering.  
+
+> •
+
+Through comparisons with ReMEmbR and DAAAM methods and ablations on OC-NaVQA, we examine how frame selection, visual retrieval, text retrieval depth, and scene description configuration affect answer quality. LVMem improves binary and free-form text ac-curacy over ReMEmbR by 10.95 and 15.15 percentage points with Qwen3.5-9B, and by 19.90 and 5.05 points with GPT-5-Mini, respectively. Our ablations further show that visual augmentation depends on retrieval con-text: additional images can improve descriptive answers while degrading positional estimates or destabilizing temporal predictions. II. R ELATED WORK 
+
+Long-horizon embodied question answering requires rea-soning over extended observation histories, where relevant evidence may be sparse and distributed across time. Existing approaches differ mainly in how they represent, retain and retrieve this information. 
+
+A. Long-Horizon Question Answering 
+
+Recent MLLMs perform well on short clips but degrade as observation histories grow beyond the available context window. VideoARM [11] performs agentic reasoning over a hierarchical memory for long-form video understanding. Benchmarks such as FindingDory [12] and HourVideo [4] highlight the difficulty of retrieving sparse evidence over long temporal horizons. Spatial reasoning remains challeng-ing: GPT4Scene [1] and ST-Think [2] study scene-level and 4D reasoning, while Spatial4D-Bench [5] and Video-MSR [13] expose persistent weaknesses in spatio-temporal reasoning. Other approaches encode structure directly into video representations: Video-3D LLM [14] introduces 3D-aware position encoding, and LITA [15] uses explicit time tokens for temporal localization. Both require end-to-end training tied to a specific backbone, and such representations are typically consumed within the model context rather than retained as persistent, independently queryable mem-ory. OnlineSI [16] moves toward persistent spatial memory through incremental semantic reconstruction, but its bounded representation is still passed directly to the language model rather than selectively queried. 
+
+B. Scene Graphs and Knowledge Representations for Robotics 
+
+Scene graphs explicitly organize observations into persis-tent spatial and semantic structure. HOV-SG [17] constructs hierarchical open-vocabulary graphs over floors, rooms, and objects, while ConceptGraphs [18] associates multi-view 3D objects with open-vocabulary semantic descriptors and inter-object relations. Clio [19] extends hierarchical scene graphs to online, task-driven construction, and Khronos [20] models short-term motion together with long-term environ-mental change. GraphEQA [21] combines an online hierar-chical scene graph with task-relevant images for embodied question answering. Among structured-memory approaches, DAAAM [9] builds a hierarchical 4D scene graph for long-horizon spatio-temporal QA, while EGG [7] introduces explicit event nodes and VL-KnG [8] constructs spatio-temporal knowledge graphs from video without explicit 3D reconstruction. Such graph-based representations provide rich global structure but require explicit graph construction or maintenance. 
+
+C. Knowledge Retrieval and Agentic Reasoning over Struc-tured Memory 
+
+Persistent memory is only useful if relevant evidence can be retrieved efficiently. WorldMM [22], EventMemA-gent [23], and StreamReady [24] use episodic, semantic, or hierarchical memory for long-form reasoning, focusing on temporal abstraction rather than spatially grounded represen-tations. ReMEmbR [10] stores VLM-generated captions in a vector database and uses an iterative agent for text-, position-, and time-based retrieval, but the agent reasons only over stored textual descriptions. STaR [25] additionally retrieves keyframes for visual inspection through task-conditioned selection. Graph-based memories such as DAAAM [9], EGG [7], and VL-KnG [8] combine structured represen-tations with agentic or hybrid retrieval. Beyond retrieval, Surprise-Gated Memory [26] studies selective episode re-tention, while UQ-DAAAM [27] quantify uncertainty over object descriptions and actively refine them. A tension per-sists: text-based memories scale efficiently but may discard visual detail, whereas multimodal memories retain richer evidence that must be selectively retrieved and integrated. LVMem retains the lightweight ReMEmbR representation while linking retrieved descriptions back to their source images, enabling a study when visual evidence actually helps. III. M ETHOD 
+
+We present a framework for long-horizon spatio-temporal question answering that extends the existing view-based memory system of ReMEmbR [10]. Rather than redesigning the memory from scratch, we augment it in three ways. First, we replace uniform frame sampling during memory construction with an optical-flow-based selection strategy (PSFR) [28]. Second, we replace the plain captions with an object-centric descriptive scene representation and augment the memory entries with image paths that point to the corresponding source frames. Finally, we equip the VLM agent with an adaptive retrieval tool that returns the images corresponding to the most relevant descriptions, enabling joint reasoning over textual and visual evidence (see Fig. 2). 
+
+A. Memory Construction 
+
+We follow the memory-building pipeline of Re-MEmbR [10], which splits a video stream S into fixed-length temporal segments {s1, . . . , s L}, each spanning T seconds. We introduce two modifications to this pipeline. First, instead of uniform frame sampling within each segment, we apply PSFR [28], a training-free optical-flow-based method that selects the most informative frames while discarding static or redundant content. Let segment si contain 
+
+mi frames Fi = {fi, 1, . . . , f i,m i }. Uniform sampling selects 
+
+K frames at equal intervals, while PSFR selects a subset 
+
+Fi ⊂ Fi of the same size K, using sparse optical flow to identify frames with strong structural change. Both methods therefore return exactly K frames per segment, which al-lows a direct comparison under identical frame counts (see Table II) and isolates the selection criterion from the frame budget. Second, we introduce the object-centric descriptive scene representation , a textual description of a segment designed for retrieval. A vision-language model ϕθ , instructed by a structured prompt π, maps them to four fields, 
+
+di = ϕθ (Fi; π) =  σi, Oi, Hi, Xi
+
+, (1) where σi is the scene type (with the weather, for outdoor scenes), Oi the visible objects, Hi the people with their activity and clothing, and Xi the readable text, quoted verbatim. Since a model asked to describe a scene tends to summarize it, omitting the entities a later query will ask about, the object field is specified as a set of attributed entities, 
+
+Oi = (wj , c j , n j ) j , wj /∈ G ,cj ∈ C ∪ {⊥} , nj ∈ N, (2) where wj is a noun, cj its color from a fixed palette C,
+
+nj its count, ⊥ the absence of a color and G a list of generic nouns ( object , item , device , etc.). The representation is thus enumerative (distinct entities are listed separately, with repeated ones merged under a count), attributive (color and count are bound to their noun), specific (wj /∈ G ), and 
+
+positive : a field with no visible content is omitted rather than negated, since a statement such as “no ATM is visible” lies close in embedding space to a query about the same entity and would be retrieved while containing no answer. The field labels are then stripped and empty fields dropped, yielding a prose description τi. Generating with structure but storing without it is deliberate: requesting prose directly causes the model to summarize and drop entities, while retaining the labels would place identical tokens in every entry and dilute the embedding. Each segment is stored as the record 
+
+ri =  E(τi), τ i, p i, t i, u i
+
+, (3) where E is the mxbai-embed-large-v1 model [29], pi and ti
+
+are the pose and timestamp, and ui is the path to the first frame of Fi.We further augment the memory index with an image path column. Since PSFR discards static and redundant frames, retained frames contain non-trivial visual content, so we use the first one as a deterministic visual anchor without an additional ranking step. We store file paths rather than base64-encoded images to keep the index compact; the image data itself remains on disk, ensuring fast retrieval. 
+
+B. Retrieval with Visual Augmentation 
+
+We adopt the ReMEmbR retrieval architecture [10], which provides a tool-calling agent with access to text-based, position-based, and time-based retrieval over the vector database. All text-based search reduces to a top-k query over the stored embeddings. Given a query q, retrieval returns Segment 1  
+
+> ...
+> Segment N
+> ...
+> Patchwise Sparse-Flow Retention Algorithm (PSFR)
+> Selected K frames
+> ...
+> ...
+> ...
+> Object-centric descriptive scene representation
+> (scene description, objects, people, text)
+> Position
+> Time
+> Scene description
+> Path to image
+> Vector DB
+> Memory
+> VLM-agent
+> yes
+> User query
+> Enough context?
+> Generate answer using
+> images & text cues
+> Position query
+> Time query
+> Text query
+> Image query
+> no
+> Final answer
+> Images /
+> Positions /
+> Time /
+> Scene description
+> Selected K frames
+> ...
+> Long-term robot observations
+
+Fig. 2. Overview of the proposed pipeline. Each temporal segment is processed by PSFR, which selects the most informative frames; the first selected frame is stored as an image path alongside the resulting object-centric scene description. At query time, the VLM agent invokes a visual retrieval tool that returns the image paired with the most relevant description, enabling joint reasoning over textual and visual evidence to reason jointly over both modalities. 
+
+the k segments with the smallest L2 distance to the query embedding, 
+
+Rk(q) = arg top -k
+
+> i∈{ 1,...,L }
+
+E(q) − ei 2, (4) where ei = E(τi) is the embedding of the i-th segment. The existing text tool then returns the corresponding descriptions, 
+
+TextRetrieve( q) = {τi}i∈R k (q). (5) We extend the toolset with a novel image retrieval tool, which accepts a natural language query and returns the image path corresponding to the most semantically relevant description. Internally, it performs the same top-k search but returns image paths instead of text, 
+
+ImageRetrieve( q) = {ui}i∈R M (q), (6) where M is a configurable parameter and ui is the anchor frame path from Eq. (3). As in the original ReMEmbR, the agent may invoke retrieval tools iteratively, up to a configurable number of steps. The agent can adaptively decide when to invoke the image retrieval tool: if textual descriptions are sufficient to answer a query, it proceeds without visual retrieval; if the query requires fine-grained visual details, such as reading signs or distinguishing similar objects, it calls the image retrieval tool to obtain the relevant images. 
+
+C. Visual-Enhanced Answer Generation 
+
+At the final reasoning step, we replace the LLM of ReMEmbR with a VLM that jointly processes retrieved texts and images. Before calling the VLM, the agent checks whether the image retrieval tool was invoked during the retrieval phase. If it was and the corresponding image paths were collected, these images are loaded and attached to the prompt; otherwise, generation proceeds in text-only mode. Concretely, let x denote the user’s question and Q =
+
+{q1, . . . , q m} the set of retrieval sub-queries issued by the agent while answering x. Let 
+
+U = [
+
+> q∈Q
+
+ImageRetrieve( q)
+
+be the set of unique image paths returned across all such calls. Each image is downscaled and re-encoded before being passed to the VLM: we rescale the longer side to at most 
+
+hmax = 768 pixels and save as JPEG with quality κ = 80 ,which reduces both the token cost and the payload size while preserving sufficient visual information. The resulting bytes are base64-encoded and attached to the prompt together with the textual context. We set the image detail level to low to further reduce token usage. The VLM then produces a structured answer in JSON format with fields for text, binary, position, time, and du-ration, matching the output format of ReMEmbR. If the API returns a context-length error, the agent returns a default empty response instead of failing. IV. E XPERIMENTS 
+
+A. Dataset 
+
+Following prior work [9], [10], we evaluate our approach on the OC-NaVQA benchmark [9]. The dataset comprises 7 video sequences from the CODa dataset [30], featuring 210 questions about the robot’s long-horizon navigation experience. Questions are categorized into spatial, temporal (point-in-time and duration), and descriptive (binary and text) types. For evaluation, we report Binary Accuracy (%), Text Accuracy (%, LLM-as-a-judge with Qwen3.5-0.8B), Positional Error (meters), and Temporal and Duration Errors (minutes) for all categories. 
+
+B. Baselines 
+
+We compare our approach against two baselines: Re-MEmbR [10] in its original configuration (VILA1.5-3b [31] captioner, original prompt) and DAAAM [9]. LVMem in-stead uses the object-centric descriptive scene representation (Qwen3.5-9B, structured prompt) and its retrieval tool returns the images linked to the 5 most relevant scene representa-tions. We evaluate all methods with two VLM backbones: Qwen3.5-9B and GPT-5-Mini, to analyze the impact of the reasoning agent. We use SGLang [32] for local inference of open-source VLMs and OpenRouter for API-based access to proprietary models. 
+
+C. Results 
+
+Table I reports the comparison on OC-NaVQA. LVMem outperforms ReMEmbR on binary and text accuracy with both backbones, and reduces positional error substantially in both configurations. With GPT-5-Mini, LVMem attains the highest binary accuracy among all methods and remains competitive on text accuracy, though its duration error is higher than DAAAM’s, while its temporal error falls be-tween ReMEmbR and DAAAM. With Qwen3.5-9B, LVMem improves over ReMEmbR on binary, text, positional, and temporal metrics; the two methods are close on duration errors. DAAAM with GPT-5-Mini achieves the strongest text accuracy and the lowest temporal and duration errors, but it is highly sensitive to the choice of backbone: switching to Qwen3.5-9B substantially degrades its binary and text accuracy, below both ReMEmbR and LVMem. LVMem, in contrast, remains stable across backbones and improves with Qwen3.5-9B on binary and positional metrics, while ReMEmbR shows the opposite trend, with GPT-5-Mini out-performing Qwen on text. This suggests that the optimal backbone depends on both the memory representation and the question type. Overall, LVMem offers the most consistent performance across backbones, while DAAAM achieves the strongest results only with GPT-5-Mini. Figure 3 illustrates a failure mode of text-only memory: when a question targets a fine-grained visual attribute, the stored description may omit it even if the corresponding observation was recorded. Here, both baselines store a de-scription of the sculpture but neither mentions its color, and DAAAM’s scene graph node, though linked to the correct object, describes only its reflective surface. LVMem avoids this failure because the adaptive retrieval tool lets the agent fetch the source frame and answer from the image itself, rather than from the stored text alone. 
+
+D. Ablation studies 1) PSFR vs uniform sampling: Table II isolates the effect of frame selection during memory construction. Both variants use the same segment parameters (10 seconds, 6 frames), the same visual retrieval tool returning one image, and the Question         
+
+> The current time is 2023-01-17
+> 20:22:52 and you are located at
+> [-54.03, 92.95, -1.95].
+> What's the color of the sculpture of the
+> horse?
+> ReMEmbR
+> (1 position search ;2 text search)
+> Reasoning: My memory notes the
+> object as a 'metal' horse sculpture on a
+> white pedestal but does not state an
+> explicit color. Since it was described as
+> metal, the best guess is that its
+> appearance is metallic (silvery/gray). I
+> am not certain because the source did
+> not specify a color.
+> Answer: I’m not certain — the
+> memory describes a metal horse
+> sculpture on a white pedestal, so its
+> color is most likely metallic
+> (silvery/gray).
+> DAAAM
+> Reasoning: I queried the scene graph
+> for a horse sculpture and selected the
+> best matching object (id 134) based on
+> semantic labels and descriptors. The
+> object metadata places it at [-44.5027,
+> 67.4482, 0.528] with observations
+> indicating a metallic, reflective surface
+> and ribbed texture. Its color description
+> specifies a gradient: darker tones at
+> the top transitioning to lighter, silvery
+> tones toward the bottom. This object
+> had the highest semantic match for a
+> horse/metallic sculpture, so it is the
+> most likely referent.
+> Answer: The horse sculpture is
+> metallic and reflective, with a dark-to-
+> light gradient-darker at the top and
+> lighter, silvery toward the bottom.
+> LVMem
+> (3 image search)
+> Reasoning: From the image the horse
+> sculpture appears to have a brown,
+> reddish/bronze tone. Lighting and
+> image exposure may slightly alter the
+> perceived hue, but brown/reddish-
+> brown is the best guess.
+> Answer: The horse sculpture appears
+> to be brown with a reddish/bronze tint.
+
+Fig. 3. A question asking for the color of a horse sculpture. Text-based baselines describe the sculpture as “metal” and “reflective” and cannot determine its color. LVMem retrieves the corresponding frame and answers correctly based on the visible brown tone. 
+
+original ReMEmbR captioning configuration (VILA1.5-3b, original prompt). Replacing uniform sampling with PSFR consistently im-proves all metrics, with the largest gain on binary accuracy (8.96%) and a smaller improvement in text accuracy. Po-sitional error drops substantially, and temporal and duration errors also decrease. The improvements are consistent across all three runs, as indicated by the standard deviations. These results confirm that the quality of stored descriptions depends directly on which frames are selected. By priori-tizing frames with significant visual content and discarding static or redundant ones, PSFR produces more informative descriptions, which in turn improve retrieval and downstream question answering. 
+
+2) Retrieval depth and visual augmentation: Table III varies the number of documents returned by text retrieval (k) jointly with the number of images M , under two modes of supplying visual evidence. In the tool mode, the agent invokes the adaptive visual retrieval tool, which returns the images linked to the top retrieved descriptions. In the top-M mode, the tool is bypassed and images from the top-M retrieved descriptions are appended directly to the generation prompt. The M = 0 rows use no images and thus serve TABLE I COMPARISON ON OC-N AVQA. M EAN ± STD . DEV . OVER 3 RUNS . R EME MB R USES ITS ORIGINAL CONFIGURATION , LVM EM OUR PROPOSED REPRESENTATION . S EGMENT PARAMETERS ARE IDENTICAL (3 SECONDS , 6 FRAMES ). L ATENCY IS MEASURED ON A SINGLE H100 GPU AND REPORTED ONLY FOR LOCAL INFERENCE , AS API-BASED RUNS INCUR VARIABLE NETWORK AND QUEUEING OVERHEAD .
+
+Method Binary [%] ↑ Text [%] ↑ Pos. [m] ↓ Temp. [min] ↓ Dur. [min] ↓ Latency [s] ↓
+
+ReMEmbR (GPT-5-Mini) 56.72 ±5.38 36.36 ±3.03 52.69 ±5.49 5.19 ±1.01 3.66 ±0.99 -DAAAM (GPT-5-Mini) 73.30 ±2.94 42.30 ±21.35 56.37 ±6.38 3.83 ±1.50 2.58 ±1.72 -LVMem (Ours, GPT-5-Mini) 76.62 ±3.76 41.41 ±6.31 34.68 ±0.36 4.81 ±0.61 4.88 ±0.51 -ReMEmbR (Qwen3.5-9B) 65.17 ±3.11 24.24 ±3.03 68.67 ±12.76 16.95 ±20.46 4.96 ±2.22 19.19 ±5.05 DAAAM (Qwen3.5-9B) 43.50 ±10.97 23.09 ±2.97 65.92 ±7.92 7.86 ±1.98 3.87 ±2.99 30.67 ±38.76 LVMem (Ours, Qwen3.5-9B) 76.12 ±2.59 39.39 ±3.03 50.12 ±4.96 4.23 ±0.54 3.67 ±2.30 20.91 ±5.33 
+
+TABLE II EFFECT OF PSFR ON OC-N AVQA PERFORMANCE FOR LVM EM WITH QWEN 3.5-9B. S EGMENT PARAMETERS : 10 SECONDS , 6 FRAMES 
+
+Sampling Binary [%] ↑ Text [%] ↑ Pos. [m] ↓ Temp. [min] ↓ Dur. [min] ↓
+
+uniform 55.72 ±5.65 22.22 ±1.75 89.98 ±9.05 5.60 ±2.26 4.27 ±0.12 PSFR 64.68 ±4.80 25.25 ±1.75 68.16 ±12.96 4.71 ±2.66 3.83 ±0.99 
+
+TABLE III JOINT EFFECT OF TEXT RETRIEVAL DEPTH k AND THE NUMBER OF IMAGES M ON OC-N AVQA WITH LVM EM (Q WEN 3.5-9B). I N THE top-M MODE ,
+
+> IMAGES FROM THE TOP
+
+-M RETRIEVED DESCRIPTIONS ARE ALWAYS APPENDED DIRECTLY TO THE GENERATION PROMPT . I N THE tool MODE , THE AGENT INSTEAD INVOKES THE ADAPTIVE VISUAL RETRIEVAL TOOL , WHICH RETURNS THE IMAGES LINKED TO THE TOP RETRIEVED DESCRIPTIONS .SEGMENT PARAMETERS : 3 SECONDS , 6 FRAMES .
+
+Mode k Img Bin. [%] ↑ Text [%] ↑ Pos. [m] ↓ Temp. [min] ↓ Dur. [min] ↓
+
+top-M 5 0 66.70 ±0.90 34.30 ±7.60 60.30 ±0.20 4.16 ±0.23 5.92 ±2.02 top-M 20 0 67.20 ±3.00 30.30 ±3.00 54.50 ±16.90 3.39 ±0.67 4.53 ±0.12 tool 5 1 69.65 ±1.72 28.28 ±1.75 68.15 ±4.72 5.43 ±1.69 4.99 ±1.73 top-M 5 1 69.20 ±3.80 38.40 ±1.70 78.20 ±3.90 2.03 ±0.18 3.79 ±0.10 top-M 20 1 68.20 ±2.30 32.30 ±6.30 72.50 ±6.70 6.50 ±2.68 4.19 ±0.67 tool 5 3 74.13 ±2.28 22.22 ±1.75 67.53 ±4.82 4.75 ±1.27 3.78 ±0.34 top-M 5 3 73.00 ±1.70 33.30 ±3.00 77.10 ±8.00 4.43 ±0.77 4.34 ±0.67 top-M 20 3 65.70 ±3.90 37.70 ±4.20 62.60 ±3.10 5.66 ±0.17 4.73 ±0.38 tool 5 5 75.62 ±3.11 34.34 ±1.75 68.76 ±2.89 24.51 ±34.86 3.15 ±0.44 
+
+top-M 5 5 77.30 ±2.50 34.10 ±1.20 71.70 ±3.70 4.73 ±0.46 4.25 ±1.03 top-M 20 5 66.70 ±3.40 35.80 ±7.10 66.00 ±10.60 5.30 ±1.26 4.63 ±0.02 
+
+as text-only baselines under identical memory construction. Descriptions, frame selection, and the agent are held fixed throughout. Attaching images at shallow retrieval depth improves bi-nary accuracy monotonically, with the gain growing as more images are added. At deep retrieval depth, however, the effect disappears: binary accuracy is flat across image counts. The two information sources therefore act as substitutes rather than complements — images supply information the agent otherwise lacks only when the textual context is shallow, and contribute little once the prompt already contains many descriptions. Positional error follows the opposite pattern. It is lowest with no images, at both retrieval depths, and increases once images are attached at every non-zero setting. The effect is systematic rather than run-to-run variation. We hypothesize that when images are present, the VLM shifts toward visual grounding and produces less accurate spatial estimates than when reasoning from the positional metadata embedded in the retrieved descriptions. Retrieval depth does not improve accuracy: moving from 
+
+k = 5 to k = 20 leaves binary accuracy unchanged at every image count, and positional error improves only modestly. We therefore adopt k = 5 in all remaining experiments. Finally, we compare the adaptive tool against a variant that always attaches images from the last retrieved documents on every query. This non-adaptive variant attains competitive binary accuracy but suffers from a higher duration error. This confirms that selectively invoking the visual tool matters: indiscriminately attaching images to every query degrades temporal reasoning. Overall, a moderate number of images per tool call provides the best trade-off between accuracy and stability, while more images yield the highest binary accuracy at the cost of increased variance. TABLE IV EFFECT OF DIFFERENT SCENE DESCRIPTION MODELS AND PROMPTS WITHIN OUR LVM EM PIPELINE ON OC-N AVQA AT k=5 . I MAGES FROM TOP -M  
+
+> RETRIEVED DOCUMENTS ARE ATTACHED AT GENERATION ;THE VISUAL RETRIEVAL TOOL IS NOT USED . S EGMENT PARAMETERS : 3 SECONDS , 6
+> FRAMES .
+
+Scene description model Prompt Images Binary [%] ↑ Text [%] ↑ Pos. [m] ↓ Temp. [min] ↓ Dur. [min] ↓
+
+VILA1.5-3b ReMEmbR 0 66.70 ±0.90 34.30 ±7.60 60.30 ±0.20 4.16 ±0.23 5.92 ±2.02 1 69.20 ±3.80 38.40 ±1.70 78.20 ±3.90 2.03 ±0.18 3.79 ±0.10 
+
+3 73.00 ±1.70 33.30 ±3.00 77.10 ±8.00 4.43 ±0.77 4.34 ±0.67 5 77.30 ±2.50 34.10 ±1.20 71.70 ±3.70 4.73 ±0.46 4.25 ±1.03 Qwen3.5-9B LVMem 0 76.10 ±2.10 31.10 ±1.50 43.60 ±3.00 15.98 ±22.23 4.46 ±1.43 1 81.00 ±5.40 31.80 ±3.90 53.30 ±4.60 3.82 ±1.10 4.68 ±0.65 3 76.90 ±0.90 34.80 ±1.70 60.00 ±3.80 5.62 ±2.78 4.20 ±1.11 
+
+5 78.00 ±1.90 30.30 ±5.50 54.60 ±5.40 3.56 ±0.70 4.76 ±0.94 
+
+3) Effect of the scene description models: Table IV ex-amines the effect of the scene description model by re-placing VILA1.5-3b with Qwen3.5-9B while keeping all other components fixed ( k=5 , same embedding model, same agent). The two configurations differ both in model capacity and in prompt design: VILA receives a generic free-form prompt from the original ReMEmbR codebase, while Qwen is guided by a structured prompt that enforces explicit object enumeration with colors from a fixed palette, prohibits negations and hedging language, and limits the output to 110 words. The structured output is post-processed into continuous prose to ensure consistent embedding. Binary accuracy improves with Qwen across all image settings, with the largest gain at one image. Positional error is also lower with Qwen at every image count, and both improvements exceed the run-to-run standard deviation, indicating a robust effect rather than an artifact of a particular configuration. The gain can be traced to the coverage of stored en-tities: VILA descriptions omit objects such as ATMs and police emergency poles that Qwen descriptions include. For questions about such objects, VILA-based retrieval returns irrelevant documents, while Qwen-based retrieval finds the correct entry, cutting positional error by up to an order of magnitude. Text accuracy, however, does not improve: VILA is higher in three of four image settings. Such questions require distinguishing between similar objects (e.g., “the bike rack closest to the trash can”), and mentions of common objects such as bike racks increase by an order of magnitude in Qwen descriptions, diluting retrieval and returning a plausible but incorrect entry. The structured prompt thus improves the inclusion of rare objects at the cost of disambiguation among frequent ones. Temporal error for Qwen at zero images is inflated by a single outlier of in one of the three runs; the remaining tem-poral and duration values are comparable between models and show no consistent advantage for either model. V. L IMITATIONS 
+
+Our approach has several limitations. First, increasing the number of images returned by the visual retrieval tool does not monotonically improve performance. While additional images can help resolve queries that require fine-grained visual details, they also introduce noise: at five images per tool call, temporal error is dominated by outliers, and a non-adaptive variant that always attaches images to every query degrades duration estimation by several orders of magnitude. This confirms that selective invocation matters, but also that the number of images per call requires careful tuning. Second, the observed gains are concentrated on binary and free-form text accuracy, where LVMem improves con-sistently over ReMEmbR. Duration estimation, in contrast, shows no consistent improvement across backbones: LVMem is better with Qwen3.5-9B but worse with GPT-5-Mini. This is expected, since our method targets visual details that are lost in the stored descriptions, and such details matter most for descriptive queries. Finally, our method operates on a lightweight view-based memory and does not build an explicit 3D representation. This design choice reduces memory construction cost but may limit performance on questions that benefit from ex-plicit spatial or temporal structure: LVMem improves over DAAAM on binary and positional metrics with some back-bones, but remains behind on text accuracy and duration estimation. VI. C ONCLUSION 
+
+We presented LVMem, a framework for long-horizon spatio-temporal question answering that extends the view-based memory of ReMEmbR with visual content and im-proved frame selection. We make three contributions: we augment the memory index with image paths that link each stored object-centric descriptive scene representation to its source frame, we introduce an adaptive visual retrieval tool that allows the agent to request images when textual descriptions are insufficient, and we replace uniform frame sampling with existing PSFR [28], an optical-flow-based strategy that selects more informative frames for scene description generation. On the OC-NaVQA benchmark, our method improves over ReMEmbR on binary, text, and positional metrics with both backbones, and substantially reduces temporal error, while remaining competitive with the 4D scene graph method DAAAM without requiring explicit graph construction. Ab-lations confirm that both PSFR and adaptive image retrieval contribute to these gains, and that indiscriminate image attachment degrades performance. These results suggest that visual augmentation of view-based memory is a practical and effective direction for long-horizon question answering, improving scene perception for embodied agents. ACKNOWLEDGMENT 
+
+The authors used AI-based tools during the preparation of this manuscript. For text drafting, editing, and translation, the authors used DeepSeek (accessed via the web interface) and OpenAI models. For code generation, debugging, and refactoring, the authors used DeepSeek, OpenAI Codex, and Claude. Table formatting and layout were also assisted by these tools. All AI-generated content was reviewed, verified, and edited by the authors, who take full responsibility for the content of this work. REFERENCES [1] Z. Qi, Z. Zhang, Y. Fang, J. Wang, and H. Zhao, “Gpt4scene: Understand 3d scenes from videos with vision-language models,” 
+
+arXiv preprint arXiv:2501.01428 , 2025. [2] P. Wu, Y. Liu, M. Liu, and J. Shen, “St-think: How multimodal large language models reason about 4d worlds from ego-centric videos,” in 
+
+Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision , 2026, pp. 5174–5183. [3] H. Wu, D. Li, B. Chen, and J. Li, “Longvideobench: A benchmark for long-context interleaved video-language understanding,” Advances in Neural Information Processing Systems , vol. 37, pp. 28 828–28 857, 2024. [4] K. Chandrasegaran, A. Gupta, L. M. Hadzic, T. Kota, J. He, C. Eyza-guirre, Z. Durante, M. Li, J. Wu, and L. Fei-Fei, “Hourvideo: 1-hour video-language understanding,” Advances in Neural Information Processing Systems , vol. 37, pp. 53 168–53 197, 2024. [5] P. Wang, Y. Liu, G. Wu, E. R. Corral-Soto, C. Huang, B. Xu, D. Bai, X. Yan, Y. Ren, X. Chen, et al. , “Spatial4d-bench: A versatile 4d spatial intelligence benchmark,” arXiv preprint arXiv:2601.00092 ,2025. [6] Z. Jiao, Y. Niu, Z. Zhang, S.-C. Zhu, Y. Zhu, and H. Liu, “Sequential manipulation planning on scene graph,” in 2022 IEEE/RSJ Interna-tional Conference on Intelligent Robots and Systems (IROS) . IEEE, 2022, pp. 8203–8210. [7] P. Nguyen, F. Verdoja, and V. Kyrki, “Event-grounding graph: Uni-fied spatio-temporal scene graph from robotic observations,” IEEE Robotics and Automation Letters , 2026. [8] M. A. Mdfaa, S. Lukina, T. Akhtyamov, A. Nigmatzyanov, D. Nalber-skii, S. Zagoruyko, and G. Ferrer, “Vl-kng: Visual scene understanding for navigation goal identification using spatiotemporal knowledge graphs,” arXiv preprint arXiv:2510.01483 , 2025. [9] N. Gorlo, L. Schmid, and L. Carlone, “Describe anything anywhere at any moment,” arXiv preprint arXiv:2512.00565 , 2025. [Online]. Available: https://arxiv.org/abs/2512.00565 [10] A. Anwar, J. Welsh, J. Biswas, S. Pouya, and Y. Chang, “Remembr: Building and reasoning over long-horizon spatio-temporal memory for robot navigation,” in 2025 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2025, pp. 2838–2845. [11] Y. Yin, Q. Meng, M. Chen, J. Ding, Z. Shao, and Z. Yu, “Videoarm: Agentic reasoning over hierarchical memory for long-form video understanding,” arXiv preprint arXiv:2512.12360 , 2025. [12] K. Yadav, Y. Ali, G. Gupta, Y. Gal, and Z. Kira, “Findingdory: A benchmark to evaluate memory in embodied agents,” arXiv preprint arXiv:2506.15635 , 2025. [13] R. Zhu, X. Shen, S. Wu, C. Miao, X. Yu, Y. Li, W. Li, D. Xia, and J. Huang, “Video-msr: Benchmarking multi-hop spatial reasoning capabilities of mllms,” arXiv preprint arXiv:2601.09430 , 2026. [14] D. Zheng, S. Huang, and L. Wang, “Video-3d llm: Learning position-aware video representation for 3d scene understanding,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025, pp. 8995–9006. [15] D.-A. Huang, S. Liao, S. Radhakrishnan, H. Yin, P. Molchanov, Z. Yu, and J. Kautz, “Lita: Language instructed temporal-localization assistant,” in European Conference on Computer Vision . Springer, 2024, pp. 202–218. [16] Z. Liu, Z. Chen, L. Pan, and Z. Liu, “Onlinesi: Taming large language model for online 3d understanding and grounding,” arXiv preprint arXiv:2601.16538 , 2026. [17] A. Werby, C. Huang, M. B¨ uchner, A. Valada, and W. Burgard, “Hierarchical open-vocabulary 3d scene graphs for language-grounded robot navigation,” in Robotics: Science and Systems (RSS) , 2024. [Online]. Available: https://arxiv.org/abs/2403.17846 [18] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, B. Sen, A. Agarwal, C. Rivera, W. Paul, K. Ellis, R. Chellappa, et al. ,“Conceptgraphs: Open-vocabulary 3d scene graphs for perception and planning,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 5021–5028. [19] D. Maggio, Y. Chang, N. Hughes, M. Trang, D. Griffith, C. Dougherty, E. Cristofalo, L. Schmid, and L. Carlone, “Clio: Real-time task-driven open-set 3d scene graphs,” IEEE Robotics and Automation Letters ,vol. 9, no. 10, pp. 8921–8928, 2024. [20] L. Schmid, M. Abate, Y. Chang, and L. Carlone, “Khronos: Aunified approach for spatio-temporal metric-semantic slam in dynamic environments,” in Robotics: Science and Systems (RSS) , 2024. [21] S. Saxena, B. Buchanan, C. Paxton, P. Liu, B. Chen, N. Vaskevicius, L. Palmieri, J. Francis, and O. Kroemer, “GraphEQA: Using 3D semantic scene graphs for real-time embodied question answering,” in Proceedings of the 9th Conference on Robot Learning , ser. Pro-ceedings of Machine Learning Research, vol. 305. PMLR, 2025, pp. 2714–2742. [22] W. Yeo, K. Kim, J. Yoon, and S. J. Hwang, “Worldmm: Dynamic multimodal memory agent for long video reasoning,” arXiv preprint arXiv:2512.02425 , 2025. [23] S. Wen, Z. Wang, X. Zhang, L. Huang, and W. Wu, “Eventmemagent: Hierarchical event-centric memory for online video understanding with adaptive tool use,” arXiv preprint arXiv:2602.15329 , 2026. [24] S. Azad, V. Vineet, and Y. S. Rawat, “Streamready: Learning what to answer and when in long streaming videos,” arXiv preprint arXiv:2603.08620 , 2026. [25] M. Yuan, H. Zhang, M. Mohammadi, R. Li, J. Shan, and S. L. Waslander, “Star: Scalable task-conditioned retrieval for long-horizon multi-modal robot memory,” IEEE Robotics and Automation Letters ,vol. 11, no. 5, pp. 5994–6001, 2026. [26] N. Gorlo, D. K. Wise, A. Speranzon, and L. Carlone, “Worth re-membering: Surprise-gated robot episodic memory,” arXiv preprint arXiv:2606.03787 , 2026. [27] H. Zhang, N. Gorlo, and L. Carlone, “Remember with confidence: Un-certainty quantification for spatio-temporal memory with probabilistic guarantees,” arXiv preprint arXiv:2606.08277 , 2026. [28] T. Zemskova, S. Andryushenko, I. Obrubov, V. Khoruzhaia, E. Eroshenko, E. Derevyanka, and D. Yudin, “Focusgraph: Graph-structured frame selection for embodied long video question answer-ing,” arXiv preprint arXiv:2603.04349 , 2026. [29] S. Lee, A. Shakir, D. Koenig, and J. Lipp. (2024) Open source strikes bread - new fluffy embeddings model. [Online]. Available: https://www.mixedbread.ai/blog/mxbai-embed-large-v1 [30] A. Zhang, C. Eranki, C. Zhang, J.-H. Park, R. Hong, P. Kalyani, L. Kalyanaraman, A. Gamare, A. Bagad, M. Esteva, et al. , “Toward robust robot 3-d perception in urban environments: The ut campus object dataset,” IEEE Transactions on Robotics , vol. 40, pp. 3322– 3340, 2024. [31] J. Lin, H. Yin, W. Ping, P. Molchanov, M. Shoeybi, and S. Han, “Vila: On pre-training for visual language models,” in 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) .IEEE, 2024, pp. 26 679–26 689. [32] L. Zheng, L. Yin, Z. Xie, C. Sun, J. Huang, C. H. Yu, S. Cao, C. Kozyrakis, I. Stoica, J. E. Gonzalez, et al. , “Sglang: Efficient execution of structured language model programs,” Advances in neural information processing systems , vol. 37, pp. 62 557–62 583, 2024.

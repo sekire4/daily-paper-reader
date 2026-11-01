@@ -48,7 +48,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-31</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-01</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 19 篇</strong>
@@ -58,7 +58,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-31 22:19:01 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-01 22:47:51 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日筛选19篇、精读7篇、速读12篇，聚焦Agentic RAG可信度与智能体记忆两大前沿。最值得关注的是《Adaptive Retrieval, Selective Answers》与《OA-RAG》双双以9.0分提出的“按需检索、选择性作答”思路，直指减少幻觉、提升事实性。普通读者可优先了解这两篇的评测方法，再顺带浏览速读中GLOBE与MemJoin关于结构化记忆和跨会话隐私的结论。</p>
+<p>今日扫读 19 篇论文，精读 7 篇、速读 12 篇，重点关注多跳 RAG 与记忆增强两条主线。最值得看的是 9.0 分的《Read the Route》提出的注意力引导超图检索，以及同分的多用户语音智能体“说话人记忆”构建。普通读者可先看这两篇精读，再顺着 8 分的“有界状态上下文强化学习”和“图像增强长程记忆”理解记忆机制如何省算力、保连贯。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -81,9 +81,9 @@
     <strong class="dpr-home-dashboard-count">7 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Adaptive Retrieval, Selective Answers: Evaluating Conformal Factuality in Agentic RAG">Adaptive Retrieval, Selective Answers: Evaluating Conformal Factuality in Agentic RAG</span></li><li><span class="dpr-home-dashboard-paper-title" title="OA-RAG: Ontology-based Agentic RAG for Faithful LLM Reasoning">OA-RAG: Ontology-based Agentic RAG for Faithful LLM Reasoning</span></li><li><span class="dpr-home-dashboard-paper-title" title="DeFT-RAG: Incrementally Decomposing Multi-Hop Questions into Self-Contained Sub-Questions with Reusable Answers">DeFT-RAG: Incrementally Decomposing Multi-Hop Questions into Self-Contained Sub-Questions with Reusable Answers</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Read the Route: Attention-Steered Hypergraph Retrieval for Multi-hop RAG">Read the Route: Attention-Steered Hypergraph Retrieval for Multi-hop RAG</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Voiceprints to User Entities: Online Speaker-Memory Construction for Multi-User Spoken Agents">From Voiceprints to User Entities: Online Speaker-Memory Construction for Multi-User Spoken Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Decompose, Estimate, Select: Coverage-Aware Context Construction for Long-Form RAG">Decompose, Estimate, Select: Coverage-Aware Context Construction for Long-Form RAG</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>5</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>4</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>3</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -94,9 +94,9 @@
     <strong class="dpr-home-dashboard-count">12 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="GLOBE: Evolving Structured Agentic Memory for E-commerce Product Optimization in Generative Search">GLOBE: Evolving Structured Agentic Memory for E-commerce Product Optimization in Generative Search</span></li><li><span class="dpr-home-dashboard-paper-title" title="Can Agents Keep Secrets They Were Never Told? Benchmarking Latent Privacy Risks Across Sessions with MemJoin">Can Agents Keep Secrets They Were Never Told? Benchmarking Latent Privacy Risks Across Sessions with MemJoin</span></li><li><span class="dpr-home-dashboard-paper-title" title="Write Once, Query Many: Evolving Compact Reusable Memory for Long Videos">Write Once, Query Many: Evolving Compact Reusable Memory for Long Videos</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Remember Less, Adapt Longer: Bounded-State In-Context Reinforcement Learning with Recurrent Summary Memory">Remember Less, Adapt Longer: Bounded-State In-Context Reinforcement Learning with Recurrent Summary Memory</span></li><li><span class="dpr-home-dashboard-paper-title" title="LVMem: Image-Augmented Memory for Long-Horizon Question Answering">LVMem: Image-Augmented Memory for Long-Horizon Question Answering</span></li><li><span class="dpr-home-dashboard-paper-title" title="Graph Topology Meets Energy-Driven Pathfinding: Preserving Contextual Consistency in Retrieval-Augmented Generation">Graph Topology Meets Energy-Driven Pathfinding: Preserving Contextual Consistency in Retrieval-Augmented Generation</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>8</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>4</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>7</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>5</strong></span></div>
 </section>
 </div>
 

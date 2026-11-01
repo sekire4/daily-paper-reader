@@ -1,0 +1,806 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-01T22:43:01.954129+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 2,
+    "deep_divecandidates": 29,
+    "deep_cap": 7,
+    "deep_selected": 7,
+    "quick_candidates": 39,
+    "quick_skim_target": 12,
+    "quick_selected": 12
+  },
+  "deep_dive": [
+    {
+      "id": "2610.35412v1",
+      "source": "arxiv",
+      "title": "Read the Route: Attention-Steered Hypergraph Retrieval for Multi-hop RAG",
+      "abstract": "Graph-based retrieval-augmented generation (GraphRAG) answers multi-hop questions by organizing a corpus into a graph and retrieving along its structure. Existing retrieval methods face two limitations. Diffusion- and similarity-based methods expand retrieval along fixed edge weights or by similarity to the question, without resolving its implicit entity references, allowing relevance errors to accumulate across hops. In contrast, exploration-based methods let an LLM reason about the next hop, but require a separate generation at each hop, leading to high inference costs. We observe that an LLM can resolve implicit entity references from retrieved passages and a multi-hop question before generating any tokens. Further analysis identifies a small set of attention heads, termed addressing heads, that capture this capability across multiple hops in a single forward pass. Building on this finding, we propose HyperAddress, which runs Personalized PageRank on a description-labelled hypergraph, using addressing heads to determine the restart distribution and transition weights, thereby guiding multi-hop retrieval without any generation at query time. On MuSiQue, 2WikiMultiHopQA, and HotpotQA, HyperAddress outperforms the strongest baseline by 3.5 points of Recall@5 and 7.4 points of All@5 on average, with gains that grow with the number of hops. It answers more than twice as fast and builds its index at half the cost.",
+      "authors": [
+        "Jiate Liu",
+        "Liuyi Chen",
+        "Xiaofei Yuan",
+        "Yifu Tang",
+        "Zihan Yang",
+        "Xu Zhou",
+        "Zhengyi Yang"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-26T13:24:28+00:00",
+      "link": "https://arxiv.org/pdf/2610.35412v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "attention-steered hypergraph retrieval for multi-hop RAG",
+      "llm_evidence_cn": "面向多跳RAG的注意力引导超图检索",
+      "llm_evidence": "面向多跳RAG的注意力引导超图检索",
+      "canonical_evidence": "面向多跳RAG的注意力引导超图检索",
+      "llm_tldr_en": "GraphRAG multi-hop retrieval accumulates relevance errors or incurs high per-hop generation cost. This work uses LLM attention to resolve implicit entity references and steer hypergraph retrieval before token generation, improving multi-hop retrieval efficiency and accuracy.",
+      "llm_tldr_cn": "图式检索增强生成在多跳问答中面临两类问题：扩散或相似度方法沿固定边扩展导致相关性误差累积，而逐跳LLM推理又带来高昂推理成本。本文观察到LLM在生成任何词元前即可从检索段落与问题中解析隐式实体指代，据此提出注意力引导的超图检索方法，在生成前指导多跳路由。该工作以更低成本提升多跳RAG的检索准确性与效率。",
+      "llm_tldr": "图式检索增强生成在多跳问答中面临两类问题：扩散或相似度方法沿固定边扩展导致相关性误差累积，而逐跳LLM推理又带来高昂推理成本。本文观察到LLM在生成任何词元前即可从检索段落与问题中解析隐式实体指代，据此提出注意力引导的超图检索方法，在生成前指导多跳路由。该工作以更低成本提升多跳RAG的检索准确性与效率。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.36713v1",
+      "source": "arxiv",
+      "title": "From Voiceprints to User Entities: Online Speaker-Memory Construction for Multi-User Spoken Agents",
+      "abstract": "Personalized spoken agents must identify speakers before accessing user-specific memory, yet memory benchmarks typically assume correctly attributed histories. We argue that voiceprints are observations of identity, not identities themselves, and formulate online speaker-memory construction to maintain persistent user entities as acoustic evidence evolves. We introduce EvoSpeakerMem, a training-free layer for causal speaker routing, selective acoustic-state updates, and identity-partitioned memory writes and retrieval through a replaceable text-memory backend. We also construct LoCoMo-ID, a spoken-memory benchmark with hidden speaker identities, speaker-sensitive queries, simulated recording-condition shifts, and four-speaker identity-confusion tests. On longitudinal SMIIP-TV, genuine-probe rejection under a frozen near-enrollment threshold rises from 29.8% to 55.6% over approximately one year. On LoCoMo-ID speaker-sensitive queries, gated updating improves identity-gated QA over fixed representations by 3.86 and 11.62 percentage points under clean and shifted conditions, respectively, with no wrong-user authorizations. The advantage persists in the four-speaker test. Yet reducing fragmentation and improving QA can coexist with incorrect cross-user links, revealing a fragmentation--contamination trade-off that QA alone cannot capture.",
+      "authors": [
+        "Yucong Zhang",
+        "Cancan Li",
+        "Bo Xiao",
+        "Ke Zeng",
+        "Ming Li"
+      ],
+      "primary_category": "cs.SD",
+      "categories": [
+        "cs.SD",
+        "cs.AI",
+        "eess.AS"
+      ],
+      "published": "2026-10-27T06:27:24+00:00",
+      "link": "https://arxiv.org/pdf/2610.36713v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "identity-partitioned memory writes and retrieval for spoken agents",
+      "llm_evidence_cn": "面向语音智能体的按身份分区记忆写入与检索",
+      "llm_evidence": "面向语音智能体的按身份分区记忆写入与检索",
+      "canonical_evidence": "面向语音智能体的按身份分区记忆写入与检索",
+      "llm_tldr_en": "Spoken agents must identify speakers before accessing user memory, yet benchmarks assume correct attribution. EvoSpeakerMem is a training-free layer for causal speaker routing, acoustic-state updates, and identity-partitioned memory writes and retrieval, plus the LoCoMo-ID benchmark.",
+      "llm_tldr_cn": "个性化语音智能体必须先确认说话人身份才能调取对应用户记忆，但现有记忆基准默认历史归属正确，忽略了声纹只是身份的观测。作者提出免训练的 EvoSpeakerMem 层，实现因果说话人路由、选择性声学状态更新以及按身份分区的记忆写入与检索，并构建含隐藏身份的 LoCoMo-ID 语音记忆基准。实验表明该层能在录音条件变化下维持持久用户实体，为多用户智能体的长期记忆管理提供新范式。",
+      "llm_tldr": "个性化语音智能体必须先确认说话人身份才能调取对应用户记忆，但现有记忆基准默认历史归属正确，忽略了声纹只是身份的观测。作者提出免训练的 EvoSpeakerMem 层，实现因果说话人路由、选择性声学状态更新以及按身份分区的记忆写入与检索，并构建含隐藏身份的 LoCoMo-ID 语音记忆基准。实验表明该层能在录音条件变化下维持持久用户实体，为多用户智能体的长期记忆管理提供新范式。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "how agents store retrieve and update long term memory",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.40314v1",
+      "source": "arxiv",
+      "title": "Decompose, Estimate, Select: Coverage-Aware Context Construction for Long-Form RAG",
+      "abstract": "Retrieval-augmented generation (RAG) grounds a language model's output in retrieved evidence, but for complex questions spanning multiple aspects of an information need, relevance-based retrieval may return redundant evidence while leaving some aspects unsupported. We propose a coverage-aware retrieval pipeline that decomposes queries into subquestions, ranks candidates with a coverage-trained bi-encoder, predicts a document\\,$\\times$\\,subquestion coverage matrix with a cross-encoder, and selects documents by greedy maximum-marginal coverage. On TREC RAG 2024, our approach improves $α$-nDCG@10, which rewards newly covered nuggets and discounts redundant evidence, from $0.625$ to $0.702$, approaching the $0.718$ gold-nugget upper bound without sacrificing relevance. We then find that ground-truth oracle retrieval, despite substantially higher retrieval coverage, delivers no more nugget coverage to the answer than our estimated selection. This suggests that answer completeness depends not only on what evidence is retrieved, but also on how effectively the generator uses it. To address this, we introduce a \\emph{grounded self-feedback loop} in which the model identifies underused evidence from its first answer and generates again without gold supervision, raising $V_{\\mathrm{strict}}$, the fraction of vital reference nuggets fully supported by the answer, by $0.086$ over two passes while largely preserving faithfulness.",
+      "authors": [
+        "He Tu",
+        "Aleena Bosco Kurumthottam",
+        "Torsten Suel"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-29T15:51:46+00:00",
+      "link": "https://arxiv.org/pdf/2610.40314v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "coverage-aware retrieval pipeline for long-form RAG grounding",
+      "llm_evidence_cn": "面向长文档 RAG 证据落地的覆盖感知检索流程",
+      "llm_evidence": "面向长文档 RAG 证据落地的覆盖感知检索流程",
+      "canonical_evidence": "面向长文档 RAG 证据落地的覆盖感知检索流程",
+      "llm_tldr_en": "Relevance-based retrieval for multi-aspect questions returns redundant evidence and leaves aspects unsupported. A coverage-aware pipeline decomposes queries, predicts document-subquestion coverage, and greedily selects documents, lifting alpha-nDCG@10 to 0.702.",
+      "llm_tldr_cn": "长文档检索增强生成中，复杂问题往往横跨多个信息方面，基于相关性的检索容易返回冗余证据而遗漏部分方面。作者提出覆盖感知的检索流程，先把查询分解为子问题，用覆盖训练的双编码器排序候选，再由交叉编码器预测文档与子问题的覆盖矩阵，最后贪心选择最大化边际覆盖的文档。在 TREC RAG 2024 上 alpha-nDCG@10 从 0.625 提升到 0.702，接近金 nugget 上界，表明以覆盖为目标的上下文构建能提升 RAG 证据完备性。",
+      "llm_tldr": "长文档检索增强生成中，复杂问题往往横跨多个信息方面，基于相关性的检索容易返回冗余证据而遗漏部分方面。作者提出覆盖感知的检索流程，先把查询分解为子问题，用覆盖训练的双编码器排序候选，再由交叉编码器预测文档与子问题的覆盖矩阵，最后贪心选择最大化边际覆盖的文档。在 TREC RAG 2024 上 alpha-nDCG@10 从 0.625 提升到 0.702，接近金 nugget 上界，表明以覆盖为目标的上下文构建能提升 RAG 证据完备性。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.34251v1",
+      "source": "arxiv",
+      "title": "Variational Cognitive Memory Abstraction for Long-Horizon Vision-Language-Action Models",
+      "abstract": "Vision-Language-Action (VLA) models have shown remarkable success in robotic manipulation, yet their ability to execute long-horizon tasks remains limited by insufficient long- term memory modeling. Existing methods either rely on implicit temporal representations within policy networks, where historical information can be gradually diluted, or maintain explicit memory buffers that suffer from redundancy, noise accumulation, and inefficient retrieval. In this paper, we propose CogMemory, a novel variational cognitive memory framework that enables VLA systems to selectively preserve and reuse task-relevant historical information. Our approach encodes multimodal trajectories into compact latent memory representations through a selective state- space memory encoder, multi-slot temporal abstraction, and variational information compression. During action generation, dynamic cross-attention retrieval with gated fusion adaptively incorporates relevant memories into policy prediction. With merely 3.45M additional parameters, CogMemory stays lightweight and seamlessly fits both early- and intermediate-fusion VLA backbones. Extensive experiments on long-horizon robotic manipulation benchmarks demonstrate consistent improvements across diverse VLA backbones.",
+      "authors": [
+        "Xinyu Liu",
+        "Daiying Tian",
+        "Chenwei Tang",
+        "Ruyang Han",
+        "Chengyang Zhang",
+        "Qingyu Zeng",
+        "Wei Ju",
+        "Liangli Zhen",
+        "Jiancheng Lv"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-25T12:24:57+00:00",
+      "link": "https://arxiv.org/pdf/2610.34251v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "cognitive memory architecture for long-horizon agents",
+      "llm_evidence_cn": "面向长程任务的智能体认知记忆架构",
+      "llm_evidence": "面向长程任务的智能体认知记忆架构",
+      "canonical_evidence": "面向长程任务的智能体认知记忆架构",
+      "llm_tldr_en": "VLA models struggle with long-horizon tasks due to weak long-term memory. CogMemory is a variational cognitive memory framework that encodes multimodal trajectories into compact latent memories, selectively preserving and reusing task-relevant history.",
+      "llm_tldr_cn": "视觉-语言-动作模型在机器人操作上表现优异，但长程任务受限于长期记忆建模不足：隐式时序表示会逐渐稀释历史信息，显式记忆缓冲则存在冗余、噪声累积与检索低效的问题。作者提出CogMemory，一种变分认知记忆框架，通过选择性编码把多模态轨迹压缩为紧凑的潜在记忆表示。该方法使系统能够有选择地保留并复用与任务相关的历史信息，从而提升长程任务表现。该工作为具身智能体的记忆抽象与高效检索提供了新架构。",
+      "llm_tldr": "视觉-语言-动作模型在机器人操作上表现优异，但长程任务受限于长期记忆建模不足：隐式时序表示会逐渐稀释历史信息，显式记忆缓冲则存在冗余、噪声累积与检索低效的问题。作者提出CogMemory，一种变分认知记忆框架，通过选择性编码把多模态轨迹压缩为紧凑的潜在记忆表示。该方法使系统能够有选择地保留并复用与任务相关的历史信息，从而提升长程任务表现。该工作为具身智能体的记忆抽象与高效检索提供了新架构。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.34866v1",
+      "source": "arxiv",
+      "title": "UniGFM-RAG: Unify Graph Foundation Models and Large Language Models for End-to-End Retrieval and Reasoning",
+      "abstract": "Large Language Models (LLMs) have shown remarkable capabilities across tasks, but they still struggle with complex reasoning that requires integrating scattered knowledge. Graph Retrieval-Augmented Generation (GraphRAG) addresses this challenge by organizing fragment knowledge as graphs, while recent Graph Foundation Models (GFMs) further improve GraphRAG with graph-native retrieval and reasoning capabilities. However, existing GraphRAG methods usually adopt decoupled retrieve-then-generate pipelines, which create objective misalignment between retrieval and reasoning, and training GFM retrievers typically depends on expensive human annotations. To address these limitations, we propose \\ourmethod, a unified end-to-end GraphRAG framework that tightly couples a GFM retriever with an LLM generator. Given a query, the GFM retriever first reasons over the graph to score and retrieve relevant document nodes. These node embeddings are then passed through a fully differentiable graph bridge, which projects them into soft-weighted graph prefixes according to retrieval scores and combines them with raw document texts to form graph-augmented prompts. In this way, structural information is injected directly into LLM generation, while the final answer loss can be back-propagated through the bridge to jointly optimize retrieval and reasoning. To stabilize training and reduce reliance on costly annotations, we further introduce a semantic-guided distillation module that provides auxiliary supervision using pseudo-labels derived from query-document semantic similarities. Extensive experiments on three multi-hop QA datasets and three out-of-domain GraphRAG benchmarks show that \\ourmethod consistently outperforms strong baseline methods and generalizes well, which demonstrates the effectiveness of end-to-end GraphRAG with tightly integrated GFM retrieval and LLM reasoning.",
+      "authors": [
+        "Zicheng Zhao",
+        "Linhao Luo",
+        "Zongji Yu",
+        "Junnan Dong",
+        "Yanchao Tan",
+        "Shirui Pan",
+        "Chen Gong"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-26T05:30:07+00:00",
+      "link": "https://arxiv.org/pdf/2610.34866v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "unified end-to-end graph retrieval-augmented generation with graph foundation models",
+      "llm_evidence_cn": "结合图基础模型的统一端到端图检索增强生成",
+      "llm_evidence": "结合图基础模型的统一端到端图检索增强生成",
+      "canonical_evidence": "结合图基础模型的统一端到端图检索增强生成",
+      "llm_tldr_en": "GraphRAG organizes fragmented knowledge as graphs but uses decoupled retrieve-then-generate pipelines and costly annotation. UniGFM-RAG unifies graph foundation models with LLMs for end-to-end retrieval and reasoning.",
+      "llm_tldr_cn": "大模型在需要整合分散知识的复杂推理上仍显不足，图检索增强生成通过将碎片知识组织为图来缓解该问题，但现有方法多采用解耦的先检索后生成流程，造成检索与推理目标错位，且训练图检索器依赖昂贵人工标注。作者提出UniGFM-RAG，将图基础模型与大语言模型统一到端到端框架中，使图原生检索与推理协同优化。该工作减少了标注依赖并缓解目标不一致，为图结构知识的检索增强生成提供了统一方案。",
+      "llm_tldr": "大模型在需要整合分散知识的复杂推理上仍显不足，图检索增强生成通过将碎片知识组织为图来缓解该问题，但现有方法多采用解耦的先检索后生成流程，造成检索与推理目标错位，且训练图检索器依赖昂贵人工标注。作者提出UniGFM-RAG，将图基础模型与大语言模型统一到端到端框架中，使图原生检索与推理协同优化。该工作减少了标注依赖并缓解目标不一致，为图结构知识的检索增强生成提供了统一方案。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2610.25463v2",
+      "source": "arxiv",
+      "title": "DiaLong: Benchmarking Reminiscence in Long-Context Dialogues",
+      "abstract": "How well can transformer-based Large Language Models (LLMs) retain and recall memories in long contexts of dialogue? LLMs are known to forget long-range factual information in their context, yet the field lacks a comprehensive benchmark to quantitatively assess these shortcomings. We present DiaLong, a long-context dialogue dataset and accompanying memory task that standardizes evaluation in this space. It consists of 100 unique conversations created by humans and then augmented with LLMs, extending beyond lengths found in existing datasets. Our selected memory task is fact recall: classify 40 candidate facts about a dialogue as true or false. This task directly probes the model's ability to actively retain and retrieve information, serving as a critical measure of memory within extended conversational contexts. In testing both the latest LLMs and proposed memory enhancements on DiaLong, we demonstrate that more work needs to be done to enable LLMs with better memory performance. By enhancing memory capabilities, LLMs can improve in maintaining coherence, relevance, and human-like interaction over extended conversation. Improving these capabilities will help LLMs fulfill diverse user needs and expectations in various conversational scenarios.",
+      "authors": [
+        "Owen Bianchi",
+        "Samer Aslan",
+        "Ryunosuke Saito"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-18T18:47:42+00:00",
+      "link": "https://arxiv.org/pdf/2610.25463v2",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "benchmark for memory retention and recall in long-context dialogues",
+      "llm_evidence_cn": "面向长上下文对话记忆保持与回忆的基准",
+      "llm_evidence": "面向长上下文对话记忆保持与回忆的基准",
+      "canonical_evidence": "面向长上下文对话记忆保持与回忆的基准",
+      "llm_tldr_en": "DiaLong provides 100 human-and-LLM-augmented long conversations with a fact-recall memory task, quantitatively probing how well dialogue agents retain and retrieve information over long contexts.",
+      "llm_tldr_cn": "Transformer大模型在长对话上下文中常遗忘远距离事实，但领域缺乏量化评估其记忆缺陷的基准。作者构建DiaLong长上下文对话数据集与配套记忆任务，包含100段由人类创作并经LLM扩展的超长对话，并设计从40条候选事实中判别真伪的回忆任务。该任务直接探测模型主动保持与检索对话信息的能力，为对话智能体记忆能力的标准化评测提供了可复用的测量工具。",
+      "llm_tldr": "Transformer大模型在长对话上下文中常遗忘远距离事实，但领域缺乏量化评估其记忆缺陷的基准。作者构建DiaLong长上下文对话数据集与配套记忆任务，包含100段由人类创作并经LLM扩展的超长对话，并设计从40条候选事实中判别真伪的回忆任务。该任务直接探测模型主动保持与检索对话信息的能力，为对话智能体记忆能力的标准化评测提供了可复用的测量工具。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "conversational memory for dialogue agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.25463v2"
+    },
+    {
+      "id": "2610.26313v1",
+      "source": "arxiv",
+      "title": "StrucChunk: Structure-Aware Retrieval for Legal Document RAG",
+      "abstract": "Retrieval-Augmented Generation (RAG) can ground LLM outputs in domain-specific knowledge, but legal documents are hard: standard chunking fragments hierarchical argument structure, and generic embeddings struggle with both precise citation matching and semantic understanding. We propose StrucChunk (Structure Aware Chunking) with hybrid dense-sparse retrieval for hierarchically structured legal documents. It treats documents as directed acyclic graphs of provisions, preserves clause boundaries, resolves cross-references before embedding, and combines BM25 with BGE-M3 via Reciprocal Rank Fusion. We evaluate on five corpora, three legal traditions and two languages. StrucChunk reaches 100% boundary precision (vs. 7.7% for recursive splitting on CrPC), preserves 97.6% of documented cross-references (vs. 0%), and matches section coverage with 40.3% fewer chunks on GDPR. On LegalBench-RAG (6,858 query-passage pairs), it achieves Char-Recall@8 of 48.18% vs. 23.59% for the best baseline (+104%), surpassing the published state of the art by +83%. On 501 queries each for CrPC and CPC (Indian law), Recall@5 improves from 0.557 to 0.804 (+44.4%) and from 0.158 to 0.259 (+64.6%); chunking accounts for 88% and 73% of the gain. On 501 GDPR queries, Recall@5 is 0.868 with R@1 improving +59%. On NitiBench-CCL (3,730 Thai financial law queries), HR@5 is 0.856 vs. 0.594 for naive chunking (+44.1%), showing that section-boundary alignment is the dominant factor across languages, and cross-reference augmentation adds +2.3% on cross-reference queries. We release the implementation, 5,256 evaluation queries across five legal corpora, annotation methodology and chunking quality metrics. Code: github.com/SinghSuryaDeep/legal-rag-strucchunk-1",
+      "authors": [
+        "Surya Deep Singh",
+        "Ashutosh Tripathi",
+        "Gaurav Deep Singh"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-19T12:56:58+00:00",
+      "link": "https://arxiv.org/pdf/2610.26313v1",
+      "tags": [
+        "keyword:rag-papers",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "structure-aware chunking and hybrid dense-sparse retrieval for legal document RAG",
+      "llm_evidence_cn": "面向法律文档RAG的结构感知分块与混合检索",
+      "llm_evidence": "面向法律文档RAG的结构感知分块与混合检索",
+      "canonical_evidence": "面向法律文档RAG的结构感知分块与混合检索",
+      "llm_tldr_en": "StrucChunk improves legal-document RAG by treating provisions as DAGs, preserving clause boundaries, resolving cross-references, and fusing BM25 with dense retrieval.",
+      "llm_tldr_cn": "法律文档层级结构强，常规分块会割裂条款与引用关系，通用嵌入难以兼顾精确引用匹配与语义理解。作者提出StrucChunk，将文档建模为条款有向无环图，保留条款边界并在嵌入前解析交叉引用，结合BM25与BGE-M3做稠密-稀疏混合检索与倒数排名融合。在五种语料、三大法系与两种语言上评测，边界精度达100%，而递归切分在CrPC上仅7.7%，并保留97%以上结构信息。该工作表明结构感知分块与混合检索能显著提升法律领域RAG的证据组织质量。",
+      "llm_tldr": "法律文档层级结构强，常规分块会割裂条款与引用关系，通用嵌入难以兼顾精确引用匹配与语义理解。作者提出StrucChunk，将文档建模为条款有向无环图，保留条款边界并在嵌入前解析交叉引用，结合BM25与BGE-M3做稠密-稀疏混合检索与倒数排名融合。在五种语料、三大法系与两种语言上评测，边界精度达100%，而递归切分在CrPC上仅7.7%，并保留97%以上结构信息。该工作表明结构感知分块与混合检索能显著提升法律领域RAG的证据组织质量。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.26313v1"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2610.25758v1",
+      "source": "arxiv",
+      "title": "Remember Less, Adapt Longer: Bounded-State In-Context Reinforcement Learning with Recurrent Summary Memory",
+      "abstract": "In-context reinforcement learning (ICRL) enables agents to adapt to new tasks without parameter updates, relying on memory to retain what they learn from experience. For agents operating continually, existing approaches using memory trade off bounded cost against access to past experience. Approaches using growing memories, such as full-history attention and accumulating summaries, incur storage and per-decision costs that increase with task length. Fixed-size memories bound storage but restrict access: sliding windows discard older steps, while recurrent networks compress even recent interactions into a hidden state. We introduce Recurrent Summary Memory (RSM), a Transformer policy that attends exactly to a short working buffer of recent interactions and carries a fixed-capacity summary of earlier experience. When the buffer fills, RSM rewrites the summary from its previous contents and the buffer, then clears the buffer, so deployment memory and per-decision cost stay $O(1)$ in task length. On long-running partially observable tasks, frozen RSM policies sustain their adapted performance for eight times the training horizon with about 1% of full-history memory, ending ahead of every evaluated baseline while growing memories deteriorate. When the task configuration changes mid-run, RSM re-adapts better than growing and recurrent memories. Clearing the summary or blocking the policy's access to it removes its benefit, while swapping in another task's summary steers behaviour towards that task. Together, these results show that our fixed-capacity summary can sustain in-context adaptation far beyond the training horizon.",
+      "authors": [
+        "Jiawen Wang",
+        "Cheng Xue",
+        "Peng Zhang",
+        "Jochen Renz"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "published": "2026-10-19T04:13:40+00:00",
+      "link": "https://arxiv.org/pdf/2610.25758v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "bounded-size recurrent summary memory balancing storage cost and access to past experience for continual agents",
+      "llm_evidence_cn": "有界循环摘要记忆平衡智能体存储成本与历史访问",
+      "llm_evidence": "有界循环摘要记忆平衡智能体存储成本与历史访问",
+      "canonical_evidence": "有界循环摘要记忆平衡智能体存储成本与历史访问",
+      "llm_tldr_en": "Continual in-context RL agents must retain experience under bounded cost. Recurrent Summary Memory attends exactly to a short window plus a compressed recurrent summary, avoiding the growth of full-history memory and the blindness of fixed windows.",
+      "llm_tldr_cn": "持续运行的上下文强化学习智能体需要在不更新参数的情况下记住经验，但增长式记忆的存储与决策开销随任务变长而上升，固定窗口又会丢弃早期信息。作者提出循环摘要记忆RSM，让Transformer策略精确关注一个短窗口并配合压缩的循环摘要状态，从而在有限成本下保留更完整的历史。该设计为智能体的工作记忆容量与可访问性权衡提供了新方案。",
+      "llm_tldr": "持续运行的上下文强化学习智能体需要在不更新参数的情况下记住经验，但增长式记忆的存储与决策开销随任务变长而上升，固定窗口又会丢弃早期信息。作者提出循环摘要记忆RSM，让Transformer策略精确关注一个短窗口并配合压缩的循环摘要状态，从而在有限成本下保留更完整的历史。该设计为智能体的工作记忆容量与可访问性权衡提供了新方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "working memory mechanisms for agent reasoning",
+      "matched_requirement_id": "req-5",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.25758v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.34043v1",
+      "source": "arxiv",
+      "title": "Holding a Steady Course: Knowledge Evolution from Expertise and Lessons for Continual Agent Learning",
+      "abstract": "Autonomous agents are increasingly deployed across sequences of related tasks, yet they often fail to retain and improve their knowledge over time. Existing approaches convert interaction trajectories into memories or reusable skills, but experience is not automatically reliable knowledge. Automatically collected skills and memories can propagate errors, mislead, and corrupt useful knowledge. To address this gap, we introduce Knowledge Evolution from Expertise and Lessons (KEEL), an agent-agnostic framework that uses verifier evidence to transform successful behavior into reusable skills and failures into corrective lessons. As new evidence accumulates, individual skill claims can be supported, contradicted, replaced, or retired. On SkillFlow benchmark, KEEL improves task success by 4.2 to 21.7 percentage points over the no-knowledge baseline, compared with gains of 2.4 to 9.6 points from SkillFlow's default method. Ablations show that skills and lessons are complementary. These results show that reliable continual agent learning depends not simply on accumulating experience, but on continually validating and evolving the knowledge derived from it. Our code is available at: https://github.com/microsoft/KEEL-TTCL26.",
+      "authors": [
+        "Wenzhe Fan",
+        "Benjamin Steenhoek",
+        "Gaurav Mittal",
+        "Yu Hu"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "published": "2026-10-25T04:11:33+00:00",
+      "link": "https://arxiv.org/pdf/2610.34043v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "consolidating memories and skills into reliable knowledge with verifier evidence",
+      "llm_evidence_cn": "借助验证证据将记忆与技能整合为可靠知识",
+      "llm_evidence": "借助验证证据将记忆与技能整合为可靠知识",
+      "canonical_evidence": "借助验证证据将记忆与技能整合为可靠知识",
+      "llm_tldr_en": "KEEL uses verifier evidence to turn successful agent behavior into reusable skills and failures into corrective lessons, supporting, contradicting or replacing skill claims as evidence accumulates.",
+      "llm_tldr_cn": "自主智能体跨连续任务部署时往往难以持续保留和改进知识，而把交互轨迹直接转为记忆或技能会传播错误、污染有用知识。作者提出KEEL框架，利用验证器证据把成功行为提炼为可复用技能、把失败转化为纠正性教训，并随新证据累积对技能主张进行支持、反驳、替换或修订。该框架与具体智能体无关，适用于持续学习场景，为智能体记忆与技能的可靠性治理提供了新思路。",
+      "llm_tldr": "自主智能体跨连续任务部署时往往难以持续保留和改进知识，而把交互轨迹直接转为记忆或技能会传播错误、污染有用知识。作者提出KEEL框架，利用验证器证据把成功行为提炼为可复用技能、把失败转化为纠正性教训，并随新证据累积对技能主张进行支持、反驳、替换或修订。该框架与具体智能体无关，适用于持续学习场景，为智能体记忆与技能的可靠性治理提供了新思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "methods for memory consolidation and retrieval in agent systems",
+      "matched_requirement_id": "req-10",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.34146v1",
+      "source": "arxiv",
+      "title": "Rethinking Retrieval in the Long-Context Era: Training-Free Semantic Trees for Adaptive Context Construction",
+      "abstract": "Long-context language models can increasingly process entire documents, making full-context prompting a practical alternative to passage retrieval. However, greater capacity determines how much information a model can receive, but not which information best supports a query. This distinction motivates rethinking retrieval: when the full document already fits, can selecting and organizing its evidence improve answering? The challenge is to retain supporting facts and relations while keeping the context focused on the question. To reconcile these goals, we introduce \\ours, a training-free framework that uses semantic abstraction to guide selection while retaining original text for answering. \\ours constructs a reusable semantic hierarchy from the full document in a single generation, linking node descriptions to source spans. Given a query, structural--semantic scoring and fine-grained lexical attribution nominate shared source nodes; their union with ancestor context preserves structural relations and complete local text. Across four frontier answer models, \\ours improves average QA-F1 by 1.72 points over full-context prompting on three LongBench tasks, surpassing the evaluated baselines on the four-model average while reducing answer-context length by 58.55\\%. Our code is available at the $\\href{https://anonymous.4open.science/r/treefuse-ECFE}{repository}$.",
+      "authors": [
+        "Zhe Xu",
+        "Tianhao Liao",
+        "Zhenqing Ling",
+        "Ying Shen",
+        "Yaliang Li",
+        "Daoyuan Chen"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-25T08:28:39+00:00",
+      "link": "https://arxiv.org/pdf/2610.34146v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "training-free semantic tree selection of supporting evidence for question answering",
+      "llm_evidence_cn": "免训练语义树为问答选取支撑证据",
+      "llm_evidence": "免训练语义树为问答选取支撑证据",
+      "canonical_evidence": "免训练语义树为问答选取支撑证据",
+      "llm_tldr_en": "Long-context models can take whole documents, but capacity does not decide which evidence matters. The paper proposes a training-free semantic-tree framework that selects and organizes supporting facts while keeping original text for answering.",
+      "llm_tldr_cn": "长上下文模型已能直接读入整篇文档，但更大容量只决定可接收多少信息，并不决定哪些证据最支持问题，全量提示因此未必最优。作者提出免训练的语义树框架，用语义抽象指导证据选择，同时保留原文用于作答，从而在保持问题聚焦的同时留存支撑事实与关系。该工作重新审视了长上下文时代的检索定位，表明即使文档可整体输入，证据选择与组织仍能提升问答效果。",
+      "llm_tldr": "长上下文模型已能直接读入整篇文档，但更大容量只决定可接收多少信息，并不决定哪些证据最支持问题，全量提示因此未必最优。作者提出免训练的语义树框架，用语义抽象指导证据选择，同时保留原文用于作答，从而在保持问题聚焦的同时留存支撑事实与关系。该工作重新审视了长上下文时代的检索定位，表明即使文档可整体输入，证据选择与组织仍能提升问答效果。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Search for papers on retrieval methods and evidence grounding in language model question answering.",
+      "matched_requirement_id": "req-16",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2610.27104v1",
+      "source": "arxiv",
+      "title": "LVMem: Image-Augmented Memory for Long-Horizon Question Answering",
+      "abstract": "Reliable language-guided perception is essential for embodied agents, where questions about objects, events, and their locations must be answered from long observation histories. Unlike conventional visual question answering, realistic robotic settings require reasoning over extended temporal horizons and persistent scene memory. We build upon the view-based memory paradigm and propose an efficient framework for long-horizon spatio-temporal question answering. While existing view-based systems typically store either text captions or visual embeddings, we extend the ReMEmbR-style memory with image paths that link each stored description to its original visual content. To make the stored annotations more informative, we replace uniform sampling during memory construction with an optical-flow-based frame selection strategy (PSFR) and store an object-centric descriptive scene representation instead of plain captions. We further equip a VLM-based agent with an adaptive retrieval tool that returns the image associated with the most relevant caption, allowing the agent to decide when visual inspection is needed. On the OC-NaVQA benchmark, LVMem outperforms ReMEmbR on binary and positional metrics with both backbones and matches or exceeds a 4D scene graph DAAAM baseline on binary accuracy, while operating on a lightweight view-based memory that requires no explicit graph construction.",
+      "authors": [
+        "Victoria Khoruzhaya",
+        "Maksim Kalmykov",
+        "Tuong Do Minh",
+        "Tatiana Zemskova",
+        "Yixin Zhu",
+        "Dmitry Yudin"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-10-19T18:01:56+00:00",
+      "link": "https://arxiv.org/pdf/2610.27104v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "image-augmented persistent scene memory for long-horizon embodied agent question answering",
+      "llm_evidence_cn": "面向长程具身智能体的图像增强持久场景记忆",
+      "llm_evidence": "面向长程具身智能体的图像增强持久场景记忆",
+      "canonical_evidence": "面向长程具身智能体的图像增强持久场景记忆",
+      "llm_tldr_en": "Embodied agents must answer questions over long observation histories, requiring persistent scene memory. The paper extends view-based memory with image paths linking stored descriptions to visual content and replaces uniform sampling, yielding an efficient long-horizon spatio-temporal QA framework.",
+      "llm_tldr_cn": "具身智能体需要在很长的观测历史中回答关于物体、事件和位置的问题，传统视觉问答难以支撑这种持久场景记忆需求。作者在视图式记忆范式上扩展ReMEmbR式记忆，为每条存储描述附加图像路径以链接原始视觉内容，并改进记忆构建时的采样策略。该框架面向长程时空问答任务，提升了智能体对历史场景信息的检索与利用能力。",
+      "llm_tldr": "具身智能体需要在很长的观测历史中回答关于物体、事件和位置的问题，传统视觉问答难以支撑这种持久场景记忆需求。作者在视图式记忆范式上扩展ReMEmbR式记忆，为每条存储描述附加图像路径以链接原始视觉内容，并改进记忆构建时的采样策略。该框架面向长程时空问答任务，提升了智能体对历史场景信息的检索与利用能力。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.27104v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.34724v1",
+      "source": "arxiv",
+      "title": "Harness-Model Collaboration for Long-Horizon Continual Learning",
+      "abstract": "Long-horizon agents continuously encounter reusable procedural knowledge, yet existing systems typically rely either on model adaptation or external memory, trading persistent learning for rapid reuse. This limitation is especially important for Web agents that repeatedly execute related multi-step workflows. We propose HaMo, a Harness-Model collaborative framework that combines fast non-parametric experience accumulation with slow parametric adaptation. HaMo distills trajectories into strategy-level experience cards for immediate retrieval, while an experience-conditioned continual learning objective trains the model to interpret, ground, and execute retrieved strategies across changing contexts. A retrieval-coverage-based selection mechanism further identifies compact and complementary trajectories for parameter updates. Experiments show that HaMo outperforms harness-only and model-only adaptation under within-domain and cross-domain shifts, improving both retention and adaptation. These results highlight the importance of jointly preserving procedural experience and internalizing the competence to transfer and execute it across tasks.",
+      "authors": [
+        "Zhen Bi",
+        "Zhizhi Peng",
+        "Yan Wang",
+        "Xueshu Chen",
+        "Haofei Zhang",
+        "Yaobo Zhang",
+        "Zeyu Yang",
+        "Qing Shen",
+        "Jungang Lou"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-26T02:21:20+00:00",
+      "link": "https://arxiv.org/pdf/2610.34724v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "external experience memory cards with retrieval for long-horizon agents",
+      "llm_evidence_cn": "面向长程智能体的外部经验记忆卡与检索",
+      "llm_evidence": "面向长程智能体的外部经验记忆卡与检索",
+      "canonical_evidence": "面向长程智能体的外部经验记忆卡与检索",
+      "llm_tldr_en": "HaMo combines fast non-parametric experience accumulation via retrievable strategy cards with slow parametric continual learning, letting long-horizon web agents reuse procedural knowledge across workflows.",
+      "llm_tldr_cn": "长程智能体持续遇到可复用的程序性知识，但现有系统在模型适应与外部记忆之间取舍，难以兼顾持久学习与快速复用。作者提出HaMo框架，将轨迹蒸馏为策略级经验卡以供即时检索，并用经验条件化的持续学习目标训练模型理解与执行检索到的策略。基于检索覆盖度的选择机制进一步提升复用效果，为网页智能体的长期经验积累提供了新方案。",
+      "llm_tldr": "长程智能体持续遇到可复用的程序性知识，但现有系统在模型适应与外部记忆之间取舍，难以兼顾持久学习与快速复用。作者提出HaMo框架，将轨迹蒸馏为策略级经验卡以供即时检索，并用经验条件化的持续学习目标训练模型理解与执行检索到的策略。基于检索覆盖度的选择机制进一步提升复用效果，为网页智能体的长期经验积累提供了新方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agents augmented with external and persistent memory",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.38800v1",
+      "source": "arxiv",
+      "title": "When Relevant Code Is Wrong: Runtime-Aware Context for AI Coding Agents",
+      "abstract": "AI coding agents increasingly rely on retrieved code and development history to guide software changes. However, highly relevant artifacts may describe implementations that are inactive or incompatible with the target deployment. Neither semantic similarity nor recency establishes whether retrieved information remains applicable under feature flags, architectural migrations, and deployment-specific configurations. We challenge relevance-oriented retrieval by introducing operational context validity, a task-, deployment-, and time-dependent criterion for determining whether software evidence can legitimately guide implementation decisions. We instantiate this new retrieval principle in CASE, an agent-agnostic framework that connects repository artifacts with runtime configurations and architectural evolution, classifies evidence as valid, invalid, or unknown, and generates context packages distinguishing actionable guidance from historical rationale and unresolved constraints. We investigate its feasibility through a reproducible preliminary evaluation involving six development tasks, 15 artifacts, and three deployments. Conventional retrieval exposes 16 incompatible artifact occurrences as actionable, whereas CASE excludes them while retaining all applicable artifacts under the prototype's reference rules. Recency filtering reduces valid recall to 0.43, while removing feature-flag evidence from CASE reduces it to 0.13. Although these results demonstrate feasibility rather than improvements in coding-agent correctness, they reveal limitations of relevance-based retrieval and motivate a new research direction: enabling coding agents to reason not only about which information is relevant, but also whether it remains operationally valid.",
+      "authors": [
+        "Wesley K. G. Assunção",
+        "Ramesh Periyathambi"
+      ],
+      "primary_category": "cs.SE",
+      "categories": [
+        "cs.SE"
+      ],
+      "published": "2026-10-28T20:05:15+00:00",
+      "link": "https://arxiv.org/pdf/2610.38800v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "retrieval validity for AI coding agents, runtime-aware context",
+      "llm_evidence_cn": "面向AI编程智能体的运行时感知检索上下文",
+      "llm_evidence": "面向AI编程智能体的运行时感知检索上下文",
+      "canonical_evidence": "面向AI编程智能体的运行时感知检索上下文",
+      "llm_tldr_en": "CASE challenges similarity-based retrieval for coding agents by introducing operational context validity, a task- and deployment-dependent criterion for judging whether retrieved code evidence can legitimately guide implementation.",
+      "llm_tldr_cn": "该文指出AI编程智能体依赖检索到的代码与开发历史时，语义相似或新近的产物未必在当前部署下仍然有效。作者提出运行时上下文有效性这一依赖任务、部署与时间的判据，并实现agent无关框架CASE，把仓库产物与运行时状态关联。该工作重新定义了检索相关性，有助于减少编程智能体因过时证据导致的错误修改。",
+      "llm_tldr": "该文指出AI编程智能体依赖检索到的代码与开发历史时，语义相似或新近的产物未必在当前部署下仍然有效。作者提出运行时上下文有效性这一依赖任务、部署与时间的判据，并实现agent无关框架CASE，把仓库产物与运行时状态关联。该工作重新定义了检索相关性，有助于减少编程智能体因过时证据导致的错误修改。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2610.29933v1",
+      "source": "arxiv",
+      "title": "Graph Topology Meets Energy-Driven Pathfinding: Preserving Contextual Consistency in Retrieval-Augmented Generation",
+      "abstract": "Retrieval-augmented generation (RAG) frequently integrates knowledge graphs (KGs) for complex multi-hop question answering. However, their performance is increasingly bottlenecked by the knowledge structuring and reasoning processes. (i) Severe semantic loss: Distilling continuous texts into discrete symbols strips away contextual nuances and narrative coherence. (ii) Pronounced modality mismatch: Fragmented graph structures clash with the continuous texts LLMs are pre-trained on, while rewriting them into natural language introduces generative noise and omits information. To address these limitations, we propose ThreadRAG, a semantic-topology-based RAG framework for context-preserving knowledge structuring and modality-native evidence reasoning. ThreadRAG introduces a Semantic Topology Mapper (STM), which organizes retrieved documents into context-intact Semantic Nodes and constructs a Semantic Topology Graph (STG) through narrative, semantic, and lexical edges. It further incorporates Energy-Driven Pathfinding (EDP), which identifies query-relevant subgraphs via energy diffusion and deterministically linearizes them into coherent textual evidence paths. Experiments on three multi-hop QA benchmarks demonstrate that ThreadRAG consistently outperforms strong baselines. Notably, it achieves a 14.4% EM improvement over text-centric methods on HotpotQA and surpasses the best baseline by 5.8% EM on 2WikiMultihop, while reducing token cost to 23.3% of the strongest baseline.",
+      "authors": [
+        "Yufeng Li",
+        "Zaijing Li",
+        "Fuchen Zhang",
+        "Zongzong Wu",
+        "Ming Zhao",
+        "Fengxiao Tang"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-10-21T16:05:44+00:00",
+      "link": "https://arxiv.org/pdf/2610.29933v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Semantic-topology RAG framework preserving contextual consistency in multi-hop QA",
+      "llm_evidence_cn": "语义拓扑RAG框架，用于多跳问答中的上下文一致性保持",
+      "llm_evidence": "语义拓扑RAG框架，用于多跳问答中的上下文一致性保持",
+      "canonical_evidence": "语义拓扑RAG框架，用于多跳问答中的上下文一致性保持",
+      "llm_tldr_en": "ThreadRAG addresses semantic loss and modality mismatch in graph-based RAG by using semantic topology to structure knowledge while preserving continuous-text context for multi-hop question answering.",
+      "llm_tldr_cn": "针对图增强RAG在多跳问答中将连续文本离散为符号导致语义损失、图结构与LLM预训练文本存在模态失配的问题，ThreadRAG提出基于语义拓扑的检索增强生成框架。该方法在知识结构化过程中保留上下文连贯性，避免简单图重写引入生成噪声，并以能量驱动路径寻路思路组织检索。研究面向复杂多跳问答，旨在提升检索证据与生成上下文的一致性，为图RAG的知识组织提供新方案。",
+      "llm_tldr": "针对图增强RAG在多跳问答中将连续文本离散为符号导致语义损失、图结构与LLM预训练文本存在模态失配的问题，ThreadRAG提出基于语义拓扑的检索增强生成框架。该方法在知识结构化过程中保留上下文连贯性，避免简单图重写引入生成噪声，并以能量驱动路径寻路思路组织检索。研究面向复杂多跳问答，旨在提升检索证据与生成上下文的一致性，为图RAG的知识组织提供新方案。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "research papers on retrieval-augmented generation for large language models",
+      "matched_requirement_id": "req-11",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.29933v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.35840v1",
+      "source": "arxiv",
+      "title": "ACARE: Agent-Context-Aware Reranker for Iterative Search",
+      "abstract": "In agentic search, a document can match an agent-generated sub-query without helping answer the user's original question. Conventional rerankers score documents against the sub-query alone, overlooking the broader task and the agent's reasoning. We introduce the Agent-Context-Aware Reranker (ACARe), a compact 4B LLM trained to rerank documents using this context when available. Across multiple benchmarks and agent families, ACARe improves retrieval quality over its base reranker while reducing search effort. These benefits extend to answer generation: ACARe improves accuracy and reduces searches over no reranking, while matching or exceeding the base reranker's mean accuracy with more precise evidence. It also helps smaller agents narrow the retrieval-quality gap to larger agents, showing how better retrieval tools can make smaller agents more effective. The model, training data, and code will be released soon.",
+      "authors": [
+        "Sahel Sharifymoghaddam",
+        "Yauhen Babakhin",
+        "Reza Esfandiarpoor",
+        "Oliver Holworthy",
+        "Jimmy Lin",
+        "Bo Liu"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR"
+      ],
+      "published": "2026-10-26T17:53:30+00:00",
+      "link": "https://arxiv.org/pdf/2610.35840v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "agent-aware reranking improves evidence quality in iterative agentic search",
+      "llm_evidence_cn": "智能体感知重排序提升迭代搜索中的证据质量",
+      "llm_evidence": "智能体感知重排序提升迭代搜索中的证据质量",
+      "canonical_evidence": "智能体感知重排序提升迭代搜索中的证据质量",
+      "llm_tldr_en": "ACARe is a compact 4B reranker trained to score documents using the agent task and reasoning context, improving retrieval quality, cutting search effort and raising answer accuracy in agentic search.",
+      "llm_tldr_cn": "在智能体式搜索中，文档可能匹配智能体生成的子查询，却无助于回答用户的原始问题，而传统重排序器只针对子查询打分，忽略整体任务与推理过程。作者训练了一个紧凑的4B模型ACARe，在上下文可用时结合任务与推理信息对文档重排序。在多个基准和不同智能体族上，ACARe提升了检索质量并减少搜索次数，还提高答案准确率、提供更精确的证据，并帮助小模型缩小检索质量差距。",
+      "llm_tldr": "在智能体式搜索中，文档可能匹配智能体生成的子查询，却无助于回答用户的原始问题，而传统重排序器只针对子查询打分，忽略整体任务与推理过程。作者训练了一个紧凑的4B模型ACARe，在上下文可用时结合任务与推理信息对文档重排序。在多个基准和不同智能体族上，ACARe提升了检索质量并减少搜索次数，还提高答案准确率、提供更精确的证据，并帮助小模型缩小检索质量差距。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "Search for papers on retrieval methods and evidence grounding in language model question answering.",
+      "matched_requirement_id": "req-16",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.38980v1",
+      "source": "arxiv",
+      "title": "Context Compaction for World Models",
+      "abstract": "World models let observers explore and interact with generated worlds. Recent work shows that when observers revisit a region, current models often fail to regenerate it consistently. We view this as a context retrieval problem. LLM agents manage context retrieval at two layers of their stack. At the model layer, the KV cache design determines how much context fits in memory. At the agent harness layer, harnesses such as Claude Code pick the context sent to the LLM. Prior work on world models has mostly focused only on the model layer. In this paper, we make three contributions. First, we build a benchmark to measure world model context retrieval. It generates new worlds for every episode, preventing a model from recalling rooms using training data. It also separates context retrieval from guesses based on nearby frames. Second, we build an agent harness that performs context compaction for world models, which to our knowledge no prior work has studied. Third, we use our benchmark to study four world model designs. Context compaction lets our world models retrieve rooms up to 4 times beyond their context window without retraining. However, world models with sliding-window attention lose most of their context retrieval when dreaming. Therefore, a dreaming world agent benefits more from extending the reach of its world model using context compaction than switching to sliding window attention at the model layer.",
+      "authors": [
+        "Hayder Tirmazi"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-28T22:04:30+00:00",
+      "link": "https://arxiv.org/pdf/2610.38980v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "Context retrieval and compaction at model and agent-harness layers",
+      "llm_evidence_cn": "模型层与智能体框架层的上下文检索与压缩",
+      "llm_evidence": "模型层与智能体框架层的上下文检索与压缩",
+      "canonical_evidence": "模型层与智能体框架层的上下文检索与压缩",
+      "llm_tldr_en": "Views world-model inconsistency on revisit as context retrieval, builds a benchmark with fresh worlds, and analyzes compaction at both KV-cache and agent-harness layers.",
+      "llm_tldr_cn": "世界模型在观察者重访区域时难以一致重建，现有工作多关注模型层而忽略智能体框架层的上下文检索。论文将一致重建视为上下文检索问题，构建每回合生成新世界的基准，并区分模型层KV缓存与智能体框架层上下文选择。该基准可防止模型依赖训练数据回忆房间，并能分离上下文检索的不同因素，为评估压缩策略提供工具。工作强调需同时优化模型层与智能体框架层的上下文压缩与检索。",
+      "llm_tldr": "世界模型在观察者重访区域时难以一致重建，现有工作多关注模型层而忽略智能体框架层的上下文检索。论文将一致重建视为上下文检索问题，构建每回合生成新世界的基准，并区分模型层KV缓存与智能体框架层上下文选择。该基准可防止模型依赖训练数据回忆房间，并能分离上下文检索的不同因素，为评估压缩策略提供工具。工作强调需同时优化模型层与智能体框架层的上下文压缩与检索。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture designs for intelligent agents",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2610.30167v1",
+      "source": "arxiv",
+      "title": "IRAH: Hierarchical Agentic Tree Search for Retrieval Pipeline Optimization",
+      "abstract": "Optimizing Information Retrieval (IR) pipelines for Retrieval-Augmented Generation (RAG) requires jointly selecting structural components and numerical hyperparameters under limited evaluation budgets. We introduce the Information Retrieval Agentic Harness (IRAH), which combines Language Agent Tree Search for IR (LATS-IR) with offline meta-learned initialization. LATS-IR performs UCT-guided hierarchical search, first exploring macro-structural pipeline choices and then refining numerical parameters, with natural-language reflections to guide subsequent mutations and provide inspectable search traces. We evaluate IRAH on three in-distribution benchmarks and one out of-distribution benchmark to assess generalization under distribution shift. Under the same meta-learned initialization, LATS-IR outperforms TPE on two of three in-distribution benchmarks, with gains of up to 6.4%, and remains competitive on the out-of-distribution benchmark. Across all four benchmarks, warm-started IRAH achieves the highest average held-out nDCG@10 (0.4816) and improves over its cold-start counterpart. These results establish IRAH as a competitive approach to retrieval pipeline optimization under constrained evaluation budgets.",
+      "authors": [
+        "Maria Ana Cardei",
+        "Aniket Singh",
+        "Amir Moghadam",
+        "Srividhya Baikadi",
+        "Rashmi Shetty"
+      ],
+      "primary_category": "cs.IR",
+      "categories": [
+        "cs.IR",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-10-16T17:03:17+00:00",
+      "link": "https://arxiv.org/pdf/2610.30167v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "agentic tree search optimizing retrieval pipelines for RAG",
+      "llm_evidence_cn": "面向RAG检索流水线的智能体树搜索优化",
+      "llm_evidence": "面向RAG检索流水线的智能体树搜索优化",
+      "canonical_evidence": "面向RAG检索流水线的智能体树搜索优化",
+      "llm_tldr_en": "Optimizing retrieval pipelines for RAG requires joint selection of structure and hyperparameters under limited budgets. IRAH combines language agent tree search with meta-learned initialization, exploring macro structure then numeric parameters, and generalizes across benchmarks.",
+      "llm_tldr_cn": "为检索增强生成优化信息检索流水线，需要在有限评测预算下同时选择结构组件与数值超参数。作者提出IRAH，将面向检索的语言智能体树搜索与离线元学习初始化相结合，先用UCT引导探索宏观流水线结构，再细化数值参数，并借助自然语言反思引导后续变异。在三个同分布基准与一个分布外基准上评估，验证了其在分布偏移下的泛化能力，为RAG流水线自动调优提供可解释搜索轨迹。",
+      "llm_tldr": "为检索增强生成优化信息检索流水线，需要在有限评测预算下同时选择结构组件与数值超参数。作者提出IRAH，将面向检索的语言智能体树搜索与离线元学习初始化相结合，先用UCT引导探索宏观流水线结构，再细化数值参数，并借助自然语言反思引导后续变异。在三个同分布基准与一个分布外基准上评估，验证了其在分布偏移下的泛化能力，为RAG流水线自动调优提供可解释搜索轨迹。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.30167v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.35868v1",
+      "source": "arxiv",
+      "title": "Retriever-Free Retrieval: Navigating Documents with Decision Models",
+      "abstract": "While language models have become dramatically more capable, retrieval still largely relies on lexical matching or similarity in fixed embedding spaces. This creates a capability asymmetry: what the retriever fails to find, even the strongest generator cannot recover. We propose DecisionRAG, which brings the capabilities of pretrained language models to retrieval using decision models that jointly evaluate candidate branches in a single forward pass, without generating any tokens, and show that judging candidates in a shared context makes their relevance estimates comparable. Like a person browsing a library, DecisionRAG navigates the corpus's inherent structure from broad topics down to individual passages, deciding at each level which branches are worth exploring. Without task-specific training or a first-stage retriever, DecisionRAG outperforms dense retrieval with an 8B reranker by 13.8 R@1 points on MultiDoc2Dial and 17.4 Hit@1 points on Natural Questions. Across four benchmarks, including a corpus of 2.68 million Wikipedia paragraphs, retrieval takes just 0.7-1.8 seconds per query.",
+      "authors": [
+        "Chao Wan",
+        "Paul Jünger",
+        "Beixi Du",
+        "Bodong Liu",
+        "Navaneetha Krishnan",
+        "Kilian Q. Weinberger"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-26T17:59:44+00:00",
+      "link": "https://arxiv.org/pdf/2610.35868v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "retrieval augmentation strategy replacing embedding retrievers with decision models",
+      "llm_evidence_cn": "用决策模型替代嵌入检索器的检索增强策略",
+      "llm_evidence": "用决策模型替代嵌入检索器的检索增强策略",
+      "canonical_evidence": "用决策模型替代嵌入检索器的检索增强策略",
+      "llm_tldr_en": "DecisionRAG replaces lexical and embedding retrievers with decision models that judge candidate branches in one forward pass, navigating document structure from topics to passages to close the retriever-generator capability gap.",
+      "llm_tldr_cn": "现有检索仍依赖词法匹配或固定嵌入空间的相似度，导致检索器找不到的内容生成器也无法补救。作者提出DecisionRAG，用预训练语言模型的决策能力在单次前向中联合评估候选分支，无需生成token，并像浏览图书馆一样从主题逐层导航到段落。实验表明共享上下文中的相关性判断更具可比性，为检索增强生成提供了不依赖嵌入检索的新路径。",
+      "llm_tldr": "现有检索仍依赖词法匹配或固定嵌入空间的相似度，导致检索器找不到的内容生成器也无法补救。作者提出DecisionRAG，用预训练语言模型的决策能力在单次前向中联合评估候选分支，无需生成token，并像浏览图书馆一样从主题逐层导航到段落。实验表明共享上下文中的相关性判断更具可比性，为检索增强生成提供了不依赖嵌入检索的新路径。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "retrieval augmentation strategies for language model pipelines",
+      "matched_requirement_id": "req-13",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2610.39671v1",
+      "source": "arxiv",
+      "title": "Incentivizing Self-Learning in Large Language Models via Reinforcement Learning",
+      "abstract": "Large language models (LLMs) draw on parametric knowledge and retrieval-augmented generation (RAG) to solve knowledge-intensive tasks. Yet problem solving in unfamiliar domains calls for tightly coupled knowledge acquisition and reasoning, beyond factual retrieval and aggregation or learning solely from a preassembled context. We study self-learning -- autonomously retrieving, studying, and applying knowledge from long-form reference materials on the fly. To investigate this capability, we formulate a textbook-based mathematical problem-solving task. LLMs must navigate textbook exposition, learn and apply relevant principles, and construct proofs for exercises, with reference solutions withheld. We introduce a BookNavigator interface to support this human-inspired study process and incentivize self-learning through reinforcement learning (RL) with fine-grained rewards. Experiments show that our method improves performance across in-domain and out-of-domain textbooks and subjects, raising Intern-S2-Preview-35B's overall proof accuracy from 51.5% to 79.5% and outperforming RL-trained textbook-free and fixed-retrieval baselines. These gains extend to complex long-context benchmarks involving different task types, with improvements over the base model of 1.7 and 2.3 percentage points on BrowseComp-Plus and CL-bench, respectively. Together, these findings suggest that RL can foster a domain-agnostic self-learning strategy, highlighting the potential of self-learning from long-form corpora to strengthen broader problem-solving capabilities on complex, long-context tasks.",
+      "authors": [
+        "Lingkai Kong",
+        "Yuzhe Gu",
+        "Haiteng Zhao",
+        "Zijian Wu",
+        "Youqing Fang",
+        "Zhouqi Hua",
+        "Yanan Sun",
+        "Kai Chen",
+        "Wenwei Zhang"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-10-29T09:21:26+00:00",
+      "link": "https://arxiv.org/pdf/2610.39671v1",
+      "tags": [
+        "keyword:agent-memory",
+        "keyword:rag-papers",
+        "query:agent-memory",
+        "query:rag-papers"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "autonomous retrieval and application of knowledge by LLMs",
+      "llm_evidence_cn": "大模型自主检索与应用知识",
+      "llm_evidence": "大模型自主检索与应用知识",
+      "canonical_evidence": "大模型自主检索与应用知识",
+      "llm_tldr_en": "Beyond factual RAG, solving unfamiliar problems requires coupling knowledge acquisition with reasoning. The authors define self-learning, build a textbook-based math task with a BookNavigator interface, and use RL to train LLMs to retrieve and apply knowledge.",
+      "llm_tldr_cn": "大模型依赖参数化知识与检索增强生成完成知识密集型任务，但在陌生领域解题需要知识获取与推理紧密耦合，超出事实检索聚合或仅从预置上下文中学习的能力。作者研究自学习能力，即自主从长篇参考资料中检索、研读并即时应用知识，并构建基于教科书的数学解题任务与BookNavigator接口。通过强化学习激励模型在教材中导航、学习原理并构造证明，实验显示该训练能提升模型的自学习表现。该工作拓展了检索增强从被动检索走向主动学习的路径。",
+      "llm_tldr": "大模型依赖参数化知识与检索增强生成完成知识密集型任务，但在陌生领域解题需要知识获取与推理紧密耦合，超出事实检索聚合或仅从预置上下文中学习的能力。作者研究自学习能力，即自主从长篇参考资料中检索、研读并即时应用知识，并构建基于教科书的数学解题任务与BookNavigator接口。通过强化学习激励模型在教材中导航、学习原理并构造证明，实验显示该训练能提升模型的自学习表现。该工作拓展了检索增强从被动检索走向主动学习的路径。",
+      "llm_tags": [
+        "query:rag-papers"
+      ],
+      "matched_query_tag": "query:rag-papers",
+      "matched_query_text": "knowledge retrieval approaches for grounding language model outputs",
+      "matched_requirement_id": "req-12",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}

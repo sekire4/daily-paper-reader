@@ -1,0 +1,155 @@
+Title: When Relevant Code Is Wrong: Runtime-Aware Context for AI Coding Agents
+
+URL Source: https://arxiv.org/pdf/2610.38800v1
+
+Published Time: Fri, 30 Oct 2026 01:56:01 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# When Relevant Code Is Wrong: Runtime-Aware Context for AI Coding Agents 
+
+Wesley K. G. Assunção 
+
+North Carolina State University 
+
+Raleigh, NC, USA 
+
+Ramesh Periyathambi 
+
+eBay Inc. 
+
+San Francisco, CA, USA 
+
+Abstract —AI coding agents increasingly rely on retrieved code and development history to guide software changes. However, highly relevant artifacts may describe implementations that are inactive or incompatible with the target deployment. Neither semantic similarity nor recency establishes whether retrieved information remains applicable under feature flags, architectural migrations, and deployment-specific configurations. We challenge relevance-oriented retrieval by introducing operational context validity , a task-, deployment-, and time-dependent criterion for determining whether software evidence can legitimately guide implementation decisions. We instantiate this new retrieval principle in CASE, an agent-agnostic framework that connects repository artifacts with runtime configurations and architectural evolution, classifies evidence as valid , invalid , or unknown , and generates context packages distinguishing actionable guidance from historical rationale and unresolved constraints. We in-vestigate its feasibility through a reproducible preliminary evaluation involving six development tasks, 15 artifacts, and three deployments. Conventional retrieval exposes 16 incompatible artifact occurrences as actionable, whereas CASE excludes them while retaining all applicable artifacts under the prototype’s reference rules. Recency filtering reduces valid recall to 0.43, while removing feature-flag evidence from CASE reduces it to 0.13. Although these results demonstrate feasibility rather than improvements in coding-agent correctness, they reveal limitations of relevance-based retrieval and motivate a new research direction: enabling coding agents to reason not only about which information is relevant, but also whether it remains operationally valid. 
+
+Index Terms —AI coding agents, software evolution, feature flags, runtime configuration, retrieval-augmented generation, software architecture. 
+
+I. I NTRODUCTION 
+
+AI coding agents are increasingly capable of performing complex software engineering tasks [1]. They can explore repositories, retrieve relevant historical pull requests (PRs), and propose changes across multiple files [2]. Existing research has demonstrated the importance of repository-level context for solving development tasks [3], motivating techniques that retrieve relevant code, documentation, and software depen-dencies [4], [5]. However, these approaches predominantly focus on identifying information that seems relevant to a task, often overlooking a fundamental question: Is the retrieved information operationally valid for the task at hand? 
+
+This distinction becomes particularly important in large, continuously evolving software systems, where multiple imple-mentations, architectural versions, and runtime configurations coexist [6]–[8]. Our research is motivated by software evolution challenges encountered in collaboration with a large online marketplace. In their systems, repositories and development artifacts often capture multiple stages of a system’s evolution rather than a single, authoritative view of how it currently operates. Different implementations may coexist, services may have been replaced, and feature flags or deployment-specific configurations may determine which execution paths are active [9], [10]. Hence, source code, PRs, and documentation may seem relevant to a development task even though they describe implementations that are no longer applicable to the target environment. In this context, existing retrieval approaches can identify artifacts related to a task but do not necessarily establish whether their architectural assumptions, dependencies, and runtime conditions remain valid. Consequently, coding agents may propose technically plausible changes that are incompatible with the system’s actual operational state. The underlying problem is that relevant information is not necessarily applicable information . Recent research has demonstrated that retrieved repository context can be temporally stale and induce obsolete API usage [10], that irrelevant or misleading retrieved information can harm code genera-tion [11], and that repository-specific agent knowledge can become outdated as software evolves [12]. Evolution-aware approaches, such as Chronos, further demonstrate the value of retrieving historical development decisions [2]. However, these contributions do not directly address deployment-conditioned prescriptive validity : determining whether retrieved evidence can legitimately guide implementation decisions under aparticular runtime configuration and deployment state. We argue that this limitation calls for a shift from relevance-based retrieval toward operationally valid context selection .We introduce operational context validity , which characterizes whether a retrieved software artifact can legitimately guide an implementation decision for a particular deployment and point in time. Building on this idea, we propose CASE, a context-aware framework for existing coding agents. Rather than simply retrieving additional information, CASE connects software artifacts with runtime configurations, feature flags, and architectural history to distinguish applicable implementations from incompatible or uncertain evidence. It then generates task-specific context packages that identify which artifacts can guide implementation, which require further verification, and which should be retained only as explanatory history. Our central hypothesis is that explicitly distinguishing relevance from operational validity can reduce implementation arXiv:2610.38800v1 [cs.SE] 28 Oct 2026 decisions that conflict with the target system’s architecture and runtime configuration. We investigate this forward-looking idea through three contributions: (1) a formulation of operational context validity as a deployment- and time-dependent property of retrieved software evidence; (2) a lightweight, validity-aware context selection mechanism that can be integrated with existing coding agents; and (3) an initial proof-of-concept pilot evaluation demonstrating the feasibility of deployment-aware context selection. These contributions establish a foundation for investigating whether operationally valid context can improve the reliability of AI-assisted software evolution. II. O PERATIONAL CONTEXT VALIDITY 
+
+Let q denote a maintenance task, t the target system snapshot, and d a deployment context (e.g., geographic region with different regulations, enabled flags, service versions, and rollout cohort). Let a be a candidate artifact (e.g., code, test, PR, architectural decision, or incident report). Conventional retrieval primarily estimates topical relevance 
+
+R(a, q ), the relevance of an artifact a to a task q. This relevance can be estimated through lexical matching (e.g., BM25 [13]), semantic similarity [4], or graph-based relationships among repository artifacts [5]. A high relevance score indicates that an artifact is closely related to the requested functionality and may provide useful implementation information. However, relevance alone does not establish whether the artifact reflects the system’s current operational state. In this work, we define an artifact’s prescriptive applicability 
+
+V to deployment d at time t:
+
+V (a | d, t ) = 
+
+
+
+valid , Et |= πa(d),
+
+invalid , Et |= ¬πa(d),
+
+unknown , otherwise .
+
+(1) where πa expresses the preconditions under which the imple-mentation represented by a applies, and Et is timestamped evidence from deployment manifests, flag configurations, ser-vice routing, and migration records. A definitive label requires sufficiently authoritative, non-conflicting evidence; missing or contradictory information yields unknown . Applicability is thus 
+
+not inferred merely from a lack of runtime traces, which may reflect sampling or observability gaps. Applicability labels characterize whether an artifact can guide implementation decisions, not whether its historical content is factually correct. An operationally invalid artifact may therefore remain useful as explanatory evidence. 
+
+V is deliberately separate from R. A migration PR might have high R but V = invalid for implementing the current path. It can still be included as historical rationale , explicitly labeled as such. Conversely, a less textually similar artifact can be the applicable implementation. This distinction prevents a binary “old means irrelevant” rule: artifact roles (prescriptive versus explanatory) are part of the retrieval decision. 
+
+Evidence and scope are distinct from age. To derive 
+
+πa, a lightweight prototype can use explicit source-code guards, service deployment mappings, rollout rules, and migra-tion/retirement records. A commit date is only a clue: a long-lived implementation may remain active, and a new commit can target a disabled flag. Sources also have different authority. For example, a versioned flag assignment can establish that a path is enabled for a specified cohort, whereas absence from sampled production logs alone cannot establish that it is disabled. Each applicability assertion should therefore identify its source, timestamp, scope, and any unresolved conflict. A useful counterexample is a regional rollback : the same old REST endpoint may be invalid for deployment d1 yet valid 
+
+for d2 at the same time t. Therefore, neither globally deleting outdated-looking artifacts nor asking an LLM to prefer newer files implements operational validity. The intended inference is contextual, and the system must allow legitimate disagreement between deployments. 
+
+Core hypothesis. Holding model, candidate pool, and context-token budget constant, evidence packages that dis-tinguish valid , invalid , and unknown artifacts will reduce deployment-incompatible implementation decisions compared with similarity-only retrieval. Gains should concentrate in sys-tems with architectural migrations or configuration-dependent execution; little or no gain is expected for stable, single-configuration components. III. A M INIMAL CASE C ONTEXT FRAMEWORK 
+
+The longer-term vision of CASE involves context recon-struction, runtime-aware historical retrieval, and task-specific context packages. In this preliminary work, our goal is to test the central idea with a preliminary evaluation. Figure 1 presents an overview of our framework, described in what follows. 
+
+Step 1: Reconstruct context. Start with a top-k repository/PR retrieval pool and create a small, versioned context graph for the requested service. Its nodes represent artifacts, implementations, flags, deployments, and services; its edges include guards ,
+
+deployed-in , calls , and supersedes . Links may come from configuration exports, service inventories, PR metadata, and a limited set of developer-verified mappings. The graph is a mechanism for collecting validity evidence. 
+
+Step 2: Evaluate applicability. For each candidate artifact, evaluate V (a | d, t ) with explicit provenance. A retired REST path is excluded from prescriptive recommendations if the tar-get service has been superseded; a flag-guarded implementation is only considered applicable when its activation conditions are supported. Unknowns remain visible and may trigger a question or additional retrieval. Because flags can be conditional on user cohorts and live rollouts, a global “on/off” assumption is insufficient. 
+
+Step 3: Package evidence for an agent. Construct PB (q, d, t )
+
+under a token budget B, deployment d at time t. Each actionable claim contains an artifact pointer, applicability scope, evidence timestamp, and status. The package prioritizes currently applicable patterns, retains obsolete decisions only as labeled explanatory history, and states important unresolved constraints and relevant tests. An existing agent receives the 01 Reconstruct context    
+
+> Connect artifacts with operational state
+> Code + PRs Flags + configs Service lineage
+> Relations: guards ,deployed-in ,supersedes
+> Evidence records source, version, and scope.
+> Output: time-scoped context graph
+
+02 Evaluate applicability           
+
+> Topical relevance R(a, q )is not enough
+> ✓VALID
+> ×INVALID ?UNKNOWN
+> Status depends on deployment dand time t.Unknown is not treated as invalid.
+
+03 Package evidence for an agent     
+
+> Source-backed, task-specific context
+> ACT ON EXPLAIN VERIFY
+> Claims include provenance, scope, and time.
+> Existing coding agent
+> Deployment-scoped plan / patch
+> Matches target state Conflicts with state Evidence insufficient Applicable code + tests Historical rationale Unresolved constraints
+> linked evidence graph
+> Task q |deployment d |time t
+
+Fig. 1. Overview of CASE. The framework reconstructs software context from heterogeneous artifacts, assesses their operational validity for a target deployment and system state, and generates a task-specific context package for an AI coding agent. Applicable implementations are distinguished from obsolete historical evidence and unresolved configuration constraints. 
+
+package through its normal context interface; no model fine-tuning or autonomous production modification is assumed. IV. P RELIMINARY EVALUATION 
+
+We conducted a preliminary evaluation to investigate whether operational validity can improve the selection of software context and distinguish applicable implementation evidence from outdated or deployment-incompatible artifacts. We address three research questions (RQs):  
+
+> •
+
+RQ1: To what extent does topical relevance diverge from operational validity?  
+
+> •
+
+RQ2: Can validity-aware context selection reduce the inclusion of operationally incompatible artifacts?  
+
+> •
+
+RQ3: How do runtime configurations and architectural history influence context selection? 
+
+Prototype and Experimental Setup. We implemented a proof of concept for CASE using an illustrative merchant-trust application developed in Java with Spring Boot. Although illustrative, this example mirrors a real case faced by a large online marketplace. The prototype, including its source code, deployment configurations, evaluation tasks, and reproducible experimental results, is publicly available in our replication package [14]. The application exposes a merchant trust score through two alternative implementations: a legacy REST end-point and a newer GraphQL architecture supporting pluggable signals. The applicability of each implementation depends on deployment-specific feature flags and architectural evolution. For example, the U.S. deployment migrated to GraphQL, whereas the European deployment subsequently rolled back to REST. The Asia-Pacific deployment contains a partially enabled GraphQL configuration with unresolved cohort information. The evaluation comprises 15 artifacts, including source code, tests, historical pull requests, and architectural documentation, across three deployments and six development tasks. The tasks cover architectural migrations (two), feature-flag and regional variations (two), and stable components (two). Each task specifies a target deployment and time, and only artifacts 
+
+TABLE I RESULTS OF THE SYNTHETIC PILOT . P RECISION (P) AND RECALL (R) ARE TASK -LEVEL MEANS ; INCOMPATIBLE (I NC .) AND UNKNOWN (U NK .) ARE TOTAL ACTIONABLE ARTIFACT OCCURRENCES .                            
+
+> Condition PRInc. Unk.
+> Semantic Only 0.50 1.00 16 5Recency Filtered 0.43 0.43 65Semantic + Raw Cfg. 0.50 1.00 16 5
+> CASE 1.00 1.00 00
+> CASE w/o Flags 0.33 0.13 00CASE w/o Lineage 1.00 1.00 00
+
+available at that time are considered. A BM25 retriever [13] produces the top-eight candidate artifacts for each task. We compare four conditions: (1) Semantic Only , which retrieves artifacts based on topical relevance; (2) Recency Filtered , which applies a 180-day recency window; (3) Semantic + Raw Configuration , which supplements retrieved artifacts with deployment configuration without assessing applicability; and (4) CASE Validity Package , which classifies artifacts as valid, invalid, or unknown using timestamped configuration and architectural evidence. All conditions start from the same can-didate pool and use a common budget of approximately 1,500 tokens. We additionally evaluate two ablations that remove feature-flag evidence or architectural lineage information. We measure valid precision , the proportion of actionable artifacts that are applicable to the target deployment; valid recall , the proportion of applicable artifacts in the candidate pool retained as actionable; and the numbers of incompatible and unknown artifacts presented as actionable. For conventional retrieval, all retrieved artifacts are considered actionable. For CASE, only artifacts classified under A CT ON are actionable, while uncertain and incompatible artifacts are retained under VERIFY and E XPLAIN , respectively. Precision and recall are averaged across tasks. 
+
+Results. Table I summarizes the deterministic replay results. 
+
+RQ1: Relevance does not guarantee operational validity. 
+
+Although semantic retrieval identifies all applicable artifacts within the candidate pools (recall of 1.00), only half of the artifacts it presents as actionable are applicable on average (precision of 0.50). Across six tasks, it exposes 16 incompatible and five uncertain artifact occurrences. Recency filtering re-duces incompatible occurrences to six but also decreases recall to 0.43. Notably, after the European deployment rolled back to REST, the four artifacts retained by recency filtering for that task were all incompatible. These observations illustrate why neither relevance nor recency alone establishes applicability. 
+
+RQ2: Explicit validity assessment changes actionable context. 
+
+CASE achieves precision and recall of 1.00 in the synthetic replay, with no incompatible or uncertain artifacts presented as actionable. In contrast, supplementing semantic retrieval with raw configuration data produces the same artifact-selection metrics as semantic retrieval alone. This difference reflects CASE’s explicit classification and separation of retrieved evidence, rather than the availability of additional configuration information. Whether a coding agent could independently infer applicability from raw configuration remains an open question. 
+
+RQ3: Runtime evidence determines context applicability. 
+
+Removing feature-flag evidence reduces CASE’s recall from 1.00 to 0.13, as previously actionable artifacts become uncertain. Removing architectural lineage evidence produces no change in this fixture because feature-flag information already determines the applicable paths. We additionally replayed identical devel-opment requests against different deployments while holding the repository snapshot constant. CASE correctly changes its actionable context from the GraphQL implementation in us-prod to the REST implementation in eu-prod ,demonstrating deployment-dependent context selection. 
+
+Limitations. Our pilot is a feasibility evaluation rather than an independent assessment of effectiveness. Artifact relationships and applicability conditions are manually curated, and the reference labels follow the same rules implemented by CASE’s evaluator. Consequently, its perfect precision and recall are expected under the fixture’s assumptions and should not be interpreted as evidence of generalization. Furthermore, the evaluation measures context selection, not the correctness of coding-agent decisions or generated patches. Larger studies with independently established ground truth and real develop-ment tasks are necessary to determine whether validity-aware packages improve downstream agent performance. V. N EW IDEAS AND EMERGING RESULTS 
+
+CASE introduces a new perspective on repository-aware retrieval: beyond identifying relevant artifacts, coding agents must know whether those artifacts can legitimately guide implementation decisions. The preliminary evaluation reveals two important implications. First, identical tasks can require different implementation evidence across deployments, chal-lenging retrieval approaches that assume a single repository state. Second, feature-flag evidence substantially influences ap-plicability decisions, whereas architectural-lineage information provides no additional benefit in the current synthetic fixture. These emerging results motivate treating operational validity as an explicit, evidence-backed property of retrieved context rather than an implicit consequence of relevance or recency. The resulting research direction is to investigate whether validity-aware context selection can improve coding-agent decisions while accounting for incomplete evidence, evolving configurations, and the cost of context reconstruction. VI. R ELATED WORK 
+
+Retrieval-augmented code generation (CodeRAG) improves access to repository-specific information, but its effective-ness depends on which artifacts are selected: similar-code retrieval can introduce irrelevant or misleading context [4], [15]. Structural approaches such as DraCo, RepoGraph, and RepoHyper use dataflow or repository graphs to recover cross-file relationships and improve retrieval [5], [16], [17]. More recently, Chronos has connected historical pull requests to help agents reason about software evolution and reuse engineering experience [2]. Behavioral studies of coding agents likewise motivate examining how agents use context rather than relying on resolution rates alone [18]. These approaches motivate richer contextual representations; CASE addresses a complementary decision: whether a retrieved artifact should be used as prescriptive evidence for a particular system state. Weng et al. show that stale cross-file snippets can induce obsolete API usage [10]. However, operational validity is not equivalent to recency. Feature toggles can activate different paths for different deployments or user cohorts [7], and studies of their lifecycle show that toggles may persist or be removed as systems evolve [19]. Research also connects feature toggles and configuration options within a common software-configuration model [20]. CASE builds on these insights by separating topical relevance from deployment- and time-conditioned applicability. VII. F UTURE PLANS 
+
+We plan to extend CASE with provenance-preserving integra-tion of configuration, runtime, and architectural evidence, and evaluate it using independently annotated development tasks. Controlled experiments will compare CASE with conventional retrieval, recency filtering, and simpler configuration-aware alternatives under equivalent context budgets. We will assess both context-selection quality and downstream outcomes, including implementation planning, patch correctness, and deployment compatibility. We will also investigate cases requir-ing architectural-lineage reasoning, incomplete or conflicting configuration evidence, and the trade-offs among context accuracy, abstention, retrieval cost, and scalability. Ultimately, we aim to establish whether explicitly reasoning about the operational validity of software evidence can make AI coding agents more reliable in evolving, configurable software systems. VIII. C ONCLUSION 
+
+This work introduces operational context validity as a fundamental requirement for AI coding agents: retrieved software evidence must not only be relevant to a devel-opment task but also applicable to its target deployment and system state. CASE operationalizes this principle by connecting repository artifacts with runtime configurations and architectural evolution, distinguishing actionable evidence from incompatible historical information and unresolved constraints. Our preliminary evaluation demonstrates the feasibility of this approach: in a synthetic merchant-trust scenario, CASE excluded 16 incompatible artifact occurrences that conventional retrieval exposed while retaining all applicable artifacts under the prototype’s reference rules. DATA AVAILABILITY 
+
+A replication package for our pilot is publicly available [14]. REFERENCES [1] J. Yang, C. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan, and O. Press, “Swe-agent: Agent-computer interfaces enable automated software engineering,” Advances in Neural Information Processing Systems , vol. 37, pp. 50 528–50 652, 2024. [2] X. Yin, Y. Zhang, Z. Peng, C. Ni, Z. Cui, and X. Xin, “Chronos enables code agents to reason over software evolution,” 2026. [Online]. Available: https://arxiv.org/abs/2610.11578 [3] C. E. Jimenez, J. Yang, A. Wettig, S. Yao, K. Pei, O. Press, and K. Narasimhan, “SWE-bench: Can language models resolve real-world GitHub issues?” in International Conference on Learning Representations (ICLR) , 2024. [Online]. Available: https://openreview. net/forum?id=VTF8yNQM66 [4] W. Gu, J. Chen, Y. Wang, T. Jiang, X. Li, M. Liu, X. Liu, Y. Ma, and Z. Zheng, “What to retrieve for effective retrieval-augmented code generation? an empirical study and beyond,” in International Conference on Software Engineering (ICSE) , 2026. [Online]. Available: https://arxiv.org/abs/2503.20589 [5] S. Ouyang, W. Yu, K. Ma, Z. Xiao, Z. Zhang, M. Jia, J. Han, H. Zhang, and D. Yu, “RepoGraph: Enhancing AI software engineering with repository-level code graph,” in International Conference on Learning Representations (ICLR) , 2025. [Online]. Available: https://arxiv.org/abs/2410.14684 [6] A. Lercher, J. Glock, C. Macho, and M. Pinzger, “Microservice api evolution in practice: A study on strategies and challenges,” Journal of Systems and Software , vol. 215, p. 112110, 2024. [7] M. T. Rahman, L.-P. Querel, P. C. Rigby, and B. Adams, “Feature toggles: Practitioner practices and a case study,” in Proceedings of the 13th International Conference on Mining Software Repositories . ACM, 2016, pp. 201–211. [8] H. M. Ayas, P. Leitner, and R. Hebig, “An empirical study of the systemic and technical migration towards microservices,” Empirical Software Engineering , vol. 28, no. 4, p. 85, 2023. [9] S. Ducasse and D. Pollet, “Software architecture reconstruction: A process-oriented taxonomy,” IEEE Transactions on Software Engineering ,vol. 35, no. 4, pp. 573–591, 2009. [10] H. Weng, Q. Yang, H. Fu, H. Pan, and X. Lv, “When retrieval hurts code completion: A diagnostic study of stale repository context,” 2026, arXiv:2605.14478. [Online]. Available: https://arxiv.org/abs/2605.14478 [11] D. Wu, W. U. Ahmad, D. Zhang, M. K. Ramanathan, and X. Ma, “Repoformer: Selective retrieval for repository-level code completion,” in Proceedings of the 41st International Conference on Machine Learning , ser. Proceedings of Machine Learning Research, vol. 235. PMLR, 2024, pp. 53 270–53 290. [Online]. Available: https://proceedings.mlr.press/v235/wu24a.html [12] C. Duan, G. Shi, Z. Mao, G. Zhang, H. Liang, Y. Piao, Y. Wu, Z. Yao, K. Huang, W. Huang, L. Sun, S. Yan, and W. Zhang, “Repo2Skill-Evo: Repository skills go stale in silence,” 2026. [Online]. Available: https://arxiv.org/abs/2608.21964 [13] S. Robertson and H. Zaragoza, “The probabilistic relevance framework: Bm25 and beyond,” Foundations and trends® in information retrieval ,vol. 4, no. 1-2, pp. 1–174, 2009. [14] W. K. G. Assunção and R. Periyathambi, “CASE Merchant Trust: A prototype for runtime-aware software context validation,” GitHub repository, 2026, prototype, synthetic evaluation dataset, experimental scripts, and results. [Online]. Available: https://github.com/ rameshperiyathambi/case-merchant-trust [15] N. L. Hai, D. M. Nguyen, and N. D. Q. Bui, “On the impacts of contexts on repository-level code generation,” in Findings of the Association for Computational Linguistics: NAACL , 2025, pp. 1496–1524. [16] W. Cheng, Y. Wu, and W. Hu, “Dataflow-guided retrieval augmentation for repository-level code completion,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Association for Computational Linguistics, 2024, pp. 7957– 7977. [Online]. Available: https://aclanthology.org/2024.acl-long.431/ [17] H. N. Phan, H. N. Phan, T. N. Nguyen, and N. D. Q. Bui, “RepoHyper: Search–expand–refine on semantic graphs for repository-level code completion,” in Proceedings of the Second IEEE/ACM International Con-ference on AI Foundation Models and Software Engineering (FORGE) ,2025. [18] T. Mehtiyev and W. Assunção, “Beyond resolution rates: Behavioral drivers of coding agent success and failure,” 2026, arXiv:2604.02547. [Online]. Available: https://arxiv.org/abs/2604.02547 [19] J. Hoyos, R. Abdalkareem, S. Mujahid, E. Shihab, and A. E. Bedoya, “On the removal of feature toggles,” Empirical Software Engineering ,vol. 26, no. 1, p. 15, 2021. [20] R. Mahdavi-Hezaveh, S. Fatima, and L. Williams, “Paving a path for a combined family of feature toggle and configuration option research,” 
+
+ACM Transactions on Software Engineering and Methodology , vol. 33, no. 7, 2024.
