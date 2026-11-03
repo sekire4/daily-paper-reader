@@ -1,0 +1,705 @@
+Title: DuQUAD: A Dual-View Framework with Quality-Aware Evidence Pruning for Multi-Document Question Answering
+
+URL Source: https://arxiv.org/pdf/2610.37701v1
+
+Published Time: Fri, 30 Oct 2026 00:01:59 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# DuQUAD: A Dual-View Framework with Quality-Aware Evidence Pruning for Multi-Document Question Answering 
+
+Yeonjun Choi 1 *, Seyeon Jeong 1*, Jong Wook Kim 2 †, Beakcheol Jang 1†1Graduate School of Information, Yonsei University, Seoul, South Korea 
+
+> 2
+
+Department of Computer Science, Sangmyung University, Seoul, South Korea 
+
+{chlduswns99, seyeonjeong, bjang}@yonsei.ac.kr jkim@smu.ac.kr 
+
+Abstract 
+
+Large language models with retrieval-augmented generation systematically underuti-lize evidence in the middle of multi-document contexts, a phenomenon known as Lost in the Middle. Existing mitigation strategies, such as document reordering and attention steering, can reduce boundary bias but remain brittle in noisy settings, where inaccurate relevance estimation and spurious documents still obscure useful evidence in central positions. We propose DuQUAD, a multi-document QA framework that mitigates positional bias through dual-view reasoning and quality-aware evidence pruning. DuQUAD combines a Local Agent guided by a Structural Fusion Score with a Global Agent that reasons over the full document set, providing both targeted evidence recovery and broad contextual understanding. The framework further filters candidate evidence using explicit quality scoring and refines it at the sentence level to reduce noise. DuQUAD consistently outperforms strong Lost-in-the-Middle mitigation baselines, including hybrid retrieval and reranking, multi-agent reasoning, and context optimization methods, improving accuracy by 3.0% on average over the strongest competing baseline and gold evidence recall by 9.4%, while substantially reducing computational cost compared to existing multi-agent frameworks. 
+
+1 Introduction 
+
+Large Language Models (LLMs) have demon-strated strong performance on knowledge-intensive tasks (Achiam et al., 2023; Yang et al., 2025; Grattafiori et al., 2024), but remain limited by their static parametric knowledge, leading to issues such as obsolescence and hallucination. To address this, many approaches provide LLMs with external doc-uments as additional context. However, even when 
+
+> *
+
+Equal contribution. 
+
+> †
+
+Co-corresponding authors. 1 5 10 15 20             
+
+> Document Position
+> -1 01234
+> Average Attention Z-score  NQ_1 NQ_20
+> 1510 15 20
+> Document Position
+> -1 01234
+> Average Attention Z-score  NQ_5
+> 1510 15 20
+> Document Position
+> -1 01234
+> Average Attention Z-score  NQ_10
+> 1510 15 20
+> Document Position
+> -1 01234
+> Average Attention Z-score  NQ_15
+
+Figure 1: Attention z-score distribution across docu-ment positions on the Natural Questions (NQ) bench-mark (NQ-1 to NQ-20, where NQ-n denotes instances in which the gold document appears at the n-th posi-tion). 
+
+relevant documents are available, LLMs often fail to use them effectively in multi-document settings due to a phenomenon known as Lost in the Middle (LiTM) (Liu et al., 2024). LLMs exhibit strong positional bias, disproportionately attending to doc-uments at the boundaries while underutilizing ev-idence in central positions, which degrades multi-document QA performance (Liu et al., 2024; Wang et al., 2024; Hutter et al., 2025). This degradation is further amplified by contextual noise. We use 
+
+noise to denote answer-irrelevant or weakly rele-vant documents in the retrieved set that disperse attention away from answer-bearing evidence and introduce distracting cues during reasoning. Consistent with the U-shaped positional bias (Hsieh et al., 2024), attention concentrates at the beginning and end of the context. When gold docu-ments appear in intermediate positions, localized spikes form a W-shaped pattern (Figure 1), but boundary attention still dominates, leaving mid-context evidence underutilized. arXiv:2610.37701v1 [cs.IR] 25 Oct 2026 To mitigate positional bias, most exist-ing approaches rely on document reorder-ing (Peysakhovich and Lerer, 2023; Liu et al., 2024; Jiang et al., 2024) or attention modification dur-ing training or inference (Hsieh et al., 2024; Jiang et al., 2024). However, relying on weakly cali-brated signals such as semantic similarity or raw attention renders these approaches vulnerable to noise, particularly when gold evidence is buried among weakly relevant distractors at mid-context positions. Motivated by these localized spikes, we propose a framework that mitigates positional bias through dual-view reasoning and quality-aware pruning. We operationalize the W-shaped attention pattern as an attention contrast signal and integrate it with semantic and structural inference via a Structural Fusion Score (SFS) to prioritize gold documents. Our approach combines a Local Agent operating on prioritized documents with a Global Agent rea-soning over the full context. Their outputs undergo DocScore-based filtering to prevent noise and echo chamber effects (Estornell and Liu, 2024), before a Judge Agent synthesizes the final answer. We evaluate our framework on multi-document QA benchmarks covering controlled position and multi-hop reasoning scenarios, comparing against recent baselines including hybrid retrieval and reranking, LiTM mitigation strategies, and multi-agent frameworks. Our contributions are summa-rized as follows: • We formalize the W-shaped attention pattern by adapting the edge-detection principle of the Laplacian operator (Marr and Hildreth, 1980) to capture sharp local attention spikes amidst smooth positional bias. • We propose the Structural Fusion Score (SFS), a unified document scoring function that in-tegrates attention contrast signals, semantic relevance, and structural inference, enabling identification and re-ranking of documents for local evidence selection. • We introduce a Dual-View Agent Framework that mitigates positional bias by synergizing a global context view with a precise local view, integrated with quality-aware pruning to filter noise and prevent hallucination. • Extensive experiments across three multi-document QA benchmarks show that DuQUAD improves accuracy by 3.0% on average over the strongest competing baseline, achieves a 13.8% gain over the stronger multi-agent baseline on NQ-15, and raises gold evidence recall by 9.4%. 
+
+2 Related Work 
+
+Positional Bias in Large Language Models 
+
+LLMs exhibit strong positional biases on multi-document inputs, tending to over-attend to tokens near the input boundaries while under-utilizing information in intermediate positions (Liu et al., 2024; Hutter et al., 2025). This phenomenon, known as Lost in the Middle (LiTM), is attributed to attention dynamics such as attention sinks and recency effects (Xiao et al., 2024; Gu et al., 2025). To mitigate these effects, prior work has proposed attention calibration and sorting tech-niques (Peysakhovich and Lerer, 2023; Hsieh et al., 2024), as well as positional scaling and dimension-level bias correction (Yu et al., 2024). How-ever, these methods primarily target attention-level symptoms rather than how positional bias degrades evidence utilization in multi-document reasoning. 
+
+Training-based Approaches to LiTM Mitigation 
+
+Training-based methods address positional bias through fine-tuning or additional supervision (Liu et al., 2024; Han et al., 2024). Position-agnostic training and multi-step QA supervision encourage models to prioritize content relevance over abso-lute position (He et al., 2024; Pan et al., 2024), while full-context utilization training directly op-timizes for mid-context evidence use (An et al., 2024). Although effective, these approaches re-quire substantial model adaptation and cannot be applied to off-the-shelf models at inference time. 
+
+Training-free Approaches to LiTM Mitigation 
+
+Training-free methods mitigate positional bias at inference time without modifying model parame-ters (Wang et al., 2024). Document reordering and reranking place relevant passages at salient posi-tions prior to reasoning (Peysakhovich and Lerer, 2023; Wang et al., 2025), but do not address sup-pression during reasoning itself. Context compres-sion reduces input noise (Jiang et al., 2024; Verma, 2024), but risks discarding weak signals necessary for multi-hop reasoning. These methods do not explicitly model how positional bias suppresses evidence during reasoning, leaving mid-context ev-idence vulnerable to being overlooked. Question : Where did the term 'robot' come from? 
+
+Golden Document :  Doc 14 , Answer :  Czech 
+
+① Local Document Selection  ③ Quality Pruning 
+
+> Doc 0
+> Doc 1
+> Doc 5
+> Doc 14
+
+② Agent Answer  ④ Final Answer 
+
+All Documents   
+
+> According to, [Doc 14] , the
+> final answer is
+> Czech.
+> Doc 1 Doc 20
+
+.....  
+
+> Structural Fusion Score
+> Attention Contrast
+> Semantic Relevance
+> Structural Inference
+
+Global Agent 
+
+Local Agent 
+
+> Lost in the middle Problem!
+
+DocScore  Judge Agent 
+
+> Agent History
+
+GT : Czech                    
+
+> The term comes from a Czech
+> word, robota , meaning “forced
+> labor”. The word 'robot' was first
+> used in a 1920 play R.U.R. by
+> the Czech writer Karel Čapek.
+> Extract Important Sentence!
+> Doc 14
+> Doc 0
+> Doc 5
+> Doc 9
+> Doc 6
+> Selected
+> Documents
+> Doc 1
+> According to Doc 1,
+> The term “robot” came
+> from the Old Church
+> Slav onic word, robota
+> Important Docs: [0, 1, 5]
+> According to Doc 14,
+> The term “robot” came
+> from a Czech word,
+> robota
+> Important Docs: [ 14 , 0, 1]
+> Doc Score
+> Important Sentence
+> 0.0 | Pruning |None
+> 0.3 | Pruning |Old Church
+> 0.0 | Pruning |None
+> 0.8 |Selected |Czech
+
+Figure 2: Overview of a dual-view multi-agent reasoning framework based on quality-aware evidence pruning. Given a question and a set of retrieved documents, the Structural Fusion Score (SFS) prioritizes a subset for the Local Agent, while the Global Agent operates on the full context. Selected documents are filtered via LLM-based DocScore, and key sentences are extracted. Finally, the Judge Agent aggregates reasoning histories and extracted evidence to produce the final answer. 
+
+Multi-agent Reasoning for Multi-document QA Multi-agent reasoning extends single-agent LLMs by decomposing complex tasks into co-ordinated sub-problems, enabling role special-ization and iterative refinement through agent collaboration. Prior work has explored various paradigms, including debate-based reasoning (Du et al., 2024) and role-based decomposition (e.g., planner–solver–verifier) (Chen et al., 2025). Build-ing on these ideas, structured approaches such as Tree of Agents (Yu et al., 2025) and MAIN-RAG (Chang et al., 2025) organize reasoning and retrieval into hierarchical or multi-stage pipelines. However, these methods primarily focus on task decomposition and document selection, and do not explicitly account for positional bias, leaving mid-context evidence still under-utilized. 
+
+3 Methodology 
+
+We address reasoning failures in multi-document QA: despite accurate retrieval, standard RAG mod-els suffer from positional bias and the LiTM effect, where mid-context evidence is suppressed by noise. To reliably isolate gold evidence, we propose a hierarchical framework that integrates document prioritization, dual-view agent collaboration, and quality-aware evidence pruning, as illustrated in Figure 2. 
+
+3.1 Structural Fusion Score (SFS) 
+
+To identify gold documents under positional noise, we propose the Structural Fusion Score (SFS). While attention over multi-document inputs typi-cally exhibits a U-shaped bias, gold evidence forms a characteristic W-shaped pattern with sharp local spikes (Hsieh et al., 2024). SFS combines (1) se-mantic relevance, (2) structural inference, and (3) attention contrast. The first two capture query– document alignment, while attention contrast em-phasizes localized spikes robust to positional bias. 
+
+3.1.1 Semantic Relevance ( Φsim )
+
+To capture the semantic alignment between a query and documents, we use General Text Embeddings (GTE) (Li et al., 2023) 1, a strong open-source em-bedding model with stable semantic similarity per-formance. Given a query Q and a document Di,we compute their dense vector representations vQ
+
+and vDi independently. The semantic relevance is quantified as their cosine similarity: 
+
+> 1
+
+https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5 Φsim ,i = v⊤
+
+> Q
+
+vDi
+
+∥vQ∥ ∥ vDi ∥ (1) 
+
+3.1.2 Structural Inference ( Φppl )
+
+To capture structural inference signals, we eval-uate the causal dependency of the query Q =(q1, . . . , q |Q|) on a document Di by measuring the likelihood of generating it conditioned on the docu-ment context. In all experiments, Φppl is computed using the same backbone LLM as the main rea-soning model, which avoids introducing a separate scoring model and reduces cross-model inconsis-tency. This metric reflects intrinsic generative sup-port beyond static embeddings. 
+
+Φppl ,i = − 1
+
+|Q|
+
+> |Q|
+
+X
+
+> t=1
+
+log P (qt | Di, q <t ) (2) Here, P (qt | Di, q <t ) denotes the token-level generation probability assigned by the language model. Lower Φppl values indicate stronger con-textual support for the query, serving as a robust indicator of gold evidence. 
+
+3.1.3 Attention Contrast ( Φcont )
+
+To isolate salient information peaks from positional noise, we compute a second-order local contrast over document-level attention scores. While ab-solute attention values across multiple documents are heavily entangled with positional bias, sharp lo-cal deviations more reliably indicate gold evidence, revealing characteristic W-shaped patterns. 
+
+ai is the average attention mass assigned from the final query token to the tokens of document Di,aggregated over all layers and heads. Appendix J details this query-aware input construction and at-tention extraction procedure. Let μA and σA be the mean and standard deviation of ai over the retrieved set A = {D1, . . . , D N }. We first stan-dardize the scores: 
+
+zi = ai − μA
+
+σA
+
+.
+
+We then define the structural contrast as a second-order difference: 
+
+Φcont ,i = zi − zi−1 + zi+1 
+
+2 .
+
+This formulation is analogous to a discrete Lapla-cian operator (Gonzalez, 2009; Marr and Hildreth, 1980), suppressing smooth positional trends while emphasizing sharp local attention spikes. At doc-ument boundaries where symmetric neighbors are not available, we adopt a one-sided finite difference scheme, detailed in Appendix I. 
+
+3.1.4 Score Fusion ( Φ)
+
+We integrate heterogeneous signals using aweighted softmax-based fusion. The final Struc-tural Fusion Score (SFS) for document Di is de-fined as: 
+
+Φi = αS(Φ sim ,i ) + βS(−Φppl ,i ) + γS(Φ cont ,i )
+
+(3) where S(·) denotes softmax applied over the retrieved documents. We negate Φppl to ensure directional consistency. Softmax addresses scale heterogeneity and in-duces distribution sharpening, mapping disparate metrics into a unified probabilistic space while am-plifying high-confidence evidence. We set α = 0 .5,
+
+β = 1 .0, and γ = 0 .5, placing greater weight on structural inference signals. These weights are se-lected by grid search on Natural Questions based on average gold evidence recall across positions. As shown in Appendix E, the chosen configuration achieves the highest overall recall while remaining stable across nearby settings. 
+
+3.2 Dual-View Agent Collaboration 
+
+Although SFS prioritizes relevant evidence, using only a filtered subset may lose global context and cross-document dependencies. To address this, we introduce a Dual-View Agent Collaboration frame-work that reasons from two complementary views. The Global Agent reasons over the complete retrieved document set, while the Local Agent focuses on a compact, noise-reduced subset re-ranked by SFS. This design provides mutual ro-bustness: the Local Agent recovers evidence sup-pressed by positional bias or noise, and the Global Agent compensates for information lost through filtering. Both agents generate cited answers in-dependently, which are aggregated into a unified reasoning log for position-resilient multi-document reasoning. We use k = 6 local documents based on a recall–accuracy trade-off analysis in Appendix D. 
+
+3.3 Quality-Aware Evidence Pruning 
+
+While Dual-View reasoning maximizes recall, ag-gregating verbose reasoning logs and long-form documents can cause context overload, increasing the risk of hallucination. To address this issue, we introduce a two-stage quality-aware pruning strat-egy that separates evidence selection from quality verification. 
+
+Important Document Selection Each agent in-dependently identifies a set of important documents based on its own reasoning process, directly from its generated output. Specifically, each agent re-turns up to three document IDs as important docu-ments, together with its reasoning results, follow-ing a predefined JSON output format (Appendix F, Figure 7). Let DG and DL denote the sets of important documents selected by the Global Agent and the Local Agent, respectively. These sets are merged to form a candidate document pool as follows: 
+
+Dimp = DG ∪ D L (4) As a result, up to six candidate documents are ob-tained. This stage serves as a coarse, recall-oriented filtering step that broadly preserves answer-relevant evidence which might otherwise be missed due to positional bias or contextual noise. 
+
+LLM-Based Quality Scoring Each candidate document Di ∈ D imp is evaluated using DocScore, an LLM-based document reliability score defined in this work, where pi ∈ [0 , 1] estimates whether the question can be answered from the given docu-ment alone. DocScore is produced by a dedicated Score Agent with a fixed prompt, which returns a JSON-formatted confidence score together with an answer span (Appendix F, Figure 9). We retain only high-confidence documents using a threshold-based rule: 
+
+Dkeep = {Di ∈ D imp | pi ≥ τ }. (5) We fix the threshold at τ = 0 .4 for all experi-ments. This value is selected based on the threshold sensitivity analysis in Appendix C (Table 5), where 
+
+τ = 0 .4 is the highest threshold that preserves re-call while still enabling meaningful pruning. Lower thresholds admit more irrelevant or weakly relevant documents, whereas higher thresholds risk discard-ing gold evidence too early. For each retained document, we generate a document-specific provisional answer and select the top two sentences as supporting evidence based on word or keyword overlap between the provi-sional answer and each sentence in the document. This sentence-level evidence compression reduces the computational burden on the Judge Agent while preserving the key information that directly sup-ports final reasoning. 
+
+3.4 Final Decision via Judge Agent 
+
+The Judge Agent produces the final answer with a fixed prompt (Appendix F, Figure 8), jointly con-sidering (i) the reasoning histories of the Global and Local Agents, (ii) document-level confidence scores (DocScore), and (iii) sentence-level evi-dence spans extracted from retained documents. Rather than relying on a single score or isolated evidence, the Judge integrates these heterogeneous signals to make a consolidated decision. Formally, given the question Q, the reasoning traces HG and HL, the sentence-level evidence set 
+
+S, and the associated DocScores p for documents in Dkeep , the final answer ˆy is generated as: 
+
+ˆy = JudgeAgent( Q, HG, HL, S, p) (6) By aggregating complementary agent outputs and evidence signals, the Judge Agent avoids over-reliance on any single source and supports ro-bust answer generation. The complete DuQUAD pipeline is summarized in Algorithm 1. 
+
+4 Experiments 
+
+4.1 Experimental Setup Backbone Model We use Llama-3.1-8B-Instruct (Grattafiori et al., 2024) 2 and Qwen2.5-7B-Instruct (Yang et al., 2024) 3 as backbone models. Both provide sufficient context windows and are applied consistently across all baselines to ensure fair com-parison. Main results are reported for both mod-els, while additional analyses use Llama-3.1-8B-Instruct by default. 
+
+Datasets We evaluate DuQUAD on three multi-document QA benchmarks. For Natural Ques-tions (NQ) (Kwiatkowski et al., 2019), we fol-low the controlled positional bias protocol of (Liu et al., 2024), placing one gold document at posi-tion n ∈ { 1, 5, 10 , 15 , 20 } among 19 distractors. MuSiQue (Trivedi et al., 2022) requires connected reasoning across 2–4 hops, where each question provides 2–4 supporting paragraphs among distrac-tors and no single paragraph suffices to answer inde-pendently. HotpotQA (Yang et al., 2018) requires                                                                                                                                                                                                                                                                                                                 
+
+> 2https://huggingface.co/meta-llama/Llama-3. 1-8B-Instruct
+> 3https://huggingface.co/Qwen/Qwen2. 5-7B-Instruct Model Method NQ-1 NQ-5 NQ-10 NQ-15 NQ-20 MuSiQue HotpotQA
+> Acc. Acc. Acc. Acc. Acc. Acc. EM F1 Acc. EM F1
+> Llama-3.1-8B -Instruct
+> Vanilla LLM 73.5 70.5 65.6 67.0 64.0 33.1 19.9 27.3 73.8 52.4 68.4 SBERT 70.5 70.3 70.4 70.1 70.3 24.9 18.7 27.0 76.8 52.2 68.0 BM25 70.4 69.9 69.8 69.2 69.7 33.6 17.7 26.5 75.3 50.8 67.8 Jina-Reranker 69.0 68.4 69.2 69.4 68.6 29.3 17.6 27.0 77.3 51.6 67.4 Qwen3-Emb. 69.3 69.3 69.3 69.3 69.3 34.7 18.0 27.0 76.8 50.3 67.2 OpenAI 70.2 70.5 71.4 69.9 70.5 34.7 18.3 27.7 76.7 52.5 68.9 Hybrid (RRF) 71.9 72.0 72.1 72.2 72.3 28.0 16.9 25.2 77.1 53.8 68.7 + Rerank 71.4 71.4 71.4 71.4 71.4 28.8 17.8 26.8 77.2 54.4 68.8 ToA 58.0 53.5 56.1 51.0 52.2 21.5 14.0 22.2 57.3 44.2 58.0 MAIN-RAG 62.5 64.4 63.1 62.3 61.4 19.0 16.2 23.7 60.5 46.6 61.6 FiM 75.3 67.0 65.6 64.7 65.4 38.6 12.0 22.4 76.9 37.0 60.6 LongLLMLingua 67.4 68.9 67.1 67.9 66.4 30.8 15.7 24.9 70.2 49.7 65.6
+> DuQUAD 77.3 76.0 75.2 76.1 76.7 41.1 20.6 30.6 80.2 52.6 70.2 Qwen-2.5-7B -Instruct
+> Vanilla LLM 68.1 67.4 65.9 66.4 66.9 32.2 17.7 26.2 79.2 53.5 66.8 SBERT 66.5 66.4 66.1 66.6 66.2 29.6 21.3 29.0 79.2 57.5 71.1 BM25 63.3 63.5 63.8 63.3 63.6 29.2 18.6 26.6 80.1 56.8 69.5 Jina-Reranker 69.0 68.4 68.1 68.1 68.4 29.4 20.2 28.1 78.2 56.7 70.2 Qwen3-Emb. 65.2 65.2 65.2 65.2 65.2 27.7 19.5 27.1 79.3 56.3 69.9 OpenAI 65.4 65.4 65.9 65.0 65.2 30.2 20.0 27.5 80.3 57.2 71.1 Hybrid (RRF) 67.5 67.5 67.4 67.5 67.7 28.4 19.5 27.3 79.0 55.1 68.4 + Rerank 69.9 69.9 69.9 69.9 69.9 29.9 19.9 27.7 77.8 56.9 70.2 ToA 66.0 51.0 46.1 42.5 44.5 13.1 13.5 21.3 50.1 40.0 51.6 MAIN-RAG 62.0 60.8 60.1 61.5 61.9 27.0 14.7 22.3 68.0 52.4 65.3 FiM 73.6 61.0 59.0 58.5 58.7 32.4 12.6 21.3 74.5 36.2 54.2 LongLLMLingua 63.8 64.9 65.2 64.7 65.1 25.6 15.7 24.9 67.6 51.5 61.9
+> DuQUAD 75.5 72.6 72.6 70.2 75.1 36.7 22.4 31.0 82.0 60.7 76.0
+
+Table 1: Main experimental results comparing Llama-3.1-8B-Instruct and Qwen2.5-7B-Instruct. The highest score in each column is shown in bold , and the second-highest score is underlined. 
+
+bridge or comparison reasoning, evaluated in the distractor setting with two gold paragraphs among eight distractors. Detailed dataset characteristics, including input context statistics, are provided in Appendix B (Table 4), while per-experiment sam-ple sizes are summarized in Table 3. 
+
+Evaluation Metrics Following Lost in the Mid-dle (Liu et al., 2024), we evaluate performance using accuracy, defined as whether the generated response contains the ground-truth answer string. This metric is commonly used for multi-document QA with free-form outputs, focusing on answer presence rather than exact matching. For multi-hop reasoning tasks, we additionally report Exact Match (EM) for strict identity and F1 score for word overlap to assess generation precision. 
+
+4.2 Baselines 
+
+We compare our approach against baselines across three categories: (1) reordering and reranking meth-ods including SBERT (Reimers and Gurevych, 2019), BM25 (Crestani et al., 1998), OpenAI em-beddings (OpenAI, 2024), Jina-Reranker (Wang et al., 2025), Qwen3-Embedding (Zhang et al., 2025), and two hybrid variants: Hybrid (RRF), which combines BM25 and Qwen3-Embedding rankings using Reciprocal Rank Fusion (RRF) (Cormack et al., 2009), and Hybrid (RRF) + Rerank, which further applies Jina-Reranker to the fused ranking; (2) multi-agent reasoning frame-works such as Tree of Agents (ToA) (Yu et al., 2025) and MAIN-RAG (Chang et al., 2025); and (3) context optimization techniques such as Found in the Middle (FiM) (Hsieh et al., 2024) and LongLLMLingua (Jiang et al., 2024). Implementa-tion details are provided in Appendix A. 1 5 10 15 20 
+
+Gold Position in the Prompt 
+
+> 65 70 75 80 85 90 95 100
+> Gold Recall (%)
+
+(a) Recall@6 across Gold Positions  
+
+> Only Sim Only PPL Only Cont Sim + PPL Sim + Cont PPL + Cont SFS (Ours)
+> Only Sim Only PPL Only Cont Sim + PPL Sim + Cont PPL + Cont SFS (Ours) 65 70 75 80 85 90 95 100
+> Overall Gold Recall
+> 69.0 75.4 81.4 84.0 83.2 86.8 90.8
+
+(b) Overall Recall@6 Performance Figure 3: Impact of Score Fusion on Robustness. Sim, PPL, and Cont denote the three SFS signals: Semantic Relevance, Structural Inference, and Attention Contrast, respectively. (a) Recall of the gold document by gold position under the Top-6 setting. (b) Overall recall aggregated across all gold positions in (a). Computed on 100 NQ examples per gold position. BM25 SBERT OpenAI SFS(Ours)  
+
+> 60 65 70 75 80
+> Accuracy (%)
+> 66.4 70.5 71.4 76.1
+
+DuQUAD by Reordering Method 
+
+Figure 4: Impact of representative local document selec-tion scores within DuQUAD on NQ-15. We compare sparse and dense retrieval-based alternatives against the proposed Structural Fusion Score (SFS) in terms of an-swer accuracy. 
+
+5 Results 
+
+5.1 Overall Performance 
+
+Table 1 reports accuracy on NQ, MuSiQue, and HotpotQA, with EM and F1 scores additionally reported for multi-hop tasks. On NQ, the Vanilla LLM shows strong posi-tional sensitivity, with accuracy varying substan-tially across gold-document positions. Reordering and reranking baselines reduce this positional vari-ation, with the hybrid variants showing particularly stable performance across positions. Nevertheless, DuQUAD consistently achieves the highest accu-racy across all NQ settings under both backbones. Context optimization and multi-agent baselines also remain challenged by LiTM: FiM degrades substantially at intermediate positions, while ToA and MAIN-RAG remain below DuQUAD despite their more complex reasoning pipelines. These results suggest that stronger document ranking, repositioning, or reasoning decomposition alone does not fully address positional underutilization in multi-document reasoning. Overall, DuQUAD achieves the best accuracy across all 14 accuracy settings in Table 1. It improves over the strongest competing baseline in each setting by 3.0 percentage points on aver-age. The same trend holds for both Llama-3.1-8B-Instruct and Qwen2.5-7B-Instruct, suggesting that the gains are not specific to a single backbone. On MuSiQue and HotpotQA, DuQUAD also achieves the best accuracy under both backbones. With Llama-3.1-8B-Instruct, it improves over the strongest competing baseline by 2.5 percentage points on MuSiQue and 2.9 percentage points on HotpotQA. DuQUAD further achieves the highest F1 on both multi-hop benchmarks. The only metric-level exception under the Llama back-bone is HotpotQA EM, where Hybrid (RRF) + Rerank achieves 54.4%, compared with 52.6% for DuQUAD. This narrow EM advantage is con-sistent with HotpotQA’s relatively compact evi-dence setting, where strong document ordering can place the two gold paragraphs at salient po-sitions, while strict exact-match scoring may pe-nalize answers that are semantically correct but differ in surface form. With Qwen2.5-7B-Instruct, DuQUAD achieves the highest accuracy, EM, and F1 on both multi-hop benchmarks. These results demonstrate that DuQUAD maintains robust per-formance across both controlled positional settings and multi-hop reasoning tasks. Paired bootstrap re-sampling further shows that DuQUAD’s gains are statistically significant in 35 out of 36 comparisons (p < 0.05 ), with detailed results in Appendix G.1. Method NQ-15 MuSiQue HotpotQA w/o Local Agent 69.8 38.1 79.1 w/o Global Agent 71.1 36.1 80.0 w/o Quality Pruning 71.3 34.6 79.8    
+
+> DuQUAD 76.1 41.1 80.2
+
+Table 2: Effect of the Local Agent, Global Agent, and Quality-Aware Pruning. Ablation analysis across three datasets evaluating the impact on accuracy when omitting each component compared to the complete DuQUAD method. 
+
+5.2 Gold Evidence Recall and DocScore Stability 
+
+We evaluate local document selection using gold evidence recall, defined as whether the gold docu-ment is included in the candidate set selected for the Local Agent. As shown in Figure 3, Atten-tion Contrast achieves the highest recall among single-signal approaches at 81.4%, surpassing Se-mantic Relevance with 69.0% and Structural Infer-ence with 75.4%. In contrast, the proposed Struc-tural Fusion Score (SFS) attains the highest overall recall of 90.8%, yielding a 4.0% improvement over the strongest multi-signal baseline that combines Structural Inference and Attention Contrast, and a 9.4% gain over the best single-signal method. These results indicate that integrating complemen-tary signals enables more robust identification of gold evidence across different document positions. DocScore further provides a stable quality sig-nal for evidence pruning. Across NQ-1/5/10/15/20, gold documents consistently receive higher Doc-Scores than non-gold documents and are selected as Important Documents more frequently under both Llama and Qwen backbones. Cross-model anal-ysis further shows 90.4% agreement on gold evi-dence selection, suggesting that DocScore captures a stable answerability signal rather than backbone-specific behavior. Detailed statistics are provided in Appendix L. 
+
+5.3 Ablation Analysis 
+
+Table 2 reports ablation results evaluating the con-tributions of the Local Agent, the Global Agent, and quality-aware evidence pruning. Remov-ing any component consistently degrades perfor-mance, confirming that DuQUAD’s gains come from the interaction of complementary reasoning views and explicit evidence filtering. The largest drop on NQ-15 occurs when the Local Agent is removed, indicating that global context reason-0 20 40 60 80   
+
+> End-to-End Latency (s)
+> 50 55 60 65 70 75 80
+> NQ-15 Accuracy (%)
+> Vanilla OpenAI Jina FiM LongLLMLingua Qwen3-Embedding Hybrid (RRF) Hybrid (RRF)+Rerank MAIN-RAG ToA DuQUAD
+> 24664 66 68 70 72
+
+Figure 5: Accuracy–latency trade-off of representative baselines on NQ-15. The inset magnifies the low-latency region for clearer comparison among retrieval, rerank-ing, and context optimization methods. 
+
+ing alone is insufficient when answer-bearing ev-idence is embedded among many distractors. In contrast, MuSiQue shows larger drops when the Global Agent or quality-aware pruning is removed, suggesting that multi-hop reasoning requires both cross-document context preservation and filtering of noisy or weakly aligned reasoning traces. The smaller changes on HotpotQA suggest less head-room under its smaller candidate set and more ex-plicit supporting facts. Figure 4 further analyzes document prioritiza-tion under the NQ-15 setting using representative local document selection scores. Among the eval-uated alternatives, OpenAI achieves the highest accuracy at 71.4%, compared with 76.1% for the proposed Structural Fusion Score (SFS). These re-sults show that replacing SFS with standard sparse or dense retrieval scores reduces performance, sup-porting the benefit of combining semantic rele-vance, structural inference, and attention contrast for local document prioritization. More broadly, DuQUAD integrates this SFS-based local prioriti-zation with dual-view reasoning and quality-aware pruning. Appendix K provides quantitative dis-agreement analysis and qualitative examples of Local–Global complementarity and joint failure cases. 
+
+5.4 Cost Efficiency Analysis 
+
+We analyze the cost-efficiency of DuQUAD with respect to end-to-end latency on NQ-15. Figure 5 shows the accuracy–latency trade-off across repre-sentative baselines. Among lightweight retrieval and reranking methods, Hybrid (RRF) provides the strongest accuracy–latency trade-off, achiev-ing 72.2% accuracy with an end-to-end latency of 3.67 s. DuQUAD further improves accuracy to 76.1%, at the cost of additional inference latency. Compared with existing multi-agent frameworks, however, DuQUAD is both more accurate and substantially more efficient: it improves accu-racy by 13.8% over MAIN-RAG and 25.1% over ToA while reducing end-to-end latency by 3.3 ×
+
+and 3.9 ×, respectively. These results show that DuQUAD incurs additional overhead relative to lightweight retrieval and reranking methods, but achieves higher accuracy while remaining sub-stantially more efficient than existing multi-agent frameworks. As the Local and Global Agents op-erate independently, they can also be executed in parallel to further reduce latency. Detailed cost statistics are provided in Appendix H. 
+
+6 Conclusion 
+
+We investigated the limitations of multi-document QA under positional bias, specifically the Lost in the Middle phenomenon. To address it, we pro-pose DuQUAD, a dual-view reasoning framework that pairs a Local Agent operating on a priori-tized evidence subset with a Global Agent that reasons over the full document set. Local se-lection is guided by the Structural Fusion Score, which integrates semantic relevance, structural in-ference, and attention contrast to robustly identify gold documents despite positional noise. Quality-aware pruning further removes low-confidence ev-idence before final reasoning, and together these components raise gold evidence recall to 90.8%. As a result, DuQUAD mitigates positional bias and achieves the best accuracy among the evalu-ated baselines across all benchmarks, while requir-ing substantially less computation than existing multi-agent frameworks. These results demonstrate that DuQUAD offers a favorable balance between accuracy and cost for robust reasoning in multi-document QA under positional bias. 
+
+7 Limitations 
+
+While DuQUAD effectively mitigates positional bias in multi-document QA settings, it also has several limitations. First, DuQUAD employs an explicit evidence pruning mechanism to suppress noisy or low-confidence documents. Although this improves robustness against positional noise, it may reduce contextual coverage when relevant ev-idence is weakly expressed or distributed across multiple documents, particularly for complex multi-hop questions. Second, DuQUAD relies on the availability of answer-bearing documents within the initial re-trieved set. Similar to other retrieval-augmented frameworks, its performance is bounded by re-trieval quality: if relevant documents are not re-trieved, the framework cannot recover missing evi-dence through internal reasoning alone. Third, even when answer-bearing evidence is correctly retrieved and scored, the final synthesis stage may still fail in complex multi-hop questions where the reasoning chain must track closely re-lated intermediate entities, as reflected in the quan-titative and qualitative analyses in Appendix K. Finally, our evaluation is limited to Llama-3.1-8B-Instruct and Qwen2.5-7B-Instruct; broader evaluation across model families, capabilities, and sizes would further assess the generalizability of DuQUAD. These limitations reflect inherent trade-offs in multi-document QA systems that balance contex-tual coverage, noise suppression, and reasoning stability. 
+
+Acknowledgments 
+
+This work was supported by the National Research Foundation of Korea (NRF) under Grant No. RS-2023-00273751 and by the Institute of Information & Communications Technology Planning & Evalu-ation (IITP) under Grant No. RS-2024-00397085, funded by the Korean government. 
+
+References       
+
+> Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, and 1 others. 2023. Gpt-4 techni-cal report. arXiv preprint arXiv:2303.08774 .Shengnan An, Zexiong Ma, Zeqi Lin, Nanning Zheng, Jian-Guang Lou, and Weizhu Chen. 2024. Make your llm fully utilize the context. Advances in Neural Information Processing Systems , 37:62160–62188. Chia-Yuan Chang, Zhimeng Jiang, Vineeth Rakesh, Menghai Pan, Chin-Chia Michael Yeh, Guanchu Wang, Mingzhi Hu, Zhichao Xu, Yan Zheng, Ma-hashweta Das, and 1 others. 2025. Main-rag: Multi-agent filtering retrieval-augmented generation. In
+> Proceedings of the 63rd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 2607–2622.
+
+Justin Chen, Archiki Prasad, Swarnadeep Saha, Elias Stengel-Eskin, and Mohit Bansal. 2025. MAgICoRe: Multi-agent, iterative, coarse-to-fine refinement for reasoning. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing ,pages 32663–32686, Suzhou, China. Association for Computational Linguistics. Gordon V. Cormack, Charles L. A. Clarke, and Stefan Büttcher. 2009. Reciprocal rank fusion outperforms condorcet and individual rank learning methods. In 
+
+Proceedings of the 32nd International ACM SIGIR Conference on Research and Development in Infor-mation Retrieval , pages 758–759. ACM. Fabio Crestani, Mounia Lalmas, Cornelis J Van Rijs-bergen, and Iain Campbell. 1998. “is this document relevant?. . . probably” a survey of probabilistic mod-els in information retrieval. ACM Computing Surveys (CSUR) , 30(4):528–552. Yilun Du, Shuang Li, Antonio Torralba, Joshua B Tenen-baum, and Igor Mordatch. 2024. Improving factual-ity and reasoning in language models through multia-gent debate. In Forty-first international conference on machine learning .Andrew Estornell and Yang Liu. 2024. Multi-llm de-bate: Framework, principals, and interventions. Ad-vances in Neural Information Processing Systems ,37:28938–28964. Rafael C Gonzalez. 2009. Digital image processing .Pearson education india. Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schel-ten, Alex Vaughan, Amy Yang, Angela Fan, Anirudh Goyal, Anthony Hartshorn, Aobo Yang, Archi Mi-tra, Archie Sravankumar, Artem Korenev, Arthur Hinsvark, and 542 others. 2024. The llama 3 herd of models. Preprint , arXiv:2407.21783. Xiangming Gu, Tianyu Pang, Chao Du, Qian Liu, Fengzhuo Zhang, Cunxiao Du, Ye Wang, and Min Lin. 2025. When attention sink emerges in language models: An empirical view. In International Con-ference on Learning Representations , volume 2025, pages 97114–97144. Chi Han, Qifan Wang, Hao Peng, Wenhan Xiong, Yu Chen, Heng Ji, and Sinong Wang. 2024. Lm-infinite: Zero-shot extreme length generalization for large language models. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) ,pages 3991–4008. Junqing He, Kunhao Pan, Xiaoqun Dong, Zhuoyang Song, Yibo Liu, Qianguo Sun, Yuxin Liang, Hao Wang, Enming Zhang, and Jiaxing Zhang. 2024. Never lost in the middle: Mastering long-context question answering with position-agnostic decom-positional training. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 13628– 13642, Bangkok, Thailand. Association for Compu-tational Linguistics. Cheng-Yu Hsieh, Yung-Sung Chuang, Chun-Liang Li, Zifeng Wang, Long Le, Abhishek Kumar, James Glass, Alexander Ratner, Chen-Yu Lee, Ranjay Kr-ishna, and 1 others. 2024. Found in the middle: Cali-brating positional attention bias improves long con-text utilization. In Findings of the Association for Computational Linguistics: ACL 2024 , pages 14982– 14995. Jan Hutter, David Rau, Maarten Marx, and Jaap Kamps. 2025. Lost but not only in the middle: Positional bias in retrieval augmented generation. In European Conference on Information Retrieval , pages 247–261. Springer. Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dongsheng Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2024. Longllmlingua: Accelerating and enhancing llms in long context scenarios via prompt compression. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 1658–1677. Tom Kwiatkowski, Jennimaria Palomaki, Olivia Red-field, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Ken-ton Lee, Kristina Toutanova, Llion Jones, Matthew Kelcey, Ming-Wei Chang, Andrew M. Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Natu-ral questions: A benchmark for question answering research. Transactions of the Association for Compu-tational Linguistics , 7:452–466. Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan Zhang. 2023. Towards general text embeddings with multi-stage contrastive learning. arXiv preprint arXiv:2308.03281 .Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paran-jape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. 2024. Lost in the middle: How language mod-els use long contexts. Transactions of the Association for Computational Linguistics , 12:157–173. David Marr and Ellen Hildreth. 1980. Theory of edge detection. Proceedings of the Royal Society of Lon-don. Series B. Biological Sciences , 207(1167):187– 217. OpenAI. 2024. Text embedding 3 models. 
+
+https://platform.openai.com/docs/models/ text-embedding-3-large . Accessed: 2025-12-25. Ruotong Pan, Boxi Cao, Hongyu Lin, Xianpei Han, Jia Zheng, Sirui Wang, Xunliang Cai, and Le Sun. 2024. Not all contexts are equal: Teaching llms credibility-aware generation. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , pages 19844–19863. Alexander Peysakhovich and Adam Lerer. 2023. At-tention sorting combats recency bias in long context language models. arXiv preprint arXiv:2310.01427 .Nils Reimers and Iryna Gurevych. 2019. Sentence-BERT: Sentence embeddings using Siamese BERT-networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natu-ral Language Processing (EMNLP-IJCNLP) , pages 3982–3992, Hong Kong, China. Association for Com-putational Linguistics. Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2022. Musique: Multi-hop questions via single-hop question composition. 
+
+Transactions of the Association for Computational Linguistics , 10:539–554. Sourav Verma. 2024. Contextual compression in retrieval-augmented generation for large language models: A survey. arXiv preprint arXiv:2409.13385 .Feng Wang, Yuqing Li, and Han Xiao. 2025. jina-reranker-v3: Last but not late interaction for doc-ument reranking. arXiv preprint arXiv:2509.25085 .Minzheng Wang, Longze Chen, Fu Cheng, Shengyi Liao, Xinghua Zhang, Bingli Wu, Haiyang Yu, Nan Xu, Lei Zhang, Run Luo, and 1 others. 2024. Leave no document behind: Benchmarking long-context llms with extended multi-doc qa. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , pages 5627–5646. Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. Efficient streaming lan-guage models with attention sinks. In International Conference on Learning Representations , volume 2024, pages 21875–21895. An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, and 1 others. 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 .An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, Haoran Wei, Huan Lin, Jian Yang, Jian-hong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jingren Zhou, Junyang Lin, Kai Dang, and 22 oth-ers. 2024. Qwen2.5 technical report. arXiv preprint arXiv:2412.15115 .Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan Salakhutdinov, and Christo-pher D Manning. 2018. Hotpotqa: A dataset for diverse, explainable multi-hop question answering. In Proceedings of the 2018 conference on empiri-cal methods in natural language processing , pages 2369–2380. Song Yu, Xiaofei Xu, Ke Deng, Li Li, and Lin Tian. 2025. Tree of agents: Improving long-context ca-pabilities of large language models through multi-perspective reasoning. In Findings of the Association for Computational Linguistics: EMNLP 2025 , pages 4574–4592, Suzhou, China. Association for Compu-tational Linguistics. Yijiong Yu, Huiqiang Jiang, Xufang Luo, Qianhui Wu, Chin-Yew Lin, Dongsheng Li, Yuqing Yang, Yongfeng Huang, and Lili Qiu. 2024. Mitigate posi-tion bias in large language models via scaling a single dimension. arXiv preprint arXiv:2406.02536 .Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, and 1 others. 2025. Qwen3 embedding: Advancing text embedding and reranking through foundation models. arXiv preprint arXiv:2506.05176 .
+
+A Baseline Implementation Details 
+
+(1) Vanilla LLM. Constructs the input context by directly concatenating one ground-truth doc-ument with 19 distractors without additional post-processing. 
+
+(2) Reordering and Reranking. (i) SBERT Re-ordering (Reimers and Gurevych, 2019) is a dense retrieval baseline using Sentence-BERT. Docu-ments are rearranged in descending order of co-sine similarity between the query and document embeddings. (ii) BM25 Reordering (Crestani et al., 1998) is a sparse retrieval baseline utilizing lexi-cal overlap. Documents are re-ranked based on BM25 scores to prioritize exact term matches. (iii) OpenAI Reordering (OpenAI, 2024) reorders doc-uments based on semantic similarity using pro-prietary embeddings. (iv) Jina-Reranker (Wang et al., 2025) is a reranking baseline based on cross-encoder-style query–document interaction. Candi-date documents are re-ranked according to their rel-evance scores, enabling more precise ordering than bi-encoder similarity alone. (v) Qwen3-Embedding (Zhang et al., 2025) is a dense embedding base-line using a recent open-source embedding model. Documents are rearranged based on cosine sim-ilarity between query and document embeddings. (vi) Hybrid (RRF) combines the BM25 and Qwen3-Embedding rankings using Reciprocal Rank Fusion (RRF) (Cormack et al., 2009). RRF assigns each document a fused score by summing reciprocal rank-based scores across the two ranked lists: 
+
+RRF( d) = X 
+
+> m∈{ BM25 ,Dense }
+
+1
+
+k + rm(d) , (7) where rm(d) denotes the rank of document d un-der retrieval method m. We use k = 60 and reorder Experiment Dataset Samples Reference                                             
+
+> W-shape Visualization NQ 100 ×5Figure 1 Main Experiment NQ 1,000 ×5
+> Table 1 MuSiQue 1,000 HotpotQA 1,000 30-Document Robustness NQ-15 1,000 Table 8 Gold Recall Analysis NQ 100 ×5Figure 3 DocScore / Important-Doc Statistics NQ 1,000 ×5Table 11 Cross-Model Evidence Stability NQ 1,000 ×5Table 12 Component Ablation NQ-15 1,000 Table 2 MuSiQue 1,000 HotpotQA 1,000 Local–Global Disagreement NQ 1,000 Table 10 MuSiQue 1,000 HotpotQA 1,000 Local-Selection Ablation NQ-15 1,000 Figure 4 Top-kAnalysis NQ-15 1,000 Figure 6 Cost Analysis NQ-15 1,000 Table 9
+
+Table 3: Summary of experimental settings and datasets. For NQ experiments evaluated over multiple gold positions, the sample count is shown as (examples per position) × (number of positions); the five positions are 
+
+n ∈ { 1, 5, 10 , 15 , 20 }.                         
+
+> Dataset Samples Docs Gold Docs Question Type Input Tokens Mean Std. Max
+> NQ 1,000 20 1Single-hop factoid 2,781 140 3,396 MuSiQue 1,000 20 2–4 2–4 hop 2,446 495 4,751 HotpotQA 1,000 10 22-hop 1,351 349 3,220 NQ (30 docs) 1,000 30 1Single-hop factoid 4,239 205 5,474
+
+Table 4: Dataset characteristics and input context statistics. Input lengths include all documents and the question and are measured using the Llama-3.1-8B-Instruct tokenizer. For NQ, each positional split contains 1,000 examples; the 30-document setting is an additional robustness evaluation with the gold document at position 15. 
+
+documents according to the resulting fused scores, with Qwen3-Embedding serving as the dense re-triever. (vii) Hybrid (RRF) + Rerank further applies Jina-Reranker to the RRF-fused ranking, combin-ing sparse and dense retrieval signals with cross-encoder reranking. 
+
+(3) Multi-Agent Reasoning. (i) Tree of Agents (ToA) (Yu et al., 2025) organizes agents in a hier-archical tree topology. A root agent decomposes tasks while leaf agents explore distinct paths, aggre-gating insights to mitigate information loss in long contexts. (ii) MAIN-RAG (Chang et al., 2025) is a collaborative architecture with specialized agents. It employs adaptive filtering to dynamically set inclusion thresholds, retaining high-confidence evi-dence while discarding noise. 
+
+(4) Context Optimization. (i) Found in the Mid-dle (FiM) (Hsieh et al., 2024) is a position-aware strategy for mitigating the Lost in the Middle phe-nomenon. It applies a U-shaped reordering strat-egy that places the most relevant documents at the beginning and end of the context. (ii) LongLLM-Lingua (Jiang et al., 2024) focuses on prompt com-pression. Following the original implementation settings, it utilizes Llama-2-7b-chat-hf 4 to esti-mate token perplexity, discarding low-importance tokens to compress the prompt while preserving key information. 
+
+B Experimental Settings and Dataset Details 
+
+This appendix describes the datasets and experi-mental configurations used throughout the paper. Table 4 summarizes the main characteristics of each benchmark, including the number of evalua-tion samples, documents, gold documents, question type, and input context length statistics. 
+
+> 4https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+
+Natural Questions (NQ). The original NQ cor-pus (Kwiatkowski et al., 2019) contains 307,373 training examples derived from real Google search queries, where annotators mark long answers and short answers on Wikipedia pages. In our evalu-ation, we use the controlled positional bias pro-tocol of (Liu et al., 2024) rather than the origi-nal reading comprehension task. Each instance places one gold document at a designated posi-tion among 19 distractors within a 20-document sequence. Five positional splits are constructed for n ∈ { 1, 5, 10 , 15 , 20 }, with 1,000 examples per split, and all questions are single-hop. The five splits share the same document sets and differ only in the position of the gold document. 
+
+MuSiQue. MuSiQue (Trivedi et al., 2022) is con-structed via bottom-up composition of single-hop questions drawn from five seed datasets into con-nected multi-hop chains. The dataset contains approximately 25K questions spanning 2–4 hops across six reasoning graph types. Each question en-forces that one reasoning step critically depends on another, and no single paragraph suffices for an in-dependent answer, preventing the disconnected rea-soning shortcuts observed in prior benchmarks. We use instances from the answerable subset, each with its original supporting and distractor paragraphs. 
+
+HotpotQA. HotpotQA (Yang et al., 2018) con-tains 112,779 Wikipedia-based question–answer pairs annotated with sentence-level supporting facts. Each question requires 2-hop reasoning and is categorized as either bridge, where an intermedi-ate entity from one paragraph is needed to locate the answer in another, or comparison, which re-quires contrasting properties across two paragraphs. We evaluate in the distractor setting, where two gold paragraphs are presented alongside eight dis-tractors. Table 4 summarizes the benchmark-level evalu-ation characteristics and context length statistics, while the datasets and sample sizes used for indi-vidual experiments vary depending on the experi-mental purpose. All experiment-specific settings are summarized in Table 3. 
+
+C DocScore Threshold Sensitivity Analysis 
+
+Table 5 shows the recall of gold documents under varying DocScore thresholds. Recall decreases monotonically as τ increases, reflecting the ex-
+
+Threshold ( τ ) Recall (%) 
+
+0.2 83.57 0.3 80.70 
+
+0.4 80.70 
+
+0.5 79.38 0.6 79.02 0.7 75.06 0.8 74.70           
+
+> Table 5: Sensitivity of answer-document recall to the DocScore threshold τ(operating range). We report τ∈
+> [0 .2,0.8] as extremely low thresholds behave similarly (near-pass-through), while overly high thresholds enter a degenerate pruning regime. 2610 14 18
+> Top-k
+> 70 80 90 100
+> Accuracy (%)
+> Top-k Performance: Accuracy and Recall
+> Acc. (%) Recall@k (%)
+> 70 80 90 100
+> Recall@k (%)
+> Figure 6: Impact of the number of documents provided to the Local Agent on Accuracy and Recall@k.
+
+pected trade-off between pruning aggressiveness and evidence coverage. Importantly, recall remains unchanged between τ = 0 .3 and τ = 0 .4 (80.70%), indicating that raising the threshold within this range does not discard additional gold documents. Beyond τ = 0 .4, recall consistently declines, sug-gesting that stricter pruning begins to remove gold evidence. We therefore set τ = 0 .4 as the highest threshold that preserves recall while still enabling meaningful pruning of low-confidence documents. These results are obtained on the NQ setting with 1,000 examples. 
+
+D Recall–Accuracy Trade-off for Local Document Selection 
+
+Figure 6 shows the effect of the local document budget k on NQ-15. Recall@ k increases monoton-ically as more documents are included and begins to saturate around k = 6 . Answer accuracy ex-hibits a similar trend, improving substantially up to k = 6 while showing only marginal gains or Φsim Φppl Φcont Avg. Recall (%) 
+
+0.5 1.0 0.5 91.40 
+
+0.3 0.5 0.3 91.20 0.3 0.7 0.3 91.20 0.3 0.7 1.0 91.20 0.3 0.5 0.7 91.00 0.3 0.5 1.0 91.00 0.3 0.7 0.7 91.00 0.3 1.0 0.3 91.00 0.5 0.7 1.0 91.00 0.7 0.7 0.5 91.00         
+
+> Table 6: Grid search results for Structural Fusion Score (SFS) weights. Average gold evidence recall is reported across all evaluated answer positions. The selected configuration (Φ sim ,Φppl ,Φcont )=(0 .5,1.0,0.5)
+> achieves the highest overall recall.
+
+slight fluctuations beyond this point. This suggests that additional documents beyond k = 6 mainly in-crease contextual noise rather than improving final answer quality. We therefore use k = 6 as the de-fault local-document budget, balancing high recall with controlled noise. 
+
+E Ablation on SFS Weight Selection 
+
+We determine the weighting coefficients of the Structural Fusion Score (SFS) via a grid search over (Φ sim , Φppl , Φcont ) conducted on the Natu-ral Questions (NQ) dataset. Each configuration is evaluated using the average gold evidence recall aggregated across all answer positions. As shown in Table 6, multiple weight combinations achieve comparable recall values, indicating that SFS is robust to moderate variations in weighting. Among them, the configuration (0 .5, 1.0, 0.5) attains the highest overall average recall (91.4%) and is there-fore adopted in all experiments. This choice places greater emphasis on structural inference signals while retaining complementary contributions from semantic relevance and attention contrast. These results are obtained on the NQ setting with 1,000 examples. 
+
+F Reproducibility 
+
+To ensure reproducibility, we release the exact prompts used for all LLM-based components. Rea-soning agent prompts, Judge prompts, and score estimation prompts are provided in Figures 7, 8, and 9, respectively, without modification. In par-ticular, the reasoning agent prompt in Figure 7 in-structs each agent to answer the question using only the provided documents and to return the top 3 important document IDs in a fixed JSON for-mat, which is later used to construct the candidate document pool. The score estimation prompt in Figure 9 defines the DocScore procedure: for each selected candidate document, the Score Agent esti-mates whether the question can be answered from that document alone and returns a JSON object containing a confidence score p ∈ [0 , 1] together with the best answer span or phrase. All experiments were conducted on a computing system equipped with NVIDIA L40S GPUs, an AMD EPYC 9654 CPU (96 cores), and 1 TB of system memory. We fix all decoding parameters across experiments and use deterministic decoding with a temperature of 0.0 unless otherwise spec-ified, enabling faithful replication of our results. All baseline experiments were conducted under the same generation setting with the temperature fixed to 0.0 to ensure reproducibility and fair comparison. The basic prompt templates (e.g., Vanilla LLM and reordering-based methods) strictly follow the con-figurations used in the Lost in the Middle paper 5.For baselines requiring additional prompt control or specialized templates, we prioritized the officially released GitHub implementations provided by the original authors. When an official implementation was not available, we faithfully reimplemented the prompts and inference procedures as described in the corresponding papers. 
+
+Artifact use. All existing artifacts used in this work are used solely for research and evaluation purposes, consistent with their intended use. Structural inference and attention score computa-tion are performed using the same backbone model as the main reasoning process. This avoids intro-ducing separate scoring models and helps mitigate bias arising from reliance on specific model archi-tectures. 
+
+G Additional Evaluation Analyses 
+
+G.1 Statistical Significance Analysis 
+
+We evaluate the statistical significance of the per-formance differences between DuQUAD and each baseline using paired bootstrap resampling. For each dataset, we repeatedly resample the evalua-tion set with replacement (10,000 iterations) and compute the containment rate difference between                                                                                                                                              
+
+> 5https://github.com/nelson-liu/lost-in-the-middle Dataset (DuQUAD Acc.) Baseline Acc. (%) Diff. (95% CI) p-value NQ-15 (76.1) Vanilla LLM 67.0 +9.1 (6.5 – 11.9) <0.0001*** SBERT 70.1 +6.0 (3.3 – 8.8) <0.0001*** BM25 69.2 +6.9 (4.1 – 9.7) <0.0001*** Jina-Reranker 69.4 +6.7 (4.1 – 9.4) <0.0001*** Qwen3-Embedding 69.3 +6.8 (4.0 – 9.6) <0.0001*** OpenAI 69.9 +6.2 (3.4 – 9.0) <0.0001*** Hybrid (RRF) 72.2 +3.9 (1.2 – 6.6) 0.0042** + Rerank 71.4 +4.7 (2.1 – 7.3) 0.0004*** ToA 51.0 +25.1 (22.0 – 28.4) <0.0001*** MAIN-RAG 62.3 +13.8 (10.9 – 16.8) <0.0001*** LongLLMLingua 67.9 +8.2 (5.5 – 11.1) <0.0001*** FiM 64.7 +11.4 (8.6 – 14.2) <0.0001***
+> MuSiQue (41.1) Vanilla LLM 33.1 +8.0 (5.4 – 10.6) <0.0001*** SBERT 24.9 +16.2 (13.4 – 18.9) <0.0001*** BM25 33.6 +7.5 (5.1 – 10.0) <0.0001*** Jina-Reranker 29.3 +11.8 (9.2 – 14.5) <0.0001*** Qwen3-Embedding 34.7 +6.4 (3.9 – 8.9) <0.0001*** OpenAI 34.7 +6.4 (3.8 – 9.1) <0.0001*** Hybrid (RRF) 28.0 +13.1 (10.5 – 15.8) <0.0001*** + Rerank 28.8 +12.3 (9.7 – 15.0) <0.0001*** ToA 21.5 +19.6 (16.6 – 22.6) <0.0001*** MAIN-RAG 19.0 +22.1 (19.2 – 25.0) <0.0001*** LongLLMLingua 30.8 +10.3 (7.5 – 13.2) <0.0001*** FiM 38.6 +2.5 (-0.4 – 5.4) 0.0910
+> HotpotQA (80.2) Vanilla LLM 73.8 +6.4 (3.9 – 9.0) <0.0001*** SBERT 76.8 +3.4 (1.0 – 5.8) 0.0066** BM25 75.3 +4.9 (2.4 – 7.4) <0.0001*** Jina-Reranker 77.3 +2.9 (0.4 – 5.3) 0.0242* Qwen3-Embedding 76.8 +3.4 (1.0 – 5.8) 0.0062** OpenAI 76.7 +3.5 (1.0 – 6.0) 0.0072** Hybrid (RRF) 77.1 +3.1 (0.5 – 5.7) 0.0228* + Rerank 77.2 +3.0 (0.5 – 5.5) 0.0216* ToA 57.3 +22.9 (19.8 – 26.1) <0.0001*** MAIN-RAG 60.5 +19.7 (16.7 – 22.7) <0.0001*** LongLLMLingua 70.2 +10.0 (7.2 – 12.8) <0.0001*** FiM 76.9 +3.3 (0.8 – 5.9) 0.0106*
+
+Table 7: Performance comparison of Accuracy (%). Values in parentheses represent the accuracy of DuQUAD. Mean differences and 95% confidence intervals (CI) are derived from paired bootstrap resampling ( N = 10 , 000 ). Asterisks indicate statistical significance: * p < 0.05 , ** p < 0.01 , *** p < 0.001 .
+
+DuQUAD and the corresponding baseline. The reported difference corresponds to the mean im-provement, and the 95% confidence interval (CI) is obtained from the 2.5th and 97.5th percentiles of the bootstrap distribution. Statistical significance is assessed using a two-sided bootstrap hypothesis test under the null hypothesis that the expected dif-ference is zero. Two-sided p-values are computed as twice the smaller empirical tail probability of the bootstrap distribution relative to zero. We re-port significance levels using standard conventions: *** for p < 0.001 , ** for p < 0.01 , and * for 
+
+p < 0.05 .The complete statistical results are summarized in Table 7. DuQUAD yields positive mean improve-ments over all baselines across the 36 pairwise com-parisons (12 baselines × 3 datasets), with 35 of them reaching statistical significance at p < 0.05 .Significant improvements are observed across re-ordering and reranking methods, multi-agent frame-works, and context optimization techniques, in-cluding strong baselines such as Hybrid (RRF), Hybrid (RRF) + Rerank, Jina-Reranker, Qwen3-Embedding, LongLLMLingua, and FiM on NQ-15 and HotpotQA. The single exception is DuQUAD vs. FiM on MuSiQue. Two factors underlie this result: FiM is a strong baseline on multi-hop reasoning, as its U-shaped reordering places relevant documents at salient positions well suited to compositional evi-dence, and the absolute gap ( +2 .5% ) is the small-est among all MuSiQue comparisons, where the re-maining gaps ( +6 .4% to +22 .1% ) yield clearer sta-tistical separation. The direction of improvement nonetheless remains consistent, and DuQUAD shows clearer statistical advantages in settings with stronger positional bias, such as NQ. 
+
+G.2 Robustness to Increased Document Count 
+
+We further evaluate robustness to an increased num-ber of documents by extending NQ-15 from 20 to 30 documents while keeping the gold document at position 15. Table 8 compares accuracy with the Method 20 Docs 30 Docs Diff.                   
+
+> Vanilla LLM 67.0 60.8 −6.2
+> OpenAI 69.9 66.1 −3.8
+> Hybrid (RRF) 72.2 64.8 −7.4
+> Hybrid (RRF) + Rerank 71.4 67.8 −3.6
+> FiM 64.7 62.7 −2.0
+> DuQUAD 76.1 75.6 −0.5
+> Table 8: Accuracy on NQ-15 under the 20- and 30-document settings. Diff. denotes the accuracy change when increasing the number of documents from 20 to 30.
+
+corresponding 20-document NQ-15 setting. As shown in Table 8, increasing the number of documents substantially degrades Vanilla LLM and several competing baselines, whereas DuQUAD remains stable, decreasing by only 0.5 points. Among the evaluated baselines in the 30-document setting, Hybrid (RRF) + Rerank achieves 67.8% accuracy, leaving a 7.8-point gap to DuQUAD’s 75.6%. FiM also exhibits a relatively small degra-dation of 2.0 points, but its absolute accuracy re-mains substantially lower at 62.7%. 
+
+H Cost Analysis 
+
+Table 9 reports the inference cost of DuQUAD and representative baselines in terms of LLM calls, total token consumption, and end-to-end latency, all measured on the same 1,000-instance NQ-15 evaluation set used for the NQ-15 accuracy results in Table 1 and normalized to the Vanilla setting. LLM calls reflect the number of model invoca-tions in each pipeline, token counts capture the effective computation incurred when processing multi-document contexts, and end-to-end latency measures the wall-clock time required to produce a final answer. For retrieval and reranking meth-ods, including OpenAI, Qwen3-Embedding, Jina-Reranker, and the hybrid variants, retrieval-side computations are performed by separate models rather than the answer-generation LLM, and their associated calls and tokens are therefore not in-cluded in the reported LLM call and token counts, while their computational overhead is reflected in end-to-end latency. Table 9 shows that lightweight retrieval and reranking methods require only a single answer-generation LLM call, whereas existing multi-agent frameworks require substantially more calls and la-tency. Among the lightweight methods, Hybrid (RRF) achieves the highest NQ-15 accuracy at 72.2% with an end-to-end latency of 3.67 s, while Qwen3-Embedding and Hybrid (RRF) + Rerank show comparable latency at 3.70 s and 3.65 s, re-spectively. DuQUAD further improves accuracy to 76.1%, while using 4.10 LLM calls and incurring 
+
+9.93 × end-to-end latency relative to Vanilla. Compared to MAIN-RAG, DuQUAD reduces LLM calls by 10 × (4.10 vs. 41 .00 ), token con-sumption by 2.35 × (5,914 vs. 13 ,880 ), and end-to-end latency by 3.29 × (21 .03 s vs. 69 .22 s). Com-pared to ToA, DuQUAD reduces LLM calls by 
+
+5.65 ×, token consumption by 2.81 ×, and end-to-end latency by 3.88 ×. At the same time, DuQUAD outperforms both methods in accuracy across all three benchmarks (Table 1), indicating that the ac-curacy benefits of multi-agent reasoning can be retained while substantially reducing its character-istic cost overhead. Although DuQUAD is more costly than lightweight retrieval and reranking methods due to dual-view reasoning and quality-aware pruning, its overhead remains moderate relative to existing multi-agent frameworks and is justified when accu-racy is prioritized under positional bias and noise. 
+
+I Boundary Handling for Attention Contrast Computation 
+
+When computing attention contrast, special han-dling is required at document boundary positions where symmetric neighbors do not exist. Instead of constructing a second-order central difference op-erator that assumes symmetric neighbors through padding or reflection, we adopt a one-sided fi-nite difference scheme at the document boundaries. Specifically, for the first and last documents, at-tention contrast is computed using the difference between the document and its nearest neighbor. This design reduces artificial smoothing effects in-troduced by padding-based boundary conditions while more faithfully preserving relative attention salience at the document edges. The one-sided difference scheme is widely used across numeri-cal analysis and signal processing, and in our ex-periments, it exhibits consistent and interpretable behavior for document-level contrast estimation. 
+
+J Document-Level Attention Scoring 
+
+This section describes how we compute document-level attention scores, which are used as one com-ponent of the Structural Fusion Score. Method LLM Calls Tokens E2E Latency (s) Value Ratio Value Ratio Value Ratio Vanilla LLM 1.00 1.00 × 2863.50 1.00 × 2.12 1.00 ×
+
+OpenAI 1.00 1.00 × 2900.31 1.01 × 4.38 2.07 ×
+
+Qwen3-Embedding 1.00 1.00 × 2940.39 1.03 × 3.70 1.75 ×
+
+Jina-Reranker 1.00 1.00 × 2940.53 1.03 × 3.98 1.88 ×
+
+Hybrid (RRF) 1.00 1.00 × 2939.80 1.03 × 3.67 1.73 ×
+
++ Rerank 1.00 1.00 × 2934.68 1.02 × 3.65 1.72 ×
+
+FiM 2.00 2.00 × 5437.09 1.90 × 4.33 2.04 ×
+
+LongLLMLingua 2.00 2.00 × 5822.48 2.03 × 5.81 2.74 ×
+
+MAIN-RAG 41.00 41.00 × 13880.14 4.85 × 69.22 32.67 ×
+
+ToA 23.17 23.17 × 16613.13 5.80 × 81.58 38.50 ×
+
+DuQUAD 4.10 4.10 × 5914.07 2.07 × 21.03 9.93 ×
+
+Table 9: Cost comparison normalized to Vanilla LLM in terms of LLM calls, tokens, and end-to-end latency.                          
+
+> Dataset Both Correct Global Only Local Only Both Wrong Disagreement Judge Acc. Rate on Disagreement
+> NQ 579 131 112 178 24.3% 74.5% (181/243) HotpotQA 746 72 63 119 13.5% 58.5% (79/135) MuSiQue 291 103 83 523 18.6% 67.2% (125/186)
+
+Table 10: Local–Global agent agreement and disagreement statistics. Each dataset contains 1,000 evaluation examples. Disagreement denotes cases in which exactly one agent is correct, and Judge accuracy is measured only over these disagreement cases. 
+
+Input sequence construction. Given a question 
+
+Q and retrieved documents {D1, . . . , D N }, we fol-low the query-aware contextualization format of Liu et al. (2024), which places the query before and after the document sequence: 
+
+[Q; D1; D2; . . . ; DN ; Q].
+
+The second occurrence of Q serves as the final query segment. In decoder-only LLMs, the last token of this final query segment can causally attend to all preceding document tokens. Each document Di is preceded by a delimiter token (e.g., [DOC] ), and its token span is recorded as 
+
+span( Di) = [ si, e i).
+
+Document-level attention score. Let t⋆ denote the position of the last token in the final query segment. We run the backbone LLM with attention outputs enabled and extract the self-attention vector from t⋆ to all previous input tokens. For each layer 
+
+ℓ and head h, this vector is denoted by A(ℓ,h ) 
+
+> t⋆,:
+
+. We average it over all layers and heads: 
+
+r[j] = 1
+
+LH 
+
+> L
+
+X
+
+> ℓ=1
+> H
+
+X
+
+> h=1
+
+A(ℓ,h ) 
+
+> t⋆,j
+
+.
+
+Here, r[j] denotes the average attention mass as-signed from the final query token to token position 
+
+j. The document-level attention score for Di is then computed as the mean attention mass over its token span: 
+
+AttnScore( Di) = 1
+
+|span( Di)|
+
+X
+
+> j∈span( Di)
+
+r[j].
+
+This computation requires access to the model’s self-attention tensors, such as through 
+
+output_attentions=True in open-source imple-mentations. It does not modify model parameters or decoding behavior, but assumes that attention weights are available. 
+
+K Analysis of Local–Global Complementarity 
+
+To quantify the complementary behavior of the Local and Global Agents, we categorize each pre-diction according to whether each agent produces the correct answer. Table 10 reports the resulting statistics over 1,000 examples from each dataset. We define a disagreement case as one in which ex-actly one of the two agents is correct, and report Judge accuracy as the proportion of these cases for Model Document Type DS Mean ID Avg.           
+
+> Llama Gold Doc 0.647 85.7
+> Non-Gold Doc 0.324 14.3 Qwen Gold Doc 0.722 83.0
+> Non-Gold Doc 0.348 17.0
+> Table 11: DocScore (DS) and Important Document (ID) statistics on Natural Questions (NQ-1/5/10/15/20). DS Mean denotes the average DocScore assigned to docu-ments of each type, while ID Avg. indicates the prob-ability that a document of the corresponding type is selected as an Important Document.
+
+which the final Judge Agent produces the correct answer. Table 10 reveals that both Global-only and Local-only successes occur consistently across all three datasets, indicating that neither view subsumes the other. The disagreement rate ranges from 13.5% on HotpotQA to 24.3% on NQ, and the Judge Agent resolves these disagreements correctly more often than not on all three datasets, reaching 74.5% accu-racy on NQ, 58.5% on HotpotQA, and 67.2% on MuSiQue. These results quantitatively support the complementary roles of the two reasoning views and the benefit of integrating them at the final deci-sion stage. The remaining errors also reveal a distinct limi-tation on more complex multi-hop reasoning. On MuSiQue, both agents are incorrect on 523 of 1,000 examples (52.3%), substantially more often than on NQ or HotpotQA. This suggests that many MuSiQue failures arise before final adjudication, when both reasoning views fail to correctly track or integrate intermediate entities across multiple hops. To complement this aggregate analysis, we present three representative cases that illustrate how the Local and Global Agents interact: two cases in which one agent fails while the other recovers the correct answer, and one failure case in which both agents converge on the same incorrect reasoning. 
+
+Case 1: Global Recovery under Local Error. 
+
+For the question “who won the mens figure skat-ing in 2018 olympics” , the gold document is DOC 14, and the correct answer is Yuzuru Hanyu. The Global Agent correctly identifies the answer from the full document set by citing DOC 14. In contrast, the Local Agent predicts Nathan Chen, even though DOC 14 is included in its selected local subset. In-stead of relying on the answer-bearing statement, the Local branch is distracted by another document describing Nathan Chen’s technical achievements, which are salient but not sufficient to answer the question. During quality-aware pruning, DOC 14 receives a DocScore of 1.0, while the other candi-date documents receive 0.0. The Judge Agent there-fore rejects the Local Agent’s incorrect claim and produces the correct final answer, Yuzuru Hanyu. This case shows that even when the Local branch fails, the Global branch and subsequent pruning can prevent the error from propagating to the final decision. 
+
+Case 2: Local Recovery under Global Uncer-tainty. We also observe cases in which the Global branch follows a more indirect reasoning path, whereas the Local branch recovers the answer more directly. For the question “who performed the half-time show at super bowl 51” , the Global Agent ini-tially states that the performer is unclear and refers to surrounding information that Adele had been discussed as a possible candidate. Although it even-tually reaches the correct answer by citing DOC 14, its reasoning does not immediately converge on the core answer-bearing evidence. In contrast, the Local Agent explicitly states that “Lady Gaga per-formed the halftime show at Super Bowl LI (which is Super Bowl 51) [DOC 14],” directly identifying the correct entity and clarifying the equivalence between Super Bowl LI and Super Bowl 51. At the final integration stage, this complementary be-havior allows the system to converge stably to the correct answer, Lady Gaga. This case shows that even when one branch becomes temporarily un-stable, the other branch can preserve the correct answer signal and support a stable final prediction. 
+
+Case 3: Joint Failure under Multi-hop Entity Tracking. We also observe failure cases in which DuQUAD retrieves several relevant documents but follows the wrong entity branch during final synthe-sis. In a MuSiQue example, the question requires a four-hop chain from Lion Air to Juanda Interna-tional Airport, then to Indonesia, then to East Timor through the Indonesia–Timor Leste Commission of Truth and Friendship, and finally to the presi-dent of East Timor (Francisco Guterres). The Local Agent selects multiple gold documents, including DOC 9, which explicitly states “President Fran-cisco Guterres,” and quality-aware pruning assigns high DocScores to the East Timor and commission documents (DOC 9: p = 0 .80 ; DOC 14: p = 0 .90 ). However, both the Local and Global Agents focus Metric Value 
+
+Gold evidence stability 90.4% Distractor variability 90.1% 
+
+> Table 12: Cross-model evidence selection stability on Natural Questions (NQ-1/5/10/15/20).
+
+on the Indonesia branch of the reasoning chain and infer the Indonesian president, Susilo Bambang Yudhoyono. The Judge Agent then follows this shared but incorrect intermediate entity instead of resolving the target country as East Timor, and out-puts the wrong final answer. This case shows that although DuQUAD reliably surfaces and scores answer-bearing evidence, complex multi-hop ques-tions can still fail when the final synthesis stage must track closely related entities across several intermediate hops. 
+
+L DocScore Statistics and Cross-Model Evidence Stability 
+
+Table 11 summarizes the DocScore and Important Document statistics used in the main analysis. For both backbones, gold documents receive substan-tially higher DocScores than non-gold documents and are selected as Important Documents much more frequently. Under Llama, gold and non-gold documents receive mean DocScores of 0.647 and 0.324, respectively, with Important Document se-lection rates of 85.7% and 14.3%. Under Qwen, the same pattern holds: gold and non-gold docu-ments receive mean DocScores of 0.722 and 0.348, with selection rates of 83.0% and 17.0%, respec-tively. This consistent separation across backbones suggests that DocScore captures document-level answerability rather than simply reflecting posi-tional artifacts or model-specific scoring behavior. Since DocScore is produced by an LLM-based Score Agent, its evidence selection could in princi-ple reflect backbone-specific behavior rather than an intrinsic notion of evidence quality. To test this, we compare DocScore-based evidence selection across Llama-3.1-8B-Instruct and Qwen2.5-7B-Instruct under identical settings on Natural Ques-tions, averaged over NQ-1/5/10/15/20. The cross-model selection results are reported in Table 12. Our goal here is to measure cross-model agree-ment , not the absolute ability of either backbone to recover the gold document. Accordingly, when measuring gold evidence stability, we restrict the denominator to cases where at least one backbone selects the gold document, and report how often both do. Cases where neither backbone selects the gold document are excluded, as they reflect re-trieval difficulty rather than disagreement between backbones, and would otherwise conflate selection quality with cross-model consistency. 
+
+Disagreement is concentrated on distractors. 
+
+The selected document sets are not identical across backbones, but the disagreement is concentrated on distractors rather than gold evidence. When at least one backbone selects the gold document, both se-lect it in 90.4% of cases. In contrast, among cases where both backbones select the gold document, their additionally selected non-gold documents dif-fer 90.1% of the time. 
+
+Implication. High agreement on gold evidence alongside divergence on distractors shows that cross-model consistency is not an artifact of identi-cal candidate pools: the two backbones converge on gold evidence while diverging on irrelevant con-text. DocScore therefore captures a stable answer-ability signal across the two evaluated backbones, supporting its use as a reliable quality signal for evidence pruning. "Write a high-quality answer for the given question using only " 
+
+"the provided search results (some of which might be irrelevant)." 
+
+"Use ONLY the provided documents. Cite DOC ids inline like [DOC i] with quoted snippets. " 
+
+"At the end, output a JSON object with this exact format:\n" 
+
+'{"important_docs": [<doc_id1>, <doc_id2>, <doc_id3>]}\n' 
+
+"Include the top 3 most important  document IDs." 
+
+f"--- Context Documents ---\n{ctx_block}\n\n" 
+
+f"Question: {question}\n“ Figure 7: Prompt template for the Local and Global Agents. "You are a judge. Use ONLY the provided evidence snippets and debate log. " 
+
+"The DocScore section shows reliability scores (p=0.0-1.0). Higher scores are more reliable. " 
+
+"Write a high-quality answer for the given question using only " 
+
+"the provided search results (some of which might be irrelevant)." 
+
+f"--- DocScore (Document Reliability Scores) ---\n{docscore_block}\n\n" 
+
+f"--- Important Evidence Snippets ---\n{evidence_block}\n\n" 
+
+f"{docscore_section}" 
+
+f"--- Debate Log ---\n{debate_log}\n\n" 
+
+f"Question: {question}\n"   
+
+> Figure 8: Prompt template for the Judge Agent. "For each doc, estimate how likely it answers the question. "
+> f"IMPORTANT: You MUST evaluate ALL {len(selected_doc_ids)} documents: {selected_doc_ids}. "
+> "Output a JSON object with this exact format:\n"
+> "{\n"
+> ' "scores": [\n'
+> '{"doc_id": <id>, "p": <0.0-1.0>, "answer": "<best answer span/phrase>"},\n'
+> '{"doc_id": <id>, "p": <0.0-1.0>, "answer": "<best answer span/phrase>"}\n'
+> " ]\n"
+> "}\n"
+> f"Make sure to include scores for ALL document IDs: {selected_doc_ids}\n\n"
+> Figure 9: Prompt template for the Score Agent.
+
+Algorithm 1 DuQUAD Pipeline for a Single Question 
+
+Input: question Q, documents {D i}Ni=1 , local top-k, threshold τ
+
+Output: final answer ˆy
+
+(1) Local selection via Structural Fusion Score (SFS) 
+
+ai ← aggregated attention score of Di
+
+Φsim ,i ← semantic relevance score of Di
+
+Φppl ,i ← structural inference score of Di
+
+zi ← ai − μA
+
+σA
+
+▷ z-score normalization ( μA, σA: mean/std of {ai}Ni=1 )
+
+Φcont ,i ← zi − zi−1 + zi+1 
+
+2 ▷ attention contrast ( i = 2 , . . . , N − 1)
+
+Φi ← α softmax(Φ sim )i + β softmax( −Φppl )i + γ softmax(Φ cont )i ▷ structural fusion score 
+
+Ilocal ← arg top k Φi ▷ local document selection 
+
+Dlocal ← {D i | i ∈ I local }
+
+(2) Dual-view Agent Collaboration 
+
+(HG, DG) ← GlobalAgent( Q, {D i}Ni=1 ) ▷ global reasoning + important docs 
+
+(HL, DL) ← LocalAgent( Q, Dlocal ) ▷ local reasoning + important docs 
+
+Dimp ← D G ∪ D L ▷ merge important docs 
+
+(3) DocScore-based Quality Gating 
+
+(pi, ˜ai) ← ScoreAgent( Q, Di), ∀D i ∈ D imp ▷ document reliability + answer span 
+
+Dkeep ← {D i ∈ D imp | pi ≥ τ } ▷ DocScore-based pruning 
+
+(4) Evidence Snippet Extraction 
+
+Si ← Top2 j overlap( ui,j , ˜ai), ∀D i ∈ D keep ▷ select evidence sentences 
+
+S ← S 
+
+> Di∈D keep
+
+Si ▷ aggregate evidence 
+
+(5) Final Decision 
+
+ˆy ← JudgeAgent( Q, HG, HL, S, {pi}Di∈D keep ) ▷ final answer generation 
+
+return ˆy

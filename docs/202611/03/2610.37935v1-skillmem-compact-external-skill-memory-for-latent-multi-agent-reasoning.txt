@@ -1,0 +1,743 @@
+Title: SkillMem: Compact External Skill Memory for Latent Multi-Agent Reasoning
+
+URL Source: https://arxiv.org/pdf/2610.37935v1
+
+Published Time: Fri, 30 Oct 2026 00:24:25 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+## SKILL MEM : COMPACT EXTERNAL SKILL MEMORY FOR LATENT MULTI -A GENT REASONING 
+
+Yuxuan Zhu 1, Mohammad Mohammadi Amiri 1, Pin-Yu Chen 2, Keerthiram Murugesan 2
+
+> 1
+
+Rensselaer Polytechnic Institute 2IBM Research 
+
+{zhuy27,mamiri }@rpi.edu , {pin-yu.chen,keerthiram.murugesan }@ibm.com 
+
+ABSTRACT 
+
+Latent multi-agent systems reduce inference cost by keeping intermediate reason-ing and inter-agent communication in continuous representations. Reusable skills, however, are commonly supplied as text or stored as layer-wise Key-Value states or skill-specific model parameters, introducing repeated processing or substantial per-skill storage. We introduce SkillMem , which represents each reusable skill as a small external latent memory and makes it directly available during latent multi-agent reasoning. A role-conditioned cross-attention reader allows the same mem-ory to guide different agents according to their roles and current hidden states. We train the skill memories and shared reader through behavioral distillation, match-ing the change in token predictions induced by a textual skill while keeping the backbone frozen. For our experiments, we obtain textual skills from paired suc-cessful and failed multi-agent trajectories, although existing skills can also be compiled directly. Across six benchmarks and Qwen3 models ranging from 4B to 14B parameters, SkillMem provides strong gains for smaller backbones while preserving efficient latent multi-agent inference across model scales. We use the same 8 × 256 memory configuration across all evaluated model scales, requiring 9.6 KB of skill-specific storage per skill, including its retrieval embedding. For a library of 100 skills, SkillMem reduces total storage by more than 38 × com-pared with alternative skill representations and achieves up to a 4.23 × end-to-end inference speedup. These results show that compact procedural memories can be reused without sacrificing the efficiency of latent multi-agent reasoning. 
+
+1 INTRODUCTION 
+
+Large language model (LLM) based multi-agent systems (MAS) assign different roles to agents, allowing them to plan, critique, and refine a solution across multiple reasoning steps. This division of work can improve performance over a single model response, yet role specialization alone does not prevent recurring errors. Some of these errors can be addressed by procedures such as check-ing assumptions or verifying intermediate results. Skills (Zhang et al., 2025) capture such reusable procedures from previous experience and make them available for similar problems. In text-based MAS, agents express their reasoning and exchange intermediate results in natural language. Latent reasoning and latent MAS replace this text-based reasoning and communication with continuous representations, reducing the need to generate and process intermediate text (Hao et al., 2024; Shen et al., 2025; Zou et al., 2026). A textual skill is typically inserted into an agent’s prompt, so the model must prefill the skill tokens each time the skill is used. Across repeated uses, this extra prefilling can erode the inference speed gained from latent reasoning and communication. This raises a question: 
+
+how should agents reuse skills efficiently when their reasoning and communication remain in latent space? 
+
+To avoid repeatedly processing skill text, we can store skills in other forms. For example, a cached key–value (KV) prefix avoids recomputing a skill prompt’s activations, but its storage grows with the prefix length and the number of layers (Jin et al., 2026). A skill-specific LoRA adapter stores parameter updates for the layers it modifies (Zhang & Qi, 2026). Although each adapter is smaller than the full model, storing one for every skill can still require substantial storage as the library 1arXiv:2610.37935v1 [cs.AI] 27 Oct 2026 0 5     
+
+> Change (pp)
+> GSM8K GPQA-D ARC-E ARC-C MedQA
+> +0.50 +5.69 +0.66 +0.67 +1.40
+> (a) Accuracy Change vs. TextMAS
+> 020 40
+> Change (pp)
+> +17.50 +17.66 +4.86 +7.53 +39.66
+> vs. LatentMAS
+> 10 100 1,000
+> Number of skills
+> 10 2
+> 10 3
+> 10 4
+> Total storage (MB, log scale)
+> (b) Storage Efficiency
+> KV Skill S2L SkillMem TextMAS LatentMAS + Text Skill SkillMem 01234
+> End-to-end speedup ( ×)
+> 1.00 ×
+> 2.59 ×
+> 4.23 ×
+> (c) Inference Speedup
+
+Figure 1: Accuracy and efficiency comparison. (a) Accuracy changes of SkillMem relative to TextMAS and LatentMAS using Qwen3-4B. (b) Total storage required by different skill representa-tions as the skill library grows. (c) End-to-end inference speedup relative to TextMAS. grows. These trade-offs motivate a compact but efficient, retrievable skill representation that agents can use directly during latent reasoning. We introduce SkillMem , a framework that stores each reusable skill as a small set of learned latent memory vectors. The memory is external to the frozen backbone and can be retrieved independently of other skills. Given a task query, SkillMem selects a relevant skill and makes its memory avail-able throughout latent multi-agent reasoning. Agents continue to exchange latent states, while the retrieved skill provides procedural guidance without adding its textual description to each agent’s prompt. This separates the choice of a skill from the way an agent uses it. Sharing a skill across agents requires more than giving every role the same memory vectors. A plan-ner and a critic may use the same procedure at different stages and for different purposes. SkillMem therefore uses a role-conditioned reader to access the retrieved memory embedding at selected layers of the frozen backbone. The memory is stored once, while the reader uses the current agent’s role to produce a role-dependent update to its hidden states. This allows agents to share procedural knowledge without requiring a separate skill representation for each role. The remaining challenge is how to learn a useful skill memory. Rather than training the memory to reconstruct the skill description, we train it to preserve the skill’s effect on model behavior. We first generate a response using the textual skill. We then measure how much the skill changes the probability of each token in that same response. Behavioral distillation trains the memory and shared reader to reproduce these changes while keeping the backbone frozen. In our experiments, the textual skills come from paired successful and failed multi-agent answer trajectories for the same task. Comparing these trajectories helps identify reusable procedures. The compilation step takes a textual skill as input, so it can use either a skill discovered from trajectories or an existing skill that has already proved useful. Across six reasoning, question-answering, and code-generation benchmarks, SkillMem improves on the latent MAS baseline. On Qwen3-4B, accuracy rises from 17.97% to 35.63% on GPQA-Diamond and from 72.40% to 89.90% on GSM8K. Each skill requires only 9.6 KB of skill-specific storage. SkillMem achieves a 4.23 × end-to-end speedup over TextMAS and a 1.63 × speedup over Latent-MAS with text skills. With a library of 100 skills, its total storage, including the shared reader, is 38.3 × smaller than KV Skill and 86.6 × smaller than LoRA Skill. These results show that SkillMem can provide reusable skills for latent multi-agent reasoning, as summarized in Figure 1. 
+
+2 RELATED WORK 
+
+Latent multi-agent reasoning and memory. LatentMAS (Zou et al., 2026) enables agents to rea-son and communicate through continuous states rather than exchanging natural-language messages. KVComm (Ye et al., 2025) and RecursiveMAS (Yang et al., 2026) further study efficient commu-nication and computation in multi-agent systems. Building on latent collaboration, LatentMem (Fu et al., 2026) constructs agent-specific memories from retrieved interaction experience, while Agent Primitives (Jin et al., 2026) represents predefined multi-agent operations with KV-based latent states. SkillMem addresses a different unit of reuse: a task-level procedural skill stored as a persistent mem-ory that can be retrieved and shared across agent roles. 2Skill representations and behavioral distillation. Textual skills can be applied through prompt-ing, but their instructions must be processed whenever they are inserted into an agent’s context. S2L (Zhang & Qi, 2026) and LatentSkill (Yu et al., 2026) compile textual skills into LoRA-based model adaptations. SkillSmith (Dery et al., 2026) studies the composition of learned KV-prefix skills and textual knowledge. SEED (Wu et al., 2026) distills skill-induced behavioral changes into the agent policy. SkillMem likewise learns from the behavioral effect of a textual skill, but stores that effect in an independently retrievable external memory. A reader shared across skills and roles ac-cesses the memory while the backbone remains frozen. We compare against S2L as a parameter-based skill representation in our experiments. 
+
+Continuous representations and context compression. Prompt and prefix tuning (Lester et al., 2021; Li & Liang, 2021) learn continuous representations that condition a frozen model. Gisting and AutoCompressor (Mu et al., 2023; Chevalier et al., 2023) compress information from a textual context into continuous representations. These methods motivate compact continuous conditioning, while SkillMem learns a separate memory for each reusable procedure and accesses it through a shared, role-conditioned reader during latent multi-agent reasoning. 
+
+Experience-based skill learning and routing. Voyager (Wang et al., 2024) and ExpeL (Zhao et al., 2024) reuse knowledge from previous agent trajectories. SkillRL (Xia et al., 2026) uses successful and failed single-agent trajectories to build a hierarchical skill bank and jointly updates the skills and agent policy through reinforcement learning. We derive textual skills by comparing success-ful and failed multi-agent trajectories, retaining the roles involved in each reasoning stage. Skill-Router (Zheng et al., 2026) studies skill selection at scale. Our retriever selects a skill for the task, while SkillMem focuses on how the selected skill is stored and used across agents. 
+
+3 PRELIMINARIES : L ATENT MULTI -A GENT REASONING 
+
+Let fθ denote a decoder-only Transformer with L layers. During autoregressive generation, the model retains previously computed KV states to avoid recomputing earlier positions. Latent rea-soning instead uses continuous vectors in place of some intermediate natural-language tokens. Let 
+
+t denote the current sequence position, and let h(L) 
+
+> t
+
+be its hidden state after the final Transformer layer. A mapping ϕ produces zt+1 = ϕ(h(L) 
+
+> t
+
+), where zt+1 is used as the input embedding at po-sition t + 1 . The model can therefore continue reasoning without decoding an intermediate natural language token and embedding it again. LatentMAS extends this process to collaboration among agents (Zou et al., 2026). Consider a se-quence of agents A = {A1, . . . , A R} with corresponding roles R = {ρ1, . . . , ρ R}. Each agent 
+
+Ar follows the instructions for its role ρr ; for example, agents may serve as a planner, critic, re-finer, or final-answer agent. Given a query q, each agent performs multiple latent reasoning steps. Let Cr = K(ℓ) 
+
+> r
+
+, V (ℓ) 
+
+> r
+> Lℓ=1
+
+denote the layer-wise KV cache available after agent Ar finishes. This cache contains the latent context passed from earlier agents together with the states added by Ar .Passing Cr to the next agent lets it continue from that context without decoding and re-encoding an intermediate message. Only the final agent generates a natural language answer. We use this latent communication pipeline as our base multi-agent system. 
+
+4 METHOD 
+
+SkillMem stores each textual skill s as a compact memory Zs that can be retrieved independently (Section 4.1). Given a task query q, the system retrieves a skill s and makes its memory Zs available to every agent in the latent MAS pipeline. Agents continue to communicate through KV states, while a role-conditioned reader uses Zs to update their hidden states according to their roles (Section 4.2). We train the memories and reader to reproduce how textual skills change the frozen backbone’s predictions (Section 4.3). Skills can be provided directly or discovered from past MAS trajectories; we use discovered skills in our experiments (Section 4.4). Figure 2 shows the full pipeline. 31. Skill Discovery 2. Skill Compilation 3. Inference with Latent Skill 
+
+Completed Trajectories 
+
+✔
+
+Successful Trajectories 
+
+✖
+
+Failed Trajectories Skill Discovery Skill Teacher No-Skill Base Logits Logits Behavioral Skill Effect Latent Skill Memory Compiled Skill Library ... 
+
+query q 
+
+Skill Retriever Planner Critic Refiner Judger Role-Conditioned Memory Reader + + + +: agent role system prompt embedding Cross-Attention : add to hidden states 
+
+Role-Conditioned Memory Reader (shared) Judger 
+
+answer 
+
+In LatentMAS, pass kv cache between roles, not text 
+
+"Decompose the problem..." "Check edge cases..." …… "Try counterexamples..." Text Skill Library 
+
+<latexit sha1_base64="hbVL2xzO9K9J34UR3lx3XmMOGFk=">AAAB+HicbVBNS8NAEN34WetHox69BIvgqSTi17HoxWMF+wFtLJvtpF262YTdiVhDf4kXD4p49ad489+4bXPQ1gcDj/dmmJkXJIJrdN1va2l5ZXVtvbBR3Nza3inZu3sNHaeKQZ3FIlatgGoQXEIdOQpoJQpoFAhoBsPrid98AKV5LO9wlIAf0b7kIWcUjdS1Sx0Q4j5DeMRxNzNll92KO4WzSLyclEmOWtf+6vRilkYgkQmqddtzE/QzqpAzAeNiJ9WQUDakfWgbKmkE2s+mh4+dI6P0nDBWpiQ6U/X3REYjrUdRYDojigM9703E/7x2iuGln3GZpAiSzRaFqXAwdiYpOD2ugKEYGUKZ4uZWhw2oogxNVkUTgjf/8iJpnFS888rZ7Wm5epXHUSAH5JAcE49ckCq5ITVSJ4yk5Jm8kjfryXqx3q2PWeuSlc/skz+wPn8AtXqTyg==</latexit> 
+
+ωtext t
+
+<latexit sha1_base64="GxZOVm+bSBe1p7DK5z71+Tka+ms=">AAAB+HicbVDLTsMwENyUVymPBjhysaiQOFUJ4nWs4MKxSPQhtSFyXLe16jiR7SCVKF/ChQMIceVTuPE3OG0O0DLSSqOZXXt3gpgzpR3n2yqtrK6tb5Q3K1vbO7tVe2+/raJEEtoiEY9kN8CKciZoSzPNaTeWFIcBp51gcpP7nUcqFYvEvZ7G1AvxSLAhI1gbyberfcr5Q5o/kfmpzny75tSdGdAycQtSgwJN3/7qDyKShFRowrFSPdeJtZdiqRnhNKv0E0VjTCZ4RHuGChxS5aWzxTN0bJQBGkbSlNBopv6eSHGo1DQMTGeI9Vgtern4n9dL9PDKS5mIE00FmX80TDjSEcpTQAMmKdF8aggmkpldERljiYk2WVVMCO7iycukfVp3L+rnd2e1xnURRxkO4QhOwIVLaMAtNKEFBBJ4hld4s56sF+vd+pi3lqxi5gD+wPr8AXS9k6A=</latexit> 
+
+ωbase t
+
+<latexit sha1_base64="RItPrh5z0TsZZYyeeStB7B1vR68=">AAACHnicbZBNS0JBFIbn2pfZl9WyzZAEbZJ7I6tNINWipUF+gJrMHY86OPeDmXMjufhL2vRX2rQoImhV/6ZR78K0FwZennMOZ87rhlJotO0fK7WwuLS8kl7NrK1vbG5lt3cqOogUhzIPZKBqLtMghQ9lFCihFipgniuh6vavRvXqAygtAv8OByE0Pdb1RUdwhga1soXGNUhk9zHCIw5bMQ7pBW2AlNPkKCGjRWPSyubsvD0WnTdOYnIkUamV/Wq0Ax554COXTOu6Y4fYjJlCwSUMM41IQ8h4n3WhbqzPPNDNeHzekB4Y0qadQJnnIx3T6YmYeVoPPNd0egx7erY2gv/V6hF2zpux8MMIweeTRZ1IUgzoKCvaFgo4yoExjCth/kp5jynG0SSaMSE4syfPm8px3jnNF25PcsXLJI402SP75JA45IwUyQ0pkTLh5Im8kDfybj1br9aH9TlpTVnJzC75I+v7FwkLo7E=</latexit> 
+
+!text t = ωtext t → ωbase t
+
+<latexit sha1_base64="19IsAkDm4XTsPf68gA2q4xZwsv8=">AAACF3icbVDLSsNAFJ3UV62vqEs3g0VwVRLxtSy6cSNUsQ9saphMJ+3QmUmYmQgl5C/c+CtuXCjiVnf+jZM2C60euHA4517uvSeIGVXacb6s0tz8wuJSebmysrq2vmFvbrVUlEhMmjhikewESBFGBWlqqhnpxJIgHjDSDkbnud++J1LRSNzocUx6HA0EDSlG2ki+XfM40sMgTG8zX0GPCjgVgvQ6u0svoacpJwr2/ZQTnmW+XXVqzgTwL3ELUgUFGr796fUjnHAiNGZIqa7rxLqXIqkpZiSreIkiMcIjNCBdQwUy23rp5K8M7hmlD8NImhIaTtSfEyniSo15YDrzo9Wsl4v/ed1Eh6e9lIo40UTg6aIwYVBHMA8J9qkkWLOxIQhLam6FeIgkwtpEWTEhuLMv/yWtg5p7XDu6OqzWz4o4ymAH7IJ94IITUAcXoAGaAIMH8ARewKv1aD1bb9b7tLVkFTPb4Besj2/H/qBV</latexit> 
+
+Zs → RM →dmem <latexit sha1_base64="IrjPuS7eJ3zQarzkQpg3bZ+Z//4=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5gHJEmYns8mQ2dllplcISz7BiwdFvPpF3vwbJ8keNLGgoajqprsrSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqxhsslrFuB9RwKRRvoEDJ24nmNAokbwWj26nfeuLaiFg94jjhfkQHSoSCUbTSg+l5vXLFrbozkGXi5aQCOeq98le3H7M04gqZpMZ0PDdBP6MaBZN8UuqmhieUjeiAdyxVNOLGz2anTsiJVfokjLUthWSm/p7IaGTMOApsZ0RxaBa9qfif10kxvPYzoZIUuWLzRWEqCcZk+jfpC80ZyrEllGlhbyVsSDVlaNMp2RC8xZeXSfOs6l1WL+7PK7WbPI4iHMExnIIHV1CDO6hDAxgM4Ble4c2Rzovz7nzMWwtOPnMIf+B8/gAHUo2l</latexit> 
+
+s1
+
+<latexit sha1_base64="L3+AeSVbvoFdDAFEAQY69HUb0ls=">AAAB6nicbVDLSgNBEOz1GeMr6tHLYBA8hd3g6xj04jGieUCyhNlJbzJkdnaZmRXCkk/w4kERr36RN//GSbIHTSxoKKq66e4KEsG1cd1vZ2V1bX1js7BV3N7Z3dsvHRw2dZwqhg0Wi1i1A6pRcIkNw43AdqKQRoHAVjC6nfqtJ1Sax/LRjBP0IzqQPOSMGis96F61Vyq7FXcGsky8nJQhR71X+ur2Y5ZGKA0TVOuO5ybGz6gynAmcFLupxoSyER1gx1JJI9R+Njt1Qk6t0idhrGxJQ2bq74mMRlqPo8B2RtQM9aI3Ff/zOqkJr/2MyyQ1KNl8UZgKYmIy/Zv0uUJmxNgSyhS3txI2pIoyY9Mp2hC8xZeXSbNa8S4rF/fn5dpNHkcBjuEEzsCDK6jBHdShAQwG8Ayv8OYI58V5dz7mrStOPnMEf+B8/gAI1o2m</latexit> 
+
+s2
+
+<latexit sha1_base64="x56+JMlDE6pY5cEUeY4gh7VJEXc=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5gHJEmYns8mQ2dllplcISz7BiwdFvPpF3vwbJ8keNLGgoajqprsrSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqxhsslrFuB9RwKRRvoEDJ24nmNAokbwWj26nfeuLaiFg94jjhfkQHSoSCUbTSg+mpXrniVt0ZyDLxclKBHPVe+avbj1kacYVMUmM6npugn1GNgkk+KXVTwxPKRnTAO5YqGnHjZ7NTJ+TEKn0SxtqWQjJTf09kNDJmHAW2M6I4NIveVPzP66QYXvuZUEmKXLH5ojCVBGMy/Zv0heYM5dgSyrSwtxI2pJoytOmUbAje4svLpHlW9S6rF/fnldpNHkcRjuAYTsGDK6jBHdShAQwG8Ayv8OZI58V5dz7mrQUnnzmEP3A+fwBjxo3i</latexit> 
+
+sn
+
+<latexit sha1_base64="IrjPuS7eJ3zQarzkQpg3bZ+Z//4=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5gHJEmYns8mQ2dllplcISz7BiwdFvPpF3vwbJ8keNLGgoajqprsrSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqxhsslrFuB9RwKRRvoEDJ24nmNAokbwWj26nfeuLaiFg94jjhfkQHSoSCUbTSg+l5vXLFrbozkGXi5aQCOeq98le3H7M04gqZpMZ0PDdBP6MaBZN8UuqmhieUjeiAdyxVNOLGz2anTsiJVfokjLUthWSm/p7IaGTMOApsZ0RxaBa9qfif10kxvPYzoZIUuWLzRWEqCcZk+jfpC80ZyrEllGlhbyVsSDVlaNMp2RC8xZeXSfOs6l1WL+7PK7WbPI4iHMExnIIHV1CDO6hDAxgM4Ble4c2Rzovz7nzMWwtOPnMIf+B8/gAHUo2l</latexit> 
+
+s1 <latexit sha1_base64="L3+AeSVbvoFdDAFEAQY69HUb0ls=">AAAB6nicbVDLSgNBEOz1GeMr6tHLYBA8hd3g6xj04jGieUCyhNlJbzJkdnaZmRXCkk/w4kERr36RN//GSbIHTSxoKKq66e4KEsG1cd1vZ2V1bX1js7BV3N7Z3dsvHRw2dZwqhg0Wi1i1A6pRcIkNw43AdqKQRoHAVjC6nfqtJ1Sax/LRjBP0IzqQPOSMGis96F61Vyq7FXcGsky8nJQhR71X+ur2Y5ZGKA0TVOuO5ybGz6gynAmcFLupxoSyER1gx1JJI9R+Njt1Qk6t0idhrGxJQ2bq74mMRlqPo8B2RtQM9aI3Ff/zOqkJr/2MyyQ1KNl8UZgKYmIy/Zv0uUJmxNgSyhS3txI2pIoyY9Mp2hC8xZeXSbNa8S4rF/fn5dpNHkcBjuEEzsCDK6jBHdShAQwG8Ayv8OYI58V5dz7mrStOPnMEf+B8/gAI1o2m</latexit> 
+
+s2 <latexit sha1_base64="x56+JMlDE6pY5cEUeY4gh7VJEXc=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5gHJEmYns8mQ2dllplcISz7BiwdFvPpF3vwbJ8keNLGgoajqprsrSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqxhsslrFuB9RwKRRvoEDJ24nmNAokbwWj26nfeuLaiFg94jjhfkQHSoSCUbTSg+mpXrniVt0ZyDLxclKBHPVe+avbj1kacYVMUmM6npugn1GNgkk+KXVTwxPKRnTAO5YqGnHjZ7NTJ+TEKn0SxtqWQjJTf09kNDJmHAW2M6I4NIveVPzP66QYXvuZUEmKXLH5ojCVBGMy/Zv0heYM5dgSyrSwtxI2pJoytOmUbAje4svLpHlW9S6rF/fnldpNHkcRjuAYTsGDK6jBHdShAQwG8Ayv8OZI58V5dz7mrQUnnzmEP3A+fwBjxo3i</latexit> 
+
+sn
+
+<latexit sha1_base64="cuRH/M9wiT2jhb7FifM0faFperM=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5oHJEmYnvcmQ2dllZlYISz7BiwdFvPpF3vwbJ8keNFrQUFR1090VJIJr47pfTmFpeWV1rbhe2tjc2t4p7+41dZwqhg0Wi1i1A6pRcIkNw43AdqKQRoHAVjC6nvqtR1Sax/LejBP0IzqQPOSMGivdPfS8XrniVt0ZyF/i5aQCOeq98me3H7M0QmmYoFp3PDcxfkaV4UzgpNRNNSaUjegAO5ZKGqH2s9mpE3JklT4JY2VLGjJTf05kNNJ6HAW2M6JmqBe9qfif10lNeOlnXCapQcnmi8JUEBOT6d+kzxUyI8aWUKa4vZWwIVWUGZtOyYbgLb78lzRPqt559ez2tFK7yuMowgEcwjF4cAE1uIE6NIDBAJ7gBV4d4Tw7b877vLXg5DP78AvOxzfhLY2M</latexit> 
+
+Z1
+
+<latexit sha1_base64="WWVI4kZlSFBHA//weJLdWNcdIPY=">AAAB6nicbVDLTgJBEOzFF+IL9ehlIjHxRHaJryPRi0eM8oiwIbNDAxNmZzczsyZkwyd48aAxXv0ib/6NA+xBwUo6qVR1p7sriAXXxnW/ndzK6tr6Rn6zsLW9s7tX3D9o6ChRDOssEpFqBVSj4BLrhhuBrVghDQOBzWB0M/WbT6g0j+SDGcfoh3QgeZ8zaqx0/9itdIslt+zOQJaJl5ESZKh1i1+dXsSSEKVhgmrd9tzY+ClVhjOBk0In0RhTNqIDbFsqaYjaT2enTsiJVXqkHylb0pCZ+nsipaHW4zCwnSE1Q73oTcX/vHZi+ld+ymWcGJRsvqifCGIiMv2b9LhCZsTYEsoUt7cSNqSKMmPTKdgQvMWXl0mjUvYuyud3Z6XqdRZHHo7gGE7Bg0uowi3UoA4MBvAMr/DmCOfFeXc+5q05J5s5hD9wPn8A4rGNjQ==</latexit> 
+
+Z2
+
+<latexit sha1_base64="fAVshCoJQ81v89k484ZSAoWNa5U=">AAAB6nicbVDJSgNBEK2JW4xb1KOXxiB4CjPux6AXjxHNgskQejo9SZOenqG7RghDPsGLB0W8+kXe/Bs7y0ETHxQ83quiql6QSGHQdb+d3NLyyupafr2wsbm1vVPc3aubONWM11gsY90MqOFSKF5DgZI3E81pFEjeCAY3Y7/xxLURsXrAYcL9iPaUCAWjaKX7x85pp1hyy+4EZJF4M1KCGaqd4le7G7M04gqZpMa0PDdBP6MaBZN8VGinhieUDWiPtyxVNOLGzyanjsiRVbokjLUthWSi/p7IaGTMMApsZ0Sxb+a9sfif10oxvPIzoZIUuWLTRWEqCcZk/DfpCs0ZyqEllGlhbyWsTzVlaNMp2BC8+ZcXSf2k7F2Uz+/OSpXrWRx5OIBDOAYPLqECt1CFGjDowTO8wpsjnRfn3fmYtuac2cw+/IHz+QPkNY2O</latexit> 
+
+Z3
+
+<latexit sha1_base64="khXbgkx60ikaFFJRLBDNNcSKoG4=">AAAB83icbVDLSgMxFL1TX7W+qi7dBIvgqsyIr2XRjcsK9oGdoWTSTBuaSYYkI5Shv+HGhSJu/Rl3/o2ZdhbaeiBwOOde7skJE860cd1vp7Syura+Ud6sbG3v7O5V9w/aWqaK0BaRXKpuiDXlTNCWYYbTbqIojkNOO+H4Nvc7T1RpJsWDmSQ0iPFQsIgRbKzk+zE2ozDKHqd93a/W3Lo7A1omXkFqUKDZr375A0nSmApDONa657mJCTKsDCOcTit+qmmCyRgPac9SgWOqg2yWeYpOrDJAkVT2CYNm6u+NDMdaT+LQTuYZ9aKXi/95vdRE10HGRJIaKsj8UJRyZCTKC0ADpigxfGIJJorZrIiMsMLE2JoqtgRv8cvLpH1W9y7rF/fntcZNUUcZjuAYTsGDK2jAHTShBQQSeIZXeHNS58V5dz7moyWn2DmEP3A+fwBj1pHu</latexit> 
+
+Zs
+
+<latexit sha1_base64="6oc0ViJ8XDPXJ76I5YB3ZDzj7Yw=">AAAB+HicbVDLSsNAFJ34rPXRqEs3wSK4Kon4WhbduKxgH9CEMJnetEMnM2FmItTQL3HjQhG3foo7/8ZJm4W2Hhg4nHMv98yJUkaVdt1va2V1bX1js7JV3d7Z3avZ+wcdJTJJoE0EE7IXYQWMcmhrqhn0Ugk4iRh0o/Ft4XcfQSoq+IOepBAkeMhpTAnWRgrtmp9gPYriHKahL0citOtuw53BWSZeSeqoRCu0v/yBIFkCXBOGlep7bqqDHEtNCYNp1c8UpJiM8RD6hnKcgAryWfCpc2KUgRMLaR7Xzkz9vZHjRKlJEpnJIqZa9ArxP6+f6fg6yClPMw2czA/FGXO0cIoWnAGVQDSbGIKJpCarQ0ZYYqJNV1VTgrf45WXSOWt4l42L+/N686aso4KO0DE6RR66Qk10h1qojQjK0DN6RW/Wk/VivVsf89EVq9w5RH9gff4AOz+Teg==</latexit> 
+
+eω
+
+<latexit sha1_base64="oJVw5Wds11DZH2FZzLwH8tKX8dU=">AAAB73icbVDLSgNBEOz1GeMr6tHLYBA8hV3xdQzqwWME84BkCbOT3mTI7Ow6MyuEJT/hxYMiXv0db/6Nk2QPmljQUFR1090VJIJr47rfztLyyuraemGjuLm1vbNb2ttv6DhVDOssFrFqBVSj4BLrhhuBrUQhjQKBzWB4M/GbT6g0j+WDGSXoR7QvecgZNVZqdW5RGEoG3VLZrbhTkEXi5aQMOWrd0lenF7M0QmmYoFq3PTcxfkaV4UzguNhJNSaUDWkf25ZKGqH2s+m9Y3JslR4JY2VLGjJVf09kNNJ6FAW2M6JmoOe9ifif105NeOVnXCapQclmi8JUEBOTyfOkxxUyI0aWUKa4vZWwAVWUGRtR0Ybgzb+8SBqnFe+icn5/Vq5e53EU4BCO4AQ8uIQq3EEN6sBAwDO8wpvz6Lw4787HrHXJyWcO4A+czx+AhY+i</latexit> 
+
+!h
+
+<latexit sha1_base64="oJVw5Wds11DZH2FZzLwH8tKX8dU=">AAAB73icbVDLSgNBEOz1GeMr6tHLYBA8hV3xdQzqwWME84BkCbOT3mTI7Ow6MyuEJT/hxYMiXv0db/6Nk2QPmljQUFR1090VJIJr47rfztLyyuraemGjuLm1vbNb2ttv6DhVDOssFrFqBVSj4BLrhhuBrUQhjQKBzWB4M/GbT6g0j+WDGSXoR7QvecgZNVZqdW5RGEoG3VLZrbhTkEXi5aQMOWrd0lenF7M0QmmYoFq3PTcxfkaV4UzguNhJNSaUDWkf25ZKGqH2s+m9Y3JslR4JY2VLGjJVf09kNNJ6FAW2M6JmoOe9ifif105NeOVnXCapQclmi8JUEBOTyfOkxxUyI0aWUKa4vZWwAVWUGRtR0Ybgzb+8SBqnFe+icn5/Vq5e53EU4BCO4AQ8uIQq3EEN6sBAwDO8wpvz6Lw4787HrHXJyWcO4A+czx+AhY+i</latexit> 
+
+!h
+
+<latexit sha1_base64="6oc0ViJ8XDPXJ76I5YB3ZDzj7Yw=">AAAB+HicbVDLSsNAFJ34rPXRqEs3wSK4Kon4WhbduKxgH9CEMJnetEMnM2FmItTQL3HjQhG3foo7/8ZJm4W2Hhg4nHMv98yJUkaVdt1va2V1bX1js7JV3d7Z3avZ+wcdJTJJoE0EE7IXYQWMcmhrqhn0Ugk4iRh0o/Ft4XcfQSoq+IOepBAkeMhpTAnWRgrtmp9gPYriHKahL0citOtuw53BWSZeSeqoRCu0v/yBIFkCXBOGlep7bqqDHEtNCYNp1c8UpJiM8RD6hnKcgAryWfCpc2KUgRMLaR7Xzkz9vZHjRKlJEpnJIqZa9ArxP6+f6fg6yClPMw2czA/FGXO0cIoWnAGVQDSbGIKJpCarQ0ZYYqJNV1VTgrf45WXSOWt4l42L+/N686aso4KO0DE6RR66Qk10h1qojQjK0DN6RW/Wk/VivVsf89EVq9w5RH9gff4AOz+Teg==</latexit> 
+
+eω
+
+<latexit sha1_base64="a6ql2g27xIRn3iVNsLZOWZX56gQ=">AAAB6HicbVDLTgJBEOzFF+IL9ehlIjHxRHaNryPRC0dI5JHAhswOvTAyO7uZmTUhhC/w4kFjvPpJ3vwbB9iDgpV0UqnqTndXkAiujet+O7m19Y3Nrfx2YWd3b/+geHjU1HGqGDZYLGLVDqhGwSU2DDcC24lCGgUCW8Hofua3nlBpHssHM07Qj+hA8pAzaqxUr/aKJbfszkFWiZeREmSo9Ypf3X7M0gilYYJq3fHcxPgTqgxnAqeFbqoxoWxEB9ixVNIItT+ZHzolZ1bpkzBWtqQhc/X3xIRGWo+jwHZG1Az1sjcT//M6qQlv/QmXSWpQssWiMBXExGT2NelzhcyIsSWUKW5vJWxIFWXGZlOwIXjLL6+S5kXZuy5f1S9LlbssjjycwCmcgwc3UIEq1KABDBCe4RXenEfnxXl3PhatOSebOYY/cD5/AKC5jNY=</latexit> 
+
+H
+
+Text skill "Decompose the problem ..." 
+
+<latexit sha1_base64="IrjPuS7eJ3zQarzkQpg3bZ+Z//4=">AAAB6nicbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8eI5gHJEmYns8mQ2dllplcISz7BiwdFvPpF3vwbJ8keNLGgoajqprsrSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqxhsslrFuB9RwKRRvoEDJ24nmNAokbwWj26nfeuLaiFg94jjhfkQHSoSCUbTSg+l5vXLFrbozkGXi5aQCOeq98le3H7M04gqZpMZ0PDdBP6MaBZN8UuqmhieUjeiAdyxVNOLGz2anTsiJVfokjLUthWSm/p7IaGTMOApsZ0RxaBa9qfif10kxvPYzoZIUuWLzRWEqCcZk+jfpC80ZyrEllGlhbyVsSDVlaNMp2RC8xZeXSfOs6l1WL+7PK7WbPI4iHMExnIIHV1CDO6hDAxgM4Ble4c2Rzovz7nzMWwtOPnMIf+B8/gAHUo2l</latexit> 
+
+s1Figure 2: Overview of SkillMem . Reusable textual skills are discovered from paired multi-agent trajectories. Each skill is compiled into a compact latent memory by matching the behavioral effect of skill injection. At inference time, the retrieved memory is shared across agents and consumed through a role-conditioned reader while inter-agent communication remains entirely latent. 4.1 SKILL MEMORY AND SKILL RETRIEVAL 
+
+We define a skill as a reusable reasoning procedure that can guide agents on multiple problem in-stances. Let S = {s1, . . . , s N } be a skill library, where si = ( ni, d i, p i) contains a name, a descrip-tion of when the skill is useful, and procedural instructions. Let E(·) denote a text encoder based on the frozen backbone. We index each skill using ei = E([ ni; di; pi]) . Given a task query q, we compute eq = E(q) and retrieve sq = arg max si∈S sim( eq , ei), where sim is cosine similarity. The selected skill is used by every agent in the multi-agent run. We store each skill s as a persistent external memory Zs ∈ RM ×dmem . This memory contains M
+
+learned vectors for that skill, each of dimension dmem . After selecting s, the system loads Zs for use across agent roles. Each skill has its own memory, requiring O(M d mem ) skill-specific storage. Inserting a textual skill into an agent’s prompt requires processing its tokens when the skill is used. Caching the skill’s layer-wise KV states avoids repeated processing, but stores states for every skill token at every Transformer layer. For a skill of Ts tokens, KV storage scales as O(LT sdkv ), where 
+
+L is the number of layers and dkv is the KV dimension. The storage of Zs does not depend on Ts.4.2 ROLE -C ONDITIONED MEMORY READER 
+
+The retrieved memory Zs is shared across agents, but its effect should depend on the agent’s role ρ
+
+and current reasoning state. We therefore insert a role-conditioned cross-attention reader at selected Transformer layers ℓ. For each token , the reader forms queries from its hidden state and the 
+
+agent’s role , and forms keys and values from Zs. The query is matched against the memory keys to determine which memory vectors are relevant to the current token, and the corresponding values provide the information read from memory. In addition, a role-conditioned gate gρℓ controls how much of this memory readout is added to the token’s hidden state. The reader has its own trainable projections W (ℓ)
+
+q , W (ℓ)
+
+k , W (ℓ)
+
+v , W (ℓ)
+
+o , and W (ℓ)
+
+g ; the backbone’s weights remain frozen. We derive the role input from each agent’s system instruction. Let πρ denote each role’s system instruction. For each role, we feed its system instruction πρ into the frozen backbone and take the token representations from a middle Transformer layer. We combine these representations into a single role vector eρ using attention pooling, and eρ remains fixed during memory training. At an insertion layer ℓ, let Hℓ contain the agent’s hidden states and define U ρℓ = [LN ℓ(Hℓ); eρ],where we concatenate the role vector eρ with the hidden state at each token position. LN ℓ denotes layer normalization. The reader computation is defined in Eq. 1, where dr denotes the dimension of 41 Teacher Response 2 Teacher Scoring 3 Memory Training Training objective Skill textual skill Role (role-specific prompt) frozen backbone + skill injection Teacher response Text skill (teacher) No skill (baseline) Text-induced effect Token-level skill support Latent memory Role Role-conditioned reader frozen backbone wit h readers 
+
+Memory-induced effect Skill-supported token likelihood Final objective 
+
+<latexit sha1_base64="NNhp4HiCDIt6HWe1guuCXXVMPqg=">AAAB6HicbVDLSgNBEOz1GeMr6tHLYBA8hV3xdQx68ZiAeUCyhNlJbzJmdnaZmRXCki/w4kERr36SN//GSbIHTSxoKKq66e4KEsG1cd1vZ2V1bX1js7BV3N7Z3dsvHRw2dZwqhg0Wi1i1A6pRcIkNw43AdqKQRoHAVjC6m/qtJ1Sax/LBjBP0IzqQPOSMGivVda9UdivuDGSZeDkpQ45ar/TV7ccsjVAaJqjWHc9NjJ9RZTgTOCl2U40JZSM6wI6lkkao/Wx26IScWqVPwljZkobM1N8TGY20HkeB7YyoGepFbyr+53VSE974GZdJalCy+aIwFcTEZPo16XOFzIixJZQpbm8lbEgVZcZmU7QheIsvL5PmecW7qlzWL8rV2zyOAhzDCZyBB9dQhXuoQQMYIDzDK7w5j86L8+58zFtXnHzmCP7A+fwB4eWNAQ==</latexit> 
+
+s <latexit sha1_base64="khXbgkx60ikaFFJRLBDNNcSKoG4=">AAAB83icbVDLSgMxFL1TX7W+qi7dBIvgqsyIr2XRjcsK9oGdoWTSTBuaSYYkI5Shv+HGhSJu/Rl3/o2ZdhbaeiBwOOde7skJE860cd1vp7Syura+Ud6sbG3v7O5V9w/aWqaK0BaRXKpuiDXlTNCWYYbTbqIojkNOO+H4Nvc7T1RpJsWDmSQ0iPFQsIgRbKzk+zE2ozDKHqd93a/W3Lo7A1omXkFqUKDZr375A0nSmApDONa657mJCTKsDCOcTit+qmmCyRgPac9SgWOqg2yWeYpOrDJAkVT2CYNm6u+NDMdaT+LQTuYZ9aKXi/95vdRE10HGRJIaKsj8UJRyZCTKC0ADpigxfGIJJorZrIiMsMLE2JoqtgRv8cvLpH1W9y7rF/fntcZNUUcZjuAYTsGDK2jAHTShBQQSeIZXeHNS58V5dz7moyWn2DmEP3A+fwBj1pHu</latexit> 
+
+Zs
+
+<latexit sha1_base64="k11aXVxtue3ceF+8Q+UD3RSospI=">AAAB63icbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8cIxgSSJcxOZrND5rHMzAoh5Be8eFDEqz/kzb9xNtmDJhY0FFXddHdFKWfG+v63V1pZXVvfKG9WtrZ3dveq+wePRmWa0BZRXOlOhA3lTNKWZZbTTqopFhGn7Wh0m/vtJ6oNU/LBjlMaCjyULGYE21zq6UT1qzW/7s+AlklQkBoUaParX72BIpmg0hKOjekGfmrDCdaWEU6nlV5maIrJCA9p11GJBTXhZHbrFJ04ZYBipV1Ji2bq74kJFsaMReQ6BbaJWfRy8T+vm9n4OpwwmWaWSjJfFGccWYXyx9GAaUosHzuCiWbuVkQSrDGxLp6KCyFYfHmZPJ7Vg8v6xf15rXFTxFGGIziGUwjgChpwB01oAYEEnuEV3jzhvXjv3se8teQVM4fwB97nDyLsjlE=</latexit> 
+
+ω
+
+role prompt 
+
+<latexit sha1_base64="k11aXVxtue3ceF+8Q+UD3RSospI=">AAAB63icbVDLSgNBEOyNrxhfUY9eBoPgKeyKr2PQi8cIxgSSJcxOZrND5rHMzAoh5Be8eFDEqz/kzb9xNtmDJhY0FFXddHdFKWfG+v63V1pZXVvfKG9WtrZ3dveq+wePRmWa0BZRXOlOhA3lTNKWZZbTTqopFhGn7Wh0m/vtJ6oNU/LBjlMaCjyULGYE21zq6UT1qzW/7s+AlklQkBoUaParX72BIpmg0hKOjekGfmrDCdaWEU6nlV5maIrJCA9p11GJBTXhZHbrFJ04ZYBipV1Ji2bq74kJFsaMReQ6BbaJWfRy8T+vm9n4OpwwmWaWSjJfFGccWYXyx9GAaUosHzuCiWbuVkQSrDGxLp6KCyFYfHmZPJ7Vg8v6xf15rXFTxFGGIziGUwjgChpwB01oAYEEnuEV3jzhvXjv3se8teQVM4fwB97nDyLsjlE=</latexit> 
+
+ω
+
+<latexit sha1_base64="fqgKXV34qsHiF2VPLPlNMfTR4DY=">AAACLHicbVDLSsNAFJ34rPEVdekmWARXJRFfG6HYjQsXFewDmhAmk0k7dDIJMxOhhHyQG39FEBcWcet3OEmzqK0HBg7nnMvce/yEEiEta6qtrK6tb2zWtvTtnd29fePgsCvilCPcQTGNed+HAlPCcEcSSXE/4RhGPsU9f9wq/N4z5oLE7ElOEuxGcMhISBCUSvKMlhNBOUKQZg+5fqs7VI0G0MtKmUeZjMeY5flcasnTPaNuNawS5jKxK1IHFdqe8e4EMUojzCSiUIiBbSXSzSCXBFGc604qcALRGA7xQFEGIyzcrDw2N0+VEphhzNVj0izV+YkMRkJMIl8liz3FoleI/3mDVIY3bkZYkkrM0OyjMKWmjM2iOTMgHCNJJ4pAxIna1UQjyCGSqt+iBHvx5GXSPW/YV43Lx4t6866qowaOwQk4Aza4Bk1wD9qgAxB4AW/gE0y1V+1D+9K+Z9EVrZo5An+g/fwCIQ+qCQ==</latexit> 
+
+L = ωtoken Ltoken <latexit sha1_base64="ZX8nNB9w3s6cYor/BXsbx7GHRuE=">AAACVHicdVHLSsNAFJ2kVmt8RV26CRZBEEoivpZFNy5cVLAPaEK5mU7aoZMHMxOhhHykLgS/xI0LJ2kW2tYLA2fOuYd754yfMCqkbX9qem2jvrnV2DZ2dvf2D8zDo56IU45JF8cs5gMfBGE0Il1JJSODhBMIfUb6/uyh0PuvhAsaRy9ynhAvhElEA4pBKmpkzi4Ml6n2MYwyNwQ55WEmpjSQeV5eMbDsKV/RjHU2CMh/rlIamU27ZZdlrQKnAk1UVWdkvrvjGKchiSRmIMTQsRPpZcAlxYzkhpsKkgCewYQMFYwgJMLLylBy60wxYyuIuTqRtEr2tyODUIh56KvOYkuxrBXkOm2YyuDOy2iUpJJEeDEoSJklY6tI2BpTTrBkcwUAc6p2tfAUOGCp/sFQITjLT14FvcuWc9O6fr5qtu+rOBroBJ2ic+SgW9RGj6iDugijN/SlIU3TPrRvvabXF626VnmO0Z/S938AyVS3FA==</latexit> 
+
++ωshift Lshift + ωsafe Lsafe 
+
+Behavioral shift matching Base-behavior preservation 
+
+4
+
+<latexit sha1_base64="5Cnqw55G3WqX8pMN4CEyTH5ydRA=">AAACB3icbVDLSsNAFJ3UV62vqEtBgkWoEEoivjZC0Y3LCn1BE8NkMmmHTjJhZiKG0J0bf8WNC0Xc+gvu/BuTNgttPXDhcM693HuPG1EipGF8K6WFxaXllfJqZW19Y3NL3d7pCBZzhNuIUcZ7LhSYkhC3JZEU9yKOYeBS3HVH17nfvcdcEBa2ZBJhO4CDkPgEQZlJjrqf3KVCt/iQ6Q/jy1rimLpFPSaFnjito4qjVo26MYE2T8yCVEGBpqN+WR5DcYBDiSgUom8akbRTyCVBFI8rVixwBNEIDnA/oyEMsLDTyR9j7TBTPM1nPKtQahP190QKAyGSwM06AyiHYtbLxf+8fiz9CzslYRRLHKLpIj+mmmRaHormEY6RpElGIOIku1VDQ8ghkll0eQjm7MvzpHNcN8/qp7cn1cZVEUcZ7IEDUAMmOAcNcAOaoA0QeATP4BW8KU/Ki/KufExbS0oxswv+QPn8ATXkmD8=</latexit> 
+
+ys,ω,x = ( y1, . . . , y T )
+
+<latexit sha1_base64="cgDb/8Y3mMcQImTcjzv+MepLIWk=">AAACKHicbVBNb9NAFFwH+oFpS4AjlxVRpVaKIrsCyqGIqlw4FomklWJjrTfPySq7Xmv3uYpl+edw4a9wQagI9covYZ3kAG1HWmk0857ezqSFFBaD4MbrPHi4sbm1/ch/vLO796T79NnI6tJwGHIttblMmQUpchiiQAmXhQGmUgkX6fxD619cgbFC55+xKiBWbJqLTHCGTkq67yOQMsEvdaQYzoyqERbY9CMz043/zo+kntLioEqQRkpMaJXUJ85eLAf69tBPur1gECxB75JwTXpkjfOk+zOaaF4qyJFLZu04DAqMa2ZQcAmNH5UWCsbnbApjR3OmwMb1MmhD950yoZk27uVIl+q/GzVT1lYqdZNtHHvba8X7vHGJ2du4FnlRIuR8dSgrJUVN29boRBjgKCtHGDfC/ZXyGTOMo+u2LSG8HfkuGR0NwjeD159e9U7P1nVskxfkJTkgITkmp+QjOSdDwslX8p1ck1/eN++H99u7WY12vPXOc/IfvD9/AR4tpfA=</latexit> 
+
+ωtext ,ω t = log p(yt | y<t , x, ε, s )
+
+<latexit sha1_base64="sc5HgcxWHzQaccNG0SldrDu2SO0=">AAACJnicbVDLSgMxFM34dnxVXboJFkGhlBnxtVAounFZwarQqUMmTdvQZDIkd8RhmK9x46+4cVERceenONN2odYDgcO55yY5J4gEN+A4n9bU9Mzs3PzCor20vLK6VlrfuDEq1pQ1qBJK3wXEMMFD1gAOgt1FmhEZCHYb9C+K+e0D04ar8BqSiLUk6Ya8wymBXPJLZx4Twof71JMEelqmxWVZxdM9ldlntidUF0e7iQ/Yk7yNEz89hazyODTs2X6p7FSdIfAkccekjMao+6WB11Y0liwEKogxTdeJoJUSDZwKltlebFhEaJ90WTOnIZHMtNJhzAzv5Eobd5TOTwh4qP7cSIk0JpFB7izCmL+zQvxv1oyhc9JKeRjFwEI6eqgTCwwKF53hNteMgkhyQqjm+V8x7RFNKOTNFiW4fyNPkpv9qntUPbw6KNfOx3UsoC20jXaRi45RDV2iOmogip7QCxqgN+vZerXerY+Rdcoa72yiX7C+vgFuJqUT</latexit> 
+
+ωbase ,ω t = log p(yt | y<t , x, ε )
+
+<latexit sha1_base64="OpeZIshcMoW4EJbQdU2KxRN3pLg=">AAACTXicbVFNaxsxENU6SZNu+uG0x162NYEEitkNzcelENoeekyhTgKWa2bl2bWItFqk2TZm8R/MpdBb/0UvPbSEUK3tQPMxIPR4b0Z6ekpLJR3F8c+gtbS88mB17WG4/ujxk6ftjWfHzlRWYE8YZexpCg6VLLBHkhSelhZBpwpP0rP3jX7yFa2TpvhMkxIHGvJCZlIAeWrYHn0b0hduxyZ8G3Incw38JVeY0VbIUyTgpkQLZGwBGmuXT8O5yj+gIvCzNddAY6trwnOavm6OmnIr8zFth9f7sN2Ju/GsorsgWYAOW9TRsP2Dj4yoNBYkFDjXT+KSBjVYkkKh91A5LEGcQY59DxtvblDP0phGm54ZRZmxfhUUzdj/J2rQzk106jsb6+621pD3af2KsoNBLYuyIizE/KKsUhGZqIk2GkmLgtTEAxBWeq+RGIMFQf4DmhCS20++C453usled/fTm87hu0Uca+wFe8W2WML22SH7yI5Yjwl2wX6xP+xv8D34HVwGV/PWVrCYec5uVGv1HwV4tQc=</latexit> 
+
+wωt = ω(ε sg (!text ,ω t
+
+)) 
+
+<latexit sha1_base64="MgEzxxW9lwycAs/PQNBLUPq9T6Y=">AAACPHicbVBNT9tAEF3z0QZD25Qee7GIkILURjbqBxekCC499EBVQpDi1Fpvxskq+2Htjosiyz+MCz+iN0699ECFuPbcdYhQCzxppbdv3uzOvDQX3GIYXnpLyyurT5421vz1jWfPXzRfbp5YXRgGPaaFNqcptSC4gh5yFHCaG6AyFdBPp4d1vf8djOVaHeMsh6GkY8Uzzig6KWl+jSXFCaOi/Fwl5fxiZIl6Cqqq/H3/LMFvsZloPxaQYdt/G4MQTruzSpDVm9pR+bHh4wnu+EmzFXbCOYKHJFqQFlngKGn+iEeaFRIUMkGtHURhjsOSGuRMgHu4sJBTNqVjGDiqqAQ7LOfLV8G2U0ZBpo07CoO5+m9HSaW1M5k6Zz2yvV+rxcdqgwKzvWHJVV4gKHb7UVaIAHVQJxmMuAGGYuYIZYa7WQM2oYYydHnXIUT3V35ITnY70YfO+y/vWt2DRRwN8ppskTaJyEfSJZ/IEekRRs7JT3JFfnsX3i/v2ru5tS55i55X5D94f/4CJo6vNg==</latexit> 
+
+Ltoken = wωt (→ωmem ,ω t )
+
+<latexit sha1_base64="BZNi5FENQdMYDYMx6qb6B8IuWFo=">AAACdHicbVFNb9QwEHXCVwkfXeDAAQ6GVaUiVasE8XVBqgoHDj0UwbaVNks08U42Vu04sifAKsov4N/1xs/gwhlnGyFoO5Kl5/fmjcczea2kozj+GYRXrl67fmPjZnTr9p27m6N79w+daazAqTDK2OMcHCpZ4ZQkKTyuLYLOFR7lJ+96/egrWidN9ZlWNc41LCtZSAHkqWz0I9VApQDV7ndZu75Y3bpSFtR10dvoW0ZfUluaKDU1WiBjK9DYftLGULmfdFGqsKDtKH2PisAn/62hUXc7vbXbuUQl/E6DHKVWLkt6FmWjcTyJ18EvgmQAYzbEQTY6TRdGNBorEgqcmyVxTfMWLEmh0BduHNYgTmCJMw/7zt28XQ+t41ueWfDCWH8q4mv2X0cL2rmVzn1m37M7r/XkZdqsoeLNvJVV3RBW4uyholGcDO83wBfSoiC18gCElb5XLkqwIMjvqR9Ccv7LF8Hh80nyavLy44vx7t4wjg32iD1l2yxhr9ku+8AO2JQJ9it4GPDgSfA7fByOw62z1DAYPA/YfxFO/gA0O8Bk</latexit> 
+
+Lshift = wωt SmoothL1 (!mem ,ω t , !text ,ω t
+
+)
+
+<latexit sha1_base64="ntkzjufKIgbXyXEyJyiQWcs/yYM=">AAACc3icbVFNT9wwEHVS2tLQj4VKvXDAYqm0SLBKqgK9VELlwoEDVbuAtNlGjneysbDjyJ4UraL8gf683voveum9zhIhynYkS8/vzYyfZ9JSCoth+MvzH608fvJ09Vmw9vzFy1e99Y0LqyvDYcS11OYqZRakKGCEAiVclQaYSiVcptcnrX75HYwVuviK8xImis0KkQnO0FFJ70esGOacyfqsSerFxajasgyaJvgYDKL9mwS/xSbXu0GsSzAMtSmYgvqL0hrzs6gJYgkZDoIYpHS5d00UqGavrWz2lrTWcicGsRGzHHeDpNcPh+Ei6DKIOtAnXZwnvZ/xVPNKQYFcMmvHUVjipGYGBZfgGlcWSsav2QzGDrau7aRezKyhbx0zpZk27hRIF+z9ipopa+cqdZmtZ/tQa8n/aeMKsw+TWhRlhVDw24eySlLUtF0AnQoDHOXcAcaNcF4pz5lhHN2a2iFED7+8DC7eDaPD4cHn9/3jT904Vskm2SYDEpEjckxOyTkZEU5+e2+8LY96f/xNf9vfuU31va7mNfkn/P2/eDq/Bg==</latexit> 
+
+Lsafe = (1 → wωt ) SmoothL1 
+
+(
+
+ωmem ,ω t , ω base ,ω t
+
+)
+
+<latexit sha1_base64="AysEerDq+IBB4tTk04Ss2Eut1M8=">AAACJnicbVDLThsxFPXwajq8UrrsxiKiYgHRDKItG6QINl2CRAApTkce5yaxYo9H9p1K0ZCvYcOvdNMFFarY8Sl4Qha8jmTp6Jx7bZ+T5ko6jKL7YG5+YXHpQ+1juLyyurZe/7Rx7kxhBbSFUcZeptyBkhm0UaKCy9wC16mCi3R0XPkXv8E6abIzHOfQ1XyQyb4UHL2U1A8ZKJXgr5JpjkOrSw16ssPs0EzCr4chU2ZAc3YkB2p7nCBlOxW/Yqyzu5djN6k3omY0BX1L4hlpkBlOkvot6xlRaMhQKO5cJ478NSW3KIWCScgKBzkXIz6AjqcZ1+C65TTmhG55pUf7xvqTIZ2qzzdKrp0b69RPVmHca68S3/M6BfYPuqXM8gIhE08P9QtF0dCqM9qTFgSqsSdcWOn/SsWQWy7QNxv6EuLXkd+S871m/L357XS/0Tqa1VEjX8gm2SYx+UFa5Cc5IW0iyDX5Q27Jv+Am+BvcBf+fRueC2c5n8gLBwyNFS6T+</latexit> 
+
+ωmem ,ω t = log p
+
+(
+
+yt
+
+∣∣∣<latexit sha1_base64="rt8D8pBH9mi6IaevROU/DzSBmiI=">AAACA3icbVDLSsNAFJ34rPUVdaebYBEUSknE18JFqRuXFewDmxAm00k7dJIJMxMxhIAbf8WNC0Xc+hPu/BsnbRbaeuDC4Zx7ufceL6JESNP81ubmFxaXlksr5dW19Y1NfWu7LVjMEW4hRhnvelBgSkLckkRS3I04hoFHcccbXeV+5x5zQVh4K5MIOwEchMQnCEolufpu4qaXMqs+VG0+ZNX0LnOF3SADflR29YpZM8cwZolVkAoo0HT1L7vPUBzgUCIKhehZZiSdFHJJEMVZ2Y4FjiAawQHuKRrCAAsnHf+QGQdK6Rs+46pCaYzV3xMpDIRIAk91BlAOxbSXi/95vVj6F05KwiiWOESTRX5MDcmMPBCjTzhGkiaKQMSJutVAQ8ghkiq2PARr+uVZ0j6uWWe105uTSr1RxFECe2AfHAILnIM6uAZN0AIIPIJn8AretCftRXvXPiatc1oxswP+QPv8Ae77lxE=</latexit> 
+
+y<t , x, ω, Z s
+
+)
+
+<latexit sha1_base64="ryHllpqkILnQcErPKdk4O82hde0=">AAACQnicdVC7SgNBFJ31GddX1NJmMQgWGnbFVyOIWlgqGBPJxjA7uUmGzD6YuSuGZb/Nxi+w8wNsLBSxtXA2bqGJHhg4nHMv98zxIsEV2vaTMTY+MTk1XZgxZ+fmFxaLS8tXKowlgwoLRShrHlUgeAAV5CigFkmgvieg6vVOMr96C1LxMLjEfgQNn3YC3uaMopaaxWv3FATSJt4krk+xK/0E4Q7TTVd2w9Q8NF0Q4j93a8TNouRus1iyy/YA1ihxclIiOc6bxUe3FbLYhwCZoErVHTvCRkIlciYgNd1YQURZj3agrmlAfVCNZFBBaq1rpWW1Q6lfgNZA/bmRUF+pvu/pySyqGvYy8S+vHmP7oJHwIIoRAvZ9qB0LC0Mr69NqcQkMRV8TyiTXWS3WpZIy1K2bugRn+Muj5Gq77OyVdy92SkfHeR0FskrWyAZxyD45ImfknFQII/fkmbySN+PBeDHejY/v0TEj31khv2B8fgESt7Lj</latexit> 
+
+!text ,ω t = ωtext ,ω t → ωbase ,ω t
+
+<latexit sha1_base64="K1t9Hsxa0A0g5RP1yGlOUD/hAp8=">AAACQXicdVDLSsNAFJ3UV62vqks3wSK40JKIr41Q1IXLCvYBTS2T6W07dCYJMzdCCfk1N/6BO/duXCji1o1JW0FbPTBwOOde7pnjBoJrtKwnIzMzOze/kF3MLS2vrK7l1zeq2g8Vgwrzha/qLtUguAcV5CigHiig0hVQc/sXqV+7A6W5793gIICmpF2PdzijmEitfN25BIG0hbeRIyn2lIwkyHjPUT0/zp3lHBDiH3N/ykyDfLutfMEqWkOY08QekwIZo9zKPzptn4USPGSCat2wrQCbEVXImYA454QaAsr6tAuNhHpUgm5GwwZicydR2mbHV8nz0ByqPzciKrUeSDeZTLPqSS8V//IaIXZOmxH3ghDBY6NDnVCY6JtpnWabK2AoBgmhTPEkq8l6VFGGSelpCfbkl6dJ9aBoHxePrg8LpfNxHVmyRbbJLrHJCSmRK1ImFcLIPXkmr+TNeDBejHfjYzSaMcY7m+QXjM8vNLax1w==</latexit> 
+
+!mem ,ω t = ωmem ,ω t → ωbase ,ω tFigure 3: Behavioral skill distillation. For each skill, agent role, and calibration task, the frozen backbone generates a teacher response with the textual skill included in the role prompt. We score the same response with and without the textual skill to measure its token-level effect. We then replace the skill text with its memory and train the memory and role-conditioned reader to reproduce the skill-supported behavior while preserving the base behavior at positions with limited skill support. the reader’s attention space. 
+
+Qρℓ = U ρℓ W (ℓ)
+
+q , Ks,ℓ = ZsW (ℓ)
+
+k , Vs,ℓ = ZsW (ℓ)
+
+v , Aρℓ = softmax Qρℓ K⊤
+
+s,ℓ 
+
+√dr
+
+!
+
+, (1) Let Rρℓ = Aρℓ Vs,ℓ W (ℓ)
+
+o denote the projected memory readout. The hidden-state updates are 
+
+gρℓ = σ
+
+
+
+U ρℓ W (ℓ)
+
+g
+
+
+
+, ∆Hρℓ = gρℓ ⊙ Rρℓ , Hℓ ← Hℓ + ∆ Hρℓ . (2) Here, σ(·) is the sigmoid function, which maps each element of gρℓ to (0 , 1) , and ⊙ denotes elemen-twise multiplication. Thus, gρℓ controls the contribution of each element in the memory readout Rρℓ
+
+to the hidden-state update ∆Hρℓ . Each insertion layer has its own reader parameters, shared across all skills and agent roles at that layer. Therefore, each skill requires only one stored memory Zs.The receiving agent’s hidden states and role determine which parts of that memory are read and how strongly they update the hidden states. Agents continue to communicate through latent states. 4.3 BEHAVIORAL SKILL DISTILLATION 
+
+A compact memory cannot be expected to reproduce the wording of a textual skill. Instead, we train it to reproduce the effect of that skill on the model’s predictions. For each skill, role, and calibration task, we first generate a fixed response using the textual skill. We then score the same response under three conditions: with the textual skill, without the skill, and with the skill memory. The change caused by the textual skill provides the training target for the memory. During this process, we train the skill memories and reader while keeping the backbone frozen. Figure 3 illustrates this procedure. 
+
+Teacher responses and behavioral targets. Consider a textual skill s, an agent role ρ, and a calibration task x. We add the textual skill to the prompt for role ρ and use the frozen backbone to generate a teacher response ys,ρ,x = ( y1, . . . , y T ), where T is the response length and t ∈{1, . . . , T } indexes a token position. For readability, we omit the task index x from the notation below. Intermediate agents normally communicate through latent states and do not generate text. For these roles, we generate a textual response only to construct a training target. The generation starts from the role prompt without the KV states passed from preceding agents. These teacher responses are used only during training and do not change the latent communication process at inference time. We score each teacher response under three conditions. The text condition includes the textual skill in the prompt. The base condition uses the same prompt without the skill. The memory condition 5also removes the skill text but provides Zs through the role-conditioned reader. All three conditions use teacher forcing: when scoring token yt, the model receives the same preceding teacher tokens 
+
+y<t . This ensures that the three scores differ only in how the skill is provided. Let ℓtext ,ρ t , ℓbase ,ρ t , and ℓmem ,ρ t denote the log-probability assigned to yt under the three conditions. We define the text-induced and memory-induced changes relative to the base model as ∆text ,ρ t =
+
+ℓtext ,ρ t −ℓbase ,ρ t , ∆mem ,ρ t = ℓmem ,ρ t −ℓbase ,ρ t . A positive ∆text ,ρ t means that the textual skill increases the model’s probability of the teacher token yt. We train the memory so that ∆mem ,ρ t follows ∆text ,ρ t .
+
+Token-level skill support. A teacher response contains both skill-related reasoning and generic tokens that the model could predict without the skill. We therefore give more training weight to positions where the textual skill increases the probability of the teacher token, and preserve the base model’s behavior where the skill provides little support. Specifically, we convert the text-induced change at each position into a soft weight: wρt = σ β sg  ∆text ,ρ t
+
+ . Here, σ(·) is the sigmoid function, β controls the sharpness of the weighting, and sg( ·) denotes stop-gradient. A larger wρt
+
+indicates that the textual skill provides stronger support for token yt. We use wρt to emphasize skill-supported behavior and 1 − wρt to preserve the base behavior at positions with limited skill support. 
+
+Training objective. The token weight wρt acts as a soft switch between imitating the textual skill and preserving the base behavior. When wρt is large, the memory-conditioned model should follow the text-conditioned model; when it is small, the memory should have little effect. We optimize 
+
+Ltoken = Es,ρ,x,t 
+
+wρt
+
+ −ℓmem ,ρ t
+
+ , (3) 
+
+Lshift = Es,ρ,x,t 
+
+wρt SmoothL1  ∆mem ,ρ t , ∆text ,ρ t
+
+ , (4) 
+
+Lsafe = Es,ρ,x,t 
+
+h
+
+(1 − wρt ) SmoothL1 
+
+
+
+ℓmem ,ρ t , ℓ base ,ρ t
+
+i 
+
+. (5) The expectation is taken over skills, roles, calibration tasks, and teacher-response tokens. Ltoken 
+
+increases the likelihood of skill-supported teacher tokens, Lshift matches the strength of the memory-induced and text-induced changes, and Lsafe keeps the model close to its base behavior at positions with limited skill support. Here, SmoothL1 is quadratic for small errors and linear for larger errors. Because both shifts use the same base condition, ∆mem ,ρ t − ∆text ,ρ t = ℓmem ,ρ t − ℓtext ,ρ t . Thus, the shift loss is algebraically equivalent to matching the memory-conditioned and text-conditioned log-probabilities. We retain the shift notation to express both effects relative to the no-skill behavior; the same base condition is also used to compute wρt and Lsafe . The full objective is L = λtoken Ltoken +
+
+λshift Lshift +λsafe Lsafe . Teacher responses from all roles supervise the same Zs; the skill memories and shared reader are trained jointly while the backbone remains frozen. 4.4 SKILL DISCOVERY 
+
+The preceding method can compile any textual skill into a latent memory. To construct the skill libraries used in our experiments, we discover such skills using the same backbone model that is subsequently evaluated. For each benchmark D, we reserve a calibration set Dcal of 20 examples. We run the backbone in the base multi-agent pipeline multiple times on each calibration task. A com-pleted multi-agent trajectory contains the successive outputs produced by the planner, critic, refiner, and judger. For each task instance xi, we retain a matched pair Pi = ( τ + 
+
+> i
+
+, τ − 
+
+> i
+
+), where the final an-swer of τ + 
+
+> i
+
+is correct and that of τ − 
+
+> i
+
+is incorrect. The resulting discovery set is P = {(τ + 
+
+> i
+
+, τ − 
+
+> i
+
+)}|D cal | 
+
+> i=1
+
+.We then prompt the same backbone to compare the two trajectories in each pair and extract a reusable procedure. Because the paired trajectories solve the same task, their differences can reveal reasoning patterns that contribute to success or failure. Their role-specific outputs further indicate whether a pattern concerns planning, critique, refinement, or final verification. We remove candidates that con-tain instance-specific entities, values, or solution details, and deduplicate the remaining candidates by name. This produces a skill library S = {s1, . . . , s N } for each benchmark–backbone setting. All calibration trajectories are disjoint from the evaluation examples. Further details and per-benchmark skill counts are provided in Appendix A, and representative skills are listed in Appendix A.1. 6Skill discovery provides the textual skills used in our experiments, but it is not required by the compilation method. If an existing textual skill is already available, it can be added to the library and compiled directly into Zs using the procedure in Section 4.3. We also explored directly deriving latent skill memories from successful and failed trajectories without textual discovery or distillation; these zero-training variants were substantially less reliable (see Appendix F). 
+
+5 WHY TEXT -S UPERVISED SKILLS TRANSFER TO LATENT REASONING 
+
+SkillMem is trained from textual teacher responses but used during latent reasoning. The key ob-servation is that it does not reconstruct the skill text itself; instead, it learns the behavioral effect 
+
+induced by the skill on the frozen backbone and applies that effect through hidden-state readers. 
+
+Behavioral effect as a likelihood ratio. Let cρt = ( x, ρ, y <t ) denote the prediction context. Recall that ∆text ,ρ t = ℓtext ,ρ t − ℓbase ,ρ t . Equivalently, 
+
+∆text ,ρ t = log pθ (yt | cρt , s )
+
+pθ (yt | cρt ) , ∆mem ,ρ t = log pθ,ψ (yt | cρt , Zs)
+
+pθ (yt | cρt ) .
+
+Thus, behavioral distillation matches the change in model behavior caused by the textual skill rather than its textual representation. 
+
+Aligned latent inputs. LatentMAS maps a final-layer latent state back toward the model input space as ˜et+1 = h(L) 
+
+> t
+
+Wa, with Wa ≈ W †
+
+> out
+
+Win , where Win and Wout are the input and output embedding matrices (Zou et al., 2026). Let Φℓ denote the frozen mapping from the model input to a SkillMem insertion layer ℓ, and define utext = Φ ℓ(e) and ulat = Φ ℓ(˜ e). If Φℓ is locally LΦ-Lipschitz, then ∥ulat − utext ∥ ≤ LΦ∥˜e − e∥. Hence, the LatentMAS input-output alignment also controls the hidden-state mismatch seen by the SkillMem reader. 
+
+Proposition 1 (Text-to-latent behavioral transfer). 
+
+Let F ρs (u) and Gρs (u) denote the behavioral effects induced by the textual skill and SkillMem, respectively, at reader state u. Assume both are locally Lipschitz with constants LF and LG,and that behavioral distillation satisfies |Gρs (utext ) − F ρs (utext )| ≤ δ. If ∥˜e − e∥ ≤ ϵalign , then 
+
+|Gρs (ulat ) − F ρs (ulat )| ≤ δ + ( LF + LG)LΦϵalign .
+
+The bound separates the transfer error into the behavioral distillation error δ and the representation gap introduced by latent recurrence. LatentMAS reduces the latter through input-output alignment before the hidden states reach the SkillMem reader. SkillMem therefore transfers the behavioral effect of a textual skill through a shared hidden-state interface rather than reproducing the skill text itself. A full derivation is provided in Appendix E. 
+
+6 EXPERIMENTS 
+
+6.1 EXPERIMENTAL SETUP 
+
+Backbones and benchmarks. We evaluate S KILL MEM using Qwen3-4B, Qwen3-8B, and Qwen3-14B (Yang et al., 2025) as frozen backbones. The evaluation includes GSM8K (Cobbe et al., 2021), ARC-Easy and ARC-Challenge (Clark et al., 2018), MBPP+ (Austin et al., 2021; Liu et al., 2023), MedQA (Jin et al., 2021), and GPQA-Diamond (Rein et al., 2024), covering mathematical reason-ing, QA, medical reasoning, and code generation. Calibration examples used for skill discovery and distillation are disjoint from the evaluation examples. Unless otherwise stated, results are averaged over three evaluation seeds . The full evaluation protocol is provided in Appendix C. 
+
+SkillMem configuration. Each skill memory contains M = 8 vectors of dimension dmem = 256 .Memory readers are inserted at layers {L/ 4, L/ 2, 3L/ 4, L −1}, and each agent performs eight latent reasoning steps. We train the skill memories and shared reader for 200 steps using AdamW, with 
+
+β = 5 .0 and (λtoken , λ shift , λ safe ) = (1 .0, 0.5, 0.1) . Details are provided in Appendix D. 
+
+Baselines. TextMAS performs text-based multi-agent reasoning without skills, while LatentMAS 
+
+is the corresponding latent multi-agent baseline. KV Skill represents each retrieved skill using 7Table 1: Main results across model scales. We report task accuracy (%, “Acc.”), average output tokens (“Token”), and inference time in seconds (“Speed”). “Text” and “Latent” denote TextMAS and LatentMAS, respectively, and “SP” denotes Soft Prompt. SkillMem accuracy is bolded when it exceeds either TextMAS or LatentMAS.                                                                                                                                                                                                                                                                                               
+
+> Tasks Metrics Qwen3-4B Qwen3-8B Qwen3-14B Text Latent KV SP S2L SkillMem Text Latent KV SP S2L SkillMem Text Latent KV SP S2L SkillMem GSM8K Acc. ↑89.40 72.40 84.90 89.20 84.13 89.90 90.80 92.33 92.60 92.20 92.27 93.07 94.00 94.30 94.30 93.70 94.00 92.60 Token ↓229 215 205 208 185 169 240 196 206 195 223 202 198 188 195 195 187 175 Speed ↓19.1 6.8 6.2 6.1 7.6 5.5 35.1 6.0 12.2 6.0 7.9 6.6 26.8 9.4 11.8 9.7 9.7 8.9
+> GPQA-D Acc. ↑29.94 17.97 22.46 30.24 27.54 35.63 33.53 36.53 40.72 35.33 34.33 37.72 37.72 31.74 28.14 35.33 34.13 35.33 Token ↓488 222 268 380 366 420 495 398 408 427 407 374 501 445 456 365 428 476 Speed ↓54.5 9.0 9.6 10.3 12.6 12.1 49.7 15.2 22.7 16.2 14.1 13.5 64.9 21.2 28.4 18.0 23.1 22.6
+> ARC-E Acc. ↑96.87 92.67 96.27 97.27 93.00 97.53 97.60 98.90 98.40 98.20 98.53 97.80 98.40 98.70 99.00 98.80 98.60 98.90 Token ↓220 171 162 162 147 92 304 163 168 177 191 170 261 169 187 164 119 172 Speed ↓22.0 5.4 6.5 5.0 5.4 3.3 27.4 7.4 5.3 7.8 8.0 5.7 34.1 9.8 10.9 9.7 7.2 8.8
+> ARC-C Acc. ↑90.53 83.67 86.27 89.80 82.67 91.20 91.80 92.40 92.80 92.60 92.47 91.80 93.40 94.20 94.40 93.33 93.00 93.93 Token ↓294 190 186 177 193 162 341 183 191 205 195 163 315 189 210 153 137 222 Speed ↓26.8 5.9 8.5 5.2 6.9 5.2 25.2 8.2 11.2 9.1 7.7 5.5 37.1 11.2 10.3 9.7 7.7 11.4
+> MedQA Acc. ↑60.10 21.84 33.57 55.63 33.65 61.50 64.56 67.84 68.55 66.43 67.14 69.49 70.42 71.60 69.25 68.08 69.01 69.72 Token ↓360 190 166 259 252 215 416 250 267 279 298 263 406 183 182 214 90 54 Speed ↓44.1 7.7 11.4 8.3 10.5 6.8 49.0 11.5 8.5 10.6 10.6 8.6 61.3 11.7 10.2 13.3 6.5 4.8
+> MBPP+ Acc. ↑67.75 32.74 40.12 60.96 31.07 65.39 65.11 70.23 70.23 69.65 68.72 71.56 66.86 72.09 70.93 71.61 70.64 67.25 Token ↓187 122 121 96 163 78 92 76 79 78 77 68 121 87 109 102 118 129 Speed ↓36.5 9.0 8.3 6.2 11.3 5.6 19.9 3.1 3.2 3.2 3.7 3.1 37.2 4.6 8.4 5.1 6.1 8.6
+
+its cached layer-wise KV states. Soft Prompt ( SP ) (Lester et al., 2021; Li & Liang, 2021) learns skill-specific continuous prompt vectors and inserts them at the input layer. It uses the same be-havioral distillation objective as S KILL MEM , but does not use the memory reader. Skill-to-LoRA (S2L ) (Zhang & Qi, 2026) stores each skill in a skill-specific LoRA adapter. SkillMem stores each skill as a compact external memory accessed through the shared role-conditioned reader. All skill-based methods use the same skill library and retrieved skill for each evaluation example. S2L settings are provided in Appendix D. 6.2 MAIN RESULTS 
+
+Table 1 compares S KILL MEM with text-based and latent multi-agent baselines, as well as KV, Soft Prompt, and LoRA skill representations, across three Qwen3 model scales. 
+
+Overall performance. With Qwen3-4B, S KILL MEM outperforms L ATENT MAS and all three al-ternative skill representations on every benchmark, and achieves the highest overall accuracy on five of the six tasks. With Qwen3-8B, it achieves the best results on GSM8K, MedQA, and MBPP+. Overall, the results show that compact external memory can preserve useful skill behavior without storing layer-wise KV states or skill-specific model parameters. 
+
+Effect of model scale. The gains are strongest and most consistent with Qwen3-4B, become task dependent with Qwen3-8B, and show no consistent advantage with Qwen3-14B. This reduction is partly consistent with a ceiling effect: on GSM8K and ARC, the 14B baselines already achieve accuracy above 90%, leaving less room for additional skill conditioning. Overall, SkillMem provides the clearest benefit when the backbone has more room to improve from external procedural guidance. Table 2: (a) Skill storage scaling with bank size. (b) Inference and training efficiency. 
+
+(a) Skill Storage Scaling Method Per-Skill N = 10 N = 100 N = 1000 
+
+Text Skill 173 B 1.7 KB 17.3 KB 173 KB LoRA Skill 30.7 MB 306.9 MB 3.07 GB 30.69 GB KV Skill 13.0 MB 135.9 MB 1.36 GB 13.59 GB 
+
+SkillMem: Reader shared 34.5 MB 34.5 MB 34.5 MB 
+
+SkillMem: Memory 9.6 KB 96 KB 0.96 MB 9.6 MB 
+
+SkillMem: Total – 34.6 MB 35.5 MB 44.1 MB 
+
+vs. KV – 3.9× 38 .3× 308 ×
+
+vs. LoRA – 8.9× 86 .6× 696 ×
+
+(b) Inference and Training Efficiency Inference Method Latency ↓ Speedup ↑ Mem. ↓
+
+TextMAS 33.65 1.00 × 34.02 LatentMAS 8.18 4.11 × 33.83 Text Skill 12.98 2.59 × 36.13 KV Skill 12.01 2.80 × 34.97 
+
+SkillMem 7.95 4.23 × 33.86 Training (10-skill MedQA bank) Method Scheme Time 
+
+LoRA Skill Per-skill Adapters 110 min 
+
+SkillMem Shared Reader 11.7 min 
+
+8Table 3: Ablation studies of S KILL MEM . Results report task accuracy (%).                                                                                                                                    
+
+> (a) Role-Conditioned Memory Access Method GSM8K GPQA-D ARC-E ARC-C MedQA Avg.
+> Qwen3-4B
+> SKILL MEM 89.90 35.63 97.53 91.20 61.50 75.15
+> Role Agnostic 75.70 32.94 97.87 89.73 40.61 67.37 Constant Emb. 87.40 34.14 97.53 90.07 59.39 73.71 Shuffled Emb. 85.00 34.13 97.33 87.80 57.75 72.40 Per-role Memory 83.90 32.94 96.60 90.27 58.92 72.52
+> Qwen3-8B
+> SKILL MEM 93.07 37.72 97.80 91.80 69.48 77.97
+> Role Agnostic 88.93 35.33 98.80 91.20 68.23 76.50 Constant Emb. 92.27 40.12 98.40 92.20 66.04 77.81 Shuffled Emb. 92.87 38.32 98.30 91.40 68.54 77.89 Per-role Memory 90.87 35.93 98.40 91.60 66.98 76.76
+> (b) Memory Capacity Task–Model M=1 M=2 M=4 M=8 M=16
+> GSM8K-4B 87.67 87.80 82.00 89.90 85.87 GSM8K-8B 93.47 92.47 92.67 93.07 89.40 GPQA-D-4B 34.53 36.13 32.14 35.63 29.74 GPQA-D-8B 38.12 38.12 37.52 37.72 35.33
+> (c) Distillation Objective Task–Model Full w/o Ltoken w/o Lshift w/o Lsafe
+> GSM8K-4B 89.90 87.33 86.13 88.00 GSM8K-8B 93.07 92.00 92.33 92.87 GPQA-D-4B 35.63 33.73 32.53 31.34 GPQA-D-8B 37.72 37.92 35.73 33.33 MedQA-4B 61.50 59.31 60.56 60.56 MedQA-8B 69.49 67.29 67.29 68.70 Avg. 64.55 62.93 62.43 62.47
+
+6.3 STORAGE AND EFFICIENCY 
+
+Table 2 compares the efficiency of different skill representations on Qwen3-8B. 
+
+Storage. Text Skill has negligible storage but must be processed at each use. KV Skill and LoRA Skill require 13.0 MB and 30.7 MB per skill, respectively, while SkillMem uses only 9.6 KB per skill plus one shared reader. From 10 to 1000 skills, SkillMem is 3.9×–308 × smaller than KV Skill. 
+
+Inference efficiency. SkillMem achieves 7.95 s end-to-end latency, comparable to LatentMAS at 8.18 s and lower than Text Skill and KV Skill at 12.98 s and 12.01 s. Its fixed eight-vector memory adds neither skill tokens nor skill-specific KV prefixes, preserving efficient latent inference. 
+
+Training efficiency. For 10 MedQA skills, SkillMem trains its shared reader in 11.7 minutes, versus 110 minutes for separate LoRA adapters, a 9.4× reduction. This advantage comes from sharing the reader across the skill bank, whereas S2L trains a separate adapter for each skill. 6.4 ABLATION STUDIES 
+
+Table 3 evaluates the role-conditioned reader, memory capacity, and distillation objective while keeping the retrieved skills and evaluation examples fixed. 
+
+Role conditioning. Table 3(a) compares the full reader with role-agnostic, constant-embedding, shuffled-embedding, and per-role memory variants. Removing role conditioning causes the largest drop, reducing average accuracy from 75 .15% to 67 .37% on Qwen3-4B and from 77 .97% to 76 .50% 
+
+on Qwen3-8B. Separate memories for each role provide no advantage over one shared memory, supporting role-conditioned access to shared skill knowledge. 
+
+Memory capacity. Table 3(b) shows a non-monotonic relationship between memory size and ac-curacy. The default M =8 achieves the best average accuracy of 64 .08% , while M =2 remains close at 63 .63% with one quarter as many memory vectors. Increasing the capacity to M =16 reduces accuracy, indicating that only a small memory is needed to capture useful skill behavior. 
+
+Distillation objective. Removing any loss term reduces the macro-average accuracy from 64 .55% 
+
+to between 62 .43% and 62 .93% in Table 3(c). The largest drop occurs without Lshift , supporting direct matching of the behavioral change induced by the textual skill. The full objective performs best overall, showing that the three losses provide complementary training signals. 
+
+7 CONCLUSION AND FUTURE WORK 
+
+We introduced S KILL MEM , which represents each reusable skill as a compact external memory for latent multi-agent reasoning. A role-conditioned reader allows agents with different roles to share the same memory, while behavioral distillation transfers the effect of a textual skill without modifying the frozen backbone. Across six benchmarks and three model scales, the results show that compact skill memories can provide useful procedural guidance with low skill-specific storage and efficient latent inference. 9Future work can extend S KILL MEM to retrieve and compose multiple skills within the same reason-ing process, including methods for resolving conflicting guidance. Retrieval could also incorporate the agent’s role and current reasoning state in addition to the task query. Finally, skill memories could be updated online as agents encounter new tasks and interaction patterns. 
+
+AI A SSISTANCE DISCLOSURE 
+
+Large language models were used to assist with language editing and manuscript polishing, includ-ing improvements to grammar, clarity, and readability. They were also used to assist with imple-menting parts of the research code. All model-assisted code was reviewed, tested, and verified by the authors. The research ideas, methodology, experimental design, analysis, and scientific conclu-sions were developed and validated by the authors, who take full responsibility for the content of the paper. 
+
+REFERENCES 
+
+Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le, and Charles Sutton. Program synthesis with large language models. arXiv preprint arXiv:2108.07732 , 2021. URL https://arxiv.org/abs/ 2108.07732 .Alexis Chevalier, Alexander Wettig, Anirudh Ajith, and Danqi Chen. Adapting language mod-els to compress contexts. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pp. 3829–3846. Association for Computational Linguistics, 2023. doi: 10.18653/v1/2023.emnlp-main.232. URL https://aclanthology.org/ 2023.emnlp-main.232/ .Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, and Oyvind Tafjord. Think you have solved question answering? try ARC, the AI2 reasoning chal-lenge. arXiv preprint arXiv:1803.05457 , 2018. URL https://arxiv.org/abs/1803. 05457 .Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, and John Schulman. Training verifiers to solve math word problems. arXiv preprint arXiv:2110.14168 ,2021. URL https://arxiv.org/abs/2110.14168 .Lucio M. Dery, Benedict Aaron Tjandra, Siavash Samiei, Adhiguna Kuncoro, Zohar Yahav, Jiajun Shen, and Arthur Szlam. SkillSmith: Learning to compose parametric skills and textual knowl-edge. arXiv preprint arXiv:2607.27497 , 2026. URL https://arxiv.org/abs/2607. 27497 .Muxin Fu, Xiangyuan Xue, Yafu Li, Zefeng He, Siyuan Huang, Xiaoye Qu, Yu Cheng, and Yang Yang. LatentMem: Customizing latent memory for multi-agent systems. arXiv preprint arXiv:2602.03036 , 2026. URL https://arxiv.org/abs/2602.03036 .Shibo Hao, Sainbayar Sukhbaatar, DiJia Su, Xian Li, Zhiting Hu, Jason Weston, and Yuandong Tian. Training large language models to reason in a continuous latent space. arXiv preprint arXiv:2412.06769 , 2024. URL https://arxiv.org/abs/2412.06769 .Di Jin, Eileen Pan, Nassim Oufattole, Wei-Hung Weng, Hanyi Fang, and Peter Szolovits. What disease does this patient have? a large-scale open domain question answering dataset from medical exams. Applied Sciences , 11(14):6421, 2021. doi: 10.3390/app11146421. URL 
+
+https://www.mdpi.com/2076-3417/11/14/6421 .Haibo Jin, Kuang Peng, Ye Yu, Xiaopeng Yuan, and Haohan Wang. Agent primitives: Reusable latent building blocks for multi-agent systems. arXiv preprint arXiv:2602.03695 , 2026. URL 
+
+https://arxiv.org/abs/2602.03695 .10 Brian Lester, Rami Al-Rfou, and Noah Constant. The power of scale for parameter-efficient prompt tuning. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing , pp. 3045–3059. Association for Computational Linguistics, 2021. doi: 10.18653/ v1/2021.emnlp-main.243. URL https://aclanthology.org/2021.emnlp-main. 243/ .Xiang Lisa Li and Percy Liang. Prefix-tuning: Optimizing continuous prompts for generation. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , pp. 4582–4597. Association for Computational Linguistics, 2021. doi: 10.18653/v1/ 2021.acl-long.353. URL https://aclanthology.org/2021.acl-long.353/ .Jiawei Liu, Chunqiu Steven Xia, Yuyao Wang, and Lingming Zhang. Is your code gen-erated by ChatGPT really correct? rigorous evaluation of large language models for code generation. In Advances in Neural Information Processing Systems , volume 36, 2023. URL https://proceedings.neurips.cc/paper_files/paper/2023/ hash/43e9d647ccd3e4b7b5baab53f0368686-Abstract-Conference.html .Jesse Mu, Xiang Li, and Noah Goodman. Learning to compress prompts with gist tokens. In Advances in Neural Information Processing Systems , volume 36, 2023. doi: 10.52202/ 075280-0848. URL https://proceedings.neurips.cc/paper_files/paper/ 2023/hash/3d77c6dcc7f143aa2154e7f4d5e22d68-Abstract.html .David Rein, Betty Li Hou, Asa Cooper Stickland, Jackson Petty, Richard Yuanzhe Pang, Julien Dirani, Julian Michael, and Samuel R. Bowman. GPQA: A graduate-level google-proof Q&A benchmark. In First Conference on Language Modeling , 2024. URL https://openreview. net/forum?id=Ti67584b98 .Zhenyi Shen, Hanqi Yan, Linhai Zhang, Zhanghao Hu, Yali Du, and Yulan He. CODI: Com-pressing chain-of-thought into continuous space via self-distillation. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , pp. 677–693. As-sociation for Computational Linguistics, 2025. doi: 10.18653/v1/2025.emnlp-main.36. URL 
+
+https://aclanthology.org/2025.emnlp-main.36/ .Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and Anima Anandkumar. Voyager: An open-ended embodied agent with large language mod-els. Transactions on Machine Learning Research , 2024. URL https://openreview.net/ forum?id=ehfRiF0R3a .Jinyang Wu, Shuo Yang, Zhengxi Lu, Fan Zhang, Yuhao Shen, Lang Feng, Haoran Luo, Zheng Lian, Shuai Zhang, Zhengqi Wen, and Jianhua Tao. SEED: Self-evolving on-policy distillation for agentic reinforcement learning. arXiv preprint arXiv:2607.14777 , 2026. URL https:// arxiv.org/abs/2607.14777 .Peng Xia, Jianwen Chen, Hanyang Wang, Jiaqi Liu, Kaide Zeng, Yu Wang, Siwei Han, Yiyang Zhou, Xujiang Zhao, Haifeng Chen, Zeyu Zheng, Cihang Xie, and Huaxiu Yao. SkillRL: Evolving agents via recursive skill-augmented reinforcement learning. arXiv preprint arXiv:2602.08234 , 2026. URL https://arxiv.org/abs/2602.08234 .An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, Chujie Zheng, Dayiheng Liu, Fan Zhou, Fei Huang, Feng Hu, Hao Ge, Haoran Wei, Huan Lin, Jialong Tang, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jing Zhou, Jingren Zhou, Junyang Lin, Kai Dang, Keqin Bao, Kexin Yang, Le Yu, Lianghao Deng, Mei Li, Mingfeng Xue, Mingze Li, Pei Zhang, Peng Wang, Qin Zhu, Rui Men, Ruize Gao, Shixuan Liu, Shuang Luo, Tianhao Li, Tianyi Tang, Wenbiao Yin, Xingzhang Ren, Xinyu Wang, Xinyu Zhang, Xuancheng Ren, Yang Fan, Yang Su, Yichang Zhang, Yinger Zhang, Yu Wan, Yuqiong Liu, Zekun Wang, Zeyu Cui, Zhenru Zhang, Zhipeng Zhou, and Zihan Qiu. Qwen3 technical report. arXiv preprint arXiv:2505.09388 , 2025. URL https://arxiv. org/abs/2505.09388 .Xiyuan Yang, Jiaru Zou, Rui Pan, Ruizhong Qiu, Pan Lu, Shizhe Diao, Jindong Jiang, Hanghang Tong, Tong Zhang, Markus J. Buehler, Jingrui He, and James Zou. Recursive multi-agent systems. 
+
+arXiv preprint arXiv:2604.25917 , 2026. URL https://arxiv.org/abs/2604.25917 .11 Hancheng Ye, Zhengqi Gao, Mingyuan Ma, Qinsi Wang, Yuzhe Fu, Ming-Yu Chung, Yueqian Lin, Zhijian Liu, Jianyi Zhang, Danyang Zhuo, and Yiran Chen. KV-COMM: Online cross-context KV-cache communication for efficient LLM-based multi-agent systems. In Advances in Neural Information Processing Systems , volume 38, 2025. URL https://papers.nips.cc/paper_files/paper/2025/hash/ 1a074a28c3a6f2056562d00649ae6416-Abstract-Conference.html .Aofan Yu, Chenyu Zhou, Tianyi Xu, Zihan Guo, Rong Shan, Zhihui Fu, Jun Wang, Weiwen Liu, Yong Yu, Weinan Zhang, and Jianghao Lin. LatentSkill: From in-context textual skills to in-weight latent skills for LLM agents. arXiv preprint arXiv:2606.06087 , 2026. URL https: //arxiv.org/abs/2606.06087 .Barry Zhang, Keith Lazuka, and Mahesh Murag. Equipping agents for the real world with agent skills. Anthropic, October 2025. URL https://www.anthropic.com/engineering/ equipping-agents-for-the-real-world-with-agent-skills .Tianyi Zhang and Zhonghao Qi. Skill-to-LoRA: From using skills to learning behaviors for token-efficient LLM agents. arXiv preprint arXiv:2606.16769 , 2026. URL https://arxiv.org/ abs/2606.16769 .Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. ExpeL: LLM agents are experiential learners. In Proceedings of the AAAI Conference on Artificial Intelli-gence , volume 38, pp. 19632–19642, 2024. URL https://ojs.aaai.org/index.php/ AAAI/article/view/29936 .YanZhao Zheng, ZhenTao Zhang, Chao Ma, YuanQiang Yu, JiHuan Zhu, Baohua Dong, and Hangcheng Zhu. SkillRouter: Retrieve-and-rerank skill selection for LLM agents at scale. arXiv preprint arXiv:2603.22455 , 2026. URL https://arxiv.org/abs/2603.22455 .Jiaru Zou, Xiyuan Yang, Ruizhong Qiu, Gaotang Li, Katherine Tieu, Pan Lu, Ke Shen, Hanghang Tong, Yejin Choi, Jingrui He, James Zou, Mengdi Wang, and Ling Yang. Latent collaboration in multi-agent systems. In Forty-third International Conference on Machine Learning , 2026. URL 
+
+https://openreview.net/forum?id=syG9I9ofd8 .
+
+A SKILL DISCOVERY 
+
+To discover reusable procedural skills for each benchmark, we first collect a small calibration set using the backbone model under evaluation. For each benchmark, we reserve 20 calibration exam-ples that are disjoint from all evaluation examples. Each example is run through the full text-based multi-agent pipeline (Planner → Critic → Refiner → Judger), using temperature 0.6 and top-p 0.95 .For each calibration example xi, we construct a matched pair of completed multi-agent trajectories 
+
+Pi = ( τ + 
+
+> i
+
+, τ − 
+
+> i
+
+),
+
+where τ + 
+
+> i
+
+reaches the correct final answer and τ − 
+
+> i
+
+reaches an incorrect answer for the same task. Both trajectories preserve the complete sequence of role-specific reasoning stages, including plan-ning, critique, refinement, and final verification. This matched construction allows skill discovery to compare successful and failed reasoning under the same task conditions rather than aggregating unrelated success and failure examples. We then prompt the same backbone model used to generate the trajectories to compare each matched pair and identify reusable procedures. The comparison can draw on outputs from any agent role, allowing the model to identify procedures relevant to planning, critique, refinement, or verification. Each candidate skill is represented as 
+
+sj = ( nj , d j , p j ),
+
+where nj is a short name, dj describes when the skill is useful, and pj specifies the procedure. To reduce instance-specific artifacts, we remove candidates containing entities, numerical values, or solution details tied to individual calibration examples. We then deduplicate semantically overlap-ping candidates to obtain the final skill library 
+
+S = {s1, . . . , s N }.
+
+12 Skill discovery is performed independently for each backbone scale, so the resulting libraries may differ across Qwen3-4B, Qwen3-8B, and Qwen3-14B. Table 4 reports the number of discovered skills for each benchmark and model scale. The complete skill lists are provided in Appendix A.1. Table 4: Number of discovered skills per benchmark and model scale after filtering instance-specific candidates and deduplicating overlapping skills. 
+
+Benchmark Qwen3-4B Qwen3-8B Qwen3-14B 
+
+GSM8K 10 10 8GPQA-D 9 8 8ARC-E 10 10 10 ARC-C 9 9 9MedQA 8 10 8MBPP+ 10 10 10 
+
+A.1 DISCOVERED SKILLS 
+
+Table 5 lists the skills discovered for each benchmark under the Qwen3-4B backbone (the discovery process is run independently per model scale; skill sets for Qwen3-8B/14B are qualitatively similar but not identical, since discovery reflects each backbone’s own error and success patterns). 
+
+Table 5: Discovered skills per benchmark (Qwen3-4B backbone). 
+
+Dataset Skill Description 
+
+GSM8K Rate vs Total Confusion When dealing with per-unit rates, ensure that the total amount is not confused with the rate itself. Quantity Tracking Track named quantities, updates, and dependencies in a word problem. Equation Construction Translate verbal relations into arithmetic equations before solving. Rate and Proportion Reasoning Handle per-unit rates, totals, fractions, percentages, and repeated events. Intermediate Result Verification Check intermediate arithmetic and whether each number answers the intended subquestion. Target Quantity Restatement Restate the question’s target quantity before the final step to avoid answering a different quantity. Unit Normalization Before Combining Convert every rate to a common time unit before combining them. Incremental Step Verification Verify each step of the calculation by explicitly stating the intermediate result. Relationship Clarification Clarify relationships between quantities (e.g., “twice as many”) to ensure correct proportional calculation. Total Distance Calculation Calculate total distance by summing individual segments, ensuring all parts are accounted for. GPQA-D Rate vs Total Confusion Avoid conflating per-unit rates with total amounts when a quantity depends on multiple variables. Stale Intermediate Value Reuse Avoid reusing an intermediate value from an earlier step when a different quantity is asked for. Approximation as Exact Avoid treating an approximation as exact when precise calculation is required. Dimensional and Scale Analysis Ensure units and scales are consistent and physical-dimension relationships are correctly interpreted. Misapplication of Proportionality Avoid assuming a linear relationship where a non-linear one is required. Target Quantity Restatement Restate the question’s target quantity before the final step. 
+
+13 Table 5 – continued 
+
+Dataset Skill Description 
+
+Unit Normalization Before Combining Convert all rates/quantities to a common unit before combining. First Principles Modeling Translate an advanced science question into governing principles and variables. Equation and Assumption Tracking Track formulas, assumptions, approximations, and variable meanings. ARC-E Rate vs Total Confusion Avoid confusing a per-unit rate with a total amount when interpreting a physical process. Stale Intermediate Value Reuse Avoid reusing an intermediate value instead of the one the question asks for. Conceptual Misalignment in Biological Processes Avoid misinterpreting the biological process described (e.g., confusing adaptation with a specific mechanism). Option Evaluation Misalignment Avoid evaluating options against incorrect assumptions about their relevance. Direct Result vs Indirect Consequence Confusion Distinguish a direct result of a process from an indirect or secondary effect. Target Quantity Restatement Restate the question’s target quantity before the final step. Unit Normalization Before Combining Convert every rate to a common unit before combining. Specific Function Matching Match the function of each option to the specific requirement of the question. Key Concept Identification Identify the core concept or principle the question is testing. Sequence of Actions in Lab Procedures Follow a specific sequence of actions in laboratory procedures. ARC-C Rate vs Total Confusion Distinguish per-unit rates (e.g., gravitational acceleration) from total quantities (e.g., potential energy). Stale Intermediate Value Reuse Avoid reusing intermediate values when the question asks for a different quantity or condition. Infectious vs Non-Infectious Misclassification Distinguish infectious from non-infectious diseases by transmission method, not symptoms alone. Causal Mechanism Reasoning Infer direct causes and effects in physical, biological, and earth-science settings. Experiment Variable Analysis Separate manipulated variables, measured variables, controls, and conclusions. Target Quantity Restatement Restate the question’s target quantity before the final step. Unit Normalization Before Combining Convert all measurements to a common unit before combining. Process Sequence Reasoning Break a complex process into sequential, interdependent steps. Ecological Context Analysis Use ecological knowledge to interpret species-interaction and environmental-change questions. MedQA Stale Intermediate Value Reuse Avoid reusing an earlier intermediate value without verifying it is still relevant. Treats Approximation as Exact Do not assume an approximate value is exact; account for its precision. Clinical Feature Prioritization Extract high-yield symptoms, exam findings, labs, demographics, and timeline. 
+
+14 Table 5 – continued    
+
+> Dataset Skill Description
+> Differential Diagnosis Compare plausible diagnoses using distinguishing clinical features. Pathophysiology to Management Use disease mechanism to select the appropriate test, treatment, or complication. Target Quantity Restatement Restate the question’s target quantity before the final step. Unit Normalization Before Combining Convert relevant rates/measurements to a common unit before combining. Complication Risk Assessment Evaluate long-term complications or risks associated with a diagnosis. MBPP+ Rate vs Total Confusion Check whether a per-unit rate is conflated with a total amount. Stale Intermediate Value Reuse Check whether an intermediate value is reused without being updated. Sign Drop in Loss and Gain Check whether the sign is dropped when combining a loss and a gain. Quantity Mismatch in Question Check whether the answer targets an earlier-computed quantity instead of the one asked for. Approximation as Exact Check whether an approximation is treated as exact without re-checking its scale. Identify Correct Parameters Ensure the function signature matches the required parameters. Direct Formula Implementation Implement the required formula directly without unnecessary intermediate steps. Handle Edge Cases Ensure the function handles edge cases such as zero or negative values. Input Output Contract Analysis Infer the required function behavior, input types, output type, and edge cases. Algorithm Decomposition Break the programming task into simple transformation steps before coding.
+
+B SKILL RETRIEVAL 
+
+Each discovered skill is indexed once, offline, by embedding its skill name, description, and skill prompt (concatenated) with the same frozen backbone used for evaluation: we run a forward pass with output hidden states=True , take the last hidden layer, apply attention-mask-weighted mean pooling over token positions, and L2-normalize the resulting vector. When source questions from the discovery trajectories are available, we additionally embed each source question with the same procedure and aggregate the resulting similarity scores with the description-level score by taking their mean (rather than using the skill description alone). At inference time, the input question is embedded with the identical procedure, and the top-1 skill is retrieved by cosine similarity between the query embedding and each skill’s indexed embedding. Retrieval is performed once per evaluation example (not per agent role): all agents in the same multi-agent rollout for a given question consume the same retrieved skill. We do not apply a minimum-similarity threshold for skill selection (threshold = 0 ), so every routed example is assigned a skill; we found that a small positive threshold instead routes a large majority of examples to “no skill” and understates the benefit of skill augmentation. Retrieval is precomputed once per benchmark and cached, and the same cached routing decisions are reused across every skill-based method in Table 1 (KV Skill, S2L, and SkillMem) to ensure a matched comparison. 
+
+C EVALUATION PROTOCOL 
+
+Table 6 lists the decoding configuration used throughout evaluation. All stochastic generation (cal-ibration rollouts and every agent’s turn at evaluation time) samples at temperature 0.6 with top-p
+
+15 0.95 ; each agent performs 8 latent reasoning steps before the final (judger) role decodes a textual answer with a maximum of 512 new tokens. Every reported accuracy is the average over 3 evaluation seeds ( 41 , 42 , 43 ), which vary only the decoding RNG on top of a fixed trained checkpoint. Table 6: Decoding configuration used for evaluation. 
+
+Setting Value 
+
+Sampling temperature 0.6 Top-p 0.95 Latent reasoning steps per agent 8Max. new tokens (judger decode), default 512 Evaluation seeds (averaged) 41, 42, 43 
+
+D EXPERIMENTAL SETUP : A DDITIONAL IMPLEMENTATION DETAILS 
+
+D.1 SKILL MEM HYPERPARAMETERS 
+
+Table 7 lists the hyperparameters used to train SkillMem’s latent memories and shared role-conditioned reader, held fixed across all main-table experiments (Table 1) unless otherwise noted in an ablation. Table 7: SkillMem training hyperparameters (default configuration, M = 8 ). 
+
+Hyperparameter Value 
+
+Memory slots per skill ( M ) 8Memory dimension ( dmem ) 256 Reader dimension ( dr ) 256 (defaults to dmem )Reader insertion layers {L/ 4, L/ 2, 3L/ 4, L − 1}
+
+Qwen3-4B / 8B ( L=36 ) layers {9, 18 , 27 , 35 }
+
+Qwen3-14B ( L=40 ) layers {10 , 20 , 30 , 39 }
+
+Role embedding dimension 64 Role embedding extraction layer middle decoder layer ( ⌊L/ 2⌋)Latent reasoning steps per agent 8Optimizer AdamW Training steps 200 Sigmoid weighting sharpness β 5.0 Loss weights (λtoken , λ shift , λ safe ) (1 .0, 0.5, 0.1) 
+
+Backbone frozen throughout training 
+
+Role representation. For each agent role ρ, we encode its system-instruction text πρ with the frozen backbone and pool hidden states from the middle decoder layer ( ⌊L/ 2⌋, i.e. layer 18 for Qwen3-4B/8B and layer 20 for Qwen3-14B) using a fixed (untrained) attention query and projec-tion: both are drawn once from a seeded random Gaussian initialization and kept frozen for the lifetime of the model wrapper, computed under no grad and never registered as trainable param-eters. The resulting role embedding eρ ∈ R64 is therefore not learned; the four agent roles are dis-tinguished purely by the content of their respective instruction text, not by any trained role-specific parameters. This keeps the shared reader’s role-conditioning entirely a function of frozen backbone representations, introducing no additional trainable role-specific parameters. 
+
+Reader parameters are not shared across insertion layers. Each of the four insertion layers has its own independent set of reader weights ( Wq , W k, W v , W o, W g , plus a LayerNorm): readers at different depths are separately parameterized modules, not a single reader applied repeatedly. Only the memory bank Zs is shared as a single per-skill vector across all four readers; each reader learns its own layer-specific mapping from that shared memory into its local residual stream. 16 D.2 INTERMEDIATE -R OLE BEHAVIORAL DISTILLATION 
+
+Because L ATENT MAS agents other than the final (judger) role never emit text during normal in-ference, obtaining a token-level supervision target for their behavioral-distillation losses (Eqs. 3–5) requires generating text for those roles during training only . For every (skill, role) pair, we generate one teacher continuation per calibration example by running the frozen backbone’s ordinary text-generation path – with the retrieved skill’s text injected into that role’s own prompt and no context from other agents (context = ∅) – and decode greedily. This continuation is cached once and reused for all subsequent training steps; it is never regenerated on the fly. The same context = ∅ conven-tion is used at inference time ( cross-agent information is carried entirely through the shared latent KV cache, not through the prompt text), so the prompt text seen at training time exactly matches the prompt text seen at inference time for every role. The one difference between the two settings is that, at training time, the teacher continuation for a given role is generated from a fresh KV state (no upstream latent context), whereas at inference time the same role’s turn is conditioned on the latent KV cache accumulated from preceding agents; the textual content of the prompt itself does not depend on this KV prefix. The generated teacher tokens serve solely as a fixed teacher-forcing target for computing ltext , lbase , and (during training) lmem : they are never fed back into the model as generation input and never appear anywhere in the deployed (inference-time) pipeline, which loads only the trained memory bank and reader weights. Because the planner, critic, and refiner roles are, by design, not instructed to produce a final answer, we do not apply an answer-correctness filter to their generated teacher continuations (doing so would be a category error, since these roles have no notion of a “final answer” to check); only the judger’s continuation is filtered by answer correctness before being accepted into the teacher cache. D.3 SKILL -TO -L ORA (S2L) B ASELINE HYPERPARAMETERS 
+
+Table 8 lists the hyperparameters used for the Skill-to-LoRA baseline (Zhang & Qi, 2026), matched to the paper’s reported architecture (rank, alpha, target modules) with the training loop otherwise following this work’s own conventions (AdamW, fixed step budget) rather than the original paper’s QLoRA recipe. One independent LoRA adapter is trained per discovered skill, pooling teacher-forcing supervision from all four agent roles (the direct analogue of the Role Agnostic condition in Table 3(a), since the LoRA baseline has no native mechanism for role conditioning). Table 8: Skill-to-LoRA (S2L) baseline hyperparameters. 
+
+Hyperparameter Value 
+
+LoRA rank r 16 LoRA α 32 LoRA dropout 0.0 Target modules Wq , Wv
+
+Learning rate 1e −4
+
+Batch size 4Training steps per skill 200 Optimizer AdamW Backbone frozen throughout training 
+
+E DETAILED ANALYSIS OF TEXT -TO -L ATENT SKILL TRANSFER 
+
+This appendix provides the derivation behind Proposition 1 in Section 5. The analysis separates text-to-latent transfer into two steps: (i) LatentMAS maps a final-layer latent state back toward the model input distribution, and (ii) this input-space alignment propagates through the frozen backbone to the hidden states consumed by the SkillMem reader. 17 E.1 INPUT -O UTPUT ALIGNMENT IN LATENT REASONING 
+
+In standard autoregressive generation, a discrete token is mapped through the input embedding ma-trix Win before being processed by the Transformer. In latent reasoning, LatentMAS instead con-tinues from the final-layer hidden state h(L) 
+
+> t
+
+. Because final-layer hidden states and learned input embeddings generally follow different activation distributions, directly feeding h(L) 
+
+> t
+
+back as the next input may introduce distribution mismatch. LatentMAS addresses this by applying an input-output alignment operator (Zou et al., 2026): 
+
+˜et+1 = h(L) 
+
+> t
+
+Wa, Wa ≈ W †
+
+> out
+
+Win , (6) where W † 
+
+> out
+
+denotes the pseudoinverse of the output embedding matrix. The aligned vector ˜et+1 is then used as the next latent input. For the transfer analysis, let e denote a text-derived input embedding and ˜e an aligned latent input representing a nearby reasoning state. We characterize the residual input mismatch by 
+
+∥˜e − e∥ ≤ ϵalign . (7) We do not assume that the two inputs are identical. The quantity ϵalign simply measures the remain-ing discrepancy after the LatentMAS alignment step. E.2 FROM INPUT ALIGNMENT TO READER -S TATE ALIGNMENT 
+
+SkillMem does not directly read the final-layer latent state h(L) 
+
+> t
+
+. Instead, the aligned input is pro-cessed by the same frozen backbone, and the role-conditioned reader operates on intermediate hid-den states at the selected insertion layers. Let Φℓ denote the frozen mapping from the model input to insertion layer ℓ, conditioned on the preceding context. We define 
+
+utext = Φ ℓ(e), ulat = Φ ℓ(˜ e), (8) where utext and ulat are the reader inputs induced by text-derived and latent reasoning, respectively. Assume that Φℓ is locally Lipschitz over the region visited by these states, with constant LΦ:
+
+∥Φℓ(e1) − Φℓ(e2)∥ ≤ LΦ∥e1 − e2∥. (9) Applying this condition to e and ˜e gives 
+
+∥ulat − utext ∥ ≤ LΦϵalign . (10) Equation 10 connects the alignment mechanism of LatentMAS to SkillMem. If the aligned latent input remains close to the text-derived input space, then the hidden states presented to the reader also remain close, up to the local sensitivity of the frozen backbone. E.3 BEHAVIORAL EFFECT MATCHING 
+
+SkillMem is trained to reproduce the behavioral change induced by a textual skill rather than its textual or hidden representation. For prediction context cρt = ( x, ρ, y <t ), the text-induced and memory-induced effects are 
+
+∆text ,ρ t = log pθ (yt | cρt , s )
+
+pθ (yt | cρt ) , ∆mem ,ρ t = log pθ,ψ (yt | cρt , Zs)
+
+pθ (yt | cρt ) . (11) These are exactly the changes relative to the shared no-skill condition used in the behavioral distil-lation objective. Let F ρs (u) denote the behavioral effect induced by the textual skill when the relevant hidden state is u, and let Gρs (u) denote the corresponding effect induced by SkillMem. Behavioral distillation aims to make these two effects close on the text-derived training states. We write this as 
+
+|Gρs (utext ) − F ρs (utext )| ≤ δ, (12) where δ denotes the residual distillation error. 18 We additionally assume that both behavioral-effect functions are locally Lipschitz in the reader-state region: 
+
+|F ρs (u1) − F ρs (u2)| ≤ LF ∥u1 − u2∥, (13) 
+
+|Gρs (u1) − Gρs (u2)| ≤ LG∥u1 − u2∥. (14) E.4 PROOF OF TEXT -TO -L ATENT BEHAVIORAL TRANSFER 
+
+We now bound the difference between the memory-induced and text-induced effects at a latent reasoning state. By adding and subtracting the corresponding effects at the text-derived state, 
+
+|Gρs (ulat ) − F ρs (ulat )|≤ | Gρs (ulat ) − Gρs (utext )|
+
++ |Gρs (utext ) − F ρs (utext )|
+
++ |F ρs (utext ) − F ρs (ulat )| . (15) Using Equations 12, 13, and 14, we obtain 
+
+|Gρs (ulat ) − F ρs (ulat )| ≤ δ + ( LF + LG)∥ulat − utext ∥. (16) Finally, substituting the hidden-state alignment bound from Equation 10 yields 
+
+|Gρs (ulat ) − F ρs (ulat )| ≤ δ + ( LF + LG)LΦϵalign . (17) This establishes Proposition 1. 
+
+Interpretation. The bound contains two terms with different meanings. The first, δ, measures how accurately behavioral distillation reproduces the textual skill effect on the states observed during training. The second, (LF + LG)LΦϵalign , captures the additional error introduced when the learned skill is applied to latent reasoning states. LatentMAS directly targets the input component of this term through its input-output alignment operator, while the frozen backbone maps both text-derived and aligned latent inputs into the same intermediate hidden-state interface. The analysis therefore does not require textual and latent reasoning states to be identical. It only states that behavioral transfer remains controlled when the aligned latent trajectory stays within a local region where the frozen backbone and the two skill-effect functions vary smoothly. 
+
+F DIRECTLY DISCOVER LATENT VECTOR AS SKILLS 
+
+The pipeline described in the main text discovers skills in two stages: the backbone model compares calibration trajectories and produces a natural-language skill description, after which behavioral distillation compiles that description into the memory vector Zs used at inference. A natural question is whether both stages can be skipped, discovering Z directly from the base MAS model’s own hidden states, with zero gradient updates. We explored two variants of this idea. 
+
+Contrastive extraction. For each calibration question we sample 8 attempts under temperature decoding with the TextMAS carrier and keep any pair where at least one attempt reached the cor-rect final answer and at least one did not (MedQA and GPQA-D yielded 13 such pairs out of 20 calibration questions each; GSM8K yielded only 5, since its baseline accuracy is high enough that few sampled attempts fail). For each pair we render the two trajectories to text and extract a rep-resentation from each side using the same mechanism already used to initialize Z from skill text: hidden states from a fixed decoder layer are pooled by attention against M =8 fixed random queries and projected to dmem =256 by a fixed random matrix. The skill vector for a pair is the difference 
+
+Zpair = Zsuccess − Zfailure , and the final Zskill is the mean of Zpair over all valid pairs. The raw ex-tracted norm is roughly two orders of magnitude smaller than a gradient-trained Z (e.g. ∼1–11 vs. 
+
+∼335–360), so we rescale Zskill to match the mean norm of an already-trained checkpoint’s skills before evaluating it through that checkpoint’s (already-trained, skill-agnostic) cross-attention reader. 19 Latent generation. Rather than hand-extracting a direction, this variant lets the base model gener-ate one. We concatenate several (success, failure) pairs into a single reflection prompt instructing the model to identify what separates the correct attempts from the incorrect ones, then run M =8 steps of the model’s own continuous latent reasoning – the identical mechanism the Planner/Critic/Refiner agents already use for their internal thinking, with no text ever decoded. The resulting M ”thought” embeddings are projected to dmem with the same fixed random map and rescaled identically to the extraction variant. 
+
+Results. Both variants require zero gradient training and reuse an already-trained, shared cross-attention reader; only Z itself is produced without training. Table 9 reports the 3-seed accuracy delta against the no-skill LatentMAS baseline on Qwen3-8B, forcing the discovered skill on every held-out example (no routing). Benchmark Contrastive extraction ∆ Latent generation ∆
+
+MedQA +0 .00 pp −1.57 pp GSM8K +0 .27 pp −0.13 pp GPQA-D −32 .53 pp −4.96 pp Table 9: 3-seed accuracy delta vs. no-skill LatentMAS for the two zero-training, latent-space skill discovery variants (Qwen3-8B). Contrastive extraction matches or marginally beats the no-skill baseline on MedQA and GSM8K, but on GPQA-D the extracted direction destabilizes generation outright: outputs collapse into de-generate repetition (e.g. an unbounded repeated fragment) rather than producing a final answer, consistently across all three seeds. Inspecting the pairs’ internal consistency does not explain this in advance – GSM8K’s pairs are the most mutually consistent of the three benchmarks yet produce only a noise-level effect, while MedQA and GPQA-D have similar consistency but opposite out-comes. Latent generation never collapses on any benchmark (verified by inspecting raw predictions before committing to a full run) but also never exceeds the no-skill baseline. Neither variant is competitive with the text-skill-plus-distillation pipeline used elsewhere in this work. The comparison is nonetheless informative: it indicates that the discovery and distillation stages are not easily bypassed by directly manipulating hidden states with an off-the-shelf, untrained reader – the reader’s cross-attention weights are shaped by gradient training on a particular distribu-tion of Z, and an out-of-distribution direction can be safe on some benchmarks and destructive on others, with no obvious way to predict which in advance. 20

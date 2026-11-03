@@ -1,0 +1,234 @@
+Title: Self-Keyed In-Parameter Memorization for External Memory-Free Dialogue Recall in Frozen Language Models
+
+URL Source: https://arxiv.org/pdf/2610.36948v1
+
+Published Time: Wed, 28 Oct 2026 01:07:54 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Self-Keyed In-Parameter Memorization for External Memory-Free Dialogue Recall in Frozen Language Models 
+
+# XinYu Piao, Myunghoon Ryu, Joongheon Kim ∗, Jong-Kook Kim ∗
+
+Department of Electrical and Computer Engineering, Korea University, Seoul, Republic of Korea {xypiao97, ryumh10, joongheon, jongkook}@korea.ac.kr 
+
+Abstract 
+
+A large language model maintains conversational content in an external storage that is outside the model and grows as the dialogue continues. This work assumes an environment where a language model has no external memory and no prior knowledge of the future question or its answer. The motiva-tion is to research whether a dialogue can be stored in the model parameters and later answer a question about it. This work proposes self-keyed in-parameter memorization (Skim), a closed-form method in which the model generates its own questions about each dialogue turn and writes those questions into its parameters as the keys that later retrieve the turn’s con-tent. Generating many varied questions for each turn allows a later user question to match one even when phrased differ-ently, and its answer is recalled from the parameters alone. Evaluated on five language models, Skim recalls most stored dialogue turns from later user questions, and it answers from the model parameters without any external storage. 
+
+# Introduction 
+
+Recent large language models (LLMs) serve as conversa-tional assistants and their conversations often run for many exchanges (Petroni et al. 2019; Roberts, Raffel, and Shazeer 2020; De Cao, Aziz, and Titov 2021; Kwon et al. 2023). As a conversation lengthens, answering well often depends on recalling something the user mentioned much earlier (Xu, Szlam, and Weston 2022; Packer et al. 2023; Wu et al. 2025). However, language models keep the dialogue not in their parameters but in a key-value (KV) cache or an external retrieval store that grows as the history accumulates. The KV cache stores the attention keys and values of every past token, sparing the model from recomputing them at each step (Vaswani et al. 2017; Shazeer 2019; Kwon et al. 2023). Its size grows proportionately to the length of the history and the generated tokens accumulate in the KV cache. Both mem-ory use and inference cost rise as more turns arrive (Pope et al. 2022; Dao et al. 2022). Instead, retrieval-augmented generation (RAG) stores the dialogue in an external index and searches it for relevant passages at each question, plac-ing them in the context (Lewis et al. 2020, 2021). The answer then depends on whether the index holds the right passage and whether the question was turned into an effective search query (Guu et al. 2020; Maharana et al. 2024). Based on 
+
+> ∗
+
+Corresponding author. 
+
+these observations, this work asks whether a frozen model can internalize a dialogue as it unfolds and later answer a question about it from its parameters alone. The aim is to es-tablish whether such internalization is feasible at all, rather than to improve on retrieval or long-context systems that already answer from external memory. Prior studies aim to store a model’s memory in its param-eters rather than in an external buffer (Meng et al. 2022a,b; Wang et al. 2024; Fang et al. 2025). Weight editing is one such approach that writes a fact directly into the parame-ters (Mitchell et al. 2022; Meng et al. 2022a,b). Given a subject and a relation, such as a person and their birthplace, these methods compute a closed-form update to one or a few feed-forward projections that causes the model to output the intended object (Meng et al. 2022a,b). A null-space projec-tion allows many such edits to accumulate without overwrit-ing one another (Fang et al. 2025). However, this approach rests on two assumptions that conversational memory does not satisfy. First, the object to store must be provided as a label because the update is solved to reproduce that object at the edited site (Meng et al. 2022a,b). Because no such label exists in a dialogue, the model must itself determine which part of a raw user turn should be stored. Second, a fixed cue that is typically the subject and relation must be known in ad-vance when constructing the edit (Meng et al. 2022a,b). In a dialogue, there is no fixed cue to install because the later ques-tion is unknown when the turn is stored and may be phrased in unforeseen ways. Long-context models and retrieval sys-tems avoid both assumptions, but they retain the dialogue outside the parameters (Lewis et al. 2021), in a cache or an index that grows as turns accumulate (Maharana et al. 2024; Kwon et al. 2023). Thus, editing requires supervision that a dialogue cannot provide, whereas external buffers avoid that supervision only by incurring an ever-growing storage cost (Kwon et al. 2023; Maharana et al. 2024). Prior work established that the feed-forward layers of a transformer store factual associations and recall them at in-ference, and that a band of middle layers is where such facts are most readily located and edited (Geva et al. 2021; Dai et al. 2022; Meng et al. 2022a; Geva et al. 2023). Build-ing on that finding, this work writes each user turn into the down-projection of one mid-to-late feed-forward layer by a closed-form rule. The target layer is chosen per model and a later question is answered from the edited parameters alone. arXiv:2610.36948v1 [cs.CL] 27 Oct 2026 This work assumes an environment where a frozen model has no external memory and no access to the future question or its answer when it stores a turn, which makes a direct comparison to other editing methods difficult. The setting imposes four constraints, namely no gradient fine-tuning, no external memory at recall, a per-turn cost independent of the number of stored turns, and preserved general behavior. This work forgoes the KV cache despite its usefulness and keeps the dialogue in the parameters (Vaswani et al. 2017; Shazeer 2019). Because the model has no future question or answer, it must produce from the turn alone the object and cue that weight editing receives but a dialogue cannot provide. This work proposes a Self-Keyed In-parameter Memo-rization approach, called Skim, that allows a frozen model to store a turn and later recall it without the ground-truth answer or the future question. The proposed Skim operates on spans, each a short contiguous piece of a turn’s text. Skim proceeds in three stages, namely (i) extracting candidate spans from the raw turn, (ii) generating for each span several questions that the span answers and keeping the ones that best sep-arate that span from its rivals in the same turn, and (iii) installing every question–span pair into one projection by a joint closed-form edit. The generated questions take the place of the fixed subject–relation input that prior editing must be given in advance. Because many diverse questions serve as keys for each span, a later user question resembles one of them even when phrased differently, and the question itself selects the right span at recall. The main contributions of this work are summarized as follows. 
+
+• This work aims to retain a dialogue and answer a later question about it in an environment without external memory, neither a KV cache nor a retrieval store. 
+
+• This work proposes Skim, a closed-form method that in-ternalizes each turn into the model parameters without the ground-truth answer or the future question, using self-generated questions as keys for its stored spans. 
+
+• This work shows that Skim stores a dialogue as its turns arrive one at a time and reaches the recall of a single batch edit without the forgetting that sequential edits cause. 
+
+• Evaluated on five language models, Skim recalls stored dialogue turns at a five-model mean of 63.1% and 75.0% on the strongest model, well above the no-cache floor that removes all memory. 
+
+# Problem Setting and Preliminaries 
+
+Assumptions. Current language models keep their param-eters fixed and hold each conversation in an external mem-ory that grows as the dialogue lengthens (Lewis et al. 2021; Maharana et al. 2024). This paper asks whether a frozen model can hold the conversation in its parameters instead of an external memory, and answer later questions from them. The assumed scenario is as follows. A stream of user turns 
+
+u1, . . . , u N arrives, and each ui states a fact that some later question qi asks about, whose answer is ai. The language model stores each turn in its parameters as it arrives, and it is more constrained than the external store it replaces. A cache or a retrieval index maintains a turn in full and delays every decision until the query arrives. Instead, the model must de-termine from the turn itself what to store. It is given neither the later question qi that would identify the relevant content nor the answer ai that would specify the target. The phras-ing of the later question may also be unanticipated. When the later question arrives, the model receives it as the only input and must generate the answer. No session text, cache, or retrieval index remains available. Four constraints hold throughout. Storing a turn uses no gradient fine-tuning, its cost does not grow as more turns are stored, recall is a single forward pass, and the edit must leave the general behavior of the model intact. 
+
+Preliminaries. The transformer feed-forward down-projection W in a block W σ (Wup x) behaves as a key-value memory, where the hidden activation k = σ(Wup x) serves as an address and W k is the content read from it. A single factual association is one entry of this memory, and editing 
+
+W overwrites the value retrieved by a given key reads(Geva et al. 2021; Meng et al. 2022a). To store n associations, their keys form the columns of a matrix K and their values the columns of a matrix D. The edit ∆W that reproduces all of them minimizes a regularized least-squares objective, 
+
+∥∆W K − D∥2 
+
+> F
+
++ λ∥∆W ∥2 
+
+> F
+
+, (1) where λ > 0 sets the regularization strength. Setting its gradient to zero gives the normal equations ∆W (KK ⊤ +
+
+λI ) = DK ⊤, whose closed-form ridge solution (Hoerl and Kennard 1970) is 
+
+∆W = DK ⊤(KK ⊤ + λI )−1
+
+= D (K⊤K + λI )−1K⊤. (2) The second form inverts an n × n matrix, small when few turns are stored. The edit reproduces each value dj at its key 
+
+kj up to the regularizer. A larger λ keeps the edit small and favors preservation of the base weights, and a smaller one favors exact reproduction. The update stores all n values in superposition and recovers each as long as the keys remain near-orthogonal, which bounds the number of associations a layer holds before interference. The solution requires no gra-dient descent and underlies the weight-editing family (Meng et al. 2022a,b). The objective does not specify the origin of 
+
+K and D. Prior editing methods are given a ground-truth value and a fixed key, whereas a dialogue provides neither of these. The method of the next section constructs both from the turn itself. 
+
+# Proposed Method 
+
+As shown in Figure 1, Skim extracts candidate spans as the values to store, generates questions about each span as the keys that address them, and installs the pairs into one feed-forward layer by the closed-form joint edit. The first two stages use the frozen model only to generate and rank candi-dates, and only the third stage changes a parameter. At recall, the model answers the user question from its parameters. 
+
+Self-Keyed Construction 
+
+The frozen language model produces short answer phrases when prompted to list the specific facts the turn u states. Figure 1: Overview of Skim. From an earlier turn the model extracts candidate spans as values and self-generates questions as keys. Both steps are answer-free, and a closed-form edit installs these pairs into one frozen feed-forward layer. A later question phrased differently forms a key that retrieves the value, and the model answers from its parameters. Skim also takes the turn’s quoted titles and capitalized entity phrases directly from its text. These candidates are filtered to short spans of a few words rather than the whole utterance and form the candidate value set S(u). The model then ranks each span s ∈ S (u) answer-free by 
+
+ρ(s) = Eq∼Q0(s)
+
+ log pM (s | q, u ) + β π (s), (3) where Q0(s) is a set of self-questions the model generates for s, and pM (x | y) is the probability the model M assigns to a span x as the continuation of a prompt y. The first term rewards a span the model can recover from its own questions about it, which is what later makes the span addressable. The second term is the specificity prior π(s) that equals the span’s negative log-probability given a neutral prompt and rewards a rare span that a later question is more likely to ask about. The coefficient β balances recoverability against specificity. When a turn is stored, the model does not yet know which span the later question will ask about, and the single highest-
+
+ρ span is often not that one. Keeping top-k spans as candidate values therefore defers the choice to recall time, where the later question retrieves the span that matches it. Each span also needs keys that address it for a later question phrased differently at recall, and these keys are questions the model generates about the span itself. For each span s, the model is prompted in kq fixed styles to generate a question whose answer is s, producing candidates q ∼ G(· | s, u ).Each candidate is scored by a discriminative margin 
+
+μ(q, s ) = log pM (s | q, u )
+
+− max  
+
+> s′∈S (u)\{ s}
+
+log pM (s′ | q, u ). (4) A high margin marks a question that points to s and not to any rival, which makes the key discriminative and limits the chance that a question about one span retrieves another at recall. Each span keeps its top m questions by μ after rival surface forms are removed from their wording. The survivors are then expanded by deterministic string variants of the question text. For the span "Serenity Yoga", a surviving question is "Which studio do I practice at?". The question-word exchange swaps its "Which" for "What", and re-framing wraps it as "Earlier, the answer to ‘Which studio do I practice at?’ was". The resulting key set Rs replaces the fixed subject– relation cue of prior editing, and its diversity lets a differently-phrased later question resemble one of the stored keys. 
+
+Joint Edit in One Feed-Forward Layer 
+
+Let (rj , s j ) enumerate the surviving question–span pairs of every turn accumulated to this point. Each question rj is rendered in a fixed recall frame frame( ·) that presents it to the model as a prompt. The key kj is the hidden state that enters the down-projection of layer ℓ at the answer position (Geva et al. 2021), 
+
+kj = h(ℓ) frame( rj ), (5) where h(ℓ)(y) denotes that hidden state for a prompt y. Be-cause this activation also enters W at recall, the storage key equals the recall key in the same frame. The value dj is a residual output delta that makes the span the frame’s contin-uation, scaled by the strength f ,
+
+dj = f δ j ,δj = arg min  
+
+> δ
+
+− log pM [δ]
+
+ sj | frame( rj ), (6) where M [δ] adds δ to the layer output at the answer position. The objective has no closed form because the span proba-bility is nonlinear in δ. A short gradient optimization finds δ while the weights stay frozen (Meng et al. 2022a). The strength f scales the stored value. A larger f strengthens recall but pushes the residual stream farther from its base state. Recall and preserved behavior are therefore in tension. The keys kj are the columns of a matrix K and the values 
+
+dj are the columns of a matrix D. The closed-form solve of Eq. (2) (Meng et al. 2022b) fits all accumulated pairs jointly rather than one at a time and returns the single matrix ∆W
+
+that at once satisfies 
+
+∆W k j ≈ dj for all j. (7) The ridge term λI keeps the inverse well conditioned when two keys are close and makes each match approximate rather than exact. Adding this ∆W to the down-projection W of layer ℓ installs all pairs in one matrix. For an input h the edited layer computes 
+
+(W + ∆ W ) h = W h + ∆ W h. (8) For an input unrelated to any stored key the extra term ∆W h 
+
+stays small and the base behavior of the layer is preserved. A later question that forms a stored key kj makes the extra term contribute dj to the residual stream. The optimized dj raises the span probability and the model emits that span. The edit modifies a single mid-to-late down-projection that serves as the value memory of the feed-forward block. 
+
+Recall and Self-Probed Selection 
+
+At recall, the user question q rendered in the frame that built the keys lands on a stored key and retrieves its value. The edited model M∆W then generates the answer ˆa by decoding a short budget of tokens. 
+
+ˆa = decode  M∆W , frame( q). (9) 
+
+M∆W is the model after the edit ∆W , and frame( q) is the user question in the recall frame. The decode preset is chosen per model and is either greedy decoding that suppresses repetition or a small beam that blocks repeated n-grams. It stops generation at an answer-completion criterion or a sentence-final token and makes the answer emerge cleanly. The same pipeline runs for every model and only a few per-model settings vary. They form the configuration 
+
+θ = ( ℓ, f, decode preset , key budget ). (10) These settings are fixed when the turn is stored and can-not be tuned to the later question. A self-probe selects them answer-free by standing in for the absent question. It probes each item by an unused paraphrase of the item’s own self-generated question and records whether the stored span is emitted cleanly. Clean emission means the generation con-tains the span and avoids third-order token repetition and keeps lexical diversity above 0.5. The clean fraction of the n
+
+stored items is 
+
+af clean (θ) = 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+1item i emits its span cleanly . (11) This fraction needs no ground-truth answer or later question. The chosen configuration maximizes it. 
+
+θ⋆ = arg max  
+
+> θ
+
+af clean (θ). (12) The ranking is reliable because the probe repeats the recall operation itself on a stand-in and accesses no ground-truth answer. A configuration that degenerates or never retrieves the span fails the clean test and true recall alike. The clean fraction therefore tracks true recall and the method tunes each model from these self-probes alone. 
+
+Mitigating Forgetting from Sequential Edits 
+
+A dialogue’s turns arrive one at a time and each is written into the parameters as it arrives before any later turn is available. Such a memory is useful only if two demands are met. The first demand is that a new write leave the already stored turns intact because a growing sequence of edits can otherwise interfere and erase them. The second is that the memory the edit occupies stay fixed in size however long the dialogue runs which a growing cache cannot offer. Meeting both while turns still arrive is not automatic because an edit that keeps growing as new turns come can disturb the turns already stored. The reference point is a batch edit that solves Eq. (2) once on the complete set of pairs (Meng et al. 2022b) and is the strongest result the closed-form rule can reach. Skim reproduces this same ∆W turn by turn even as turns still arrive. The turns arrive in chunks and the stored pairs accumulate into two growing matrices. 
+
+K≤t = [ K1, . . . , K t],D≤t = [ D1, . . . , D t]. (13) At each chunk, Skim discards the previous edit and re-solves from the original weights on every pair to this point. 
+
+∆W (t) = D≤t
+
+ K⊤≤tK≤t + λI −1K⊤≤t. (14) This reads only K≤t and D≤t and any permutation P of the columns leaves it unchanged because the two copies of P
+
+cancel. 
+
+P ⊤P = I. (15) Arrival order and grouping therefore have no effect and the final edit equals the batch edit. A simpler additive scheme 
+
+∆W ← ∆W + Dt(K⊤ 
+
+> t
+
+Kt + λI )−1K⊤ 
+
+> t
+
+(16) never inverts the joint matrix K⊤≤tK≤t and lets earlier turns drift (Fang et al. 2025) whereas re-solving from the original weights avoids the drift. The stored result is one fixed-size matrix ∆W and a question is a single forward pass and both stay constant however many turns are stored unlike a growing cache. The re-solve grows as turns accumulate but runs offline once per chunk and never enlarges the store or slows the answer. 
+
+# Evaluation and Analysis 
+
+Experimental Setup 
+
+Benchmarks. This work uses LongMemEval (Wu et al. 2025), a recall benchmark on long user-assistant dialogues whose questions ask about content the user stated many turns earlier. The evaluation is restricted to the single-session-user subset, where each question is paired to the one earlier turn (a) (b) (c) 
+
+Figure 2: Recall (%) for five language models. Panel (a) reports recall at N =32 in five conditions from ceiling to floor, the KV cache upper bound, the answer-given references true-Q and self-Q, the answer-free SKIM, and a no-cache floor that removes all memory. Panels (b) and (c) trace recall and the count of unrecalled facts as N grows from 4 to 32 .                                   
+
+> Model ℓfλDecode Self-Q Qwen3 (14B) 34 120 beam-4, 4-gram block 1,1
+> Nemo (12B) 31 140 beam-4, 4-gram block 5,3
+> Yi-1.5 (9B) 44 180 greedy 3,3
+> Llama-3 (8B) 28 320 beam-4, 4-gram block 1,1
+> Mistral (7B) 22 120 greedy, rep. 1.3 1,1
+
+Table 1: Configuration for each language model. Here, ℓ is the edited feed-forward layer, f the first-token write strength, λ
+
+the ridge coefficient, and Self-Q the anchored-question count 
+
+kq and kept margin count m. Decode is a 4-beam search blocking repeated 4-grams or greedy decoding. that holds its answer. From each retained question the answer-bearing user turn is taken as the fact to store, and numeric-answer questions are removed which leaves 33 non-numeric facts. N of these turns are written into the parameters and queried by the original held-out question, and recall is re-ported as N grows from 4 to 32 . The single-session sub-set supplies only 33 such facts, and N =32 therefore stores nearly the entire available pool, which places the study at the benchmark’s ceiling rather than at a truncated sample. Recall is measured at every step from N =4 to N =32 . This shows how much the stored turns interfere as N increases. A gen-eration counts as correct when the normalized ground-truth answer is contained in it and when a bidirectional DeBERTa-MNLI gate (He et al. 2020; Williams, Nangia, and Bowman 2017) judges it to entail the ground-truth answer. 
+
+Models. This work uses five different models for evalua-tion; Qwen3 (14B) (Team 2025), Mistral-Nemo (12B) (Mis-tral AI and NVIDIA 2024), Yi-1.5 (9B) (01.AI 2024), Llama-3 (8B) (AI@Meta 2024), and Mistral (7B) (Mistral AI 2024). The five come from four independently developed families, and recall on all of them tests whether the mechanism is general rather than tuned to one model. All are widely used open-weight instruction-tuned models, which matches the dialogue setting the method targets and keeps the evaluation reproducible. Each model’s configuration is listed in Table 1. Every run uses one A100 80GB GPU. The forward pass runs in BF16 and each closed-form solve is carried out in FP32. 
+
+Recall Attribution 
+
+Figure 2a compares Skim to four reference conditions at 
+
+N =32 for five different models. The ‘KV cache’ shows recall when all models use the KV cache. ‘True-Q’ shows recall without the KV cache when the true answer and the true question are given. ‘Self-Q’ shows recall the same as True-Q without the KV cache and giving the true answer, but using the questions generated by the model. The ‘no-cache’ shows recall when all models do not use the KV cache. Here, the models that do not use the KV cache (‘no-cache’) show recall of 3.1 to 15.6%, but this is difficult to regard as recall from the past dialogue because the model answers some questions by prior knowledge or by chance even without the turn. The KV cache and the True-Q condition show recall of about 90 to 100%, Self-Q shows recall of 80% or more, and Skim shows recall of about 46.9 to 75.0%. Because the value to store is given as the ground-truth answer, True-Q and Self-Q show that the parameters can store and address a memory as well as the external memory. When the true question is swapped for the self-questions at a fixed answer, recall drops by about 6.88% on average but still averages about 91.3%. This indicates that the model can store and recall correctly even when its self-generated questions are used as the keys. Replacing the answer by self-extracted spans lowers recall by about 26.9% on average for all models, but recall still averages about 63.1%. Figure 2b shows the recall of Skim for each model as N
+
+grows from 4 to 32 . Every model starts near 100% at small 
+
+N and declines gradually. Qwen3 shows the highest recall (75.0%) and Mistral the lowest (46.9%) at N =32 . Figure 2c shows the count of unrecalled facts for each model as N
+
+increases from 4 to 32 , and Qwen3 fails to recall 8 of 32 facts and Mistral 17 at N =32 . Both the recall and the unrecalled-fact count change gradually and show no sudden step at any size. This gradual degradation indicates that recall declines by a small increment as each additional turn is stored, rather than failing abruptly once N exceeds a threshold. Even at Figure 3: Per-fact outcome at N =32 for five language mod-els. Each model’s 32 stored facts split into correct and four failure classes, the store-time pair missing and selection and the recall-time pair routing and decoding. 
+
+N =32 , Skim recalls well above the no-memory floor (‘no-cache’) and still remains effective as more turns are stored. 
+
+Which Stage Fails 
+
+For the five models, Figure 3 shows the stage of Skim at which the 32 facts most often fail. A fact is ‘missing’ when the true answer never enters the extracted span candidates, ‘selection’ when a same-turn rival span is written in its place, ‘routing’ when the user question retrieves a different fact, and ‘decoding’ when the correct value is addressed but the generation breaks down. Here, ‘missing’ and ‘selection’ are store-time failures, and ‘routing’ and ‘decoding’ are recall-time failures. The five models produce 59 failures; 22 from span-extraction (missing), 22 from selection, 0 from routing, and 15 from decoding. Missing and selection account for 44 of the 59 failures, about three quarters of the total. Most failures therefore occur at store-time rather than at recall. Decoding accounts for 15 failures and forms the recall-time remainder. Routing is zero for every model, which indicates that the closed-form keys reach the intended fact and that read-time addressing is never where recall is lost. The store-time failures split evenly overall, 22 missing and 22 selection in the five-model total. Which mode dominates separates the models into two cases. Selection dominates on Mistral-Nemo and Yi-1.5, which extract the correct span for 29 and 30 of the 32 facts and then rank a same-turn rival above it. Yi-1.5 is the sharpest case at 2 missing and 7 se-lection. Missing dominates on the other three models, which more often fail to extract the correct span at all. Llama-3 is the sharpest case at 7 missing and 3 selection. Thirteen types of intervention do not change the selection outcome and none corrects the selected value, whether they reshape the key geometry, enlarge the key budget, re-adapt the layer and regularizer, or widen the beam and align the stop crite-rion. Because routing is zero and the keys already reach the intended fact, these interventions cannot correct a store-time failure. Therefore, the limiting problem is the store-time ex-traction and selection of the span rather than any weakness in addressing or generation.  
+
+> (a) (b)
+
+Figure 4: Panel (a) reports recall by write position, each model’s facts split into early, middle, and recent groups. Panel (b) reports recall by answer type, proper-noun versus descriptive multi-word, pooled and within each group. 
+
+Failure by Position and Answer Type 
+
+Figure 4 reports the same N =32 outcomes two ways to separate two candidate axes of failure, the write position of a fact and the linguistic type of its answer. Figure 4a groups the 32 facts by write position into an early group of 11, a middle group of 10, and a recent group of 11, and measures recall for each model in each group. In all five models, recall on the recent group is lower than on the early and middle groups. This apparent reduction in recall does not necessarily indicate that recent turns are forgotten. Every turn is written at the same strength f described in Eq. 6, and the edit therefore treats every write position equally. The lower recall on the recent group instead follows from the answer type carried by those turns, which varies from turn to turn. Figure 4b reports recall by answer type, and the split is sharp. Proper-noun answers are recalled at 81.1% while de-scriptive multi-word answers such as "a lighter shade of gray" reach only 36.9%, a difference of about 44 points that largely holds within every position group. The recent group appears weaker in Figure 4a only because it happens to carry more descriptive facts, and the apparent position effect is really an answer-type effect. A proper noun is a discrete high-salience unit that the model extracts and keys cleanly. A descriptive span instead has soft boundaries, runs to several tokens, and sits beside same-turn rivals. Its failure is therefore one of self-extraction and multi-token reproduction rather than of storage or routing. The hardest facts combine a descriptive answer and a same-turn rival span. The question-generation stage exists for exactly this structure and concentrates its per-fact gains there by recovering "Golden Retriever" rather than the rival "Max". The descriptive-answer weakness is thus the clearest lever for improving self-supervision. It corroborates the earlier finding that self-extraction sets the recall ceiling rather than storage or addressing. 
+
+Streaming Matches Batch 
+
+Figure 5 plots streaming recall versus batch recall for all five models from N =4 to N =32 . Every point lies on the identity line, and a turn-at-a-time write reaches the recall of a single batch write at every size. The match is exact because the two writes produce the same edit. Each streaming step discards Figure 5: A comparison of streaming recall and batch recall for five models, ranging from N =4 to N =32 . Every point lies on the identity line because a streamed write reproduces the batch solve without forgetting. the previous edit and re-solves Eq. (14) from the frozen base weights on all pairs collected to that point, and this solve reads only the accumulated Gram matrices K⊤≤tK≤t and 
+
+D≤tK⊤≤t. These are order-invariant sums, and a permutation of the arrival order permutes the summands but not the sum, which makes the streamed edit the same matrix as the batch edit. The figure confirms in measurement the permutation identity that Eq. (14) forces in derivation. The property depends on re-solving from the base weights each chunk rather than stacking each edit onto the previous one, an additive scheme that allows earlier turns to drift as later ones are written (Fang et al. 2025). A streamed dialogue therefore incurs no forgetting, and an earlier turn is recalled no worse once later turns are written on top of it. This is the position-invariance of Figure 4(a) read from the write side, and the two jointly show that arrival order changes neither the stored content nor the recalled content. A growing cache secures this same no-forgetting property only by keeping every turn, whereas the parametric store secures it at a size that stays fixed as the dialogue lengthens. The re-solve is the one cost that grows, and it runs offline once per chunk. 
+
+Discussion 
+
+The main difficulty is the storage of a turn rather than its recall. Recall of a stored value is near-perfect once that value is written, and Figure 3 shows zero routing failures. The difficulty is extracting from a turn which content to store without the future question or the answer. The value har-vest scores each candidate span by a self-question and a specificity prior and keeps the top few. This fails most on descriptive multi-token spans beside same-turn rivals. The other difficulty is the key rather than the value. Skim keys each span by questions it writes before the real question ar-rives. A later question phrased in an unforeseen way leaves its key unformed and its value unrecalled. A separate limi-tation is the numeric answer. A date or a count carries little of the specificity the harvest rewards and is rarely chosen for storage. A recovered number also seldom reproduces the ex-act digits the containment metric checks for. Moreover, prior weight-editing methods operate in a different environment from the one studied here (Meng et al. 2022a,b; Fang et al. 2025). Running one on a dialogue turn would supply the ground-truth answer and question that this environment does not provide, turning it into an answer-given method rather than a comparable baseline. The answer-given conditions of Figure 2a already serve as that method (see ‘True-Q’), and they mark the recall the correct answer would reach. 
+
+# Related Work 
+
+Prior training-free methods modify model behavior or stored knowledge without gradient-based retraining (Meng et al. 2022a; Fang et al. 2025). Closed-form weight editing di-rectly modifies selected parameters to store factual associa-tions (Meng et al. 2022a,b). ROME rewrites one subject-indexed factual association using a rank-one update to a single feed forward layer (Meng et al. 2022a). MEMIT ex-tends ROME to many predefined factual associations by dis-tributing the required updates to several feed forward layers, enabling the simultaneous editing of thousands of associa-tions (Meng et al. 2022b). AlphaEdit constrains each edit to the null space of the preserved knowledge’s keys, which does not affect that knowledge and reduces interference during sequential edits (Fang et al. 2025). These methods require predefined edit targets and desired factual outputs (Meng et al. 2022a,b; Fang et al. 2025). The proposed method con-structs both the stored value and its key from the turn itself, taking neither a predefined edit target nor a desired output, and recalls the selected facts in response to later queries phrased differently. 
+
+# Conclusion 
+
+This paper studied whether a language model can internalize real dialogue turns into its parameters by one closed-form edit. The study was conducted in an assumed environment that provides no ground-truth answer and no later question and no external memory, and in a scenario where the dia-logue arrives one turn at a time. The proposed self-keyed in-parameter memorization (Skim) extracts what to store from the turn and attaches self-generated questions as its keys. Skim recalls a five-model mean of 63.1% and 75.0% on the strongest model at 32 stored turns, well above a no-cache floor of 3.1 to 15.6%. The method also shows that streaming the dialogue reaches the same recall performance as storing all turns at once, which means the forgetting caused by se-quential storage can be mitigated. These experimental results show that the proposed Skim stores conversation content in a fixed-size model parameter without any external memory. References 
+
+01.AI. 2024. Yi-1.5-9B-Chat. Hugging Face model reposi-tory. Chat-tuned checkpoint. AI@Meta. 2024. Llama 3 Model Card. https://github.com/ meta-llama/llama3/blob/main/MODEL_CARD.md. Ac-cessed: 2026-07-22. Dai, D.; Dong, L.; Hao, Y.; Sui, Z.; Chang, B.; and Wei, F. 2022. Knowledge Neurons in Pretrained Transformers. arXiv:2104.08696. Dao, T.; Fu, D. Y.; Ermon, S.; Rudra, A.; and Ré, C. 2022. FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness. arXiv:2205.14135. De Cao, N.; Aziz, W.; and Titov, I. 2021. Editing factual knowledge in language models. In Proceedings of the 2021 conference on empirical methods in natural language pro-cessing , 6491–6506. Fang, J.; Jiang, H.; Wang, K.; Ma, Y.; Shi, J.; Wang, X.; He, X.; and Chua, T.-S. 2025. Alphaedit: Null-space con-strained knowledge editing for language models. In Inter-national Conference on Learning Representations , volume 2025, 16366–16396. Geva, M.; Bastings, J.; Filippova, K.; and Globerson, A. 2023. Dissecting recall of factual associations in auto-regressive language models. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Pro-cessing , 12216–12235. Geva, M.; Schuster, R.; Berant, J.; and Levy, O. 2021. Transformer Feed-Forward Layers Are Key-Value Memo-ries. arXiv:2012.14913. Guu, K.; Lee, K.; Tung, Z.; Pasupat, P.; and Chang, M.-W. 2020. REALM: Retrieval-Augmented Language Model Pre-Training. arXiv:2002.08909. He, P.; Liu, X.; Gao, J.; and Chen, W. 2020. Deberta: Decoding-enhanced bert with disentangled attention. arXiv preprint arXiv:2006.03654 .Hoerl, A. E.; and Kennard, R. W. 1970. Ridge regression: Bi-ased estimation for nonorthogonal problems. Technometrics ,12(1): 55–67. Kwon, W.; Li, Z.; Zhuang, S.; Sheng, Y.; Zheng, L.; Yu, C. H.; Gonzalez, J. E.; Zhang, H.; and Stoica, I. 2023. Efficient Memory Management for Large Language Model Serving with PagedAttention. arXiv:2309.06180. Lewis, P.; Perez, E.; Piktus, A.; Petroni, F.; Karpukhin, V.; Goyal, N.; Küttler, H.; Lewis, M.; Yih, W.-t.; Rocktäschel, T.; et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in neural information process-ing systems , 33: 9459–9474. Lewis, P.; Perez, E.; Piktus, A.; Petroni, F.; Karpukhin, V.; Goyal, N.; Küttler, H.; Lewis, M.; tau Yih, W.; Rock-täschel, T.; Riedel, S.; and Kiela, D. 2021. Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. arXiv:2005.11401. Maharana, A.; Lee, D.-H.; Tulyakov, S.; Bansal, M.; Barbieri, F.; and Fang, Y. 2024. Evaluating Very Long-Term Conver-sational Memory of LLM Agents. arXiv:2402.17753. Meng, K.; Bau, D.; Andonian, A.; and Belinkov, Y. 2022a. Locating and editing factual associations in gpt. Advances in neural information processing systems , 35: 17359–17372. Meng, K.; Sharma, A. S.; Andonian, A.; Belinkov, Y.; and Bau, D. 2022b. Mass-editing memory in a transformer. arXiv preprint arXiv:2210.07229 .Mistral AI. 2024. Mistral-7B-Instruct-v0.3. Hugging Face model repository. Instruction-tuned checkpoint. Mistral AI; and NVIDIA. 2024. Mistral-Nemo-Instruct-2407. Hugging Face model repository. Instruction-tuned checkpoint. Mitchell, E.; Lin, C.; Bosselut, A.; Finn, C.; and Manning, C. D. 2022. Fast Model Editing at Scale. arXiv:2110.11309. Packer, C.; Fang, V.; Patil, S.; Lin, K.; Wooders, S.; and Gonzalez, J. 2023. MemGPT: towards LLMs as operating systems. Petroni, F.; Rocktäschel, T.; Lewis, P.; Bakhtin, A.; Wu, Y.; Miller, A. H.; and Riedel, S. 2019. Language models as knowledge bases? arXiv preprint arXiv:1909.01066 .Pope, R.; Douglas, S.; Chowdhery, A.; Devlin, J.; Bradbury, J.; Levskaya, A.; Heek, J.; Xiao, K.; Agrawal, S.; and Dean, J. 2022. Efficiently scaling transformer inference. arXiv preprint arXiv:2211.05102 .Roberts, A.; Raffel, C.; and Shazeer, N. 2020. How much knowledge can you pack into the parameters of a language model? In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , 5418– 5426. Shazeer, N. 2019. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150. Team, Q. 2025. Qwen3 Technical Report. arXiv:2505.09388. Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, Ł.; and Polosukhin, I. 2017. Attention is all you need. Advances in neural information processing systems , 30. Wang, Y.; Gao, Y.; Chen, X.; Jiang, H.; Li, S.; Yang, J.; Yin, Q.; Li, Z.; Li, X.; Yin, B.; Shang, J.; and McAuley, J. 2024. MEMORYLLM: Towards Self-Updatable Large Language Models. arXiv:2402.04624. Williams, A.; Nangia, N.; and Bowman, S. R. 2017. Abroad-coverage challenge corpus for sentence understanding through inference. arXiv preprint arXiv:1704.05426 .Wu, D.; Wang, H.; Yu, W.; Zhang, Y.; Chang, K.-W.; and Yu, D. 2025. LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory. arXiv:2410.10813. Xu, J.; Szlam, A.; and Weston, J. 2022. Beyond goldfish memory: Long-term open-domain conversation. In Proceed-ings of the 60th annual meeting of the association for com-putational linguistics (volume 1: long papers) , 5180–5197.

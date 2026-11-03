@@ -1,0 +1,733 @@
+Title: RetroNav: Scene-Grounded Retrospection and Retry for Self-Evolving Lifelong Navigation
+
+URL Source: https://arxiv.org/pdf/2610.35172v1
+
+Published Time: Tue, 27 Oct 2026 02:45:37 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# RetroNav: Scene-Grounded Retrospection and Retry for Self-Evolving Lifelong Navigation 
+
+Diantao Tu 1 Yangdong Liu 1 Niannian Dai 1,3 Mengqi Rong 1* Shuhan Shen 1,2* 
+
+> 1
+
+Institute of Automation, Chinese Academy of Sciences 
+
+> 2
+
+School of Artificial Intelligence, University of Chinese Academy of Sciences 
+
+> 3
+
+School of Advanced Interdisciplinary Sciences, University of Chinese Academy of Sciences 
+
+{diantao.tu, yangdong.liu }@ia.ac.cn, dainiannian22@mails.ucas.ac.cn 
+
+{mengqi.rong, shshen }@nlpr.ia.ac.cn 
+
+Abstract 
+
+Existing robot navigation methods primarily focus on iso-lated tasks, overlooking the need to accumulate knowledge and experience across repeated navigation episodes. Al-though recent lifelong navigation methods have explored cross-task knowledge accumulation, they mainly focus on scene knowledge while neglecting historical navigation ex-perience and its connection to scene evidence, limiting the ability to reflect on past mistakes and improve future de-cisions. To address this limitation, this paper presents 
+
+RetroNav , a training-free self-evolving navigation frame-work that integrates navigation, memory accumulation, and failure reflection. Specifically, we develop a unified memory system that connects geometric and semantic scene knowl-edge with historical navigation experience, distinguishing objective observations from task-dependent interpretations. After each navigation attempt, an independent evaluator determines whether a retry is necessary. If so, a Retro-spection Agent revisits historical decisions using accumu-lated scene knowledge and navigation records, generating an evidence-grounded retry brief to guide the next attempt. RetroNav achieves state-of-the-art performance across five navigation benchmarks. Our method will be open-sourced at https://github.com/3dv-casia/RetroNav .
+
+1. Introduction 
+
+Most existing robot navigation research focuses on isolated navigation tasks. In practical applications, however, robots often operate in the same environment over long periods, re-peatedly performing navigation tasks and encountering fa-miliar places and objects. Each navigation episode, whether  
+
+> *Corresponding authors: Mengqi Rong (mengqi.rong@nlpr.ia.ac.cn) and Shuhan Shen (shshen@nlpr.ia.ac.cn).
+
+successful or not, may provide valuable environmental in-formation for future tasks. Therefore, navigation systems should not only complete individual tasks but also accumu-late knowledge and experience to reduce repeated explo-ration and improve subsequent decisions. Recent studies have begun to investigate lifelong Navi-gation, exploring how robots can leverage historical infor-mation across tasks [11, 16, 19, 39, 46]. Existing meth-ods primarily focus on accumulating scene knowledge, such as geometric structures, semantic information, and visual observations, while largely overlooking navigation experi-ence, including how tasks were interpreted and decisions were made. However, navigation failures may arise not only from insufficient environmental knowledge but also from incorrect interpretations or decisions. For example, a robot may have already observed the correct target location but choose a wrong direction due to misinterpreting the instruc-tion. Simply retaining scene knowledge cannot reveal such decision errors, while reusing previous decisions may re-peat them. Therefore, effective lifelong navigation requires associating historical decisions with their underlying scene evidence, enabling navigation experience to be revisited and reused. We argue that effective lifelong navigation requires inte-grating scene knowledge with historical navigation experi-ence. Scene knowledge captures the geometric and seman-tic structure of the environment, providing reusable infor-mation for future navigation. Navigation experience records how previous tasks were interpreted and executed, enabling robots to revisit historical decisions and reflect on poten-tial errors. By associating navigation experience with scene evidence, robots can continuously improve their navigation behavior through knowledge accumulation and failure re-flection. To this end, we propose RetroNav, a training-free self-evolving navigation framework that integrates navigation 1arXiv:2610.35172v1 [cs.RO] 26 Oct 2026 Online Navigation  Evaluation &  Retrospection 
+
+Unified  Memory       
+
+> View Selection
+> Where should I go next?
+> Consider :goal, current views,
+> history, and scene memory
+> Four directional views
+> Geometry map
+> Waypoint Selection
+> Which waypoint next?
+> Select a candidate waypoint
+> Execute
+> Move to the waypoint
+> Update observation, pose
+> & geometry map
+
+Attempt ends  
+
+> STOP
+> Completed attempt
+> New observation
+> Evaluator
+> Inspect goal and evidence
+> Use scene knowledge
+> Decide whether to retry
+> Retrospection Agent
+> Review prior decisions
+> Resolve uncertainties
+> Select useful evidence
+> Retry
+> No retry
+
+Finish    
+
+> Retry Brief
+> Goal + brief + visual evidence
+> Memory Navigation
+> records Memory
+
+Task Input                             
+
+> Instruction following
+> Go through the hallway
+> and turn left.
+> Object goal
+> Find a wooden chair.
+> Image goal
+> Initial state
+> Initial observation
+> Geometry map
+> Go to the
+> object shown
+> in the image .
+> History
+> Consider: candidate points,
+> spatial context, and intent.
+> Target view
+> & intent
+> front left
+> right back
+> New observation
+> REVIEW
+> What went wrong?
+> Decision & outcome
+> What to try next?
+> Next -attempt guidance
+> Visual evidence 1 Visual evidence 2 Visual evidence 3 Text brief review
+> Scene Knowledge & Experience Memory Builder
+> Prior memory Current memory
+> R
+> PP
+> Obj Obj Obj
+> Obs Obs Obs
+> Obj Obj
+> R: Region P: Place Obj: Object
+> Organize regions
+> Preserve experience
+> Select visual evidence
+> Associate decisions
+> Trajectory
+> RGB -D + decisions
+> +actions
+> Persistent Unified Memory
+> Navigation experience
+> Grounded objects Scene descriptions
+> Navigation trajectories
+> Scene knowledge
+> Hierarchical scene structure
+> Cross -view association & Geometry fusion
+> Historical task interpretations
+> Decision history
+
+Figure 1. Overview of the proposed RetroNav framework. The navigator iteratively selects navigation directions and waypoints, while a unified memory system accumulates scene knowledge and historical navigation experience. After each navigation attempt, an independent Evaluator determines whether a retry is necessary. When triggered, a Retrospection Agent revisits historical decisions using accumulated scene knowledge and visual evidence, generating an evidence-grounded Retry Brief to guide the next attempt. 
+
+execution, memory accumulation, and failure reflection into a unified system, as illustrated in Fig. 1. At each navigation step, the View Selection Agent interprets navigation instruc-tions and selects a direction, while the Waypoint Selection Agent determines a suitable waypoint from geometrically feasible candidates. Meanwhile, a Memory Builder accu-mulates scene knowledge from visual and geometric obser-vations, while preserving navigation experience that cap-tures historical decisions, their reasoning, and supporting scene evidence. By linking scene knowledge with naviga-tion experience, the unified memory supports both future navigation and retrospective reasoning. After each naviga-tion attempt, an independent Evaluator assesses the naviga-tion outcome and determines whether a retry is necessary. If so, a Retrospection Agent re-examines previous decisions using accumulated scene knowledge and navigation experi-ence, generating an evidence-grounded Retry Brief to guide the next attempt. Our contributions are threefold: • We propose RetroNav, a training-free self-evolving navi-gation framework that integrates navigation, memory ac-cumulation, and failure reflection for lifelong navigation. • We develop a unified memory system that associates scene knowledge with historical navigation experience, enabling knowledge reuse and evidence-grounded reflec-tion. • We introduce an evaluation-driven retry mechanism that reflects on historical decisions using accumulated scene knowledge and navigation experience to guide subse-quent attempts. 
+
+2. Related Work 
+
+Lifelong navigation in persistent environments. Life-long navigation studies ordered tasks executed in a per-sistent scene, where later tasks can reuse information collected during earlier episodes. While R2R [2] and RxR [20] established visually grounded instruction follow-ing, IVLN/IR2R [19] explicitly evaluates navigation over ordered episodes. GOAT-Bench [16] extends this setting to multimodal goals. It also studies explicit and implicit scene memory. OVAL [30] uses past observations to find succes-sive open-vocabulary object goals. It guides exploration us-ing semantic cues, distance, and previous visits. EvoMem-Nav [11] reflects after each subtask to update its environ-mental priors. NavHarness [46] retains maps and task expe-rience for later tasks and recovery attempts. These methods improve navigation through persistent scene knowledge, continual policy learning, and experience reuse. RetroNav separates environmental evidence from task-dependent in-terpretations and decisions, while explicitly linking them 2for later inspection. This design supports evidence-based failure diagnosis and targeted retries through independent post-attempt evaluation and a structured Retry Brief. 
+
+Scene memory construction. Scene-memory methods differ in the representations they retain and the mecha-nisms used to consolidate them. UniGoal [42] incremen-tally constructs a scene graph of objects and their spatial or semantic relations, and matches a goal graph against it to guide navigation, while structured representations con-nect open-vocabulary observations with navigable scene elements [45]. 3D-Mem [39] combines incremental 3D scene memory with informative visual observations, and hierarchical semantic–geometric maps explicitly bridge vi-sual and spatial representations [22]. Other systems retain fine-grained visual hierarchies and update memory through reflection [11], or compress long visual histories for effi-cient reuse [14]. These methods emphasize spatial orga-nization, visual fidelity, and selective retrieval. RetroNav complements them by separating environmental evidence from task-dependent judgment and linking observations, poses, transitions, and views to regions, places, and ob-jects. Historical interpretations and actions remain experi-ence records, so reflection can inspect past decisions with-out treating them as scene facts. 
+
+Training-free agent navigation. Training-free naviga-tion uses frozen foundation models together with prompts, tools, or pretrained controllers, avoiding additional opti-mization of navigation-task parameters. TANGO [48] com-poses language-model reasoning with reusable embodied primitives for zero-shot open-world tasks. Open-Nav [31], AgenticNav [24], and HarnessVLN [5] organize percep-tion, planning, tool use, grounding, and recovery around multimodal language models. These approaches demon-strate strong zero-shot execution, but their primary focus is single-task control or the organization of local history. RetroNav targets their intersection with lifelong navigation: fixed model parameters, persistent scene-memory consoli-dation, independent post-attempt evaluation, and evidence-grounded retry reflection are combined into one closed loop. 
+
+3. Method 
+
+3.1. Problem Setting and Overview 
+
+We consider an agent performing a sequence of navigation tasks {T i}Ni=1 in a persistent scene. Each task Ti = ( gi, s 0 
+
+> i
+
+)
+
+specifies a goal and an initial pose. The goal may be a lan-guage instruction, an object category or description, or a reference image. At each decision step, the agent receives RGB-D observations and pose information, and selects a movement action or STOP. A navigation attempt ends upon STOP or budget exhaustion. A retry addresses the same goal from its original starting pose, while a subsequent task introduces a new goal and its specified start. Memory per-sists within the scene and task-sequence boundaries of the evaluation protocol. RetroNav couples online navigation with memory accu-mulation and scene-grounded reflection (Fig. 1). During navigation, a View Selection Agent chooses a direction and a Waypoint Selection Agent selects a geometrically feasi-ble destination. After each attempt, the Memory Builder update the unified memory and an independent evaluator accesses whether the attempt succeeded. If the attempt is judged unsuccessful, a Retrospection Agent reviews histor-ical decisions against the accumulated scene evidence and generates a retry brief. The robot then restarts navigation from its initial pose, guided by the brief. For a single attempt, we omit task and attempt indices. Let g denote the goal, s0 the initial pose, M the available unified memory, and b the retry brief. The first attempt has no retry brief. Navigation produces an attempt trace 
+
+τ = Navigate( g, s 0; M, b ). (1) Scene knowledge accumulates across tasks, whereas the brief revises the decision context for another attempt at the same task. 
+
+3.2. Unified Memory 
+
+A single trajectory yields both physical evidence and task reasoning. RetroNav structures this history into a unified memory: 
+
+M = ( S, H, L), (2) where S represents scene knowledge across space and enti-ties, H preserves chronological navigation experiences, and 
+
+L denotes the observation-centric associations bridging the two tracks. Fig. 2 illustrates how observations link shared scene knowledge to distinct task-specific judgments and ac-tions at the same place. 
+
+Core representations. The anchor of unified memory is the observation o, defined by a 6-DoF pose, multi-view RGB-D images, and its attempt identifier. Observations serve as immutable empirical evidence: semantic classifica-tions may be revised over time, but raw observations remain uncorrupted. Building upon observations, scene knowledge S cap-tures cumulative physical and semantic structure: (a) Places 
+
+group visits to the same localized vantage, aggregating member observations, keeping representative views, and synthesizing grounded visual descriptions. (b) Regions de-note concrete architectural enclosures (e.g., a specific bed-room), organizing confirmed places while decoupling view-ing vantage from observed entities. (c) Objects represent persistent 3D entities with metric bounding boxes, point clouds, categories, and appearance descriptions. (d) Transi-tions record verified traversability derived exclusively from executed trajectory endpoints. 3Region 1  
+
+> Open-plan kitchen and living room
+> Region 4
+> Small secondary kitchen
+> Region 5
+> Yellow bedroom
+> Region 2
+> Tiled bedroom and bathroom hallway
+> Region 3
+> Hall bathroom
+> Region 7
+> Blue-green bedroom
+> Region 8
+> Large en-suite bathroom
+> Region 9
+> En-suite walk-in closet
+> Region 6
+> Open dining and living room
+> P1
+> P2
+> P3
+> P4
+> P5
+> P7 P8
+> P9
+> P10
+> P11
+> P12
+> P13
+> P14
+> P15
+> P16
+> P17
+> P18
+> P19
+> P20
+> P21
+> P22
+> P23 P6
+
+Scene knowledge 
+
+> Region 1 / Place 6
+> Refrigerator-side kitchen
+> White pantry cabinets beside the dining passage.
+> O54 / Refrigerator
+> Dark French doors with a
+> dispenser.
+> Refrigerator
+> Observation 196 / right view
+> Experience B
+> Goal: Match the refrigerator image
+> Judgment
+> Reference refrigerator matched
+> Nearest safe position reached
+> STOP — target reached
+> Stop beside the refrigerator.
+> Observation 97 / front view
+> Experience A
+> Goal: Find hanging clothes.
+> Judgment
+> Closet lies beyond kitchen
+> Take doorway toward closet
+> CONTINUE — follow memory
+> Select front view through doorway.
+> Move 0.93 m toward the closet route.
+
+Navigation experience 
+
+> Linked via observations
+> 2 m
+> Recorded trajectory
+> Place expansion
+> Region grouping
+
+Figure 2. Structure and organization of the unified memory. Left: Cumulative scene knowledge acquired across navigation tasks, including regions, places and trajectories. Top right: Representative scene knowledge at Place 6 of Region 1. Bottom right: Navigation experiences at the same place across distinct tasks, recording different goals, judgments, and actions. 
+
+Complementary to scene knowledge, navigation experi-ence H archives subjective decision history. The attempt trace is defined as 
+
+τ =  g, {(ot, z t, a t)}Tt=0 
+
+ , (3) where ot is the observation at step t, zt records explicit task interpretations and decision rationales, and at specifies the chosen action. The experience also retains execution feed-back associated with each action. Historical interpretations remain unchanged for subsequent review. 
+
+Memory construction. Upon completing an attempt, the trajectory is processed via two streams: 1. Experience organization : The sequential trace of goals, decisions, rationales, and execution feedback is struc-tured into τ , indexing each decision by its observation ot.Task-specific hypotheses remain quarantined in H, prevent-ing subjective bias from polluting the objective environmen-tal model. 2. Hierarchical scene consolidation : Scene knowledge 
+
+S is updated in two stages. First, a vision-language model proposes object bounding boxes and semantic descriptions from RGB images, and SAM [17] produces segmentation masks from these boxes (see Sec. 7.2). The masks and depth observations are used to back-project object evidence into 3D metric coordinates and fuse it into cumulative 3D object instances via spatial clustering and overlap association [12]. Then, the Memory Builder receives the cumulative Bird’s-Eye-View (BEV) map and observations from the current at-tempt. It clusters observations into places, assigns places to regional instances, and refines object semantic summaries while holding object geometries invariant. Both successful and failed attempts contribute to scene consolidation. 
+
+Observation-centric dual association. The association layer L connects experiences H with scene knowledge S
+
+via provenance binding and contextual linking: 1. Deterministic provenance chain : Each decision event is anchored at its observation, which connects it to the corre-sponding place, supported region membership, and associ-ated object evidence. This establishes the provenance chain 
+
+decision → observation → scene entities .2. Bidirectional contextual linking : Rather than storing passive logs, L enables active cross-track querying. From decision to scene, reviewing a decision at ot retrieves cu-mulative multi-perspective evidence accumulated across at-tempts at that place. From scene to experience, any place or object can be queried to retrieve historical attempts and fail-ures in its vicinity, enabling the agent to contextualize past choices against cumulative spatial facts during reflection. 
+
+3.3. Memory-Assisted Navigation 
+
+At each navigation step t, we split the decision into two agents. The View Selection Agent dynamically retrieves relevant scene context and cross-task experiences and out-puts a moving direction and motion intent. Next, the Way-point Selection Agent selects an executable waypoint. 
+
+View Selection. At each decision step t, the View Se-4lection Agent serves as the semantic planner. It conditions on the navigation goal g, four-directional panoramic RGB observations ot, the local metric BEV map Gt, the ongoing within-attempt history ht, and the retry brief b (where b = ∅
+
+for the initial attempt). To facilitate the unified memory, the agent dynamically queries M to construct a task-relevant context mt. First, us-ing the current robot pose, it indexes historical observation positions in S to maintain a local context, which contains the region summary, adjacent place descriptions, and visi-ble objects. When this local context is insufficient to select a view, the agent calls search memory to retrieve relevant scene entities and uses read memory to obtain detailed descriptions or source RGB images for visual verification. When encountering route branching, landmark ambigu-ity, or conflicting sensory cues, the agent queries L using the spatial entities as anchors and accesses relevant deci-sion fragments from other completed tasks. Retrieval prior-itizes decision events that occurred at that place or explic-itly referenced the target entity, filtered by relevance to the ongoing unresolved question. Each retrieved fragment en-capsulates the historical goal, task interpretation, observa-tion pose, chosen action, explicit rationale, and subsequent execution consequences. This observation-centric retrieval provides synthesized memory context mt.Conditioned on this context, the agent outputs either 
+
+STOP or a selected view and motion intent: 
+
+View( g, o t, G t, h t, m t, b ) = 
+
+(
+
+STOP , if stop ,
+
+(vt, c t), otherwise . (4) where vt specifies one of the four cardinal views and ct de-notes the high-level motion intent (e.g., “traverse through the corridor toward the far doorway”). To support post-attempt analysis, the agent explicitly records which parts of its historical experiences were used to make each decision. This helps distinguish experiences that actually influenced the decision from those that were only examined. During subsequent reflection (Sec. 3.4), these records allow the agent to check whether past expe-riences were correctly applied to the current situation or in-correctly generalized. 
+
+Waypoint selection and execution. When the View Selection Agent outputs (vt, c t), the Waypoint Selection Agent translates this semantic guidance into a reachable destination. Operating independently of long-term mem-ory M, it focuses strictly on local collision avoidance and physical traversability. Specifically, we use the depth map of vt to generate a discrete set of candidate waypoints Wt. The agent evalu-ates these candidates against the visual context and seman-tic motion intent to select the optimal waypoint: 
+
+wt = Waypoint( vt, Wt, c t). (5) After executing wt, the execution feedback and (ot, z t, a t)
+
+are appended to the attempt trace τ . Then, we acquire the updated observations ot+1 , local BEV map Gt+1 , and at-tempt history ht+1 . Upon termination, the completed ex-perience enters unified memory construction (Sec. 3.2) and post-attempt evaluation (Sec. 3.4). 
+
+3.4. Evaluation and Retrospection 
+
+When a navigation attempt ends (either the agent calls 
+
+STOP or exhausts its step budget), we use an independent Evaluator Agent to check whether the task is succeeded. If the attempt is judged unsuccessful, the system reflects on the failure to identify mistakes and provide guidance for the next retry. 
+
+Evaluator. After an attempt finishes, we first update the scene memory with τ . During navigation, the robot may stop too early or go to the wrong way due to misjudgments. Asking the navigator to judge itself usually fails to catch these mistakes. Therefore, we use an independent Evalua-tor to decide whether the attempt actually succeeded. The Evaluator takes the goal g, the full attempt trace τ , and the updated scene memory S as input. It evaluates the attempt from two aspects. First, it checks whether the executed path followed the key landmarks and steps described in the instruction. Second, it compares the final stopping posi-tion with the updated scene memory to confirm whether the robot truly stopped near the correct target, rather than near a confusing or similar object. Finally, the evaluator outputs a final judgment of success or failure. A retry is triggered only when the attempt is judged as a failure, which prevents blind and unnecessary retries. 
+
+Retrospection Agent. Once a retry is triggered, the Ret-rospection Agent reviews the failed trajectory τ to find the reasons behind the failure. In many cases, navigation fails not because the environment lacks information, but because the agent misinterpreted its visual observations. Based on the accumulated scene memory S, the agent examines three common types of decision errors: (a) Goal or landmark misidentification: checking if the agent mistook a similar room or an incorrect object for the target; (b) Route selec-tion mistakes: checking if the agent turned in the wrong di-rection at corridor intersections or doorways, leading into dead ends; (c) Experience misapplication: checking the cross-task experiences cited in the decision rationales zt
+
+through the association layer L, to verify if past experiences were incorrectly applied. During this review, the agent can use the full scene mem-ory M to clarify confusing visual details. Finally, the Ret-rospection Agent summarizes these diagnostic results into a structured retry brief b:
+
+b = Reflect( g, τ, M). (6) The brief contains four key parts: (a) Goal clarification: 5Table 1. Evaluation results on R2R-CE and RxR-CE val-unseen. – denotes unreported. † indicates a method retested with an updated model. The best results are shown in bold , and the second best is underlined.                                                                                                               
+
+> R2R-CE RxR-CE Method SR SPL OSR SR SPL OSR
+> Training-based
+> NavMorph (HNR) [40] 64.0 53.0 68.0 58.0 49.0 –Uni-NaVid [44] 47.0 42.7 53.3 48.7 40.9 55.5
+> StreamVLN-Prune-Mem [37] 57.4 51.1 65.5 53.9 45.1 –DualVLN [36] 64.3 58.5 70.7 61.4 51.8 –ReflectVLN [33] 62.8 58.5 67.3 66.0 57.2 –
+> Training-free
+> GC-VLN (DeepSeek-R1) [41] 33.6 16.3 41.8 33.8 13.8 44.4 HSGM (GPT-5) [22] 47.9 32.8 58.7 41.8 25.1 –HarnessVLN (GPT-5.5) [5] 59.6 43.6 70.7 51.4 38.1 –Open-Nav (Gemini-2.5-Pro) [31] 27.0 23.2 32.0 –––AgenticNav (Gemini-3.7-Flash) [24] 76.0 66.5 78.0 –––HAM-VLN (Gemini-3.1-Pro) [25] 61.0 48.1 78.7 52.7 35.7 –SparseNav (GPT-5) [4] 42.8 35.2 53.4 40.7 24.1 –Uni-LaViRA (Gemini-3.1-Pro) [9] 60.7 47.7 73.7 51.3 34.0 –Uni-LaViRA (GPT-5.6-Sol) †[9] 47.2 32.2 57.3 52.4 34.4 69.1 Ours (GPT-6-Astra) 84.0 75.4 87.7 84.0 70.9 90.3
+> Ours (GPT-5.6-Sol) 76.3 66.4 80.7 76.7 61.0 80.0 Ours (Qwen3.8-27B) 58.0 49.5 67.3 64.0 46.4 71.0
+
+clarifying the true visual features of the goal to correct ear-lier misunderstandings; (b) Key decision reviews: identify-ing up to three pivotal mistakes in the trajectory, explain-ing what went wrong and how to correct the spatial intent; (c) Route suggestion: recommending a better route while warning against the wrong paths taken before; (d) Refer-ence images: selecting up to eight key images from scene memory (such as different views of the target entrance) as visual references for the next attempt. 
+
+Retry. With the retry brief b, the robot resets to its ini-tial pose s0 and starts a new attempt. In the new attempt, the View Selection Agent takes both the brief b and the reference images as part of its input (Sec. 3.3). The brief acts like a checklist: when the robot approaches a loca-tion where it previously failed, the brief reminds it not to repeat the past mistake. Meanwhile, the robot still relies on real-time camera views to make step-by-step movement and collision-avoidance decisions. In this way, accumulated scene memory not only benefits future tasks, but also di-rectly helps fix failures in the current task. 
+
+4. Experiments 
+
+4.1. Experimental Setup 
+
+Benchmarks and task settings. We evaluate our frame-work across five standard embodied navigation bench-marks: R2R-CE [2, 18], RxR-CE [18, 20], HM3D-OVON [43], IR2R-CE [19], and GOAT-Bench [16]. Be-cause R2R-CE, RxR-CE, and HM3D-OVON are episodic 
+
+Table 2. Evaluation results on HM3D-OVON val-unseen. – de-notes unreported. The best results are shown in bold , and the sec-ond best is underlined.                                        
+
+> Method SR SPL OSR
+> Training-based
+> Uni-NaVid [44] 39.5 19.8 –AstraNav-Memory [14] 62.5 34.9 –MTU3D [47] 40.8 12.1 –
+> Training-free
+> SpaceVLN (Qwen3.5-Plus/Flash) [8] 51.6 33.1 –HarnessVLN (GPT-5.6-Luna) [5] 59.3 36.6 –TANGO (GPT-4o) [48] 35.5 ±0.3 19.5 ±0.3 –MetaNav (GPT-4o) [23] 46.1 29.8 –DRIVE-Nav (Qwen3-VL-8B) [10] 50.2 32.6 –AECNav (C-RADIOv4) [26] 57.3 30.5 –Ours (GPT-6-Astra) 66.9 ±1.2 50.2 ±1.4 71.3 ±1.2
+> Ours (GPT-5.6-Sol) 60.1 ±1.8 44.5 ±2.1 65.1 ±1.8 Ours (Qwen3.8-27B) 55.4 ±3.3 45.8 ±2.5 59.8 ±3.3
+
+Table 3. Evaluation results on IR2R-CE val-unseen. † indicates a method retested with an updated model. The best results are shown in bold , and the second best is underlined.                                                      
+
+> Method SR SPL t-nDTW
+> (a) Training-based
+> CMA [18] 19.0 ±1.0 18.0 ±1.0 38.0 ±2.0 TourCMA [19] 18.0 ±0.0 17.0 ±1.0 36.0 ±1.0 PoolCMA [19] 16.0 ±1.0 15.0 ±0.0 36.0 ±2.0 PoolEndCMA [19] 18.0 ±1.0 16.0 ±1.0 38.0 ±2.0 OVER-NAV (iterative) [45] 35.0 ±1.0 33.0 ±1.0 50.0 ±2.0 ETPNav [1] 28.0 ±1.0 27.0 ±1.0 41.0 ±2.0 HNR [35] 30.0 ±1.0 28.0 ±2.0 44.0 ±2.0 SeqWalker [13] 36.0 ±2.0 34.0 ±2.0 52.0 ±2.0
+> (b) Training-free
+> CA-Nav (GPT-5.6-Sol) †[3] 52.2 ±0.5 44.7 ±0.9 47.6 ±0.9 Open-Nav (GPT-5.6-Sol) †[31] 62.2 ±0.6 51.4 ±1.0 49.2 ±0.2 NavHarness (Qwen3.8-27B) [46] 45.1 ±1.1 32.0 ±0.9 43.2 ±1.2 NavHarness (Opus 5) [46] 78.2 ±0.9 56.9 ±1.3 58.1 ±1.0 NavHarness (GPT-6-Astra) [46] 85.9 ±0.8 76.1 ±0.9 64.2 ±1.1 Ours (GPT-6-Astra) 89.2 ±0.2 74.5 ±0.6 78.8 ±0.1
+> Ours (GPT-5.6-Sol) 84.1 ±0.2 71.9 ±1.0 75.2 ±0.0 Ours (Qwen3.8-27B) 57.2 ±7.1 48.1 ±4.8 68.4 ±1.1
+
+benchmarks that reset between tasks, we disable cross-task Unified Memory and evaluate standard navigation with fail-ure reflection and retry. In contrast, for benchmarks with persistent environments (IR2R-CE and GOAT-Bench), Uni-fied Memory is enabled to accumulate scene knowledge and experience across consecutive episodes. 
+
+Foundation models. To evaluate performance across different model families and scales, we deploy our training-free framework with three foundation models: GPT-6-Astra [28], GPT-5.6-Sol [29], and the open-source Qwen3.8-27B [32]. For all experiments, 2D object can-didate extraction is performed by GPT-5.6-Terra, instance segmentation is produced by SAM [17]. 
+
+Evaluation scale and sampling protocol. Due to the substantial computational cost and API invocation over-head of frontier multimodal agents, most training-free nav-6Table 4. Evaluation results on GOAT-Bench val-unseen. – denotes unreported. The best results are shown in bold , and the second best is underlined.                                                     
+
+> Method SR SPL e-SR
+> (a) Training-based
+> SenseAct-NN Skill Chain [16] 29.5 11.3 –SenseAct-NN Monolithic [16] 12.3 6.8 –AstraNav-Memory [14] 62.7 56.9 –MTU3D [47] 47.2 27.7 –MemoryExplorer (LMEE) [34] 46.4 28.0 –
+> (b) Training-free
+> TANGO (GPT-4o) [48] 32.1 16.5 –SSMG-Nav (Qwen-VL-Plus) [27] 46.5 34.1 8.6 EvoMemNav (Qwen3-VL-8B) [11] 59.6 38.9 –STEGNav (GPT-5.4-mini) [6] 66.3 39.7 –MSGNav (GPT-4o, 0.25 m) [15] 52.0 29.6 –3D-Mem (GPT-4o) [39] 69.1 48.9 –HIMM (GPT-4o) [21] 72.8 56.1 –MetaNav (GPT-4o) [23] 71.4 51.8 –NavHarness (Qwen3.8-27B) [46] 71.7 ±0.5 48.2 ±0.4 14.4 ±0.7 NavHarness (Opus5) [46] 81.5 ±0.7 55.0 ±0.6 28.6 ±0.8 NavHarness (GPT-6-Astra) [46] 83.7 ±0.4 62.3 ±0.3 36.9 ±0.9 Ours (GPT-6-Astra) 84.1 ±1.2 58.4 ±0.8 40.3 ±3.1
+> Ours (GPT-5.6-Sol) 82.3 ±0.5 57.6 ±1.5 35.3 ±1.3 Ours (Qwen3.8-27B) 74.4 ±5.3 45.7 ±3.6 17.1 ±2.9
+
+igation methods evaluate on representative benchmark sub-sets [7, 9, 24, 25, 31]. Following this established protocol, we evaluate on: (a) 100 episodes for R2R-CE, aligned with Open-Nav [31]; (b) 100 randomly sampled episodes from the RxR-CE val-unseen split with English (en-US) guide instructions; (c) 150 subtasks for HM3D-OVON; (d) 299 episodes across 11 tours for IR2R-CE; and (e) 307 mul-timodal subtasks from val-unseen for GOAT-Bench. As demonstrated in Uni-LaViRA [9], subset evaluations yield performance trends highly consistent with full benchmarks. Main results are means of three independent runs. 
+
+Evaluation metrics. Across all benchmarks, we report standard embodied navigation metrics: Success Rate (SR) measuring goal reach criteria, and Success weighted by Path Length (SPL) penalizing trajectory inefficiency. For con-tinuous instruction following (R2R-CE, RxR-CE, HM3D-OVON), we also report Oracle Success Rate (OSR), indi-cating whether the agent visited the goal threshold at any step. For multi-tour IR2R-CE, we report tour-level normal-ized Dynamic Time Warping (t-nDTW) to assess fidelity to the demonstration paths across successive episodes. For GOAT-Bench, we report subtask-level SR and SPL, as well as Episode Success Rate (e-SR), which strictly requires ev-ery subtask in an episode sequence to succeed. SPL in the main tables is computed from each task’s final attempt. We additionally evaluate path efficiency using the total distance traveled across all attempts in Sec. 8.2. 
+
+4.2. Episodic Navigation 
+
+We evaluate navigation performance under standard episodic configurations (R2R-CE, RxR-CE, and HM3D-OVON) where environments reset between tasks and cross-task memory is disabled. In this setting, the agent relies solely on online perception, planning, and our failure re-flection and retry mechanism. As shown in Tabs. 1 and 2, RetroNav consis-tently outperforms existing training-free methods across both instruction-following and open-vocabulary object-goal search. Notably, equipped with GPT-6-Astra, RetroNav es-tablishes new state-of-the-art results on R2R-CE (84.0% SR) and RxR-CE (84.0% SR), substantially surpassing the training-free AgenticNav (76.0% SR on R2R-CE) and the training-based ReflectVLN (66.0% SR on RxR-CE). Simi-larly, in open-vocabulary object search on HM3D-OVON, RetroNav achieves a leading 66.9% SR and 50.2% SPL, outperforming existing approaches. Crucially, this strong performance generalizes across model families: equipped with GPT-5.6-Sol, RetroNav achieves 76.3% SR on R2R-CE, ranking second and outperforming AgenticNav (76.0% SR), while open-source Qwen3.8-27B also achieves solid success rates and efficiency on R2R-CE and RxR-CE, demonstrating that our reflection and retry mechanism ef-fectively recovers from execution errors regardless of the underlying foundation model. 
+
+4.3. Navigation in Persistent Environments 
+
+We next evaluate lifelong navigation in persistent environ-ments (IR2R-CE and GOAT-Bench), where our full Unified Memory module is active to accumulate spatial knowledge and past navigation experiences across successive episodes. As summarized in Tabs. 3 and 4, retaining and grounding decisions on cumulative scene memory yields marked per-formance gains. On multi-tour IR2R-CE, RetroNav with GPT-6-Astra achieves a leading 89.2% SR and an unprece-dented 78.8% t-nDTW, demonstrating that cumulative spa-tial awareness not only helps the agent reach destination goals but also substantially improves adherence to human demonstration paths across repeated visits. Furthermore, on GOAT-Bench’s demanding multimodal sequential navigation, RetroNav with GPT-6-Astra main-tains a high subtask SR of 84.1% while achieving a re-markable 40.3% episode success rate (e-SR), surpassing NavHarness (36.9% e-SR). Notably, open-source Qwen3.8-27B achieves a solid 74.4% subtask SR and 17.1% e-SR, outperforming established open-source baselines such as EvoMemNav (59.6% SR) and SSMG-Nav (8.6% e-SR). These results confirm that our Unified Memory architecture effectively transforms historical observations and reflec-tion outcomes into reusable environmental assets, signifi-cantly reducing compounding errors in long-horizon em-bodied tasks across diverse model families. As illustrated 7Scene and memory  Memory -guided movement  Visual confirmation and approach     
+
+> 0
+> 2
+> 36
+> Step 0 Back view
+> Use the remembered rug
+> location to leave the kitchen.
+> Step 2 Front view
+> Follow memory through the
+> doorway into the hall.
+> Step 3 Front view
+> The rug matches memory; enter
+> through the left doorway.
+> Step 6 Front view
+> Stop at the rug's near edge after
+> visual confirmation.
+> Retrieved memory
+> Bedroom rug
+> Blue, beige and rust floral rug
+> on the bedroom wood floor.
+> Instruction: Find and navigate to a rug.
+
+Figure 3. Qualitative trace of memory-guided navigation. Given “ Find and navigate to a rug ”, RetroNav retrieves room context and visual cues from Unified Memory M, steering the agent out of the kitchen (Steps 0–2) to locate and stop at the rug (Steps 3–6). Table 5. Component-wise ablation study on IR2R-CE and GOAT-Bench. We evaluate the contributions of Naive Retry (Naive), Uni-fied Memory ( M), Evaluator (Eval.), and Retry Brief (Brief). 
+
+Component IR2R-CE GOAT-Bench Row Naive M Eval. Brief SR SPL t-nDTW SR SPL e-SR (1) – – – – 65.6 57.0 68.6 67.0 41.8 14.3 (2) ✓ – – – 76.7 62.6 71.6 81.0 47.8 28.6 (3) – ✓ – – 69.4 59.7 74.2 71.5 49.6 21.4 (4) – ✓ ✓ – 74.5 63.8 75.0 75.5 51.8 26.0 (5) – ✓ ✓ ✓ 84.1 71.9 75.2 82.3 57.6 35.3 
+
+in Fig. 3, when instructed to locate a target object (e.g., a rug), RetroNav retrieves the target’s spatial anchor and vi-sual cues from Unified Memory M, navigating directly to-ward the destination without blind exploration. 
+
+4.4. Ablation Study 
+
+To understand the individual contributions of our core de-sign choices, we conduct systematic ablations across per-sistent and episodic benchmarks using GPT-5.6-Sol. 
+
+Component-level ablation. Tab. 5 reports naviga-tion performance across five component configurations on IR2R-CE and GOAT-Bench. First, comparing Row (1) and Row (3) isolates the foundational role of persistent Unified Memory M under single-attempt execution. Reusing spa-tial knowledge across tours raises SR from 65.6% to 69.4% and lifts trajectory fidelity (t-nDTW from 68.6% to 74.2%) on IR2R-CE, while increasing continuous episode comple-tion (e-SR) from 14.3% to 21.4% on GOAT-Bench. Sec-ond, comparing unguided retry with causal reflection re-veals the critical value of structured remediation. While Naive Retry in Row (2) recovers a subset of simple execu-tion slips by repetitively exploring (76.7% SR on IR2R-CE and 81.0% SR on GOAT-Bench), it achieves only 28.6% e-SR on GOAT-Bench. Similarly, re-executing with mem-ory but without a Retry Brief in Row (4) caps episode completion at 26.0% e-SR, as the agent frequently repeats identical junction mistakes without causal guidance. Fi-
+
+Table 6. Ablation of the Retry Brief on 33 fixed first-attempt fail-ures from R2R-CE, without scene memory. Each variant receives one retry from the same first-attempt traces. Rec. denotes retry recovery rate (%). Checkmarks indicate enabled components. Row Route Review Images Rec. (1) – – – 12.1 (2) ✓ ✓ – 21.2 (3) ✓ – ✓ 18.2 (4) ✓ ✓ ✓ 25.8 
+
+nally, integrating Unified Memory, the Evaluator, and the Retry Brief in Row (5) achieves the strongest performance across all metrics (84.1% SR on IR2R-CE and 35.3% e-SR on GOAT-Bench). This demonstrates that the gains of RetroNav stem from grounded causal retrospection rather than simply granting extra execution budget. As illustrated in Fig. 4, when the initial attempt diverges into a deceptive side corridor and stops prematurely, the Retry Brief diag-noses the branching mistake, guiding the retry to reuse the valid prefix, reject the misleading turn, and reach the target door. 
+
+Design of the Retry Brief. With unified memory dis-abled, we evaluate Retry Brief variants on 33 R2R-CE tra-jectories whose first attempts all failed. Each variant is evaluated twice on the same 33 tasks. Tab. 6 summarizes the results. Blind retry in Row (1) achieves a 12.1% re-covery rate. Row (2) outperforms Row (3), suggesting that key-decision reviews provide stronger corrective guidance than reference images without such reviews. By explaining why a previous choice was wrong, decision reviews help the navigator revise mistaken interpretations that route sugges-tions and images alone may leave unchanged. The complete Retry Brief in Row (4) achieves the highest recovery rate of 25.8%, exceeding blind retry by 13.6 percentage points. This improvement can be attributed to the complementary roles of decision reviews and reference images: the reviews identify which decisions need correction, while the images provide visual cues that help the navigator carry out those 8Instruction: Walk forward, take a left around the corner and walk all the way to the end of the hallway, and stop at the door  be fore the bedroom. 
+
+Trajectory overview  
+
+> Wrong stop
+> Bedroom door Start F12
+> R12
+> First attempt (F): 15 steps
+> Retry (R): 19 steps
+> Instruction stages
+> 1 Walk forward and round the left corner
+> 2 Follow the hallway to its end
+> 3 Stop at the door before the bedroom
+> Historical view (M)
+> Wood flooring and bedroom
+> furniture appear beyond the
+> doorway.
+
+First attempt  Failed      
+
+> Step 4 Front view
+> Follow the gallery to the hallway.
+> Step 9 Front view
+> Enter the picture -lined hallway.
+> Step 12 Left view
+> Mistake the short branch for the
+> route; turn left.
+> Step 14 Right view
+> Stop at an unverified closed door.
+> Retrospection :compare branches
+> Left: short passage ending at a display cabinet.
+> Front: long hallway toward a bright room.
+> Retry decision: Step 12
+> Compare both branches; verify bedroom cues.
+> Actual choice: LEFT → FRONT (continue).
+> Stop verification
+> A closed door alone did not confirm a bedroom.
+> Use memory M as a cue; confirm before stopping.
+
+Retry  Success     
+
+> Step 4 Front view
+> Follow the same gallery route.
+> Step 9 Front view
+> Return to the mistaken junction.
+> Step 12 Front view
+> Reject the short branch and
+> continue straight.
+> Step 18 Front view
+> Confirm the bedroom; stop before
+> its door.
+> M
+
+Figure 4. Failure retrospection and retry on R2R-CE. After the initial attempt branches into a dead end at Step 12 and stops prematurely (top), the Retry Brief isolates the branch confusion (middle), guiding the retry to bypass the error and reach the bedroom door (bottom). 2 m 
+
+1
+
+2
+
+3
+
+4
+
+(a) BEV trajectory 
+
+Instruction: Find the vending machine. 
+
+(b) Third -person view 
+
+(c) First -person view 
+
+1 Start  2 Pass the column  3 Approach  4 Target reached 
+
+Figure 5. Real-world navigation with RetroNav on a CASBOT 02 humanoid robot. Given the instruction “Find the vending machine,” the robot navigates through a lobby and reaches the target autonomously. (a) Bird’s-eye view of the recorded trajectory. (b,c) Third-person and onboard views at four numbered stages. Orange boxes highlight the target vending machine. Table 7. Failure-detection quality on R2R-CE. We compare navi-gator self-stopping, our Evaluator, and the Oracle upper bound. Method Succ. Recall Fail. Recall Accuracy Self-Stopping 100.0 0.0 55.6 Evaluator (Ours) 76.0 65.0 71.1 Oracle 100.0 100.0 100.0 
+
+corrections during the retry. 
+
+Effectiveness of the Evaluator. Tab. 7 evaluates fail-ure detection quality separately from downstream retry on R2R-CE. Relying on navigator self-stopping fails to iden-tify unsuccessful episodes due to widespread premature stopping, yielding a 0.0% failure recall and only 55.6% ac-curacy on held-out trajectories. In contrast, our Evaluator achieves 76.0% recall on successful trajectories, 65.0% re-call on failed trajectories, and 71.1% overall accuracy with-out exposing privileged simulator state. This demonstrates that reliable failure detection can trigger targeted retries au-tonomously in realistic deployments. 
+
+4.5. Real-World Deployment 
+
+We deploy RetroNav on a CASBOT 02 humanoid robot 1,using a chest-mounted RGB-D camera to obtain egocentric observations and FAST-LIO2 [38] to estimate robot poses. At each navigation step, the navigation module selects a waypoint in the visual observation. Using depth, camera 
+
+1https://casbot.tech/product/02 
+
+9intrinsics and extrinsics, and the estimated robot pose, the waypoint is transformed into the robot coordinate frame and passed to the robot’s existing locomotion controller for ex-ecution. New observations after execution inform subse-quent navigation decisions, forming a closed loop of per-ception, decision-making, and motion execution. Fig. 5 shows RetroNav completing an autonomous object-goal navigation task in a real lobby. The task starts with empty scene memory. Given the instruction “Find the vending machine,” the robot moves past a column, ap-proaches the target vending machine, and autonomously de-termines when to stop upon arrival, without human inter-vention throughout the task. The bird’s-eye trajectory and corresponding third-person and onboard views show the complete navigation process of RetroNav on a real robot. 
+
+5. Conclusion 
+
+In this paper, we presented RetroNav , a training-free self-evolving navigation framework that integrates navigation, memory accumulation, and failure reflection. RetroNav maintains a unified memory that links raw environmental observations with historical navigation experiences, allow-ing the agent to re-examine prior choices while keeping factual observations distinct from subjective interpretations. After each navigation attempt, an independent evaluator as-sesses task completion. If the attempt is judged unsuc-cessful, a reflection module reviews prior decisions against accumulated scene evidence and generates a retry brief to guide the next attempt. By bridging cross-task knowledge reuse with within-task decision revision, RetroNav achieves state-of-the-art performance across five navigation bench-marks. Despite its effectiveness, several limitations remain. First, the accuracy of memory construction and failure reflection depends on the quality of upstream perception, spatial association, and model judgment. Perceptual ambiguities can occasionally misguide the diagnosis. Second, while the retry mechanism substantially improves overall task success, additional attempts inevitably in-cur extra travel steps and inference costs. Future work could investigate adaptive retry policies that balance recovery benefits against execution budgets, as well as more robust cross-task association under sensor noise. 
+
+References 
+
+[1] Dong An, Hanqing Wang, Wenguan Wang, Zun Wang, Yan Huang, Keji He, and Liang Wang. ETPNav: Evolving topo-logical planning for vision-language navigation in continu-ous environments. IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI) , 47(7):5130–5145, 2025. 6[2] Peter Anderson, Qi Wu, Damien Teney, Jake Bruce, Mark Johnson, Niko S¨ underhauf, Ian Reid, Stephen Gould, and Anton van den Hengel. Vision-and-language navigation: In-terpreting visually-grounded navigation instructions in real environments. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 3674–3683, 2018. 2, 6[3] Kunyang Chen, Dong An, Yan Huang, Rongtao Xu, Yifei Su, Yanhua Ling, Ian Reid, and Liang Wang. Constraint-aware zero-shot vision-language navigation in continuous environ-ments. IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI) , 47(11):10441–10456, 2025. 6 [4] Quanhua Chen, Juhan Kang, Runfeng Lin, and Zifei Zhang. SparseNav: Instruction-conditioned Sparse Semantic Perception for Training-Free Vision-Language Navigation. 
+
+arXiv preprint arXiv:2609.26408v1 , 2026. 6 [5] Yang Chen, Lirong Che, Zhenyu Huang, Wenbo Fu, Chuang Wang, Xu Cao, Daqi Liu, Yuzhe Yang, Jian Su, and Lan-Zhe Guo. HarnessVLN: Unifying Training-Free Embod-ied Navigation through an Agent Harness. arXiv preprint arXiv:2609.15195v3 , 2026. 3, 6 [6] Yang Chen, Zhenyu Huang, Wenbo Fu, Danyang Peng, Shi-Yu Tian, Kun-Yang Yu, and Lan-Zhe Guo. STEGNav: Spatio-temporal event graph reasoning for multimodal life-long object navigation. arXiv preprint arXiv:2608.28279 ,2026. 7 [7] Guohao Dai, Shilin Wang, Zhen Wang, Guo-Sen Xie, Yang Yang, Jiazhi Pan, Qianru Sun, and Xiangbo Shu. History to future: Evolving agent with experience and thought for zero-shot vision-and-language navigation. In IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition (CVPR) ,pages 15177–15187, 2026. 7 [8] Yucheng Deng, Pingrui Lai, Xinhai Li, Chenjia Bai, Xiao-heng Deng, Chengnuo Sun, and Xuelong Li. SpaceVLN: A Zero-Shot Vision-and-Language Navigation Agent with Online Spatial Cognitive Memory and Reasoning. arXiv preprint arXiv:2606.08992v1 , 2026. 6 [9] Hongyu Ding, Ziming Xu, Yuk Tung Samuel Fang, You Wu, Zixuan Chen, Jieqi Shi, Jing Huo, Yifan Zhang, and Yang Gao. LaViRA: Language-vision-robot actions translation for zero-shot vision language navigation in continuous environ-ments. In IEEE International Conference on Robotics and Automation (ICRA) , pages 12619–12626, 2026. 6, 7 [10] Maoguo Gao, Zejun Zhu, Zhiming Sun, Zhengwei Ma, Longze Yuan, Zhongjing Ma, Zhigang Gao, Jinhui Zhang, and Suli Zou. DRIVE-Nav: Directional reasoning, inspec-tion, and verification for efficient open-vocabulary naviga-tion. IEEE Robotics and Automation Letters (RA-L) , 11(10): 11158–11165, 2026. 6 [11] Zuhao Ge, Xiaosong Jia, Chao Wu, Yuchen Zhou, Zux-uan Wu, and Yu-Gang Jiang. EvoMemNav: Efficient self-evolving fine-grained memory for zero-shot embodied navi-gation. arXiv preprint arXiv:2606.03509 , 2026. 1, 2, 3, 7 [12] Qiao Gu, Ali Kuwajerwala, Sacha Morin, Krishna Murthy Jatavallabhula, Bipasha Sen, Aditya Agarwal, Corban Rivera, William Paul, Kendra Ellis, Rama Chellappa, et al. ConceptGraphs: Open-vocabulary 3D scene graphs for per-ception and planning. In IEEE International Conference on Robotics and Automation (ICRA) , pages 5021–5028, 2024. 4 
+
+10 [13] Zebin Han, Xudong Wang, Baichen Liu, Qi Lyu, Zhenduo Shang, Jiahua Dong, Lianqing Liu, and Zhi Han. SeqWalker: Sequential-horizon vision-and-language navigation with hi-erarchical planning. In AAAI Conference on Artificial Intel-ligence (AAAI) , pages 18279–18287, 2026. 6 [14] Junjun Hu, Xinda Xue, Botao Ren, Minghua Luo, Jin-tao Chen, Haochen Bai, Liangliang You, and Mu Xu. AstraNav-Memory: Contexts compression for long memory. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 8097–8109, 2026. 3, 6, 7 [15] Xun Huang, Shijia Zhao, Yunxiang Wang, Xin Lu, Wanfa Zhang, Rongsheng Qu, Weixin Li, Yunhong Wang, and Chenglu Wen. MSGNav: Unleashing the power of multi-modal 3D scene graph for zero-shot embodied navigation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2026. 7 [16] Mukul Khanna, Ram Ramrakhya, Gunjan Chhablani, Sriram Yenamandra, Theophile Gervet, Matthew Chang, Zsolt Kira, Devendra Singh Chaplot, Dhruv Batra, and Roozbeh Mot-taghi. GOAT-Bench: A benchmark for multi-modal lifelong navigation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 16373–16383, 2024. 1, 2, 6, 7 [17] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C Berg, Wan-Yen Lo, et al. Segment Any-thing. In IEEE/CVF International Conference on Computer Vision (ICCV) , pages 3992–4003, 2023. 4, 6, 2 [18] Jacob Krantz, Erik Wijmans, Arjun Majumdar, Dhruv Batra, and Stefan Lee. Beyond the nav-graph: Vision-and-language navigation in continuous environments. In European Confer-ence on Computer Vision (ECCV) , pages 104–120, 2020. 6 [19] Jacob Krantz, Shurjo Banerjee, Wang Zhu, Jason Corso, Pe-ter Anderson, Stefan Lee, and Jesse Thomason. Iterative vision-and-language navigation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14921–14930, 2023. 1, 2, 6 [20] Alexander Ku, Peter Anderson, Roma Patel, Eugene Ie, and Jason Baldridge. Room-across-room: Multilingual vision-and-language navigation with dense spatiotemporal ground-ing. In Conference on Empirical Methods in Natural Lan-guage Processing (EMNLP) , pages 4392–4412, 2020. 2, 6 [21] Ji Li, Bo Wang, Jing Xia, Mingyi Li, and Shiyan Hu. HIMM: Human-inspired long-term memory modeling for embodied exploration and question answering. In IEEE/RSJ Interna-tional Conference on Intelligent Robots and Systems (IROS) ,2026. 7 [22] Kailing Li, Tianwen Qian, Lijin Yang, Yuqian Fu, Jingyu Gong, Xiaoling Wang, and Liang He. Bridging the 2d-3d gap: A hierarchical semantic-geometric map for vision lan-guage navigation. In IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition (CVPR) , pages 15243–15252, 2026. 3, 6 [23] Xueying Li, Feng Lyu, Hao Wu, Mingliu Liu, Jia-Nan Liu, and Guozi Liu. Stop wandering: Efficient vision-language navigation via metacognitive reasoning. arXiv preprint arXiv:2604.02318 , 2026. 6, 7 [24] Yijian Li, Changze Li, Han Zheng, Jiyuan Cai, Tong Qin, and Ming Yang. AgenticNav: Zero-Shot Vision-and-Language Navigation as a Tool-Calling Harness. arXiv preprint arXiv:2606.10577v3 , 2026. 3, 6, 7 [25] An Liu, Bingxi Liu, Hongyu Ding, Yixuan Jiang, Yaran Chen, Fulin Tang, Cong Leng, Hong Zhang, and Jian Cheng. HAM-VLN: Harnessing Hierarchical Agentic Memory for Zero-Shot Vision-and-Language Navigation. arXiv preprint arXiv:2607.29600v1 , 2026. 6, 7 [26] Guanlin Liu, Shaobin Ling, Renyuan Liu, Zeying Gong, and Junjie Hu. AECNav: Active evidence consolidation for ef-ficient zero-shot open-vocabulary object navigation. arXiv preprint arXiv:2608.10817 , 2026. 6 [27] Haochen Niu, Lantao Zhang, Xingwu Ji, Rendong Ying, Peilin Liu, and Fei Wen. SSMG-Nav: Enhancing lifelong object navigation with semantic skeleton memory graph. In 
+
+IEEE International Conference on Robotics and Automation (ICRA) , pages 2258–2265, 2026. 7 [28] OpenAI. GPT-6 Astra: A new generation of intelligence. 
+
+https : / / openai . com / index / gpt - 6 - astra/ ,2026. 6 [29] OpenAI. GPT-5.6: Frontier intelligence that scales with your ambition. https://openai.com/index/gpt- 5-6/ , 2026. 6, 2 [30] Jiahua Pei, Yi Liu, Guoping Pan, Yuanhao Jiang, Houde Liu, and Xueqian Wang. OVAL: Open-vocabulary augmented memory model for lifelong object goal navigation. arXiv preprint arXiv:2604.12872 , 2026. 2 [31] Yanyuan Qiao, Wenqi Lyu, Hui Wang, Zixu Wang, Zerui Li, Yuan Zhang, Mingkui Tan, and Qi Wu. Open-Nav: Ex-ploring zero-shot vision-and-language navigation in contin-uous environment with open-source llms. In IEEE Inter-national Conference on Robotics and Automation (ICRA) ,pages 6710–6717, 2025. 3, 6, 7, 1 [32] Qwen Team. Qwen3.8-27B. https://huggingface. co/Qwen/Qwen3.8-27B , 2026. 6 [33] Jiahang Wang, Yirong Yang, Yanqing Zhu, Minghua Luo, Shichao Xie, Fei Liu, and Mu Xu. ReflectVLN: Training vision-language navigation agents with reflective reasoning. 
+
+arXiv preprint arXiv:2607.12680 , 2026. 6 [34] Sen Wang, Bangwei Liu, Zhenkun Gao, Lizhuang Ma, Xuhong Wang, Yuan Xie, and Xin Tan. Explore with long-term memory: A benchmark and multimodal LLM-based re-inforcement learning framework for embodied exploration. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 37098–37108, 2026. 7 [35] Zihan Wang, Xiangyang Li, Jiahao Yang, Yeqi Liu, Junjie Hu, Ming Jiang, and Shuqiang Jiang. Lookahead exploration with neural radiance representation for continuous vision-language navigation. In IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 13753– 13762, 2024. 6 [36] Meng Wei, Chenyang Wan, Jiaqi Peng, Xiqian Yu, Yuqiang Yang, Delin Feng, Wenzhe Cai, Chenming Zhu, Tai Wang, Jiangmiao Pang, and Xihui Liu. Ground slow, move fast: A dual-system foundation model for generalizable vision-and-language navigation. In International Conference on Learn-ing Representations (ICLR) , 2026. 6 
+
+11 [37] Meng Wei, Chenyang Wan, Xiqian Yu, Tai Wang, Yuqiang Yang, Xiaohan Mao, Chenming Zhu, Wenzhe Cai, Han-qing Wang, Yilun Chen, Xihui Liu, and Jiangmiao Pang. StreamVLN: Streaming vision-and-language navigation via slowfast context modeling. In IEEE International Confer-ence on Robotics and Automation (ICRA) , pages 22174– 22181, 2026. 6 [38] Wei Xu, Yixi Cai, Dongjiao He, Jiarong Lin, and Fu Zhang. FAST-LIO2: Fast direct LiDAR-inertial odometry. IEEE Transactions on Robotics (T-RO) , 38(4):2053–2073, 2022. 9[39] Yuncong Yang, Han Yang, Jiachen Zhou, Peihao Chen, Hongxin Zhang, Yilun Du, and Chuang Gan. 3D-Mem: 3D scene memory for embodied exploration and reasoning. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 17294–17303, 2025. 1, 3, 7 [40] Xuan Yao, Junyu Gao, and Changsheng Xu. NavMorph: A self-evolving world model for vision-and-language naviga-tion in continuous environments. In IEEE/CVF International Conference on Computer Vision (ICCV) , pages 5536–5546, 2025. 6 [41] Hang Yin, Haoran Wei, Xiaofeng Xu, Weiran Guo, Jie Zhou, and Jiwen Lu. GC-VLN: Instruction as graph constraints for training-free vision-and-language navigation. In Conference on Robot Learning (CoRL) , pages 1809–1824, 2025. 6 [42] Hang Yin, Xiuwei Xu, Linqing Zhao, Ziwei Wang, Jie Zhou, and Jiwen Lu. UniGoal: Towards universal zero-shot goal-oriented navigation. In IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 19057– 19066, 2025. 3 [43] Naoki Yokoyama, Ram Ramrakhya, Abhishek Das, Dhruv Batra, and Sehoon Ha. HM3D-OVON: A dataset and benchmark for open-vocabulary object goal navigation. In 
+
+IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 5543–5550, 2024. 6 [44] Jiazhao Zhang, Kunyu Wang, Shaoan Wang, Minghan Li, Haoran Liu, Songlin Wei, Zhongyuan Wang, Zhizheng Zhang, and He Wang. Uni-NaVid: A video-based vision-language-action model for unifying embodied navigation tasks. In Robotics: Science and Systems (RSS) , 2025. 6 [45] Ganlong Zhao, Guanbin Li, Weikai Chen, and Yizhou Yu. OVER-NAV: Elevating iterative vision-and-language navi-gation with open-vocabulary detection and structured repre-sentation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 16296–16306, 2024. 3, 6[46] Xunyi Zhao, Jian Zhou, Sihao Lin, Gengze Zhou, Zerui Li, Xinyu Yan, Jiajun Liu, Anton van den Hengel, and Qi Wu. NavHarness: Towards lifelong embodied navigation. arXiv preprint arXiv:2609.34276 , 2026. 1, 2, 6, 7 [47] Ziyu Zhu, Xilin Wang, Yixuan Li, Zhuofan Zhang, Xiaojian Ma, Yixin Chen, Baoxiong Jia, Wei Liang, Qian Yu, Zhidong Deng, et al. Move to understand a 3D scene: Bridging visual grounding and exploration for efficient and versatile embod-ied navigation. In IEEE/CVF International Conference on Computer Vision (ICCV) , pages 8120–8132, 2025. 6, 7 [48] Filippo Ziliotto, Tommaso Campari, Luciano Serafini, and Lamberto Ballan. TANGO: Training-free embodied AI agents for open-world tasks. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 24603–24613, 2025. 3, 6, 7 
+
+12 RetroNav: Scene-Grounded Retrospection and Retry for Self-Evolving Lifelong Navigation 
+
+# Supplementary Material 
+
+Table 8. Evaluation subsets, cross-task memory, and navigation step budgets across the five benchmarks.                 
+
+> Benchmark Evaluation size Cross-task memory Max. steps per attempt R2R-CE 100 episodes Disabled 30 RxR-CE 100 episodes Disabled 50 HM3D-OVON 150 episodes Disabled 40 IR2R-CE 299 episodes Enabled 30 GOAT-Bench 307 subtasks Enabled 40
+
+6. Evaluation Protocols 
+
+Evaluation subsets. Tab. 8 summarizes the evaluation set-tings. All subsets are drawn from the corresponding val-unseen splits. For R2R-CE, we use the 100-episode sub-set adopted by Open-Nav [31]. The IR2R-CE subset con-tains 299 episodes organized into 11 tours across three scenes. The GOAT-Bench evaluation set contains 307 sub-tasks across five scenes. 
+
+Memory accumulation. R2R-CE, RxR-CE, and HM3D-OVON are evaluated without cross-task memory accumulation: each new task starts without memory from previous tasks. For IR2R-CE, memory accumulates across successive episodes and tours within the same scene. For GOAT-Bench, memory accumulates across subtasks and composite episodes within the same scene. In both persis-tent settings, completed attempts update the scene’s mem-ory before subsequent tasks use it. Each scene maintains a separate memory, and information is not shared across scenes. 
+
+Navigation budgets. The step limits in Tab. 8 count nav-igation decision steps within each attempt. Each attempt ends when the navigator issues STOP or reaches its step limit. A retry starts from the task’s original starting pose and receives the same step budget as the first attempt. 
+
+7. Memory Storage, Updates, and Queries 
+
+While Secs. 3.2 to 3.4 formulate the conceptual princi-ples of the unified memory M = (S, H, L), this sec-tion provides the underlying implementation specifications, operational budgets, and empirical evolution details. We structure this analysis along the complete memory lifecy-cle: how multi-source records are anchored and represented (Sec. 7.1); how completed navigation attempts update scene knowledge and episodic traces (Sec. 7.2); how the agent queries memory during online planning and post-attempt reflection (Sec. 7.3); and how memory empirically accumu-
+
+Table 9. Unified memory schemas and stored record fields.               
+
+> Track / Record Stored fields and evidence references
+> Observation Anchor (Immutable Evidence)
+> Observation Scene-global ID, source attempt ID, local step, 6-DoF pose, camera intrinsics/extrinsics, and filesys-tem image references.
+> Scene Knowledge ( S)
+> Place Unique ID, parent region ID, member observation IDs, visual description, representative viewpoint im-age references. Region Unique ID, semantic room category label, natural-language architectural summary, and member place IDs. Object Instance ID, semantic category, 3D metric bounding box, fused point cloud, and multi-view RGB/mask evidence. Transition Executed trajectory segment, connected place IDs, and verified metric traversal displacement.
+> Episodic Experience ( H)
+> Decision Event Event ID, task goal g,observation ID, chosen view/action, recorded rationale, execution feedback, and next observation ID. Reflection Record Linked decision ID, diagnostic failure category, spa-tial correction brief, and referenced validation view-points.
+> Associative Links ( L)
+> Associative Indexes Bi-directional observation-to-event index, entity-to-event attribution index, and hierarchical region-membership lookup.
+
+lates across multi-trajectory explorations (Sec. 7.4). 
+
+7.1. Record Layout and Evidence References 
+
+A fundamental principle of RetroNav is that an agent’s ex-perience contains two complementary streams: objective evidence about the physical environment, and subjective in-terpretations made toward specific goals. Tab. 9 specifies the database schemas concretizing this separation across S,
+
+H, and L.
+
+Stable observation anchors. Every perceptual input im-ported into memory is anchored by an immutable observa-tion record o, indexed by a scene-global integer ID, source attempt ID, local step, and 6-DoF sensor pose. Sensor pay-loads (RGB, depth, instance masks, and local point clouds) are retained as referenced filesystem assets, preventing data duplication across semantic records. Because raw sensor observations are immutable, downstream semantic interpre-tations can be iteratively revised without corrupting under-lying empirical evidence. 1Physical and semantic scene knowledge ( S). Scene knowledge maintains the persistent spatial representation: • Places group observations within shared local vantages, retaining 1–4 representative multi-view images and syn-thesizing view-specific spatial descriptions. • Regions cluster confirmed places into architectural enclo-sures (e.g., bedrooms, corridors), decoupling viewpoint vantages from observed room bounds. • Objects store 3D metric bounding boxes, fused point clouds, categories, and bounding-box image crops. • Transitions record verified traversability exclusively from physically executed displacements, guaranteeing collision-free path connectivity. 
+
+Episodic decision traces ( H). Complementary to scene knowledge, episodic history preserves the temporal se-quence of agent reasoning. Each decision event stores the task goal g, current observation ID, chosen view/action, ex-plicit task interpretation and decision rationale, execution feedback, and next observation ID. When failure reflection is conducted (Sec. 3.4), retrospective diagnoses and sug-gested corrections are appended as linked reflection records, preserving historical decision traces in their original context while augmenting them with diagnostic insights. 
+
+Dual associative indexes ( L). The association layer connects S and H through two complementary links: • Provenance index : links each decision event to its imme-diate observation, resolving its place and region member-ship. If topological places merge during map refinement, events automatically re-resolve their associations through their persistent observation anchors. • Contextual attribution index : distinguishes topological colocation (an event occurred at a place) from causal at-tribution (a decision explicitly cited a specific object or past experience), enabling selective retrieval during sub-sequent reasoning. 
+
+7.2. Incremental Update Pipeline 
+
+Unified memory is updated by extracting object evidence from RGB images, associating that evidence in 3D, orga-nizing objects and observations into places and regions, and linking the resulting scene knowledge to navigation experi-ence. The update unit is one completed navigation attempt, whether successful or unsuccessful. Each attempt con-tributes its saved observations, decisions, and actual move-ments to the previous committed memory. Algorithm 1 summarizes the complete pipeline. 
+
+Object annotation and segmentation. We first use GPT-5.6-Terra [29] to propose up to four salient objects in each RGB image, providing their bounding boxes, cat-egories, and appearance descriptions. We then use these boxes to prompt Segment Anything (SAM) [17], which re-fines the object extents into pixel-level segmentation masks. The resulting masks and their source observations are used 
+
+Algorithm 1 Incremental Unified Memory Update 
+
+Require: Attempt log (four-view RGB-D, poses, de-cisions, and execution outcomes), prior memory 
+
+Mt−1 = ( St−1, Ht−1, Lt−1), and ObjectMap Ot−1.
+
+Ensure: Updated unified memory Mt and ObjectMap Ot. 
+
+> 1:
+
+Assign stable observation IDs to the attempt’s RGB-D observations and poses, retaining decision and move-ment records.  
+
+> 2:
+
+Annotate salient objects in each RGB image to obtain categories, descriptions, and segmentation masks.  
+
+> 3:
+
+Back-project valid masked depth into world coordi-nates, then downsample and denoise the point clouds to obtain the current trajectory’s 3D object observations 
+
+Wt. 
+
+> 4:
+
+Associate Wt with Ot−1 through geometric overlap, fusing matched observations and adding unmatched in-stances to obtain Ot. 
+
+> 5:
+
+Invoke Memory Builder with the current trajectory, Ot,and relevant context from St−1 to produce St. 
+
+> 6:
+
+Organize logged decisions into an experience, preserv-ing observation references, task interpretations, actions, and outcomes; append it to obtain Ht. 
+
+> 7:
+
+Update observation-to-event and entity-to-event in-dexes using scene evidence links and explicit decision references to obtain Lt. 
+
+> 8:
+
+Validate observation ownership and evidence refer-ences; save Mt = ( St, Ht, Lt) and Ot. 
+
+> 9:
+
+return Mt, Ot.for subsequent 3D object fusion. 
+
+Depth projection and point-cloud filtering. We first filter SAM masks using a quality score threshold of 0.95 across all experiments. Valid depth pixels within each re-tained mask are back-projected into camera coordinates and then transformed into world coordinates using the camera calibration and robot pose. Each object point cloud is voxel-downsampled at 0.025 m and clustered using DBSCAN. We retain the largest non-noise cluster and discard it if it con-tains fewer than 20 points. 
+
+Cross-view association and object fusion. For each point cloud Wit , we first select spatially nearby object can-didates from Ot−1. Its association score with a candidate 
+
+Okt−1 is defined as 
+
+sik = 1
+
+|W it |
+
+X
+
+> p∈W it
+
+1
+
+"
+
+min 
+
+> q∈O kt−1
+
+∥p − q∥2 ≤ δ
+
+#
+
+, (7) where δ = 0 .05 m and 1[·] is the indicator function. We select the candidate with the highest association score. If its score exceeds 0.5, we fuse the two point clouds and com-bine their associated visual evidence. Otherwise, we add 2Wit as a new object instance. This process yields the up-dated object map Ot.
+
+Scene knowledge update. Given Ot, Memory Builder updates scene knowledge using the current trajectory and 
+
+St−1. Historical scene knowledge contains extensive image evidence and textual descriptions, much of which is unre-lated to the current trajectory. To reduce token usage and processing time, we select relevant historical context before invoking the builder. Specifically, we retrieve places and objects within 1.5 m of the current trajectory. For each ob-ject, we select a subset of historical observation images with distinct viewpoints. The resulting input includes the current trajectory, retrieved place descriptions and their associated images, object records and their representative images, and the accumulated bird’s-eye-view (BEV) map. Using this context, Memory Builder assigns the current trajectory’s observations to existing places or creates new places. It also merges nearby places judged to represent the same location. A place merge preserves all member obser-vations and updates the consolidated place description. The builder then creates or updates regions based on spatial lay-out and semantic evidence, assigning places and objects to regions separately. Finally, the system adds traversability links supported by movements actually executed along the current trajectory, producing St.
+
+Experience organization and scene association. We organize the current trajectory’s log into a navigation expe-rience containing the task goal, starting state, and tempo-rally ordered decision events. Each event records its ob-servation ID, task interpretation, selected view or action, explicit decision rationale, execution outcome, and subse-quent observation. Historical judgments are preserved as originally recorded. Later reflections are appended as sepa-rate records referencing the relevant events and supporting evidence. The new experience is added to the existing col-lection to obtain Ht.Observation IDs serve as shared anchors between nav-igation experience and scene knowledge. We first build an observation-to-event index linking each observation to its corresponding decision events. We then construct reverse entity-to-event indexes through the observation’s place membership, the place’s region membership, and the object instances supported by that observation. These in-dexes allow a historical decision to retrieve related scene evidence and allow a place, region, or object to retrieve rel-evant decisions across navigation experiences. We distin-guish two types of association: scene-context links estab-lished through shared observations, and explicit references to objects, images, or historical experiences recorded in a decision. The former describe the decision’s scene context, while the latter identify evidence explicitly used to support it. When places merge or region assignments change, the affected indexes are updated through the unchanged obser-vation IDs. After object fusion, retained source evidence similarly links relevant events to the same object instance. Scene knowledge can therefore evolve while historical deci-sions and their original evidence remain accessible, yielding the updated association set Lt.
+
+Integrity validation and commit. Before saving the up-dated memory, the system checks that every new observa-tion belongs to exactly one place, region and object refer-ences exist, place merges are valid, and representative im-ages and image-supported descriptions refer to observations belonging to the corresponding place. Event and associa-tion references must resolve to existing observations, enti-ties, or historical events, and forward and reverse indexes must agree. Transitions are added from the actual execu-tion log. The resulting scene knowledge, navigation experi-ences, and associations are saved together with the updated ObjectMap for subsequent navigation and reflection. 
+
+7.3. Query Interfaces and Context Budgets 
+
+During deployment, the agent queries unified memory for two distinct cognitive purposes: online spatial grounding during forward navigation (Sec. 3.3), and causal mistake di-agnosis during post-attempt reflection (Sec. 3.4). 
+
+Online spatial context. To support forward viewpoint selection without exceeding prompt limits, the system dy-namically maintains a local context window encompass-ing places within a horizontal radius of 3.0 m and vertical threshold of 1.5 m (capped at 8 places). A 0.5 m hystere-sis margin prevents rapid context oscillations across topo-logical boundaries. Within this local window, objects are grouped into at most 20 semantic categories. If local in-formation is insufficient to resolve movement direction, the View Selection Agent invokes search memory (query-ing 1–4 phrases, returning up to 6 ranked entity summaries via lexical and exact-token matching) and read memory 
+
+(fetching detailed descriptions and a representative high-resolution RGB image for up to 4 selected Place/Object IDs). 
+
+Cross-task experience retrieval. When facing ambigu-ous intersections or misleading visual landmarks, the agent queries the associative layer L using candidate spatial enti-ties and current subgoals as anchors. The retrieval engine identifies relevant historical decision events located at the same place or citing the same entities. The interface returns up to three concise event summaries and extracts up to two detailed decision fragments, providing the historical goal, action choice, execution consequence, and linked reflection without congesting context windows. 
+
+Reflection query protocol. During post-attempt re-flection, the Retrospection Agent operates under dis-tinct query bounds tailored for forensic diagnosis: 
+
+search memory returns up to 5 comprehensive records, 3(a) R2R scene zsNo4HB9uLZ .   
+
+> (b) GOAT-Bench scene 5cdEh9F2hJL .
+> Figure 6. Progressive scene-memory accumulation. Gray lines show navigation trajectories, red dots mark places, and colored polygons indicate regions.
+> (a) Final SR. (b) Final SPL. (c) Navigation Steps.
+> Figure 7. Navigation performance over repeated tours in IR2R-CE. Solid lines show the mean across three independent runs; dashed lines show individual runs.
+
+while read images allows inspection of historical and newly committed multi-view evidence. Crucially, there is a clear operational boundary: online navigation queries only access memory committed prior to the active attempt, pre-venting unvalidated within-attempt leaks, whereas reflec-tion accesses both prior history and newly committed ev-idence from the failed run to construct the retry brief. 
+
+7.4. Spatial Expansion and Place-Level Enrichment 
+
+Fig. 6 provides empirical evidence of how completed tra-jectories progressively construct a coherent spatial repre-sentation. Rather than growing uniformly, memory accu-mulation manifests in two complementary structural dimen-sions: spatial expansion into previously unvisited areas, and 
+
+place-level enrichment within existing regions. 
+
+Spatial expansion across unseen layouts. In the R2R-CE scene (Fig. 6a), the initial trajectory establishes only 2 regions and 5 places. As exploration progresses, the agent extends its topological frontier across corridors and door-ways, reaching 12 regions and 27 places after 28 trajecto-ries. The early visits rapidly discover major architectural rooms, expanding physical coverage. 
+
+Place-level enrichment within confirmed regions. 
+
+Concurrently, subsequent trajectories enrich the internal topological granularity of existing regions without trigger-ing spurious region proliferation. For example, between tra-jectories 5 and 10 in R2R-CE, the total region count remains strictly stable at 11, while the place count increases from 15 to 23. The agent grounds multiple distinct vantage points within known rooms, providing denser viewpoints for land-mark verification. The GOAT-Bench sequence (Fig. 6b) ex-hibits identical dual-stage dynamics: initial attempts estab-lish 5 places within a single region, before subsequent at-tempts expand the map to 9 regions and 32 places. Station-4Table 10. Retry performance and navigation cost per episode (subtask for GOAT-Bench). First and Final report the corresponding attempt; Cumulative includes all attempts. SR and SPL are percentages. PL denotes path length in meters.                                                                                                                                                                                    
+
+> Benchmark Model First Final Cumulative SR SPL Steps PL (m) SR SPL Steps PL (m) SPL Steps PL (m) R2R-CE GPT-6-Astra 77.3 71.5 12.1 9.7 84.0 75.4 16.2 13.5 66.3 17.6 14.3 GPT-5.6-Sol 66.3 52.2 14.3 11.4 76.3 66.4 18.3 15.0 52.0 21.2 17.1 Qwen3.8-27B 50.7 39.6 14.5 11.7 58.0 49.5 18.7 15.5 38.3 21.6 17.6 RxR-CE GPT-6-Astra 75.3 69.8 15.9 13.6 84.0 70.9 16.3 14.2 66.9 21.2 18.2 GPT-5.6-Sol 62.0 55.5 18.0 15.2 76.7 61.0 17.8 15.1 54.2 26.1 22.0 Qwen3.8-27B 56.7 40.2 19.4 16.9 64.0 46.4 19.9 17.1 35.9 29.4 25.5 HM3D-OVON GPT-6-Astra 61.8 40.3 8.4 7.0 66.9 50.2 9.6 8.2 40.5 10.3 8.6 GPT-5.6-Sol 56.7 45.0 8.3 6.9 60.1 44.5 9.9 8.3 41.8 10.7 8.9 Qwen3.8-27B 51.1 28.1 8.9 7.6 55.4 45.8 10.1 8.5 28.5 11.2 9.5 IR2R-CE GPT-6-Astra 80.0 67.7 14.8 12.0 89.2 74.5 15.0 12.2 68.5 18.6 15.1 GPT-5.6-Sol 72.4 64.2 15.4 12.5 84.1 71.9 15.5 12.5 65.6 20.3 16.5 Qwen3.8-27B 50.1 39.9 16.8 13.1 57.2 48.1 17.2 13.3 36.0 26.3 20.5 GOAT-Bench GPT-6-Astra 81.9 57.2 8.4 7.7 84.1 58.4 9.1 8.5 55.2 10.0 9.2 GPT-5.6-Sol 79.0 55.8 8.6 7.6 82.3 57.6 9.0 8.0 53.3 10.6 9.4 Qwen3.8-27B 70.1 43.6 9.2 8.2 74.4 45.7 9.5 8.4 41.0 11.8 10.5
+
+Table 11. Total inference cost per episode (subtask for GOAT-Bench) across all attempts. / means the component was not used.                                                                                                           
+
+> Benchmark Model Calls Tokens (K) Cumulative model-call time (s) Input Output Navigation Retry brief Evaluator Object annot. Memory builder Total R2R-CE GPT-5.6-Sol 65.3 663.0 12.2 302.0 47.7 49.9 //399.6 GPT-6-Astra 44.8 445.0 5.8 218.0 19.5 41.1 //278.6 RxR-CE GPT-5.6-Sol 53.0 629.5 9.2 366.5 25.0 60.9 //452.4 GPT-6-Astra 39.3 382.4 3.6 247.8 5.8 57.2 //310.8 HM3D-OVON GPT-5.6-Sol 29.2 199.1 5.3 162.0 23.1 27.6 //212.7 GPT-6-Astra 26.7 164.9 3.1 180.9 26.2 30.2 //237.3 IR2R-CE GPT-5.6-Sol 56.5 902.6 26.7 393.7 27.6 55.7 484.6 140.0 1101.6 GPT-6-Astra 50.2 860.0 19.2 308.0 18.5 47.1 482.0 131.5 987.1 GOAT-Bench GPT-5.6-Sol 36.6 670.8 17.6 197.3 13.6 30.3 263.7 66.7 571.6 GPT-6-Astra 36.4 745.8 14.5 156.3 11.6 28.0 271.1 62.5 529.5
+
+ary or failed attempts contribute observation evidence to se-mantic instances without introducing redundant trajectory edges, demonstrating robust structural stability. 
+
+8. Additional Experimental Results 
+
+8.1. Navigation Benefits over Repeated Tours 
+
+To verify whether cumulative memory translates into tan-gible navigation advantages when revisiting familiar envi-ronments, Fig. 7 evaluates multi-tour navigation on scene 
+
+QUCTc6BB5sX from the IR2R-CE benchmark. To exam-ine long-horizon stability under extended scene persistence without resets, we evaluate multi-tour navigation across three independent runs with GPT-5.6-Sol, where each run traverses three consecutive tours of the same 82 reference routes under varied linguistic instructions. Memory is ac-cumulated continuously across tours without resets. Across the three tours, final Success Rate (SR) steadily climbs from 82.5% to 88.2% (+5.7 percentage points), and final SPL rises from 68.0% to 76.6% (+8.6 percentage points). Crucially, this performance improvement is accom-panied by a significant reduction in navigation cost: mean cumulative navigation steps per episode decrease by 11.7%. Because the agent reuses confirmed landmarks and avoids previously explored dead ends, it navigates more decisively, achieving higher task completion while taking more direct paths. 
+
+8.2. Multi-Attempt Recovery and Efficiency 
+
+Multi-attempt recovery gains. Tab. 10 separates first-attempt and final-attempt performance from cumulative navigation cost across all benchmarks. Reflective retry con-sistently raises task completion by allowing the agent to di-agnose past failure modes and adjust its navigation strategy. 5Table 12. Two-stage versus joint view and waypoint selection with Qwen on R2R-CE. Costs are averaged per episode. Tokens include input and output; time is cumulative model-call time. – denotes an unreported value.                         
+
+> Scheme SR ↑SPL ↑OSR ↑Steps ↓Tokens (K) ↓Time (s) ↓
+> Two-stage 56.0 48.77 72.0 17.65 265.41 156.77 Joint 47.0 39.65 61.0 18.29 390.92 125.93
+
+On IR2R-CE, reflective retry raises GPT-6-Astra SR from 80.0% to 89.2% and GPT-5.6-Sol from 72.4% to 84.1%. On R2R-CE, GPT-6-Astra increases SR from 77.3% to 84.0%, while on HM3D-OVON, it raises SR from 61.8% to 66.9%. Across all benchmarks, the agent actively leverages retro-spective diagnoses to correct misjudgments rather than re-peating identical trajectory errors. 
+
+Path efficiency and movement cost. To account for travel during failed attempts, we extend the path denomi-nator of SPL to include every attempt at the same task: 
+
+Cumulative SPL = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+Sidi
+
+max 
+
+
+
+di, PKi 
+
+> k=1
+
+ℓik 
+
+ , (8) where Si denotes success on the final attempt, di is the shortest navigable distance from the task’s starting pose to its goal, Ki is the number of attempts, and ℓik is the traveled distance in attempt k. Tasks without a retry retain their stan-dard SPL. The simulator resets the agent to the starting pose between attempts; this reset does not add a traveled path segment. As reported in Tab. 10, Cumulative SPL penalizes total distance traveled during prior unsuccessful attempts while rewarding decisive recovery. Across all benchmarks, RetroNav maintains strong cumulative efficiency despite multi-attempt exploration. For example, cumulative SPL reaches 68.5% on IR2R-CE with GPT-6-Astra and 65.6% with GPT-5.6-Sol, with 18.6 and 20.3 cumulative steps per task. On GOAT-Bench, GPT-6-Astra achieves 55.2% cumu-lative SPL compared with 58.4% final-attempt SPL, demon-strating that retries resolve tasks through targeted recovery rather than unguided wandering. 
+
+Inference cost. Tab. 11 reports mean calls, token counts, and cumulative model-call time per episode (subtask for GOAT-Bench), including all attempts and tool rounds. For time, we first sum model-call durations within each task and then average over complete task records. Component times use the same records, with zero cost when a com-ponent is not invoked. Inference breakdown shows that background object annotation remains decoupled and ef-ficient, handled consistently by GPT-5.6-Terra at approx-imately 482 s per episode on IR2R-CE. Because GPT-6-Astra exhibits higher first-attempt accuracy and reduced ex-ploration detours, it requires significantly fewer model calls and tokens, reducing cumulative navigation latency across persistent sessions. 
+
+8.3. Joint View and Waypoint Selection 
+
+We evaluate joint view and waypoint selection with Qwen on R2R-CE. The two-stage scheme first selects a view from four RGB images and then selects a waypoint within that view (Sec. 3.3). The joint scheme receives the four im-ages and their waypoint candidates, and directly outputs both a view ID and a waypoint ID, removing one model call per decision. We report SR, SPL, OSR, model calls, to-kens, and cumulative model-call time averaged per episode; robot execution time is excluded. Tab. 12 compares the two schemes. As shown in Tab. 12, the joint scheme performs worse than the two-stage scheme across the navigation metrics. It requires a longer trajectory with approximately one addi-tional decision step per episode. Although joint selection re-duces overall latency by eliminating one round-trip API call per step, this latency reduction comes at the expense of sub-stantially higher cumulative token consumption (390.92 K vs. 265.41 K). The main reason is that the reported token count is ac-cumulated over all decision steps, including both input and output tokens. As navigation proceeds, the input context becomes longer because it contains an expanding history of observations, actions, and execution feedback. There-fore, an additional step near the end of an episode carries a larger token cost than an early step. Even though the joint scheme uses only about one more step on average, this extra step introduces a complete additional context window and substantially increases the cumulative input tokens. Con-sequently, the joint scheme consumes more tokens overall despite using fewer model calls per decision. These results suggest that separating view selection and waypoint selec-tion provides more reliable navigation decisions and better controls the accumulation of context over long trajectories. 6

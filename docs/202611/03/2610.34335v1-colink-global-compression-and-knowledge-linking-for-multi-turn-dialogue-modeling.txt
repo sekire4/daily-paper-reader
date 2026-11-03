@@ -1,0 +1,921 @@
+Title: CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling
+
+URL Source: https://arxiv.org/pdf/2610.34335v1
+
+Published Time: Tue, 27 Oct 2026 01:27:59 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+1
+
+# CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling 
+
+Lian Yan, Zhenbo Xia, Haotian Wang, Chen Tang, Yi Guan, Jie Liu, Fellow, IEEE, Jingchi Jiang 
+
+Abstract —Extracting salient information from long-horizon dialogue histories remains a significant challenge for Large Language Models (LLMs) due to the restricted context windows and efficient retrieval challenges. Current methods typically rely on history organization or local token-level optimization, suf-fering from information loss, retrieval redundancy, and myopic attention. Inspired by the view in cognitive science that dialogue constitutes sense-making and memory association, we propose CoLink, a framework that enhances LLMs’ global context awareness in domain-specific multi-turn dialogues through infor-mation linking and compression. CoLink first clusters historical contexts into topic graphs to establish cross-semantic associations with external knowledge. Guided by the adaptive control of thought, it then retrieves and activates knowledge via synergizing semantic relevance and graph-structural topology. Crucially, to achieve effective compression of history and knowledge, we ground multi-turn dialogues in information theory and derive a principled optimization objective for extracting the core sense-making information. Coupled with a competitive slot mechanism, CoLink condenses the global context into dedicated memory and knowledge slots, efficiently distilling lengthy, redundant inputs into an extremely compact latent representation. Extensive empirical results on both public and our MMD datasets validate CoLink’s superiority and generalizability in knowledge linking and sense modeling. 
+
+Index Terms —Multi-turn dialogue, global information com-pression, knowledge adaptive activation, information bottleneck. 
+
+I. I NTRODUCTION 
+
+# LARGE Language Models (LLMs) effectively capture real-world knowledge and dialogue patterns via the long-range dependency modeling of Transformer, achieving re-markable performance in summarization, comprehension, and multi-hop reasoning [1]–[3]. However, scaling these capa-bilities to long-context scenarios remains a formidable chal-lenge. The quadratic complexity of self-attention and restricted context windows constrain full historical perception, while the accumulation of redundant information often obscures critical semantic associations [4], [5]. Consequently, efficiently extracting contextually relevant memory and knowledge from 
+
+* Corresponding author: Jingchi Jiang Lian Yan, Zhenbo Xia, Haotian Wang, and Yi Guan are with the Re-search Center of Language Technology, Faculty of Computing, Harbin In-stitute of Technology, Harbin, Heilongjiang 150001, China (e-mail: yan-lian0216@163.com; 23S103141@stu.hit.edu.cn; wanght1998@gmail.com; guanyi@hit.edu.cn). Jie Liu and Jingchi Jiang are with the Research Center of Artificial Intelligence of Things, Faculty of Computing, Harbin Institute of Technol-ogy, Harbin, Heilongjiang 150001, China, and also with the National Key Laboratory ofSmart Farm Technologies and Systems, Harbin, Heilongjiang 150001, China (e-mail: jieliu@hit.edu.cn; jiangjingchi@hit.edu.cn). Chen Tang is with Institute for Advanced Algorithms Research, Shanghai, 201306, China (e-mail: travistang@foxmail.com). The code is available at https://github.com/YanPioneer/CoLink. Structured Organization and Retrieval            
+
+> U1:_______ U2:_______ U3:_______ U4:_______ ……
+> ……………
+> U1:_______ U2:_______ U3:_______ U4:_______ ……
+> …………
+> …
+> ……
+> Gains from Local Tokens Global Information Compression
+> Current Conversation Q Retrieval Results + Q
+> History Token Local Token Acquisition Local Token + Q
+> Global Compression Slot + Q
+> Topic Clustering 𝒎𝒊𝒏 𝒑(𝒁|𝑯,𝑸) 𝓛 𝑰𝑩 = 𝑰(𝒁; 𝑯|𝑸) − 𝜷𝑰(𝒁; 𝒀|𝑸)
+> Dialogue History
+> Queue Graph Tree
+> Structured Organization Retrieval Dialogue History
+> Current Conversation Q
+
+Fig. 1. Rigid Retrieval & Local Tokens vs. History Compression in CoLink. 
+
+histories is crucial for advancing multi-turn understanding and generation. Current strategies to mitigate history compression fall into two categories, as illustrated in Fig. 1. (1) Structured Orga-nization and Retrieval methods organize segmented history into memory banks [6], trees [7], [8], or graphs [9]–[11] for retrieval. Despite enabling long-term storage, these methods often suffer from information loss during construction and retrieval noise during generation. (2) Local Token Modeling methods approximate full-history attention by retaining asparse subset of tokens, such as attention sinks or recent windows [4], [5], [12]. Although computationally efficient, they tend to be myopic, failing to capture global semantic dependencies and the latent thematic coherence across turns. In contrast to these existing approaches, which focus on structural organization or local context approximation, insights from human cognition suggest an alternative paradigm for semantic organization that emphasizes abstraction, dynamic memory activation, and global coherence [13], [14]. Rather than storing verbatim history, the human brain distills inter-actions into abstract representations and dynamically activates relevant long-term memories to ground new inputs through the interplay of the prefrontal cortex and hippocampus. This mechanism ensures global semantic associativity and enables efficient sense-making [15]. Drawing on these insights, we propose CoLink, a novel framework that seamlessly integrates cognitive memory mod-eling with global information compression. CoLink operates on two key levels: (1) Adaptive associativity and activation. To simulate short-long memory associativity, CoLink organizes history into topic graphs that enable cross-semantic linking with external knowledge. Upon receiving a new dialogue turn, arXiv:2610.34335v1 [cs.CL] 25 Oct 2026 2
+
+it identifies the relevant historical clusters and dynamically activates context-specific knowledge via an adaptive control mechanism, exploiting both semantic associations and struc-tural linkage importance to retrieve highly pertinent facts. (2) Sense-making via compression. CoLink adopts the Informa-tion Bottleneck (IB) principle [16] to compactly represent the expansive history and activated knowledge. Guided by the objective of minimizing the mutual information (MI) between the compressed representations and the raw inputs while max-imizing the MI with the target response, we derive a tri-part loss comprising compression, prediction, and reconstruction to effectively balance globality and conciseness. To guarantee extreme compression efficiency, CoLink competitively distills salient information into a limited set of latent slots. This mechanism directly abstracts compact memory and knowledge slots from the full contexts, yielding highly condensed repre-sentations optimally tailored for LLM generation. To evaluate CoLink in complex domains requiring multi-expert reasoning, where existing benchmarks often fall short, we design a knowledge-enhanced, self-reflective multi-agent debate framework and construct MMD , a multi-turn medical 
+
+dialogue dataset with 2370 samples. Extensive experiments demonstrate that CoLink significantly enhances information retention and cross-turn consistency, achieving up to +2.59% gains over baselines even under a 32 × compression constraint. Furthermore, additional evaluations on both open-domain dia-logue and specialized disease diagnosis datasets firmly validate the strong domain universality and zero-shot generalizability of our framework. Our paper presents three main innovations:  
+
+> •
+
+To the best of our knowledge, we are the first to formulate context abstraction in multi-turn dialogues through the lens of the Information Bottleneck principle. By integrating this objective with a competitive latent slot mechanism, our framework achieves efficient and effective compression of global content.  
+
+> •
+
+We propose a cross-level linking mechanism that bridges dialogue history with external knowledge bases. With both semantic associations and graph-structural reasoning, our method dynamically activates knowledge subgraphs that are strictly relevant to the current conversational context.  
+
+> •
+
+We conduct extensive evaluations across diverse datasets using a multifaceted validation approach, including main comparisons, component/loss ablations, and in-depth effec-tiveness analyses. The empirical results demonstrate that CoLink exhibits clear advantages in compression efficiency, information retention, and generation accuracy. II. R ELATED WORK 
+
+A. History Organization and Utilization 
+
+Hierarchical structures and retrieval mechanisms mitigate redundancy by selectively retaining crucial history and en-abling localization of relevant context. MemoryBank [6] par-titions history into chunks and retrieves relevant blocks via similarity search. RAPTOR [8] and MemTree [7] organize dia-logue into hierarchical trees through recursive clustering or se-mantic aggregation, enabling retrieval at multiple granularities. Graph-based approaches, such as GraphRAG [10], HippoRAG [9], ArchRAG [17], KG2RAG [18], and HippoRAG2 [11], extract entity–relation graphs and leverage graph traversal to identify relevant substructures. While these methods improve scalability and retrieval efficiency, they primarily rely on sparse entity or structural cues, often discarding fine-grained contextual information. Moreover, they lack explicit modeling of inter-turn semantic dependencies, which limits holistic integration and global compression of the dialogue history. 
+
+B. Exploiting Potential Gains from Local Tokens 
+
+These Local Token Modeling methods are fundamentally predicated on the phenomenon of attention sparsity. Empirical observations indicate that LLMs consistently allocate dispro-portionate attention weights to a minimal subset of tokens, par-ticularly the initial and the last few tokens. This phenomenon is known as the ”Attention Sink” [19], [20]. Leveraging this insight, methods such as StreamLLM [12], StreamingDialogue [4], and LM-Infinite [21] persistently cache initial tokens, turn delimiters, or recent tokens to approximate full-history attention. Similarly, H2O [22] dynamically retains only a fraction of tokens with the highest accumulated attention scores. Chen et al. [5] introduce core context-aware attention, which partitions long contexts into groups and preserves only a single representative token per group. However, recent studies [23], [24] reveal that these sinks predominantly serve as structural biases to maintain attention stability rather than as repositories of core semantics. By con-fining the receptive field to local windows or sparse anchors, these methods inevitably fragment the historical continuity. Consequently, they inherently lack global perception, leading to degraded performance in tasks that necessitate deep, long-horizon understanding. 
+
+C. Cognitive Memory Mechanisms 
+
+Cognitive neuroscience has extensively investigated the mechanisms of memory retention, retrieval, and knowledge representation. Advanced cognitive abilities rely not merely on the synergy among various memory systems, but fundamen-tally on the high-level abstraction of information [14], [25]. Regarding memory architecture, Squire’s taxonomy classically distinguishes declarative memory (comprising semantic facts and episodic events) from non-declarative memory (e.g., pro-cedural skills) [26]. Furthermore, research posits that seman-tic networks serve as the critical interface between sensory inputs and consolidated long-term knowledge [27]. During dialogue processing, cognitive theories suggest that novel linguistic stimuli trigger a complex complementary interaction [14]: the hippocampus acts as a rapid episodic index, which subsequently activates long-term semantic knowledge in the neocortex via associative retrieval. These activated memories are then integrated within short-term working memory to facilitate coherent language generation. Motivated by these insights, recent studies have explored brain-inspired architectures for dialogue systems. MGMR simulates the memory-stage theory utilizing memory graphs and rehearsal mechanisms [15], while HippoRAG models 3Cognitive Isomorphism    
+
+> Hippocampus
+> (Rapid Episodic Encoding)
+> Neocortex
+> (Slow Semantic Consolidation)
+> System Consolidation & Abstraction
+> Attentional Retrieval Response/Decision
+> Prefrontal Cortex
+> (Executive Control & Query)
+> Dialogue Inputs
+> Biological Paradigm (Hippocampus-Cortical Interaction) Dialogue History Clustering Topic Topic Graph External Knowledge
+> Current Query
+> Slot Attention LLM
+> Response
+> Memory Slots Knowledge Slots
+> Analogue to Hippocampus
+> (Associativity & Activation)
+> Analogue to Neocortex
+> (Information Sense-making)
+> Computational Framework (CoLink)
+> (ℒ 𝐀𝐀𝐀𝐀 )
+> Global Compression
+> (ℒ𝐀𝐀 + ℒ 𝐀𝐀𝐀𝐀𝐀 )
+
+Fig. 2. Cognitive isomorphism between human memory mechanisms and the CoLink framework. The diagram illustrates two key biological parallels: (1) Associative Retrieval: Analogous to the hippocampus retrieving episodic memories to activate long-term cortical knowledge, CoLink constructs topic graphs to link historical contexts with external knowledge, dynamically activating relevant facts via the semantic relevance and structural linkage importance. (2) Abstract Encoding: Just as the human brain stores highly abstract semantic schemas rather than verbatim textual records, CoLink employs an global competitive compression strategy. This rigorously distills raw history and knowledge streams into compact Memory/Knowledge slots, mirroring the brain’s efficiency in retaining core semantics while filtering redundancy. 
+
+dialogue history through graph structures to enhance retrieval [9]. Nevertheless, these approaches predominantly focus on memory storage structures and flow pathways, largely over-looking a fundamental characteristic of semantic memory: its high degree of abstraction. Consequently, they lack principled mechanisms to distill abstract semantic representations from redundant signals to prevent information overload. In this work, we bridge cognitive science and information theory to model multi-turn dialogues. We conceptualize the external knowledge base as long-term semantic memory. To simulate neural retrieval interactions, we construct a historical topic graph that functions as a hippocampal-like ”memory in-dex” to precisely activate context-relevant external knowledge. Crucially, we introduce IB-driven objectives to emulate the brain’s inherent semantic abstraction process. This objective rigorously distills core information from complex, intertwined history and knowledge streams, ensuring that the response gen-eration relies exclusively on the most critical semantic features. The conceptual diagram of CoLink is visually summarized in Fig. 2. III. T HEORETICAL FRAMEWORK AND OBJECTIVE 
+
+DERIVATION 
+
+In this section, we establish the foundational objectives and theoretical formulations of our approach. We first formalize the multi-turn dialogue task for LLMs and introduce the preliminaries of the Information Bottleneck (IB) principle [28]. Building upon this, we extend the IB framework to multi-turn dialogues and rigorously derive the theoretical objectives for the global compression of dialogue history and associated knowledge. 
+
+A. Problem Definition 
+
+For the multi-turn dialogue task, the objective of LLMs is to generate a response given the historical dialogue H =[u1, . . . , u t−1] and the current query Q = ut. Through autore-gressive prediction, the model maximizes the joint distribution of the target sequence Y = ( y1, y 2, . . . , y m). Furthermore, considering that domain-specific conversations (e.g., health-care) often require auxiliary background knowledge K, the objective can be formulated as: 
+
+Lgen = max 
+
+> m
+
+X
+
+> i=1
+
+log P (yi|H, K, u t, y <i ) (1) where y<i = ( y1, . . . , y i−1) denotes the previously generated tokens. While LLMs rely on attention mechanisms to model long-range dependencies, it remains challenging to assign precise attention weights to the most relevant historical and knowledge contexts as the dialogue progresses, amid extensive conversational noise. 
+
+B. Information Bottleneck Preliminary 
+
+The Information Bottleneck principle provides a rigorous framework for learning an intermediate representation Z of input signals H that preserves maximal information relevant to the target variable Y . The fundamental objective is shown in: 
+
+min LIB = I(Z; H) − βI (Z; Y ) (2) where I(·) denotes mutual information and β is a Lagrange multiplier. For variables h ∈ H and z ∈ Z, the mutual information term can be expressed via Kullback-Leibler (KL) divergence: 
+
+I(Z; H) = DKL [p(z, h )∥p(z) ⊗ p(h)] =
+
+Z
+
+z
+
+Z
+
+h
+
+p(z, h ) log p(z, h )
+
+p(z)p(h) dh dz (3) Effective modeling of long-horizon dialogue requires com-pressing extensive context to extract salient semantics while balancing the suppression of redundancy with the retention of long-term dependencies [5]. The IB framework perfectly aligns with our requirement for global information compres-sion during multi-turn interactions. Therefore, we adopt it as our theoretical foundation. We define the two components of the IB objective as compression (minimizing I(Z; H)) and prediction (maximizing I(Z; Y )), which conceptually strive to eliminate input redundancy while retaining the core semantics necessary for generation. 
+
+C. Global Context Sense-Making Strategy 
+
+Since historical text and external knowledge are inherently distinct, we design dual compressors—memory and knowl-edge—based on the same theoretical objective to ensure LLMs can effectively disentangle and utilize these abstract represen-tations. In the following subsections, we detail the derivation of the global compression objectives for both the historical sequences and the related knowledge. 4
+
+1) Derivation of Memory Compression Objective: The compression of the history H must be conditioned on the current query Q. For instance, in medical dialogues spanning diverse topics such as symptoms, lifestyle, and examinations, a query about a medication plan requires selectively integrating relevant historical context. Therefore, we formulate a condi-tional objective for history compression: 
+
+min   
+
+> P(Z|H,Q )
+
+Lmem = I(Z; H|Q) − βI (Z; Y |Q) (4) The first term enforces compactness by penalizing redun-dant information, while the second term ensures the preserva-tion of salient information required for generation. We expand the Compactness term as: 
+
+I(Z; H|Q) = Eq
+
+Z 
+
+> h
+
+Z
+
+> z
+
+p(z, h |q) log p(z, h |q)
+
+p(z|q)p(h|q) dz dh 
+
+
+
+= Eq
+
+Z 
+
+> h
+
+Z
+
+> z
+
+p(h|q)p(z|h, q ) log p(z|h, q )
+
+p(z|q) dz dh 
+
+
+
+= Ep(h,q )
+
+Z 
+
+> z
+
+p(z|h, q ) log p(z|h, q )
+
+p(z|q) dz 
+
+
+
+= Ep(h,q ) [DKL [p(z|h, q )∥p(z|q)]] 
+
+(5) Minimizing I(Z; H|Q) compels the model to compress the history H as aggressively as possible relative to Q, ensuring 
+
+Z should not depend on H.The Preservation term is derived as: 
+
+I(Z; Y |Q) = Eq
+
+Z 
+
+> y
+
+Z
+
+> z
+
+p(z, y |q) log p(z, y |q)
+
+p(z|q)p(y|q) dz dy 
+
+
+
+= Eq
+
+Z 
+
+> y
+
+Z
+
+> z
+
+p(z|q)p(y|z, q ) log p(y|z, q )
+
+p(y|q) dz dy 
+
+
+
+= Ep(y,z,q )
+
+
+
+log p(y|z, q )
+
+p(y|q)
+
+
+
+= Ep(y,z,q ) [log p(y|z, q )] − Ep(y,q ) [log p(y|q)] 
+
+(6) Since the second term in (6) is independent of the compression Z, maxI (Z; Y |Q) is equivalent to 
+
+max Ep(y,z,q )[log p(y|z, q )] . This ensures that Z alone suffices to generate accurate responses, thereby guaranteeing the retention of the most task-relevant semantics. We define the global history compression encoder as 
+
+qϕ(z|h, q ) and the LLM generator as pθ (y|z, q ). Since the marginal p(z|q) is intractable, we optimize the variational upper bound using a parametric prior rφ(z|q). The final training objective for memory compression becomes: 
+
+Lmem = Ep(h,q )
+
+h
+
+DKL [qϕ(z|h, q )∥rφ(z|q)] 
+
+i
+
++ βEp(y,h,q )Ez∼qϕ(·| h,q )
+
+h
+
+− log pθ (y|z, q )
+
+i (7) 
+
+2) Derivation of Knowledge Compression Objective: Dur-ing dialogue, historical information extraction is independent of external knowledge and conditioned solely on the current query. In contrast, global modeling of relevant knowledge needs to additionally consider the dialogue state encoded in the compressed history. Let K denote the set of retrieved knowledge paths activated by Q. The goal of the knowledge compressor is to learn a representation L that captures the minimal sufficient statistics of K required to generate Y ,conditioned on Q and Z. Since the derivation closely follows Section III-C1, we omit the intermediate steps for brevity. The fundamental objective function is formulated as: 
+
+min   
+
+> P(L|K,Q,Z )
+
+Lknow = I(L; K|Q) − βI (L; Y |Q, Z ) (8) The Compactness term minimizes the mutual information between the compressed knowledge L and the raw knowledge 
+
+K, filtering out irrelevant noise. Using a variational approx-imation with a conditional prior rφ(l|q) and a knowledge compression encoder qψ (l|k, q ), we obtain the upper bound: 
+
+I(L; K|Q) ≤ Ep(k,q ) [DKL [qψ (l|k, q )∥rφ(l|q)]] (9) The Preservation term for knowledge is derived as:              
+
+> I(L;Y|Q, Z ) = H(Y|Q, Z )−H(Y|L, Q, Z )=H(Y|Q, Z ) + Ep(k,y,q,z )
+> El∼qψ(·| k,q )[log pθ(y|l, z, q )] 
+
+(10) Since H(Y |Q, Z ) is constant with respect to the compres-sor parameters ψ, maximizing this mutual information is equivalent to maximizing the expected log-likelihood of the generator pθ . Thus, the final knowledge compression objective is formulated as: 
+
+Lknow = Ep(k,q ) [DKL [qψ (l|k, q )∥rφ(l|q)]] + βEp(k,y,q,z )
+
+El∼qψ (·| k,q )[log pθ (y|l, z, q )]  (11) Derived from (7) and (11), we obtain the compressed representations Z and L (Z ≪ H and L ≪ K). Consequently, the original generative objective in (1) is reformulated as: 
+
+Lgen = max 
+
+> m
+
+X
+
+> i=1
+
+log P (yi|Z, L, u t, y <i ) (12) In Section IV, we further describe the adaptive activation of external knowledge, alongside the concrete instantiation and training objectives of the compressors. IV. M ETHOD 
+
+In this section, we detail the architectural pipeline and implementation of CoLink. Inspired by cognitive sense-making and associativity, CoLink integrates memory model-ing with information-theoretic compression. As described in Section IV-A, it constructs historical topic graphs to establish cross-semantic links with external knowledge and dynamically activates context-relevant facts by exploiting the semantic and structural associations of structured knowledge. To guarantee efficient global compression and the retention of core se-mantics from long contexts, CoLink competitively abstracts raw inputs into a small set of latent slots, namely memory slots and knowledge slots (Section IV-B). In Section IV-C, we design a tri-part training loss, comprising KL divergence, reconstruction, and prediction, to enforce global information compression and semantic alignment under the theoretical formulations derived in Section III. An overview of the frame-work is illustrated in Fig. 3. 5U1:_______ U2:_______ U3:_______ U4:_______ ……  
+
+> Common KG  𝐀 Topic Graph  𝐀 ∗
+> Dialogue History Current Query 𝐀 𝐀
+> 𝐀 𝐀𭰀𝐀𴰀
+
+… … …
+
+> Memory Slot
+> 𝐀 𭰀𝐀𝐀𱠀𝐀
+> 𝐀 𝐀𬠀
+> Slot Decoder Slot Attention
+> ➕
+> K,V Attention
+
+… … …   
+
+> K,V Attention
+> Knowledge Slot
+> 𝐀 𭰀𝐀𝐀𱠀𝐀
+> 𝐀 𝐀𬠀
+> Slot Decoder Slot Attention
+> ➕➕➕
+> Topic Clustering  𝐀 ∗
+> Patient:
+> I‘ve been feeling a bit dizzy and nauseous recently, and I don’t really feel like eating. I don't have any chronic diseases.
+> 𝐀 𝐀 :The patient has no history diabetes or heart disease…
+> 𝐀 1:The patient experienced weakness in the left limbs and speech impairment…
+> 𝐀 𝐀 :The patient has a 5-year history of smoking and no alcohol abuse…
+> LLM
+
+…
+
+> Memory Slot
+
+…
+
+> Knowledge Slot
+
+…    
+
+> Input Embed Response
+> It is advised to undergo a head CT …
+> 𝐀 1𝐀 𝐀 𝐀 𝐀
+> ………
+> 2-hop candidate paths 𝐀 High-activation paths
+
+Fig. 3. The framework of CoLink. 
+
+A. Association and Activation 1) Cross-Level Semantic Linking: To preserve dialogue coherence and global consistency while mitigating interference across distinct topics, CoLink clusters the dialogue history 
+
+H = [ u1, . . . , u t−1] into thematic clusters C∗ = [ C1, . . . , C N ]
+
+using BERTopic [29]. For each cluster, we apply OpenIE to extract relational triples and construct a set of topic graphs 
+
+T ∗ = {T 1, . . . , TN }. Each graph Ti = ( Ei, R i) encodes the entities Ei and relations Ri associated with the i-th theme. For knowledge augmentation, these local graphs are then grounded to the external Knowledge Graph (KG) G = ( E, R ) via entity alignment to construct a multi-layered semantic bridge. The alignment is achieved by maximizing the cosine similarity of the entities from the topic graph and G:
+
+max Sim (eT , e G) = eT · eG
+
+|| eT || · || eG|| (13) where eT and eG are the entities from the topic graph T
+
+and the knowledge graph G, respectively, while eT and eG
+
+represent their corresponding semantic embeddings. As the dialogue progresses, both the thematic clusters and their corresponding topic graphs expand dynamically. This structure functions as a ”semantic episodic memory index,” providing the foundational support for subsequent knowledge activation and memory compression. 
+
+2) Adaptive Control of Knowledge Activation: When a new user utterance ut arrives and is assigned to a historical topic cluster Cj , CoLink employs adaptive control of thought to activate context-relevant knowledge paths in the external KG. Given a set of 2-hop candidate paths K = [ k1, . . . , k N ], where the paths are constructed from entities in the external KG 
+
+G aligned with the historical topic graph Tj , the activation score of path kk is determined by its semantic relevance to the dialogue entities and its structural linkage importance, as defined in (14): 
+
+Ak = Bk + X 
+
+> e∈ETj∩Ekk
+
+wj Sjk (14) where Bk denotes the baseline activation derived from the se-mantic similarity between kk and ut. ETj = [ eTj 
+
+> 1
+
+, . . . , e Tj 
+
+> |ETj|
+
+]
+
+and Ekk = [ ekk 
+
+> 1
+
+, e kk 
+
+> 2
+
+, e kk 
+
+> 3
+
+] denote the entity sets of the topic graph Tj and the path kk, respectively. The term wj is a time-decay factor that downweights entities associated with tem-porally distant utterances. Assuming EG = [ e1, . . . , e |ETj |]
+
+represents the set of external knowledge entities aligned with 
+
+ETj , the variable Sjk quantifies the associative strength be-tween the aligned entity ej ∈ EG ∩ Ekk and the path kk.Details of the computation are provided below. For each node ej ∈ EG ∩ Ekk , we isolate the connected subgraph G′
+
+= ( E′
+
+, R ′
+
+) anchored at node ej . We then ini-tialize the graph-structural relevance Sj between all subgraph nodes and ej using a Gaussian kernel, and iteratively update it via Random Walk with Restart (RWR) [30] over the upper-layer KG until convergence. The initialization and the update rule are defined as: 
+
+S(0)  
+
+> ji
+
+= exp (− dis (j, i )2
+
+2h2 ), wheree i ∈ E′
+
+S′ 
+
+> j
+
+= c · ˜AS j + (1 − c) · Oj
+
+(15) where h is the bandwidth and ˜A ∈ R|E′ 
+
+> |×| E′
+> |
+
+is the transition matrix of the knowledge subgraph. In (15), Oj is the one-hot restart vector centered at the entity ej , and c denotes the restart probability. The resulting vector S′ 
+
+> j
+
+captures the global graph relevance of entity ej to all entities in the subgraph G′
+
+,from which the specific associativity Sjk for the path kk is extracted: 
+
+Sjk = max  
+
+> ekk∈Ekk
+
+S′ 
+
+> j
+
+(ekk ) (16) Ultimately, all entities aligned with Tj jointly determine the activation level Ak.Structurally, this framework mirrors the hippocampus-cortex interplay: the topic graph functions as a dynamic contextual index, while the external KG serves as consolidated long-term storage [9], [14], [15]. Their interaction through context-adaptive activation facilitates efficient semantic integration and retrieval. 
+
+B. Competitive Extraction of Salient Information 
+
+To instantiate the theoretical variables Z and L, we propose abstracting the raw, variable-length representations of global 6
+
+history H and knowledge K into a fixed, highly condensed set of latent bottleneck slots. This architectural design natively guarantees the strict compactness bounds ( Z ≪ H and L ≪
+
+K) while preserving seamless compatibility with LLM gener-ators. To operationalize this competitive abstraction, we adapt the Slot Attention [31] as our computational backbone, which iteratively distills complex long-range dependencies into these fixed-capacity slots. Since the memory and knowledge com-pressors use the same training framework, we describe the historical compressor as an example. Specifically, we initialize 
+
+M learnable memory slots S0 = [ s01, . . . , s 0 
+
+> M
+
+] ∈ RM ×d as the concrete instantiation of Z to distill the salient information. For history compression, let Ch denote the relevant his-torical cluster. We encode Ch into a sequence representation 
+
+X = [x1, . . . , x L] ∈ RL×d . First, the inputs and slots are projected into key, value, and query spaces via linear transformations and Layer Normalization (LN) [32]: 
+
+K = WkLN (X), V = Wv LN (X), Q = Wq LN (St)
+
+(17) where Wk, Wv , Wq are learnable projections. The slots then perform a selective aggregation of input features through softmax attention and obtain the updates eUt:
+
+Ati,j = exp( Qi · Kj/ √d)
+
+PMk=1 exp( Qk · Kj /√d)
+
+eUt = Norm (At) · V, Norm (At)i,j = Ati,j 
+
+PLl=1 Ati,l 
+
+(18) The aggregated updates are fused into the slots using a Gated Recurrent Unit (GRU) [33], as described in (18). After T
+
+iterations, the resulting slots ST constitute the compressed latent representation Z.
+
+eSt = GRU ( eUt, St−1)
+
+St = eSt + MLP (LN (eSt)) (19) Since each slot interacts with all tokens through attention, the module captures globally salient information while achieving an effective compression ratio of |H|/M . By prepending the memory slots and knowledge slots as prefix tokens for LLMs, CoLink effectively enhances the models’ perception of critical context. 
+
+C. Training Objectives and Optimization 
+
+To effectively optimize the compressors, we operationalize the objective derived in Section III via a composite loss function comprising three terms, as defined in (20). 
+
+KL Divergence Loss (LKL ): Constrains the posterior 
+
+qϕ(z|h, q ) to approximate the prior rφ(z|q), enforcing aggres-sive compression of the history relative to the query. 
+
+Prediction Loss ( Lpred ): Maximizes the log-likelihood of the ground-truth response y, ensuring the compressed slots retain sufficient utility for generation. 
+
+Reconstruction Loss ( Lrec ): Strictly minimizing mutual information can sometimes lead to representation collapse. To preserve interpretability and recoverability, we incorporate an auxiliary objective that reconstructs distilled context sum-maries ˆh (via GPT-4 [1]). 
+
+Lmem = αDKL [qϕ(z|h, q )∥rφ(z|q)] 
+
+| {z }
+
+> Compression
+
++ βEz [− log pθ (y|z, q )] 
+
+| {z }
+
+> Prediction
+
++ λEz [− X log p(ˆht|ˆh<t , z )] 
+
+| {z }
+
+> Reconstruction
+
+(20) where α, β, λ are hyperparameters balancing each term. The objective for the knowledge compressor follows an analogous formulation as (21). 
+
+Lknowledge = αEp(k,q ) [DKL [qψ (l|k, q )∥rφ(l|q)]] 
+
+| {z }
+
+> Compression
+
++ βEp(y,k,q,z )El∼qψ [− log pθ (y|l, z, q )] 
+
+| {z }
+
+> Prediction
+
++ λEl∼qψ
+
+"
+
+− X
+
+> t
+
+log p(ˆkt|ˆk<t , l )
+
+#| {z }
+
+> Reconstruction
+
+(21) where ˆk represents the target knowledge summary. To ensure training stability and semantic consistency with the backbone LLM, we adopt a two-stage training strategy. In stage 1, we freeze the LLM parameters and optimize only the compression modules. In stage 2, we employ LoRA [34] to jointly fine-tune both the compressors and the LLM. V. E XPERIMENT 
+
+A. Datasets 
+
+Existing medical dialogue datasets often suffer from knowl-edge leakage, role confusion, poor coherence, and factual hallucinations [35]–[37]. To mitigate these issues and en-hance granularity, we construct the MMD dataset using a novel knowledge-augmented multi-agent debate framework. This framework simulates expert consultations involving three roles: User, Domain Experts ( N ≥ 2), and Judge.  
+
+> •
+
+User Agent: Initiates queries related to specific diseases.  
+
+> •
+
+Expert Agent Group: Each expert performs reasoning based on a shared domain knowledge base, retrieves relevant facts, reflects on retrieved content, and filters out irrelevant knowledge.  
+
+> •
+
+Judge Agent: Evaluates and aggregates expert opinions, and outputs a final diagnosis or recommendation only when a consensus is reached. Dialogue scenarios follow real medical settings (e.g., diagno-sis, examination recommendation, medication). Each conver-sation is grounded in an anonymized electronic health record and a corresponding knowledge base. For each user query, experts, augmented by a private, expert-only knowledge base, engage in iterative debate to correct errors. The final response is emitted only upon consensus verified by the Judge agent (see Fig. 4). Our primary dataset, MMD, encompasses 2370 samples across 37 diseases, with an average of 2.77 debate rounds 7Gender: xx Age: xx Chief Complaint: xx History of Present Illness: xx Past Medical History: xx Physical Examination:xx …… 
+
+Hello, I’ve been coughing for over six months now. It keeps recurring, and in the past week, I’ve also developed a fever and abdominal pain. The abdominal pain is quite severe at times; is it possible that it's related to the cough? Is this situation serious? 
+
+[user] 
+
+Knowledge-Augmented Multi-agent Multi-round Debate Anonymized EMRs Domain-Specific Knowledge Base 
+
+[assistant1] [assistant2] 
+
+> [Retrieved Knowledge] 1.Acute irritative dry cough accompanied by fever and hoarseness is often associated with acute laryngitis, tracheitis, or bronchitis... 2.Coughing with sputum and/or fever is commonly seen in diseases of the trachea, bronchi, and lungs... ……
+
+Fever and severe abdominal pain could indeed be related to your cough, especially if the cough is productive. Could you describe the nature of your cough? For instance, is it a dry cough or a productive one? What is the color and volume of the phlegm? Abdominal pain and coughing can certainly be linked, particularly if the coughing is violent enough to cause abdominal muscle strain. Furthermore, coughing accompanied by fever is a symptom that warrants attention. Could you tell me if your cough is dry or productive? Also, do you experience any chest pain or difficulty breathing when coughing? All experts analyzed the patient's symptoms and reached a consensus that the "abdominal pain" may be induced by "straining from coughing." They have also posed further follow-up questions regarding other symptoms to facilitate clinical decision-making. 
+
+[Expert consensus reached; debate concluded.] 
+
+Abdominal pain and coughing can indeed be related; specifically, violent coughing may lead to abdominal muscle strain. Additionally, the presence of a fever alongside the cough requires close attention. Could you please clarify if your cough is dry or productive? If you are coughing up phlegm, what is its color and volume? Also, do you experience any chest pain or difficulty breathing when you cough? 
+
+[assistant] 
+
+> Lifestyle Habits (diet, exercise) Examinations Medication Administration Foundational Diagnostics
+> [Retrieved Knowledge] 1.Acute irritative dry cough accompanied by fever and hoarseness is often associated with acute laryngitis, tracheitis, or bronchitis... 2.Coughing with sputum and/or fever is commonly seen in diseases of the trachea, bronchi, and lungs... ……
+
+Fig. 4. Example of the data construction process. TABLE I DATASET STATISTICS .
+
+Dataset Domain Lang. # Samples # Diseases Avg. Turns Debate Turns 
+
+MMD Medical Chinese 2,370 37 8.09 2.77 CMtMedQA Medical Chinese 5,993 14 8.85 –
+
+per response. The train/test split is 9 : 1. Three general practitioners, each with over three years of clinical experience, evaluate knowledge relevance, debate logic, and response accuracy using a 5-point scale. Among 800 samples, 94% are rated as high quality, and inter-annotator agreement reaches a Cohen’s Kappa of 0.86 . To assess generalization, we further evaluate on the public benchmark CMtMedQA [38]. Statistics for both MMD and CMtMedQA are summarized in Table I. 
+
+B. Baselines 
+
+We perform extensive comparisons against standard context strategies and two primary paradigms. 
+
+Standard Baselines: We report performance using full history concatenation and summaries of all history. 
+
+Structured Organization & Retrieval: We evaluate Mem-oryBank [6] , MemTree [7] and RAPTOR [8], and graph-based methods including GraphRAG [10], HippoRAG [9], and HippoRAG2 [11]. They all use OpenAI encoders for semantic-similarity-based retrieval. We also include NV-Embed [39] as a dense retrieval baseline. 
+
+Local Token Attention: We compare against StreamLLM [12] and CCA [5]. All baselines are implemented following their original papers, including the information organization schemes and retrieval depths. 
+
+TABLE II HYPERPARAMETER SETTINGS FOR COLINK .
+
+Hyperparameter Description Value 
+
+E1 Stage 1 Epochs 10 
+
+E2 Stage 2 Epochs 10 
+
+η1 Stage 1 Learning Rate 5e − 5
+
+η2 Stage 2 Learning Rate 1e − 5
+
+wd Weight Decay 0.01 
+
+B Batch Size 4
+
+X Input Representation Last Hidden State 
+
+d Hidden Dimension 1536 
+
+T Slot Iterations 3
+
+α Compression Coeff. 1
+
+β Prediction Coeff. 1
+
+λ Reconstruction Coeff. 1
+
+C. Experimental Details 
+
+We implement CoLink using PyTorch and optimize it via the Adam optimizer. All experiments are conducted on a single NVIDIA A800 (80GB) GPU. To ensure semantic alignment between the compressor and the generator, we initialize the in-put X using the final-layer hidden states of the backbone LLM. During inference, we set the temperature to 0 and the maxi-mum sequence length to 2048 . For external knowledge integra-tion, since the MMD and CMtMedQA datasets lack natively aligned external knowledge bases, we employ WIMedKG [40] and CMeKG [41] as their respective supporting KGs. Detailed hyperparameters are listed in Table II. All reported results are averaged over three independent runs. Regarding evaluation, we employ BLEU, ROUGE, and BERTScore as automated metrics. Furthermore, to explicitly assess dialogue consistency and correctness, we sample 200 instances for both LLM-as-a-8                                                                                                                                                                                                                                          
+
+> TABLE III THE COMPARATIVE RESULTS . W E HIGHLIGHT THE BEST PERFORMANCE . B, R, AND BS STAND FOR BLEU, R OUGE ,AND BERTSCORE ,RESPECTIVELY .
+> Method MMD (%) CMtMedQA (%)
+> B1 B2 B3 B4 R1 R2 RL BS B1 B2 B3 B4 R1 R2 RL BS
+> MemoryBank 19.41 8.55 4.47 2.32 23.31 5.24 14.98 68.83 27.20 14.20 8.34 4.90 29.69 9.06 21.67 73.75 NV-embed 17.77 8.10 4.22 2.31 23.34 5.60 15.35 68.22 23.82 12.18 7.14 4.19 27.57 8.17 20.09 72.10 StreamLLM 0.38 0.06 0.03 0.02 1.75 0.02 1.69 45.97 0.60 0.11 0.06 0.04 3.70 0.21 0.99 46.08 GraphRAG 16.45 6.64 3.24 1.65 21.57 4.37 14.15 67.91 24.10 12.02 6.90 3.94 27.25 7.64 19.45 72.41 CCA 8.62 2.99 1.46 0.78 13.61 2.07 8.75 64.14 4.14 1.32 0.56 0.27 11.39 1.49 7.98 58.67 MemTree 12.42 4.66 2.29 1.26 18.43 3.28 13.51 64.36 13.97 4.75 2.33 1.24 16.10 2.59 11.95 64.31 RAPTOR 14.91 7.44 4.18 2.50 23.87 6.77 16.86 68.74 22.37 12.00 7.42 4.61 28.46 9.14 22.10 72.40 HippoRAG 8.14 3.13 1.51 0.78 18.42 3.05 13.14 64.43 16.14 7.12 3.64 1.97 24.04 5.45 17.94 68.65 HippoRAG2 16.31 7.89 4.42 2.49 19.59 5.18 13.65 64.81 ––––––––Base 17.62 6.82 3.34 1.79 21.65 3.80 13.42 67.89 18.73 9.16 5.20 2.94 24.95 6.45 16.09 71.45 + Full History 22.47 11.04 6.32 3.67 27.19 6.95 16.53 70.26 29.42 16.52 10.45 6.55 33.86 11.45 23.10 75.90
+> + Summary History 13.97 6.41 3.59 2.16 26.74 6.75 17.20 69.16 25.21 13.98 8.84 5.51 33.19 11.11 24.31 74.24 CoLink(Ours) 27.52 13.87 7.66 4.10 31.63 8.64 19.26 72.84 31.62 18.02 11.74 7.62 34.28 12.31 25.50 75.36
+
+Judge and human evaluation. 
+
+D. Main Analysis 1) Comparison Results: Table III presents the compara-tive performance across all datasets. All experiments utilize Qwen2.5-1.5B [42] as the backbone model. Based on these results, we summarize the key findings as follows: 
+
+CoLink attains effective global information compression. 
+
+CoLink consistently outperforms both structured retrieval and local token attention baselines, achieving an average gain of 
+
+2.59% even under a 32 × compression constraint across two datasets. This indicates its superior ability to compress long-context information. Notably, CoLink matches or even exceeds the performance of Full History. This validates that, governed by the Information Bottleneck principle, CoLink effectively distills sufficient statistics from the global context, filtering out redundancy and noise that may distract the full-context baseline while retaining decision-critical semantics. 
+
+Rigid structuring compromises contextual integrity. Al-though chunk-based retrieval methods, such as Memory-Bank and NV-Embed, offer moderate improvements over the base model, rigid graph and tree-based approaches (e.g., GraphRAG, MemTree) often degrade performance. Our anal-ysis reveals that while structured extraction preserves discrete entities, it fails to capture the holistic semantic flow of the text. Furthermore, entity retention is highly sensitive to extraction quality and provides limited benefits for long-range dependen-cies (see Section V-F2). Similarly, Summary History, despite reducing redundancy, suffers from inevitable information loss during condensation and obstructs performance. In contrast, CoLink resolves this dilemma via gradient-optimized slots, proving that soft, learnable compression is a more robust strategy for retaining holistic semantics than rigid structuring. 
+
+CoLink achieves superior compression efficiency. Beyond generation quality, we evaluate the compression ratio of vari-ous approaches, as summarized in Table IV. CoLink reaches optimal performance utilizing only 3.1% of the original con-text length. This evidence reaffirms the high efficiency and effectiveness of our cognitive-inspired cross-semantic linking and IB-driven abstraction. Unlike traditional structured ap-proaches, CoLink directly compresses the dialogue history in the latent space, circumventing costly entity extraction and graph construction to achieve O(1) retrieval complexity. Furthermore, let T denote the number of dialogue turns and L
+
+the average length per turn, yielding a total historical context length of N = T ·L. Standard dense attention mechanisms suf-fer from quadratic time complexity O(( T L )2) and linear space complexity O(T L ) due to the continuous growth of the KV cache. In contrast, CoLink compresses the unbounded history into M fixed-size slots (where M ≪ T L ). This reduces the storage complexity for history representation to O(M ) and the attention complexity during generation to O(M 2), ensuring constant-time scalability regardless of dialogue duration. 
+
+2) Generalizability of CoLink: To further investigate the robustness of our framework, we evaluate CoLink across three critical dimensions: architectural transferability, cross-domain adaptability, and cross-dataset generalizability. 
+
+Architectural Transferability. To assess whether CoLink is model-agnostic, we apply the framework to Llama-3.2-3B [43] by training the memory slots on the MMD dataset. As presented in Table V, CoLink yields consistent performance gains over the vanilla Llama-3.2 architecture. This result un-derscores its strong architectural transferability, indicating that our cognitive-inspired compression mechanism can effectively augment various LLM backbones. 
+
+Cross-Domain Adaptability. We further evaluate CoLink on UltraData [44], an English open-domain multi-turn dia-logue dataset, to verify its performance beyond the medical domain. Notably, since external knowledge is not natively required for this task, we deploy only the memory slots for history compression. As shown in Table VI, CoLink outperforms the full-history concatenation baseline by 8.16% ,demonstrating that its IB-driven abstraction maintains high efficacy even in knowledge-scarce, open-domain scenarios. 
+
+Cross-Dataset Generalizability. Lastly, we evaluate CoL-ink’s inference capacity by directly transferring the MMD-trained model to the CMtMedQA dataset without further fine-tuning. This cross-dataset setting, summarized in Table VII, reveals that CoLink consistently outperforms standard base-lines. Such results highlight its robust capacity for in-domain transfer and its ability to handle distribution shifts between different clinical dialogue contexts. 9
+
+TABLE IV COMPARISON OF ONLINE RESOURCE CONSUMPTION AND COMPRESSION RATIOS .                                                                 
+
+> Method MMD CMtMedQA History/Knowledge Processing Time (ms) GPU Memory (MB) Compression Ratio History/Knowledge Processing Time (ms) GPU Memory (MB) Compression Ratio
+> MemoryBank 2113.57 /0.6388 4521.04 /0.4884 NV-embed 218.41 27674.82 0.8095 202.69 27612.20 0.7732 StreamLLM /3050.95 0.9665 /3064.59 1.0000 GraphRAG 41511.27 /2.8946 47679.49 /2.4866 CCA /3679.53 0.8903 /3724.54 1.0000 MemTree 51725.50 /1.7233 3911.10 /1.5834 RAPTOR 763.50 /0.9900 823.20 /0.9900 HippoRAG2 9149.56 /0.8328 10195.56 /0.9005 CoLink(Ours) 3536.07 4840.54 0.0313 2836.89 4843.31 0.0156
+
+TABLE V TRANSFER PERFORMANCE OF COLINK ON LLAMA -3.2-3B, INVOLVING ONLY FIRST -STAGE MEMORY SLOT TRAINING .                                    
+
+> Input Encode BLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> Base(Full History) 18.21 11.02 7.84 4.66 30.03 10.13 15.31 69.38 Base(Summary History) 21.89 13.11 7.65 5.57 32.36 11.21 17.09 70.46
+> Memory Slot(Ours) 24.21 14.04 8.60 5.02 31.82 10.44 17.70 70.25
+
+TABLE VI TRANSFER PERFORMANCE OF COLINK ON ENGLISH OPEN -DOMAIN MULTI -TURN DIALOGUE DATASET .                                    
+
+> Input Encode BLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> Base(Full History) 23.28 12.67 7.97 5.12 28.72 8.62 25.60 74.96 Base(Summary History) 18.18 9.78 6.03 3.75 30.38 9.02 27.03 74.16 Memory Slot(Ours) 38.49 23.16 15.59 10.48 39.42 14.52 35.33 78.68
+
+3) Effectiveness Analysis: We theoretically analyze the su-periority of CoLink over sequential summarization from both forward (attention) and backward (gradient) perspectives. 
+
+Attention Competition. To compress a long text of length 
+
+L into M memory slots, the information that an input token 
+
+j contributes to a slot i is formulated as: 
+
+Ai,j = exp( qi · kj )
+
+PMl=1 exp( ql · kj ) (22) This indicates that the same input token j must vote and allocate its weight across all M slots, facilitating a compet-itive absorption of the contextual information. In contrast, transformer-based summarization typically relies on hidden states or generates a short text directly. The attention between a summary token i and an input token j is calculated as: 
+
+Ai,j = exp( qi · kj )
+
+PLl=1 exp( qi · kl) (23) Compared to the competitive allocation of slots, this stan-dard aggregation acts merely as a weighted average over the L input tokens. As the input sequence length L grows, this Softmax distribution inevitably flattens, inducing severe attention dilution and feature blurring. 
+
+Gradient Saliency. Furthermore, we analyze the optimiza-tion dynamics from a backward propagation perspective. Let 
+
+C = [ slots ][ query ] and C = [ summary ][ query ] denote the corresponding LLM input formats during inference. 
+
+TABLE VII GENERALIZATION ACROSS DIFFERENT DATASETS .                    
+
+> Method BLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> CoLink (stage1) 26.40 13.40 7.88 4.54 29.09 8.63 20.52 73.30
+
+The loss function L inherently depends on the attention matrix A (across any layer and head). By applying a first-order Taylor expansion [45], we obtain the loss perturbation: 
+
+L(A + ∆ A) ≈ L (A) + 
+
+ ∂L
+
+∂A , ∆A
+
+
+
+∆L ≈ 
+
+ ∂L
+
+∂A , A 
+
+
+
+= X
+
+> i,j
+
+Ai,j · ∂L
+
+∂A i,j 
+
+(24) Compared to the relatively sparse representations in stan-dard summarization, CoLink encapsulates denser semantics, thereby contributing higher information saliency ( ∆L) to the optimization objective. Specifically, in sequential summariza-tion, all gradients from a monotonic summary are forced through a shared representation channel, inevitably causing semantic interference. Conversely, in our proposed method, since the matrix Ai,j strictly routes tokens via the aforemen-tioned competition mechanism, the loss gradients ∂L 
+
+> ∂A i,j
+
+can backpropagate through highly orthogonal and decoupled paths, fundamentally preserving distinct and fine-grained features. We explicitly visualize this in Fig. 5. The figure illustrates the attention and saliency distributions of a dialogue sample, comparing the standard summary history against memory slot compression. Excluding structural attention sinks (e.g., the initial token and the terminal query tokens), the compact slot representations (red lines) consistently exhibit significantly higher attention mass and gradient saliency towards both the query and the next-token prediction. This empirical observa-tion perfectly corroborates our theoretical analysis: compared to the diluted and flattened distribution of the sequential summary (blue lines), CoLink inherently guarantees a highly condensed and salient feature space. 
+
+4) Human and LLM-as-a-Judge Evaluation: We employ a dual-track evaluation strategy involving human experts and GPT-4o-mini [1] to rate responses on a 5-point scale across three specific dimensions: Accuracy & Professionalism : As-sesses whether the response is factually correct, free from hallucinations, and adheres to clinical standards. Informative-ness : Measures the richness and utility of the content, penal-izing vague or generic responses that fail to address specific 10 
+
+TABLE VIII HUMAN AND LLM-AS -A-J UDGE EVALUATION ON ACCURACY & P ROFESSIONALISM , I NFORMATIVENESS , AND CONTEXTUAL COHERENCE .
+
+Method Human LLM-as-Judge Accuracy & Professionalism Informativeness Contextual Coherence Overall Accuracy & Professionalism Informativeness Contextual Coherence Overall 
+
+MemoryBank 3.77 3.08 4.28 3.71 3.94 3.49 4.46 3.96 NV-embed 3.56 2.72 4.14 3.47 3.82 3.24 4.31 3.79 GraphRAG 3.54 2.44 4.65 3.54 3.21 2.56 4.42 3.40 CCA 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00 MemTree 2.80 1.84 4.40 3.01 3.78 3.03 4.70 3.84 RAPTOR 3.13 1.91 3.98 3.01 3.54 2.64 4.38 3.52 HippoRAG2 3.03 2.00 3.97 3.00 3.14 2.41 4.45 3.33 CoLink(Ours) 3.71 3.00 4.98 3.90 3.90 3.33 4.94 4.06 
+
+TABLE IX PERFORMANCE AFTER ABLATING MEMORY SLOTS AND KNOWLEDGE SLOTS .
+
+History Len. MMD (%) CMtMedQA (%) 
+
+B1 B2 B3 B4 R1 R2 RL BS B1 B2 B3 B4 R1 R2 RL BS 
+
+CoLink(Ours) 27.52 13.87 7.66 4.10 31.63 8.64 19.26 72.84 31.62 18.02 11.74 7.62 34.28 12.31 25.50 75.36 
+
+w/o Memory Slots 24.13 11.42 6.26 3.35 28.35 7.08 17.87 70.94 28.73 15.83 9.96 6.18 31.89 10.81 23.74 74.33 w/o Knowledge Slots 27.61 13.82 7.71 3.96 31.88 8.54 19.33 72.78 30.08 17.00 10.91 6.97 32.73 11.62 24.01 74.81 0 50 100 150 200 250                
+
+> Token Position (Absolute Index)
+> 0.0 2.5 5.0 7.5 10.0 12.5 15.0 17.5 20.0
+> Total Attention Weight
+> 1. Attention Flow to Query
+> Summary History Slot Compressed
+> 050 100 150 200 250
+> Token Position (Absolute Index)
+> 0.00 0.01 0.02 0.03 0.04 0.05
+> Saliency Magnitude
+> 2. Saliency Flow to Query
+> Summary History Slot Compressed
+> 050 100 150 200 250
+> Token Position (Absolute Index)
+> 0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35
+> Attention Weight
+> 3. Attention Flow to Next Predicted Token
+> Summary History Slot Compressed
+> 050 100 150 200 250
+> Token Position (Absolute Index)
+> 0.000 0.005 0.010 0.015 0.020 0.025
+> Saliency Magnitude
+> 4. Saliency Flow to Next Predicted Token
+> Summary History Slot Compressed
+
+Fig. 5. Attention and loss saliency of summary history and memory slots towards the query and next-token prediction. 
+
+queries. Contextual Coherence : Evaluates the model’s ability to maintain logical consistency across turns and correctly reference historical details without contradiction. Table VIII summarizes the results. CoLink consistently achieves superior ratings across all metrics. Notably, it sur-passes the strongest baseline by a substantial margin in Con-textual Coherence, highlighting its robustness in modeling long-horizon dependencies. 
+
+E. Ablation Studies 
+
+We design ablation studies to dissect the contributions of CoLink’s components, including component analysis, history clustering strategies, loss sensitivity, and the impact of the input encoding space. 
+
+1) Ablation of Model Components: Table IX details the impact of removing the memory and knowledge slots. Ablating memory slots induces severe degradation. This strongly vali-dates our IB-driven objective, which effectively distills critical state information from redundant history while filtering noise. It underscores that accurate context state maintenance is a prerequisite for reliable decision-making in multi-turn medical 
+
+TABLE X PERFORMANCE COMPARISON ON THE GMD D ATASET WITH PRECISELY 
+
+ALIGNED KNOWLEDGE GRAPHS .
+
+Method Accuracy (%) 
+
+Base 79.08 +Full Knowledge 82.00 +Summary Knowledge 59.83 CoLink (Knowledge Slots) 90.37 
+
+TABLE XI ABLATION STUDY ON DIFFERENT LOSS TERMS .
+
+Method BLEU (%) ROUGE (%) BS (%) 
+
+B1 B2 B3 B4 R1 R2 RL 
+
+CoLink (stage1) 23.21 10.96 5.66 3.01 27.90 6.84 17.60 70.88 w/o Lrec 16.74 6.60 3.24 1.73 21.36 3.88 14.36 67.84 w/o LKL 25.65 11.81 5.99 3.15 29.27 6.81 17.33 71.36 
+
+w/o Lpred 17.13 6.74 3.23 1.60 22.54 4.19 15.25 67.73 
+
+consultations. In contrast, the gains from knowledge activation and compression are relatively marginal. We attribute this to two factors: 1. Knowledge Misalignment : Since neither MMD nor CMtMedQA possesses a natively aligned KG, we rely on general medical KGs. These external KGs often con-tain irrelevant entities and lack scenario-specific details (e.g., irrelevant diseases and lifestyle advice). This misalignment imposes an upper bound on the potential performance gain. 2. Semantic Sparsity : Unlike dense textual history, KGs rely on discrete symbolic triples. This structural representation inherently suffers from semantic information loss, making it more challenging for the model to extract nuanced cues than from the rich natural language context. To investigate this, we conduct experiments on the GMD dataset, which features a precisely aligned KG for symptom-based disease diagnosis [46]. Table X presents the diag-nostic accuracy of various methods. Notably, the IB-driven knowledge slots yield a positive impact, demonstrating their effectiveness when accurate external knowledge is available. 11                                 
+
+> TABLE XII THE PERFORMANCE AFTER SCALING LKL .
+> αBLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> 10 .020.30 8.74 4.40 2.18 24.30 5.11 15.74 69.28
+> 0.121.32 9.40 4.96 2.63 26.46 5.95 16.73 69.57 (a) Total Loss Comparison (b) Model Performance vs Memory Slot Number
+> Fig. 6. Training loss trajectories under different ablation settings.
+
+2) Sensitivity to Loss Configuration: To analyze the effects of the tripartite objective defined in Section IV-C, we conduct loss ablations on the MMD dataset during first-stage memory slot training. The results are reported in Table XI. Removing either Lpred or Lrec results in significant degradation, confirm-ing their roles in preventing hallucination and semantic drift, respectively. Intriguingly, omitting the KL constraint ( LKL )yields marginal metric improvements. We attribute this to the misalignment between the isotropic Gaussian prior and the pre-trained LLM’s highly anisotropic embedding space [47]. This suggests a trade-off between strict regularization (for OOD robustness, see Table VII) and surface-level n-gram matching. We validate this trade-off through two auxiliary analyses: Factor Scaling: Varying the LKL weight (Table XII) confirms that weaker regularization correlates with higher surface metrics. Training Dynamics: As shown in Fig. 6(a), removing LKL leads to a slower convergence rate, indicating that although LKL incurs a minor fitting penalty, it is essential for constraining representational dispersion and guiding stable convergence. 
+
+3) Analysis of Input Encoding Space: Since CoLink en-codes compressed slots as prefix prompts for the LLM, alignment between the compressor’s semantic space and the LLM’s native representation is critical. To mitigate semantic mismatch, our default implementation utilizes the LLM’s own encoder to encode the context and extract the last hidden state for global abstraction. To quantify the impact of se-mantic drift introduced by different encoders, we compare this approach against two variants on dataset MMD: (1) a standard embedding layer (independent initialization), and (2) the LLM’s first hidden layer. To strictly isolate the encoder’s impact, we restrict these experiments to first-stage memory slot training and use a simplified input sequence: [Memory Slot] [Query]. Results are presented in Table XIII. We observe that maintaining alignment between the compression input and the LLM’s internal representation yields noticeable performance gains. We hypothesize that deriving representations from the LLM’s final layers ensures that the compressed slots reside                                                                          
+
+> TABLE XIII IMPACT OF INPUT ENCODING METHODS ON MODEL PERFORMANCE
+> Input Encode BLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> Layer 0 Hidden State 15.86 6.00 2.87 1.41 21.07 3.68 14.79 67.42 nn.embedding 17.14 6.74 3.21 1.60 21.64 3.67 14.43 67.93 Last Layer Hidden State 23.21 10.96 5.66 3.01 27.90 6.84 17.60 70.88
+> TABLE XIV PERFORMANCE COMPARISON BETWEEN COMPRESSING RETRIEVED TOPIC
+> CLUSTERS AND FULL HISTORY .
+> Method BLEU (%) ROUGE (%) BS (%)
+> B1 B2 B3 B4 R1 R2 RL
+> History Cluster 25.18 11.56 5.86 3.09 28.98 6.76 17.75 71.18 Full History 25.58 11.86 6.15 3.20 28.88 6.86 17.61 71.34
+
+within the same semantic manifold as the generative model. This alignment minimizes the adaptation gap, enabling the model to rapidly and accurately assimilate the core semantic signals encapsulated in the slots. 
+
+4) Impact of History Clustering Strategies: To evaluate the necessity of pre-retrieval clustering, we compare compressing retrieved topic clusters against compressing the full history. The comparative results for first-stage memory slot training are presented in Table XIV. We observe negligible performance variance between the two settings. We attribute this parity to two primary factors: 1. Robust Information Extraction: It demonstrates CoLink’s intrinsic capability for noise filtration and semantic distillation. Even when exposed to the full unpruned history, the Information Bottleneck-guided compres-sion effectively identifies and retains salient information while discarding redundancy. 2. High Information Density: Unlike sparse document retrieval tasks, domain-specific multi-turn dialogues (e.g., medical consultations) are characterized by high information density, where a larger portion of the history remains contextually relevant. This density likely diminishes the marginal gain of explicit clustering in this specific setting, though clustering remains computationally advantageous. 
+
+F. Further Analysis 1) Impact of Slot Number: The number of memory slots (M ) controls the granularity of global history compression. To investigate the trade-off between compression ratio and generation fidelity, we conduct sensitivity analysis by varying 
+
+M on MMD, as visualized in Fig. 6(b). Performance exhibits a non-monotonic trend: both overly small and excessively large M lead to degradation. This behavior is theoretically intuitive. With too few slots, long dialogue histories are over-compressed, forcing each slot to encode excessive informa-tion and causing semantic loss. Conversely, too many slots dilute information density, leaving many slots underutilized or dominated by noise. This observation aligns with the local vs. global trade-offs discussed in Section V-D. We further evaluate a dynamic-slot strategy adapted from AdaptSlot [48], which learns a masking function to prune redundant slots during training. The results are reported in Table XV. We find that dynamic slots often collapse into trivial behaviors: either masking the majority of slots or retaining 12 History: 
+
+[
+
+Patient : Hello, my chest on the left side has been hurting for the past few days. I feel like something isn't right. What could be the problem? What should I do? 
+
+Doctor : What is the nature of the pain? Please describe if it is a stabbing, distending, or pressure-like sensation. Also, does the pain radiate to other areas, such as your left arm, neck, or back? Additionally, how long has this left-sided chest pain lasted? This information will help us identify the underlying issue. 
+
+Patient : I’m not entirely sure; it just feels a bit painful, and sometimes it seems to radiate toward my shoulder. It’s been hurting for a few days, probably three or four. 
+
+Doctor : Does the pain worsen during certain activities, such as deep breathing, coughing, or exercise? Understanding this helps us determine if the issue is related to the muscles, lungs, or other relevant structures. ]
+
+Query: 
+
+It seems to worsen slightly during deep breathing, but it’s okay otherwise. 
+
+Reference response: 
+
+Are you also experiencing any shortness of breath? If so, this could help us determine if the issue involves your lungs or heart. 
+
+Full History 
+
+> Understood. Pain during deep breathing may be related to the intercostal muscles or the lungs. If the pain persists or intensifies, it is recommended to seek medical attention for a detailed examination and diagnosis as soon as possible. While waiting to see a doctor, try to maintain good posture, avoid strenuous exercise, and ensure you get plenty of rest. Additionally, record the specific location and nature of the pain, as well as any factors that trigger or alleviate it, as this information will be helpful for the doctor's diagnosis.
+
+CoLink 
+
+> Understood. You mentioned that the symptoms worsen during deep breathing, which may be related to certain issues in the lungs or thoracic cavity. To better evaluate your condition, I suggest noting the following points: 1. Is the deep breathing accompanied by significant pain, coughing, or difficulty breathing? 2. Do you have a fever, fatigue, or other systemic symptoms? 3. Do these symptoms intensify after specific activities, such as exercise or lying down? 4. Do you have a smoking history or other habits that might cause respiratory issues? This information will help us more accurately assess your situation and provide corresponding medical advice. Please inform me if any new symptoms arise. Maintaining good rest and dietary habits is also important. If symptoms persist or worsen, seeing a doctor promptly is necessary. Wishing you a speedy recovery!
+
+MemTree Tree: Response: 
+
+> Based on your description, the pain may worsen during deep breathing but is milder at other times. This suggests the pain is breath-related, especially during deep inhalation. However, a specific diagnosis requires a comprehensive judgment based on detailed medical history, physical examination, and necessary imaging. If you have further discomfort or questions, it is recommended to consult a professional physician promptly.
+
+GraphRAG Graph: Response: 
+
+> Based on the information provided, it seems your respiratory situation is ongoing, but I cannot fully understand or evaluate your health status. If you have any concerns or discomfort, it is strongly recommended to consult a healthcare professional.
+
+MemoryBank 
+
+> Understood. Let me confirm if my understanding of your description is accurate: Did this pain start a few days ago? Is the pain a stabbing, distending, or pressure-like sensation? Is it possible that the pain radiates to the left arm or shoulder? Does the pain worsen during deep breathing? This information will help me provide more accurate advice. Please let me know.
+> Stabbing pain
+> 刺痛
+> Deep breathing
+> 深呼吸
+> Pressure
+> 压迫感
+> Back
+> 背部
+> Cough
+> 咳嗽
+> A few days
+> 几天
+> Left side
+> 左边
+> Exercise
+> 运动
+> Neck
+> 脖子
+> Distending pain
+> 胀痛
+> Pain
+> 疼痛
+> GraphRAG Community Structure (Level 0)
+> Chest pain
+> 胸口疼痛
+> Left arm
+> 左臂
+
+Fig. 7. Comparison of generations for a case across different models. TABLE XV ADAPT SLOT VS . F IXED -S LOT .
+
+Method BLEU (%) ROUGE (%) BS (%) 
+
+B1 B2 B3 B4 R1 R2 RL 
+
+AdaptSlot (w/o Sparse Loss) 6.65 2.51 1.43 0.88 15.45 2.36 10.72 60.53 AdaptSlot 17.09 6.49 3.28 1.70 22.38 3.76 14.19 67.33 CoLink 23.21 10.96 5.66 3.01 27.90 6.84 17.60 70.88 
+
+the entire set, both of which substantially harm performance. Consequently, achieving stable, self-adaptive slot selection remains an open challenge. 
+
+2) Case Study: Fig. 7 presents a qualitative comparison of representative model outputs. MemTree offers a partially relevant response (e.g., the pain may be related to breathing), but it relies primarily on the immediate query and fails to in-corporate valuable historical context. GraphRAG exhibits sim-ilar deficiencies. Visualizing their underlying structures reveals significant information loss, attributable to both extraction errors and the constraints of rigid structured representations (discussed in Section V-D). In contrast, CoLink demonstrates superior alignment with the Full History baseline. By leverag-ing soft memory slots, it avoids structural fragmentation and successfully synthesizes global context to deliver precise and actionable medical advice. VI. C ONCLUSION AND FUTURE WORKS 
+
+We revisit multi-turn dialogue through the lens of cognitive neuroscience and propose CoLink, a framework that innova-tively integrates the IB principle of global abstraction with adaptive control of thought to activate associative knowledge. To address the scarcity of multi-turn dialogue data, we design a knowledge-augmented multi-agent debate framework and construct a dataset, MMD. Comprehensive evaluations demon-strate CoLink’s significant superiority over strong baselines while utilizing only 3.125% of the original context length. Driven by the IB principle, CoLink matches or even exceeds the performance of the full visible history. Furthermore, its soft, learnable slot mechanism preserves continuous semantic flow, avoiding the structural fragmentation inherent in rigid approaches. Rigorous validation through ablations and human evaluation confirms the robustness, model-agnostic nature, and generalization capability of our approach. While theoretical derivations and extensive experiments val-idate CoLink’s efficiency in history compression, our analysis reveals a trade-off: the method excels at capturing abstract semantic representations but struggles with tasks that require precise lexical retrieval. We evaluated this using the MemDaily dataset [49], which features concise histories but demands high-precision recall of specific entities (e.g., phone numbers, job titles). On this benchmark, CoLink underperforms com-pared to text-based prompt baselines (such as Full History and Summary History). This suggests that the compression process may filter out fine-grained details necessary for exact factual reconstruction. Consequently, enhancing fidelity in precise information retrieval remains a pivotal direction for future work. REFERENCES [1] J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L. Aleman, D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat et al. , “Gpt-4 technical report,” arXiv preprint arXiv:2303.08774 , 2023. [2] J. Jiang, L. Yan, H. Liu, Z. Xia, H. Wang, Y. Yang, and Y. Guan, “Knowledge assimilation: Implementing knowledge-guided agricultural large language model,” Knowledge-based systems , vol. 314, p. 113197, 2025. [3] M. Qiang, Z. Wang, S. Li, and G. Zhou, “Exploring knowledge filtering for retrieval-augmented question answering,” IEEE Transactions on Audio, Speech and Language Processing , 2026. [4] J.-N. Li, Q. Tu, C. Mao, Z. Yu, J.-R. Wen, and R. Yan, “Streamingdi-alogue: Prolonged dialogue learning via long context compression with minimal losses,” Advances in Neural Information Processing Systems ,vol. 37, pp. 86 074–86 101, 2024. [5] Y. Chen, Z. You, S. Zhang, H. Li, Y. Li, Y. Wang, and M. Tan, “Core context aware transformers for long context language modeling,” arXiv preprint arXiv:2412.12465 , 2024. [6] W. Zhong, L. Guo, Q. Gao, H. Ye, and Y. Wang, “Memorybank: En-hancing large language models with long-term memory,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 38, no. 17, 2024, pp. 19 724–19 731. [7] A. Rezazadeh, Z. Li, W. Wei, and Y. Bao, “From isolated conversations to hierarchical schemas: Dynamic tree memory representation for llms,” 
+
+arXiv preprint arXiv:2410.14052 , 2024. 13 
+
+[8] P. Sarthi, S. Abdullah, A. Tuli, S. Khanna, A. Goldie, and C. D. Manning, “Raptor: Recursive abstractive processing for tree-organized retrieval,” in The Twelfth International Conference on Learning Repre-sentations , 2024. [9] B. Jimenez Gutierrez, Y. Shu, Y. Gu, M. Yasunaga, and Y. Su, “Hip-porag: Neurobiologically inspired long-term memory for large language models,” Advances in Neural Information Processing Systems , vol. 37, pp. 59 532–59 569, 2024. [10] D. Edge, H. Trinh, N. Cheng, J. Bradley, A. Chao, A. Mody, S. Truitt, D. Metropolitansky, R. O. Ness, and J. Larson, “From local to global: A graph rag approach to query-focused summarization,” arXiv preprint arXiv:2404.16130 , 2024. [11] B. J. Guti´ errez, Y. Shu, W. Qi, S. Zhou, and Y. Su, “From rag to memory: Non-parametric continual learning for large language models,” arXiv preprint arXiv:2502.14802 , 2025. [12] G. Xiao, Y. Tian, B. Chen, S. Han, and M. Lewis, “Efficient streaming language models with attention sinks,” arXiv preprint arXiv:2309.17453 ,2023. [13] W. Huitt, “The information processing approach to cognition,” Educa-tional psychology interactive , vol. 3, no. 2, p. 53, 2003. [14] R. C. Atkinson and R. M. Shiffrin, “Human memory: A proposed system and its control processes,” in Psychology of learning and motivation .Elsevier, 1968, vol. 2, pp. 89–195. [15] X. Cai, Y. Fu, H. Zhao, W. Jiang, and S. Pu, “Memory graph with message rehearsal for multi-turn dialogue generation,” in Proceedings of the 31st ACM International Conference on Information & Knowledge Management , 2022, pp. 108–117. [16] K. Zhu, X. Feng, X. Du, Y. Gu, W. Yu, H. Wang, Q. Chen, Z. Chu, J. Chen, and B. Qin, “An information bottleneck perspective for effective noise filtering on retrieval-augmented generation,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2024, pp. 1044–1069. [17] S. Wang, Y. Fang, Y. Zhou, X. Liu, and Y. Ma, “Archrag: Attributed community-based hierarchical retrieval-augmented generation,” arXiv preprint arXiv:2502.09891 , 2025. [18] X. Zhu, Y. Xie, Y. Liu, Y. Li, and W. Hu, “Knowledge graph-guided retrieval augmented generation,” in Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Compu-tational Linguistics: Human Language Technologies (Volume 1: Long Papers) , 2025, pp. 8912–8924. [19] S. Kang, J. Kim, J. Kim, and S. J. Hwang, “See what you are told: Visual attention sink in large multimodal models,” in 13th International Conference on Learning Representations, ICLR 2025 . International Conference on Learning Representations, ICLR, 2025, pp. 13 547– 13 574. [20] Q. Zhang, C. Singh, L. Liu, X. Liu, B. Yu, J. Gao, and T. Zhao, “Tell your model where to attend: Post-hoc attention steering for llms,” in 
+
+International Conference on Learning Representations , vol. 2024, 2024, pp. 42 411–42 430. [21] N. F. Liu, K. Lin, J. Hewitt, A. Paranjape, M. Bevilacqua, F. Petroni, and P. Liang, “Lost in the middle: How language models use long contexts,” 
+
+Transactions of the Association for Computational Linguistics , vol. 12, pp. 157–173, 2024. [22] Z. Zhang, Y. Sheng, T. Zhou, T. Chen, L. Zheng, R. Cai, Z. Song, Y. Tian, C. R´ e, C. Barrett et al. , “H2o: Heavy-hitter oracle for efficient generative inference of large language models,” Advances in Neural Information Processing Systems , vol. 36, pp. 34 661–34 710, 2023. [23] M. Sun, X. Chen, J. Z. Kolter, and Z. Liu, “Massive activations in large language models,” First Conference on Language Modeling (COLM) ,2024. [24] C. Gan, Y. Tu, X. Chen, T. Chen, Y. Li, M. Harandi, and W. Lin, “Unleashing diffusion transformers for visual correspondence by modu-lating massive activations,” Advances in Neural Information Processing Systems , vol. 38, pp. 114 432–114 462, 2026. [25] J. Liang, H. Li, C. Li, J. Zhou, S. Jiang, Z. Wang, C. Ji, Z. Zhu, R. Liu, T. Ren et al. , “Ai meets brain: Memory systems from cognitive neuroscience to autonomous agents,” arXiv preprint arXiv:2512.23343 ,2025. [26] L. R. Squire, “Memory systems of the brain: a brief history and current perspective,” Neurobiology of learning and memory , vol. 82, no. 3, pp. 171–177, 2004. [27] S. F. Popham, A. G. Huth, N. Y. Bilenko, F. Deniz, J. S. Gao, A. O. Nunez-Elizalde, and J. L. Gallant, “Visual and linguistic semantic representations are aligned at the border of human visual cortex,” Nature neuroscience , vol. 24, no. 11, pp. 1628–1636, 2021. [28] N. Tishby, F. C. Pereira, and W. Bialek, “The information bottleneck method,” arXiv preprint physics/0004057 , 2000. [29] M. Grootendorst, “Bertopic: Neural topic modeling with a class-based tf-idf procedure,” arXiv preprint arXiv:2203.05794 , 2022. [30] C. Liu, Z. Xie, A. N. Zehmakan, and Z. Zhang, “Efficient algorithms for computing random walk centrality,” IEEE Transactions on Knowledge and Data Engineering , 2025. [31] F. Locatello, D. Weissenborn, T. Unterthiner, A. Mahendran, G. Heigold, J. Uszkoreit, A. Dosovitskiy, and T. Kipf, “Object-centric learning with slot attention,” Advances in neural information processing systems ,vol. 33, pp. 11 525–11 538, 2020. [32] J. L. Ba, J. R. Kiros, and G. E. Hinton, “Layer normalization,” arXiv preprint arXiv:1607.06450 , 2016. [33] R. Dey and F. M. Salem, “Gate-variants of gated recurrent unit (gru) neural networks,” in 2017 IEEE 60th international midwest symposium on circuits and systems (MWSCAS) . IEEE, 2017, pp. 1597–1600. [34] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, W. Chen et al. , “Lora: Low-rank adaptation of large language models.” 
+
+ICLR , vol. 1, no. 2, p. 3, 2022. [35] Y. Sun, C. Liu, K. Zhou, J. Huang, R. Song, W. X. Zhao, F. Zhang, D. Zhang, and K. Gai, “Parrot: Enhancing multi-turn instruction fol-lowing for large language models,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2024, pp. 9729–9750. [36] C. Kong, Y. Fan, X. Wan, F. Jiang, and B. Wang, “Platolm: Teaching llms in multi-round dialogue via a user simulator,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2024, pp. 7841–7863. [37] H. Wang, X. Du, W. Yu, Q. Chen, K. Zhu, Z. Chu, L. Yan, and Y. Guan, “Learning to break: Knowledge-enhanced reasoning in multi-agent debate system,” Neurocomputing , vol. 618, p. 129063, 2025. [38] S. Yang, H. Zhao, S. Zhu, G. Zhou, H. Xu, Y. Jia, and H. Zan, “Zhongjing: Enhancing the chinese medical capabilities of large lan-guage model through expert feedback and real-world multi-turn dia-logue,” in Proceedings of the AAAI conference on artificial intelligence ,vol. 38, no. 17, 2024, pp. 19 368–19 376. [39] C. Lee, R. Roy, M. Xu, J. Raiman, M. Shoeybi, B. Catanzaro, and W. Ping, “Nv-embed: Improved techniques for training llms as generalist embedding models,” arXiv preprint arXiv:2405.17428 , 2024. [40] X. Li, Y. Yuan, Y. Yang, Y. Guan, H. Wang, J. Jiang, H. Shi, and X. Liu, “Quality-controllable automatic construction method of chinese knowledge graph for medical decision-making applications,” Informa-tion Processing & Management , vol. 62, no. 4, p. 104148, 2025. [41] O. Byambasuren, Y. Yang, Z. Sui, D. Dai, B. Chang, S. Li, and H. Zan, “Preliminary study on the construction of chinese medical knowledge graph,” Journal of Chinese Information Processing , vol. 33, no. 10, pp. 1–9, 2019. [42] J. Bai, S. Bai, Y. Chu, Z. Cui, K. Dang, X. Deng, Y. Fan, W. Ge, Y. Han, F. Huang et al. , “Qwen technical report,” arXiv preprint arXiv:2309.16609 , 2023. [43] H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozi` ere, N. Goyal, E. Hambro, F. Azhar et al. ,“Llama: Open and efficient foundation language models,” arXiv preprint arXiv:2302.13971 , 2023. [44] N. Ding, Y. Chen, B. Xu, Y. Qin, S. Hu, Z. Liu, M. Sun, and B. Zhou, “Enhancing chat language models by scaling high-quality instructional conversations,” in Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , 2023, pp. 3029–3051. [45] H. Yin, G. Si, and Z. Wang, “Clearsight: Visual signal enhancement for object hallucination mitigation in multimodal large language mod-els,” in Proceedings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 14 625–14 634. [46] L. Yan, Y. Guan, H. Wang, Y. Lin, Y. Yang, B. Wang, and J. Jiang, “Eirad: An evidence-based dialogue system with highly interpretable reasoning path for automatic diagnosis,” IEEE Journal of Biomedical and Health Informatics , 2024. [47] K. Ethayarajh, “How contextual are contextualized word representa-tions? comparing the geometry of bert, elmo, and gpt-2 embeddings,” in 
+
+Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , 2019, pp. 55–65. [48] K. Fan, Z. Bai, T. Xiao, T. He, M. Horn, Y. Fu, F. Locatello, and Z. Zhang, “Adaptive slot attention: Object discovery with dynamic slot number,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 23 062–23 071. [49] Z. Zhang, Q. Dai, L. Chen, Z. Jiang, R. Li, J. Zhu, X. Chen, Y. Xie, Z. Dong, and J.-R. Wen, “Memsim: A bayesian simulator for evaluating memory of llm-based personal assistants,” arXiv preprint arXiv:2409.20163 , 2024.

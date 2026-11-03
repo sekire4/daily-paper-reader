@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-01</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-03</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 19 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 16 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>12</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>9</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-01 22:47:51 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-03 02:26:14 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日扫读 19 篇论文，精读 7 篇、速读 12 篇，重点关注多跳 RAG 与记忆增强两条主线。最值得看的是 9.0 分的《Read the Route》提出的注意力引导超图检索，以及同分的多用户语音智能体“说话人记忆”构建。普通读者可先看这两篇精读，再顺着 8 分的“有界状态上下文强化学习”和“图像增强长程记忆”理解记忆机制如何省算力、保连贯。</p>
+<p>今日精选16篇论文，精读7篇、速读9篇，重点聚焦LLM智能体的记忆与规划。</p>
+<p>最值得看的方向是智能体长期记忆的可靠性：MemPlan探讨部分可观测文本环境下的记忆条件规划，另一篇则用跨模型压力测试审视长期记忆中的治理状态腐化。</p>
+<p>普通读者可先读这两篇精读，再速览记忆评测、多轮对话压缩与视觉语言导航中的记忆应用。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -81,9 +83,9 @@
     <strong class="dpr-home-dashboard-count">7 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Read the Route: Attention-Steered Hypergraph Retrieval for Multi-hop RAG">Read the Route: Attention-Steered Hypergraph Retrieval for Multi-hop RAG</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Voiceprints to User Entities: Online Speaker-Memory Construction for Multi-User Spoken Agents">From Voiceprints to User Entities: Online Speaker-Memory Construction for Multi-User Spoken Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Decompose, Estimate, Select: Coverage-Aware Context Construction for Long-Form RAG">Decompose, Estimate, Select: Coverage-Aware Context Construction for Long-Form RAG</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="MemPlan: Memory-Conditioned PDDL Planning for Partially Observable Text Environments">MemPlan: Memory-Conditioned PDDL Planning for Partially Observable Text Environments</span></li><li><span class="dpr-home-dashboard-paper-title" title="Governance-State Corruption in Long-Term Memory for LLM Agents: A Cross-Model Stress Test">Governance-State Corruption in Long-Term Memory for LLM Agents: A Cross-Model Stress Test</span></li><li><span class="dpr-home-dashboard-paper-title" title="Your Home Remembers: A Voice-Enabled Household Memory Assistant for Conversational Retrieval">Your Home Remembers: A Voice-Enabled Household Memory Assistant for Conversational Retrieval</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>4</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>4</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>3</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +93,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">12 篇</strong>
+    <strong class="dpr-home-dashboard-count">9 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Remember Less, Adapt Longer: Bounded-State In-Context Reinforcement Learning with Recurrent Summary Memory">Remember Less, Adapt Longer: Bounded-State In-Context Reinforcement Learning with Recurrent Summary Memory</span></li><li><span class="dpr-home-dashboard-paper-title" title="LVMem: Image-Augmented Memory for Long-Horizon Question Answering">LVMem: Image-Augmented Memory for Long-Horizon Question Answering</span></li><li><span class="dpr-home-dashboard-paper-title" title="Graph Topology Meets Energy-Driven Pathfinding: Preserving Contextual Consistency in Retrieval-Augmented Generation">Graph Topology Meets Energy-Driven Pathfinding: Preserving Contextual Consistency in Retrieval-Augmented Generation</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling">CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling</span></li><li><span class="dpr-home-dashboard-paper-title" title="The Right Fact, the Wrong Decision: SciValidityBench for Scientific Agent Memory">The Right Fact, the Wrong Decision: SciValidityBench for Scientific Agent Memory</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemVLN: Streaming Episodic Memory for Vision-Language Navigation">MemVLN: Streaming Episodic Memory for Vision-Language Navigation</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">rag-papers <strong>7</strong></span><span class="dpr-home-dashboard-tag">agent-memory <strong>5</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>9</strong></span></div>
 </section>
 </div>
 
