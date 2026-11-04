@@ -54,11 +54,11 @@
     <strong class="dpr-home-dashboard-count">共 16 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>9</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-03 02:26:14 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-04 00:03:52 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,9 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精选16篇论文，精读7篇、速读9篇，重点聚焦LLM智能体的记忆与规划。</p>
-<p>最值得看的方向是智能体长期记忆的可靠性：MemPlan探讨部分可观测文本环境下的记忆条件规划，另一篇则用跨模型压力测试审视长期记忆中的治理状态腐化。</p>
-<p>普通读者可先读这两篇精读，再速览记忆评测、多轮对话压缩与视觉语言导航中的记忆应用。</p>
+<p>今天完成16篇论文筛选（7篇精读、9篇速读），主线集中在LLM智能体的记忆机制与规划决策。最值得看的是两篇8.0分精读：MemPlan把记忆条件化嵌入部分可观测文本环境下的PDDL规划，以及跨模型压力测试揭示长期记忆中的“治理状态腐化”风险；速读中的SciValidityBench也点出“事实正确、决策错误”这一评测盲区。建议普通读者先读这两篇精读，建立“记忆好不等于决策对”的判断框架，再按兴趣扫读速读中的对话压缩与视觉语言导航记忆工作。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
