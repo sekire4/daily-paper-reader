@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-03</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-05</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 16 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 0 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>7</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>9</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-04 00:03:52 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-05 00:51:34 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天完成16篇论文筛选（7篇精读、9篇速读），主线集中在LLM智能体的记忆机制与规划决策。最值得看的是两篇8.0分精读：MemPlan把记忆条件化嵌入部分可观测文本环境下的PDDL规划，以及跨模型压力测试揭示长期记忆中的“治理状态腐化”风险；速读中的SciValidityBench也点出“事实正确、决策错误”这一评测盲区。建议普通读者先读这两篇精读，建立“记忆好不等于决策对”的判断框架，再按兴趣扫读速读中的对话压缩与视觉语言导航记忆工作。</p>
+<p>今日无新推荐，系统未产出可展示论文。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">7 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="MemPlan: Memory-Conditioned PDDL Planning for Partially Observable Text Environments">MemPlan: Memory-Conditioned PDDL Planning for Partially Observable Text Environments</span></li><li><span class="dpr-home-dashboard-paper-title" title="Governance-State Corruption in Long-Term Memory for LLM Agents: A Cross-Model Stress Test">Governance-State Corruption in Long-Term Memory for LLM Agents: A Cross-Model Stress Test</span></li><li><span class="dpr-home-dashboard-paper-title" title="Your Home Remembers: A Voice-Enabled Household Memory Assistant for Conversational Retrieval">Your Home Remembers: A Voice-Enabled Household Memory Assistant for Conversational Retrieval</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>4</strong></span><span class="dpr-home-dashboard-tag">rag-papers <strong>3</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +91,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">9 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling">CoLink: Global Compression and Knowledge Linking for Multi-Turn Dialogue Modeling</span></li><li><span class="dpr-home-dashboard-paper-title" title="The Right Fact, the Wrong Decision: SciValidityBench for Scientific Agent Memory">The Right Fact, the Wrong Decision: SciValidityBench for Scientific Agent Memory</span></li><li><span class="dpr-home-dashboard-paper-title" title="MemVLN: Streaming Episodic Memory for Vision-Language Navigation">MemVLN: Streaming Episodic Memory for Vision-Language Navigation</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">agent-memory <strong>9</strong></span></div>
+
 </section>
 </div>
 
