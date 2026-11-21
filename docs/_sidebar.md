@@ -2,6 +2,7 @@
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">教程</a>
 
 * Conference Papers
+  * AAAI-ACL 2026 <!--dpr-conference:aaai-acl-2026-->
   * ICLR-ICML 2026 <!--dpr-conference:iclr-icml-2026-->
     * agent-memory <!--dpr-conference-topic:iclr-icml-2026:query-agent-memory-->
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/conference/iclr-icml-2026/openreview-iclr-2026-kpaktbggua-memoryfield-exploiting-gravitational-field-for-long-term-memory-management" data-sidebar-item="{&quot;title&quot;: &quot;MemoryField: Exploiting Gravitational Field for Long-term Memory Management&quot;, &quot;link&quot;: &quot;https://openreview.net/forum?id=KpaKtbGgUa&quot;, &quot;score&quot;: &quot;10.0&quot;, &quot;selection_source&quot;: &quot;conference_retrieval&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;agent-memory&quot;}], &quot;publication_date&quot;: &quot;2026&quot;, &quot;publication_date_precision&quot;: &quot;year&quot;, &quot;publication_date_source&quot;: &quot;conference year only; exact release date unverified&quot;, &quot;publication_date_kind&quot;: &quot;unknown&quot;, &quot;published&quot;: &quot;2025-09-19T11:11:44.131+00:00&quot;, &quot;evidence&quot;: &quot;面向LLM智能体的动态空间认知记忆架构&quot;}">MemoryField: Exploiting Gravitational Field for Long-term Memory Management</a>
